@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Id, Project, Song, Step, Tag } from './types';
+import type { Hit, Id, LoopKind, Pad, Project, Song, Step, Tag } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -27,6 +27,29 @@ export function createProject(ctx: CommandContext = defaultContext): Project {
     tags[id] = { id, name };
   }
   return { audio: {}, tags, samples: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
+}
+
+/** The next free loop name: M1, M2, … for mains and F1, F2, … for fills. */
+export function nextLoopName(project: Project, kind: LoopKind): string {
+  const prefix = kind === 'main' ? 'M' : 'F';
+  const names = new Set(Object.values(project.loops).map((l) => l.name));
+  let n = 1;
+  while (names.has(`${prefix}${n}`)) n++;
+  return `${prefix}${n}`;
+}
+
+/**
+ * Fills in fields added after a project was saved, so older autosaves and
+ * project files still load. Pads saved before `auto` existed all came from the chain.
+ */
+export function upgradeProject(project: Project): Project {
+  const hits = Object.fromEntries(
+    Object.entries(project.hits).map(([id, hit]): [Id, Hit] => [id, { ...hit, variantOf: hit.variantOf ?? null }]),
+  );
+  const pads = Object.fromEntries(
+    Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true }]),
+  );
+  return { ...project, hits, pads };
 }
 
 /** Seconds per step (a 1/16 note). */

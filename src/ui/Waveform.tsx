@@ -7,10 +7,11 @@ interface WaveformProps {
   readonly offset: number;
   readonly duration: number;
   readonly height: number;
+  readonly color?: string;
 }
 
 /** Min/max per pixel column, drawn on a canvas sized to its box. */
-export function Waveform({ audio, offset, duration, height }: WaveformProps) {
+export function Waveform({ audio, offset, duration, height, color = '#6f757c' }: WaveformProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export function Waveform({ audio, offset, duration, height }: WaveformProps) {
     const length = Math.round(duration * audio.sampleRate);
     const mid = element.height / 2;
     g.clearRect(0, 0, width, element.height);
-    g.fillStyle = getComputedStyle(element).color;
+    g.fillStyle = color;
     for (let x = 0; x < width; x++) {
       const start = from + Math.floor((x * length) / width);
       const end = Math.max(start + 1, from + Math.floor(((x + 1) * length) / width));
@@ -39,7 +40,7 @@ export function Waveform({ audio, offset, duration, height }: WaveformProps) {
       }
       g.fillRect(x, mid - max * mid, 1, Math.max(1, (max - min) * mid));
     }
-  }, [audio, offset, duration, height]);
+  }, [audio, offset, duration, height, color]);
 
   return <canvas ref={canvas} className="waveform" style={{ height }} aria-hidden="true" />;
 }

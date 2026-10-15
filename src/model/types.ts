@@ -61,6 +61,8 @@ export interface Hit {
   readonly volume: number;
   /** Milliseconds. */
   readonly fadeOut: number;
+  /** The hit this one was duplicated from, or null. */
+  readonly variantOf: Id | null;
 }
 
 /** Ordered hits. Member 1 (index 0) is the default. */
@@ -68,6 +70,8 @@ export interface Pad {
   readonly id: Id;
   readonly name: string;
   readonly members: readonly Id[];
+  /** Made by the automatic chain rather than built by hand. Only used to group pads in the GUI. */
+  readonly auto: boolean;
 }
 
 export interface Step {

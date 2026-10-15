@@ -1,5 +1,6 @@
-import type { Trigger } from '../engine';
-import type { AudioData } from '../model';
+import type { BufferCache, Trigger } from '../engine';
+import { hitPlay, scheduleHit } from '../engine';
+import type { AudioData, Id, Project } from '../model';
 
 /** A rendered take: the audio and the triggers it was made from. */
 export interface Take {
@@ -21,14 +22,14 @@ export function nextLoopBoundary(now: number, startTime: number, duration: numbe
   return boundary - now < MIN_LEAD ? boundary + duration : boundary;
 }
 
-/** The bar of the trigger most recently passed at `position` seconds into a take, or null before the first. */
-export function playheadBar(triggers: readonly Trigger[], position: number): number | null {
-  let bar: number | null = null;
+/** The trigger most recently passed at `position` seconds into a take, or null before the first. */
+export function playheadTrigger(triggers: readonly Trigger[], position: number): Trigger | null {
+  let last: Trigger | null = null;
   for (const trigger of triggers) {
     if (trigger.time > position) break;
-    bar = trigger.bar;
+    last = trigger;
   }
-  return bar;
+  return last;
 }
 
 interface Segment {
@@ -43,14 +44,16 @@ export interface Player {
   readonly replace: (take: Take) => void;
   readonly stop: () => void;
   readonly isPlaying: () => boolean;
-  /** The bar under the playhead now, or null when stopped. */
-  readonly currentBar: () => number | null;
+  /** The trigger under the playhead now, or null when stopped. */
+  readonly currentTrigger: () => Trigger | null;
   /**
    * Plays part of some audio directly, outside the song. Times in seconds.
    * One voice: a new audition cuts the previous one. `onEnded` runs when it stops either way.
    */
   readonly audition: (audio: AudioData, offset: number, duration: number, onEnded?: () => void) => void;
   readonly stopAudition: () => void;
+  /** Plays a hit with its own settings straight away, sounding as it does in a song. Cuts any audition. */
+  readonly playHit: (project: Project, hitId: Id) => void;
 }
 
 /** Loops rendered takes on an AudioContext. The context is created on first use, inside a user gesture. */
@@ -60,6 +63,8 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
   let pending: Segment | null = null;
   const auditionBuffers = new WeakMap<AudioData, AudioBuffer>();
   let auditioning: AudioBufferSourceNode | null = null;
+  // Hit buffers are cached per project version, so edits to audio are never stale.
+  let hitCache: { project: Project; cache: BufferCache } | null = null;
 
   const stopAudition = () => {
     try {
@@ -126,13 +131,21 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     },
     stop: stopAll,
     isPlaying: () => current !== null,
-    currentBar: () => {
+    currentTrigger: () => {
       settle();
       if (current === null || context === null) return null;
       const duration = current.take.buffer.duration;
       const elapsed = context.currentTime - current.startTime;
       if (elapsed < 0 || duration <= 0) return null;
-      return playheadBar(current.take.triggers, elapsed % duration);
+      return playheadTrigger(current.take.triggers, elapsed % duration);
+    },
+    playHit: (project, hitId) => {
+      stopAudition();
+      const c = ctx();
+      const hit = project.hits[hitId];
+      if (hit === undefined) return;
+      if (hitCache?.project.audio !== project.audio) hitCache = { project, cache: new Map() };
+      auditioning = scheduleHit(c, hitCache.cache, project, hitPlay(hit), c.currentTime);
     },
     audition: (audio, offset, duration, onEnded) => {
       stopAudition();

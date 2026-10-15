@@ -4,6 +4,12 @@ import type { Command, CommandContext, Project } from './index';
 import {
   addPadMember,
   addSample,
+  duplicateHit,
+  seal,
+  setBpm,
+  setLoopBars,
+  setSongBars,
+  upgradeProject,
   addTag,
   apply,
   breakBpm,
@@ -274,5 +280,80 @@ describe('undo', () => {
     history = undo(history);
     history = apply(history, createLoop('B', 'main', 1), ctx).history;
     expect(history.future).toEqual([]);
+  });
+});
+
+describe('fas 3 model', () => {
+  it('duplicateHit marks the variant; chain pads are auto and built pads are not', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
+    const hit = only(project.hits);
+    expect(hit.variantOf).toBeNull();
+    expect(only(project.pads).auto).toBe(true);
+
+    project = run(project, ctx, duplicateHit(hit.id), createPad('Mine', [hit.id]));
+    const variant = Object.values(project.hits).find((h) => h.id !== hit.id)!;
+    expect(variant.variantOf).toBe(hit.id);
+    expect(Object.values(project.pads).find((p) => p.name === 'Mine')!.auto).toBe(false);
+  });
+
+  it('setLoopBars lengthens with empty bars and shortens, keeping the steps that remain', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createLoop(null, 'main', 2));
+    const pad = only(project.pads);
+    const loop = only(project.loops);
+    project = run(project, ctx, setStep(loop.id, 3, { padId: pad.id }), setStep(loop.id, 20, { padId: pad.id }));
+
+    const longer = run(project, ctx, setLoopBars(loop.id, 3)).loops[loop.id]!;
+    expect(longer.steps).toHaveLength(48);
+    expect(longer.steps.filter((s) => s.padId !== null)).toHaveLength(2);
+    expect(longer.steps[3]!.padId).toBe(pad.id);
+    expect(longer.steps[20]!.padId).toBe(pad.id);
+    expect(longer.steps.slice(32).every((s) => s.padId === null)).toBe(true);
+
+    const shorter = run(project, ctx, setLoopBars(loop.id, 1)).loops[loop.id]!;
+    expect(shorter.steps).toHaveLength(16);
+    expect(shorter.steps[3]!.padId).toBe(pad.id);
+  });
+
+  it('createLoop without a name takes the next free M or F number', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, createLoop(null, 'main', 1), createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
+    expect(Object.values(project.loops).map((l) => l.name)).toEqual(['M1', 'M2', 'F1']);
+  });
+
+  it('commands with the same merge key share one undo step until another command or a seal', () => {
+    const ctx = sequentialIds();
+    let history = createHistory(createProject(ctx));
+    const start = history.present;
+    const step = (command: Command, key: string | null = null) => {
+      const result = apply(history, command, ctx, key);
+      expect(result.ok).toBe(true);
+      history = result.history;
+    };
+
+    step(setBpm(150), 'bpm');
+    step(setBpm(160), 'bpm');
+    step(setBpm(170), 'bpm');
+    expect(history.past).toHaveLength(1);
+    expect(undo(history).present).toBe(start);
+
+    step(setSongBars(4));
+    step(setBpm(120), 'bpm');
+    expect(history.past).toHaveLength(3);
+
+    history = seal(history);
+    step(setBpm(125), 'bpm');
+    expect(history.past).toHaveLength(4);
+    expect(undo(history).present.song.bpm).toBe(120);
+  });
+
+  it('upgradeProject fills in fields that older saves lack', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
+    const old = structuredClone(project) as { hits: Record<string, { variantOf?: unknown }>; pads: Record<string, { auto?: unknown }> };
+    Object.values(old.hits).forEach((h) => delete h.variantOf);
+    Object.values(old.pads).forEach((p) => delete p.auto);
+    expect(upgradeProject(old as unknown as Project)).toEqual(project);
   });
 });

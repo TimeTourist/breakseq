@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Trigger } from '../engine';
-import { nextLoopBoundary, playheadBar } from './playback';
+import { nextLoopBoundary, playheadTrigger } from './playback';
 
 const at = (time: number, bar: number): Trigger => ({
   time,
@@ -13,14 +13,14 @@ const at = (time: number, bar: number): Trigger => ({
   region: { start: 0, end: 0.1 },
 });
 
-describe('playheadBar', () => {
+describe('playheadTrigger', () => {
   const triggers = [at(0.5, 0), at(1.2, 1), at(2.4, 3)];
 
-  it('picks the bar of the trigger most recently passed', () => {
-    expect(playheadBar(triggers, 0.4)).toBeNull();
-    expect(playheadBar(triggers, 0.5)).toBe(0);
-    expect(playheadBar(triggers, 2.39)).toBe(1);
-    expect(playheadBar(triggers, 10)).toBe(3);
+  it('picks the trigger most recently passed', () => {
+    expect(playheadTrigger(triggers, 0.4)).toBeNull();
+    expect(playheadTrigger(triggers, 0.5)?.bar).toBe(0);
+    expect(playheadTrigger(triggers, 2.39)?.bar).toBe(1);
+    expect(playheadTrigger(triggers, 10)).toBe(triggers[2]);
   });
 });
 
