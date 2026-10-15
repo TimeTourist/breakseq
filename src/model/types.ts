@@ -96,6 +96,16 @@ export interface Loop {
   readonly bars: number;
   /** bars × STEPS_PER_BAR steps. */
   readonly steps: readonly Step[];
+  /**
+   * The steps a fill plays, start inclusive and end exclusive. Outside it the
+   * main shows through. Mains ignore it. Defaults to the whole loop.
+   */
+  readonly window: StepWindow;
+}
+
+export interface StepWindow {
+  readonly start: number;
+  readonly end: number;
 }
 
 /**

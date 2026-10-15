@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
 import { STEPS_PER_BAR, baseName, createLoop, remove, renameLoop, setLoopBars, setStep } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, loopUsage, padColor, padGroups, padLabel } from './labels';
 import type { Selection } from './store';
+import { FillWindow, FillWindowStrip } from './FillWindow';
 
 export const PAD_MIME = 'application/x-breakseq-pad';
 
@@ -153,6 +154,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           </p>
         )}
 
+        {loop.kind === 'fill' && <FillWindow loop={loop} onError={setError} />}
+
         <div className="table-scroll steps-box">
           <div className="steps">
             <div className="step-row mono muted small">
@@ -164,7 +167,9 @@ export function LoopsView({ playhead }: LoopsViewProps) {
               ))}
             </div>
             {Array.from({ length: loop.bars }, (_, bar) => (
-              <div key={bar} className="step-row">
+              <Fragment key={bar}>
+              {loop.kind === 'fill' && <FillWindowStrip loop={loop} bar={bar} onError={setError} />}
+              <div className="step-row">
                 <span className="mono muted small">T{bar + 1}</span>
                 {Array.from({ length: STEPS_PER_BAR }, (_, s) => {
                   const index = bar * STEPS_PER_BAR + s;
@@ -173,13 +178,14 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   const memberIndex = pad === undefined || cell?.memberId == null ? 0 : Math.max(0, pad.members.indexOf(cell.memberId));
                   const color = pad === undefined ? undefined : hitColor(project, pad.members[memberIndex]);
                   const now = playhead !== null && playhead.bar === bar && playhead.step === s;
+                  const through = loop.kind === 'fill' && (index < loop.window.start || index >= loop.window.end);
                   return (
                     <button
                       key={s}
                       type="button"
-                      className={`step${pad !== undefined ? ' filled' : ''}${index === selectedStep ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}`}
+                      className={`step${pad !== undefined ? ' filled' : ''}${index === selectedStep ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${through ? ' through' : ''}`}
                       style={color === undefined ? undefined : { color, boxShadow: `inset 0 -4px 0 ${color}` }}
-                      aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}`}
+                      aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}${through ? ', main shows through' : ''}`}
                       onClick={() => clickStep(index)}
                       onKeyDown={(e) => {
                         if ((e.key === 'Delete' || e.key === 'Backspace') && pad !== undefined) {
@@ -207,6 +213,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   );
                 })}
               </div>
+              </Fragment>
             ))}
           </div>
         </div>

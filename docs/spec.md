@@ -55,7 +55,7 @@ Motorn består av två delar: en händelsegenerator som räknar fram triggers, o
 
 **Händelsegeneratorn** tar Song, alla objekt och en slumpkälla, och ger en lista av triggers. Varje trigger har: tid i sekunder, takt och steg (för spelhuvudet), hit-id, samt slutlig pitch, volym, riktning och region. För varje takt:
 
-1. Det aktiva lagret väljs: Fill om raden F har en loop i takten, annars Main. Exakt ett lager hörs. En Main loopar tills nästa Main börjar; en Fill täcker så många takter som den är lång.
+1. Det aktiva lagret väljs: Fill om raden F har en loop i takten, annars Main. Exakt ett lager hörs. En Main loopar tills nästa Main börjar; en Fill täcker så många takter som den är lång. En Fill har ett fönster med start- och slutmarkör över sina steg (förvalt hela loopen): inom fönstret spelar fillen, även sina tysta steg, och utanför lyser Main igenom.
 2. För varje steg i det lagret ger paden och stegets valda medlem en hit; utan val spelas medlem 1.
 3. Mods från raderna A och B tillämpas på stegen (se Mods). Steg med ”Ignore mods” hoppas över.
 4. Varje steg blir en eller flera triggers (fler vid ratchet), placerade på tidslinjen.

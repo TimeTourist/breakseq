@@ -40,3 +40,11 @@ Det som är kvar efter trimning är trummisens timing. Markörerna, och senare t
 
 - **Zoom i vågformerna:** 25 ms syns knappt i en översikt av 7 sekunder. Fälten i ms och ←/→ ger precision.
 - **"Snap to zero crossing":** finns i mockupen men är inte byggt.
+
+## Tillägg: fönster för fills
+
+- **Modell:** `Loop.window` (start och slut i steg). `setFillWindow` sätter det. `setLoopBars` behåller ett helt fönster helt och kapar ett delvis fönster. Äldre projekt får hela loopen som fönster.
+- **Generator:** i en takt med fill spelar fillen inom fönstret, även sina tysta steg. Utanför spelar Main, som räknar vidare som vanligt.
+- **Loops:** en fönsterlist ovanför varje takt i en fill, med dragbara handtag (←/→ ett steg, Shift ett slag). Snabbval: Whole, Last 1/2 och Last 1/4. Steg utanför fönstret tonas ned och märks "main shows through".
+- **Song:** delvisa fills skuggas över sina steg ("steps 9–16"), och Main under visas som "partly".
+- **Spec:** uppdaterad under Motor, punkt 1.

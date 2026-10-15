@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Id, LoopKind, Project } from '../model';
-import { setSongBars, setSongCell } from '../model';
+import type { Id, Loop, LoopKind, Project } from '../model';
+import { STEPS_PER_BAR, setSongBars, setSongCell } from '../model';
 import { useProject, useRun } from './context';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
@@ -9,31 +9,58 @@ interface LaneCell {
   readonly loopId: Id | null;
   /** The loop that covers this bar, and which of its bars. */
   readonly plays: { readonly name: string; readonly bar: number } | null;
-  /** A main under a fill: not heard. */
-  readonly hidden: boolean;
+  /**
+   * The steps of this bar a fill plays, start inclusive and end exclusive (0–16).
+   * In the Main lane: the steps a fill covers over it. Null when no fill is there.
+   */
+  readonly fillSteps: { readonly from: number; readonly to: number } | null;
 }
 
 /**
  * What a lane shows. Main: a loop runs until the next one starts. Fill: a loop
- * covers as many bars as it is long, and hides the main under it.
+ * covers as many bars as it is long, and plays the steps in its window.
  */
 export function laneCells(project: Project, kind: LoopKind): LaneCell[] {
   const fills = kind === 'main' ? laneCells(project, 'fill') : null;
-  let running: { name: string; bars: number; start: number } | null = null;
+  let running: { loop: Loop; start: number } | null = null;
   return project.song.rows[kind].map((id, bar) => {
     const loop = id === null ? undefined : project.loops[id];
-    if (loop !== undefined) running = { name: loop.name, bars: loop.bars, start: bar };
-    const covers = running !== null && (kind === 'main' || bar - running.start < running.bars);
+    if (loop !== undefined) running = { loop, start: bar };
+    const covers = running !== null && (kind === 'main' || bar - running.start < running.loop.bars);
+    const loopBar = running === null ? 0 : (bar - running.start) % running.loop.bars;
+    let fillSteps: LaneCell['fillSteps'] = null;
+    if (kind === 'fill' && covers && running !== null) {
+      const offset = loopBar * STEPS_PER_BAR;
+      const from = Math.max(0, Math.min(STEPS_PER_BAR, running.loop.window.start - offset));
+      const to = Math.max(from, Math.min(STEPS_PER_BAR, running.loop.window.end - offset));
+      fillSteps = { from, to };
+    } else if (kind === 'main') {
+      fillSteps = fills?.[bar]?.fillSteps ?? null;
+    }
     return {
       loopId: loop === undefined ? null : loop.id,
-      plays: !covers || running === null ? null : { name: running.name, bar: ((bar - running.start) % running.bars) + 1 },
-      hidden: fills?.[bar]?.plays != null,
+      plays: !covers || running === null ? null : { name: running.loop.name, bar: loopBar + 1 },
+      fillSteps,
     };
   });
 }
 
 /** The Main row, as before fills existed. */
 export const mainCells = (project: Project) => laneCells(project, 'main');
+
+type Coverage = 'none' | 'part' | 'all';
+const coverage = (steps: LaneCell['fillSteps']): Coverage =>
+  steps === null || steps.to <= steps.from ? 'none' : steps.from === 0 && steps.to === STEPS_PER_BAR ? 'all' : 'part';
+
+/** Steps as 1-based numbers: "9–16". */
+const stepRange = (steps: { from: number; to: number }) => `${steps.from + 1}–${steps.to}`;
+
+/** A partly covered cell is shaded over the steps the fill plays. */
+function spanStyle(kind: LoopKind, steps: { from: number; to: number }) {
+  const color = kind === 'fill' ? 'rgb(95 168 238 / 0.32)' : 'rgb(12 13 15 / 0.7)';
+  const [a, b] = [(steps.from / STEPS_PER_BAR) * 100, (steps.to / STEPS_PER_BAR) * 100];
+  return { backgroundImage: `linear-gradient(to right, transparent ${a}%, ${color} ${a}%, ${color} ${b}%, transparent ${b}%)` };
+}
 
 const DISABLED_LANES = [
   { key: 'A', name: 'Mod A', phase: 4 },
@@ -68,15 +95,42 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
         {cells.map((cell, bar) => {
           const loop = cell.loopId === null ? undefined : project.loops[cell.loopId];
           const label = loop?.name ?? (cell.plays === null ? '' : '·');
-          const sub = cell.plays === null ? '' : cell.hidden ? 'hidden' : kind === 'fill' && loop !== undefined ? 'replaces' : `bar ${cell.plays.bar}`;
+          const covered = coverage(cell.fillSteps);
+          const hidden = kind === 'main' && covered === 'all';
+          const partial = covered === 'part';
+          const silent = kind === 'fill' && cell.plays !== null && covered === 'none';
+          const sub =
+            cell.plays === null
+              ? ''
+              : hidden
+                ? 'hidden'
+                : partial
+                  ? kind === 'fill'
+                    ? `steps ${stepRange(cell.fillSteps!)}`
+                    : `bar ${cell.plays.bar} · partly`
+                  : silent
+                    ? 'main plays'
+                    : kind === 'fill' && loop !== undefined
+                      ? 'replaces'
+                      : `bar ${cell.plays.bar}`;
           const state = loop !== undefined ? ' start' : cell.plays !== null ? ' running' : '';
+          const detail = partial
+            ? kind === 'main'
+              ? `, fill over steps ${stepRange(cell.fillSteps!)}`
+              : `, plays steps ${stepRange(cell.fillSteps!)}`
+            : silent
+              ? ', main plays'
+              : hidden
+                ? ', hidden by fill'
+                : '';
           return (
             <button
               key={bar}
               type="button"
-              className={`cell ${kind}${state}${cell.hidden ? ' hidden' : ''}${bar === playheadBar ? ' now' : ''}`}
+              className={`cell ${kind}${state}${hidden ? ' hidden' : ''}${partial ? ' partial' : ''}${silent ? ' silent' : ''}${bar === playheadBar ? ' now' : ''}`}
+              style={partial ? spanStyle(kind, cell.fillSteps!) : undefined}
               aria-label={`${kind === 'main' ? 'Bar' : 'Fill bar'} ${bar + 1}: ${
-                cell.plays === null ? 'empty' : `${cell.plays.name} bar ${cell.plays.bar}${cell.hidden ? ', hidden by fill' : ''}`
+                cell.plays === null ? 'empty' : `${cell.plays.name} bar ${cell.plays.bar}${detail}`
               }`}
               onClick={() => {
                 if (selected !== null) place(kind, bar, selected);

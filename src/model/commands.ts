@@ -1,6 +1,6 @@
 import type { Command } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
-import { emptySteps, nextLoopName } from './project';
+import { emptySteps, fullWindow, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
@@ -122,7 +122,14 @@ export const createLoop =
   (name: string | null, kind: LoopKind, bars: number): Command =>
   (project, ctx) => {
     if (!Number.isInteger(bars) || bars < 1) return invalid('A loop is a whole number of bars');
-    const loop: Loop = { id: ctx.newId(), name: name ?? nextLoopName(project, kind), kind, bars, steps: emptySteps(bars) };
+    const loop: Loop = {
+      id: ctx.newId(),
+      name: name ?? nextLoopName(project, kind),
+      kind,
+      bars,
+      steps: emptySteps(bars),
+      window: fullWindow(bars),
+    };
     return ok({ ...project, loops: { ...project.loops, [loop.id]: loop } });
   };
 
@@ -133,8 +140,26 @@ export const setLoopBars =
     const loop = project.loops[id];
     if (loop === undefined) return notFound(id);
     if (!Number.isInteger(bars) || bars < 1) return invalid('A loop is a whole number of bars');
-    const steps = [...loop.steps.slice(0, bars * STEPS_PER_BAR), ...emptySteps(bars)].slice(0, bars * STEPS_PER_BAR);
-    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, bars, steps } } });
+    const length = bars * STEPS_PER_BAR;
+    const steps = [...loop.steps.slice(0, length), ...emptySteps(bars)].slice(0, length);
+    // A window over the whole loop keeps covering it; any other is cut to the new length.
+    const whole = loop.window.start === 0 && loop.window.end === loop.steps.length;
+    const start = Math.min(loop.window.start, length - 1);
+    const window = whole ? fullWindow(bars) : { start, end: Math.max(start + 1, Math.min(loop.window.end, length)) };
+    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, bars, steps, window } } });
+  };
+
+/** Sets the steps a fill plays; the main shows through the rest. End is exclusive. */
+export const setFillWindow =
+  (id: Id, start: number, end: number): Command =>
+  (project) => {
+    const loop = project.loops[id];
+    if (loop === undefined) return notFound(id);
+    if (loop.kind !== 'fill') return invalid('Only a fill has a window');
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > loop.steps.length || end <= start) {
+      return invalid('The window must cover at least one step of the loop');
+    }
+    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, window: { start, end } } } });
   };
 
 export const renameLoop =

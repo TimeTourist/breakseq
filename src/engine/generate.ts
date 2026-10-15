@@ -25,16 +25,21 @@ export interface ActiveLayer {
   readonly loopBar: number;
 }
 
+/** The main and the fill in a bar, each with the loop bar it is on. */
+export interface BarLayers {
+  readonly main: ActiveLayer | null;
+  readonly fill: ActiveLayer | null;
+}
+
 /**
- * Exactly one layer per bar: Fill if a fill covers the bar, otherwise Main.
- * A main loops until the next main starts; a fill covers as many bars as it
- * is long. A main keeps counting its bars while a fill plays over it.
+ * The loops in each bar. A main loops until the next main starts; a fill covers
+ * as many bars as it is long. A main keeps counting its bars while a fill plays over it.
  */
-export function activeLayers(project: Project): (ActiveLayer | null)[] {
+export function barLayers(project: Project): BarLayers[] {
   const { song, loops } = project;
   let main: { loop: Loop; startBar: number } | null = null;
   let fill: { loop: Loop; startBar: number } | null = null;
-  const layers: (ActiveLayer | null)[] = [];
+  const layers: BarLayers[] = [];
 
   for (let bar = 0; bar < song.bars; bar++) {
     const mainId = song.rows.main[bar];
@@ -43,30 +48,39 @@ export function activeLayers(project: Project): (ActiveLayer | null)[] {
     const fillLoop = fillId == null ? undefined : loops[fillId];
     if (mainLoop !== undefined) main = { loop: mainLoop, startBar: bar };
     if (fillLoop !== undefined) fill = { loop: fillLoop, startBar: bar };
-
-    if (fill !== null && bar - fill.startBar < fill.loop.bars) {
-      layers.push({ loop: fill.loop, loopBar: bar - fill.startBar });
-    } else if (main !== null) {
-      layers.push({ loop: main.loop, loopBar: (bar - main.startBar) % main.loop.bars });
-    } else {
-      layers.push(null);
-    }
+    layers.push({
+      main: main === null ? null : { loop: main.loop, loopBar: (bar - main.startBar) % main.loop.bars },
+      fill: fill !== null && bar - fill.startBar < fill.loop.bars ? { loop: fill.loop, loopBar: bar - fill.startBar } : null,
+    });
   }
   return layers;
+}
+
+/**
+ * Exactly one layer per step: the fill inside its window, otherwise the main.
+ * Returns the layer and the index of the step in its loop.
+ */
+export function stepLayer(layers: BarLayers, step: number): { readonly loop: Loop; readonly index: number } | null {
+  const { fill, main } = layers;
+  if (fill !== null) {
+    const index = fill.loopBar * STEPS_PER_BAR + step;
+    if (index >= fill.loop.window.start && index < fill.loop.window.end) return { loop: fill.loop, index };
+  }
+  return main === null ? null : { loop: main.loop, index: main.loopBar * STEPS_PER_BAR + step };
 }
 
 /** Works out every trigger in the song. Pure: no DOM, no audio, randomness only from `rng`. */
 export function generateTriggers(project: Project, rng: Rng): Trigger[] {
   const stepTime = stepDuration(project.song.bpm);
-  const layers = activeLayers(project);
+  const layers = barLayers(project);
   const runs = modRuns(project.song, project.mods);
   const values = modValues(rng);
   const triggers: Trigger[] = [];
 
   layers.forEach((layer, bar) => {
-    if (layer === null) return;
     for (let step = 0; step < STEPS_PER_BAR; step++) {
-      const cell = layer.loop.steps[layer.loopBar * STEPS_PER_BAR + step];
+      const playing = stepLayer(layer, step);
+      const cell = playing?.loop.steps[playing.index];
       if (cell === undefined || cell.padId === null) continue;
       const pad = project.pads[cell.padId];
       if (pad === undefined) continue;

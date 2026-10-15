@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Hit, Id, LoopKind, Pad, Project, Sample, Song, Step, Tag } from './types';
+import type { Hit, Id, Loop, LoopKind, Pad, Project, Sample, Song, Step, StepWindow, Tag } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -28,6 +28,9 @@ export function createProject(ctx: CommandContext = defaultContext): Project {
   }
   return { audio: {}, tags, samples: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
+
+/** A window over every step of a loop of `bars` bars. */
+export const fullWindow = (bars: number): StepWindow => ({ start: 0, end: bars * STEPS_PER_BAR });
 
 /** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
 export type SliceGrid = 4 | 8 | 16;
@@ -73,7 +76,10 @@ export function upgradeProject(project: Project): Project {
           },
     ]),
   );
-  return { ...project, samples, hits, pads };
+  const loops = Object.fromEntries(
+    Object.entries(project.loops).map(([id, loop]): [Id, Loop] => [id, loop.window === undefined ? { ...loop, window: fullWindow(loop.bars) } : loop]),
+  );
+  return { ...project, samples, hits, pads, loops };
 }
 
 /** For breaks sliced before the loop was recorded: the first loop that only plays the break's slices. */
