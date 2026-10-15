@@ -8,9 +8,8 @@ export interface ModPreset {
   readonly effects: (project: Project) => readonly ModEffect[];
 }
 
-const step = (fields: Omit<StepEffect, 'sources' | 'scope'> & Partial<Pick<StepEffect, 'scope'>>): StepEffect => ({
+const step = (fields: Omit<StepEffect, 'scope'> & Partial<Pick<StepEffect, 'scope'>>): StepEffect => ({
   scope: { kind: 'all' },
-  sources: [],
   ...fields,
 });
 

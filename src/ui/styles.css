@@ -1818,3 +1818,32 @@ input[type='search'] {
 .effect-remove:hover {
   color: var(--text);
 }
+
+/* Borrow: the step's own loop is dim, a borrowed one lights up. */
+.mod-graph.borrow .layer rect {
+  fill: #1c1f23;
+  stroke: #2c3036;
+}
+
+.mod-graph.borrow .layer text {
+  fill: var(--muted);
+}
+
+.mod-graph.borrow .layer.borrowed rect {
+  fill: var(--fill-bg);
+  stroke: var(--fill);
+}
+
+.mod-graph.borrow .layer.borrowed text {
+  fill: var(--fill);
+  font-weight: 600;
+}
+
+.mod-graph.borrow .layer.borrowed.n1 rect {
+  fill: #381a27;
+  stroke: #e5689a;
+}
+
+.mod-graph.borrow .layer.borrowed.n1 text {
+  fill: #e5689a;
+}

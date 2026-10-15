@@ -73,7 +73,7 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 | Mål | Pad member, Pitch (halvtoner), Volume (dB), Direction, Ratchet (1–8), Tempo (slip), Source loop (Borrow) |
 | Omfång | Steg (alla), steg med en viss huvudtagg, steg med en viss pad. Vilka steg i tid bestäms av klippet i Song. |
 | Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
-| Form | List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
+| Form | (Alla mål utom Borrow och Tape.) List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
 
 **Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym), och för lägesvärden (riktning, medlem, ratchet) vinner B. Mods läggs ovanpå hitten och stegets locks.
 
@@ -87,7 +87,13 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 
 **Omfång.** Omfånget prövas när moden tillämpas, mot den hit som spelas efter tidigare mål i ordningen. Ett taggomfång för S träffar alltså en snare som en Pad member-mod har bytt in.
 
-**Borrow** byter steget mot samma steg i angiven loop, med dess pad, medlem och locks.
+**Borrow** spelar ett stegs hit från en annan loop: samma steg i någon av looparna man valt, med dess pad, medlem och locks. Borrow har ingen form utan väljer, intervall för intervall (per 1/16, beat eller takt):
+
+- **Now and then:** med en chans i %. Är flera loopar valda slumpas en av dem.
+- **Regularly:** var n:e gång (2:a–8:e), och flera valda loopar turas om.
+- **In turn:** runt den egna loopen och de valda, en i taget.
+
+Där den valda loopen saknar en hit på steget behålls stegets egen hit eller blir det tyst, efter vad man valt. Borrow tillämpas före alla andra mål. Har både A och B Borrow vinner B där den lånar.
 
 **Längd.** En mod gäller sitt klipp i Song, på 1/16 när. Varje klipp är en sammanhängande modulation: intervallen räknas från klippets början, och Ramp sträcker sig över klippets längd.
 

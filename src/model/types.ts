@@ -118,18 +118,46 @@ export type ModShape =
   | { readonly kind: 'cycle'; readonly values: readonly number[] }
   /** From the first interval of the run to its last. */
   | { readonly kind: 'ramp'; readonly from: number; readonly to: number }
-  /** Chance in percent (0–100) that an interval gets a value at all. */
-  /** `whole` rolls whole numbers only, e.g. pitch in semitones; targets that take whole numbers always do. */
+  /**
+   * Chance in percent (0–100) that an interval gets a value at all. `whole`
+   * rolls whole numbers only, e.g. pitch in semitones; targets that take whole
+   * numbers always do.
+   */
   | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number; readonly whole: boolean };
 
-/** An effect that changes steps as they play. */
+/** Targets that set a value on a step through a shape: all but Borrow. */
+export type StepTarget = Exclude<ModTarget, 'sourceLoop'>;
+export const STEP_TARGETS = MOD_TARGETS.filter((t): t is StepTarget => t !== 'sourceLoop');
+
+/** An effect that changes steps as they play, by a value from its shape. */
 export interface StepEffect {
-  readonly target: ModTarget;
+  readonly target: StepTarget;
   readonly scope: ModScope;
   readonly rate: ModRate;
   readonly shape: ModShape;
-  /** Borrow (sourceLoop): the loops to borrow from. The shape's values are indexes into it. */
+}
+
+/**
+ * How Borrow chooses, interval by interval: at random with a chance; every
+ * nth interval; or round its own loop and the others in turn.
+ */
+export type BorrowPick =
+  | { readonly kind: 'random'; readonly chance: number }
+  | { readonly kind: 'every'; readonly n: number }
+  | { readonly kind: 'inTurn' };
+
+/**
+ * Plays a step's hit from another loop: the same step in one of `sources`,
+ * with its pad, member and locks. Where that loop has nothing on the step,
+ * `skipEmpty` keeps the step's own hit; otherwise it goes silent.
+ */
+export interface BorrowEffect {
+  readonly target: 'sourceLoop';
+  readonly scope: ModScope;
+  readonly rate: ModRate;
   readonly sources: readonly Id[];
+  readonly pick: BorrowPick;
+  readonly skipEmpty: boolean;
 }
 
 export type TapeDirection = 'forward' | 'reverse' | 'pingpong';
@@ -163,7 +191,7 @@ export interface TapeEffect {
   readonly flutter: number;
 }
 
-export type ModEffect = StepEffect | TapeEffect;
+export type ModEffect = StepEffect | BorrowEffect | TapeEffect;
 export type EffectTarget = ModEffect['target'];
 
 /** A mod does things through its effects: at most one per target. A new mod has none, and does nothing until it gets one. */
@@ -173,7 +201,11 @@ export interface Mod {
   readonly effects: readonly ModEffect[];
 }
 
-export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape';
+export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape' && effect.target !== 'sourceLoop';
+/** Effects that act on some steps: everything but Tape. */
+export const isScopedEffect = (effect: ModEffect): effect is StepEffect | BorrowEffect => effect.target !== 'tape';
+export const borrowOf = (mod: Mod | undefined): BorrowEffect | undefined =>
+  mod?.effects.find((e): e is BorrowEffect => e.target === 'sourceLoop');
 export const tapeOf = (mod: Mod | undefined): TapeEffect | undefined =>
   mod?.effects.find((e): e is TapeEffect => e.target === 'tape');
 

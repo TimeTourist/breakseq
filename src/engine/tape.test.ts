@@ -168,7 +168,7 @@ describe('generateTake', () => {
   });
 
   it('records what is heard, with the step effects of the same mod', () => {
-    const { project: base, mod } = song([{ target: 'pitch', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [5] }, sources: [] }, brake]);
+    const { project: base, mod } = song([{ target: 'pitch', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [5] } }, brake]);
     const project = run(base, addClip('modA', mod, 0, 16));
     expect(generateTake(project, () => 0).tapes[0]!.source.map((t) => t.pitch)).toEqual([5, 5]);
   });

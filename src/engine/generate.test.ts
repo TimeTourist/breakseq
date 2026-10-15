@@ -56,7 +56,7 @@ function addLoop(project: Project, name: string, kind: LoopKind, bars: number): 
 }
 
 function addMod(project: Project, fields: Omit<StepEffect, 'sources'> & { sources?: readonly Id[] }): [Project, Id] {
-  const next = run(project, createMod('mod', [{ sources: [], ...fields }]));
+  const next = run(project, createMod('mod', [fields]));
   return [next, added(project, next, 'mods')];
 }
 
@@ -342,7 +342,7 @@ describe('randomness', () => {
     project = run(
       project,
       ...Array.from({ length: 64 }, (_, i) => setStep(loop, i, { padId: pad.K! })),
-      createMod('roll', [{ sources: [], target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } }]),
+      createMod('roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } }]),
     );
     const mod = added(before, project, 'mods');
     project = run(project, setSongBars(4), setSongCell('main', 0, loop), ...row('modA', '1111', { '1': mod }));

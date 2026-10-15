@@ -167,6 +167,28 @@ describe('Effects', () => {
     expect(effects()).toEqual([]);
   });
 
+  it('Borrow picks its loops as chips, how it chooses, and what empty steps do; the graph names the loop per step', async () => {
+    const project = apply(snareLoopProject(), createLoop(null, 'fill', 1));
+    const store = await setup(project, 'mods');
+    fireEvent.click(button('+ New mod'));
+    pick('Add effect', 'sourceLoop');
+    const borrow = () => Object.values(present(store).mods)[0]!.effects[0]!;
+    const fill = Object.values(present(store).loops).find((l) => l.kind === 'fill')!;
+    // It starts borrowing from the first fill, half the time, keeping the own hit where the fill is empty.
+    expect(borrow()).toEqual({ target: 'sourceLoop', scope: { kind: 'all' }, rate: 'step', sources: [fill.id], pick: { kind: 'random', chance: 50 }, skipEmpty: true });
+
+    pick('Pick', 'every');
+    pick('Every', '3');
+    pick('Empty steps', 'silent');
+    const chips = screen.getByRole('group', { name: 'Borrow from' });
+    fireEvent.click(within(chips).getByRole('button', { name: 'M1' }));
+    expect(borrow()).toMatchObject({ sources: [fill.id, Object.values(present(store).loops)[0]!.id], pick: { kind: 'every', n: 3 }, skipEmpty: false });
+
+    fireEvent.click(within(chips).getByRole('button', { name: 'M1' }));
+    const boxes = [...screen.getByRole('img', { name: 'Which loop each step plays from' }).querySelectorAll('text')].map((t) => t.textContent);
+    expect(boxes.slice(0, 6)).toEqual(['M1', 'M1', 'F1', 'M1', 'M1', 'F1']);
+  });
+
   it('the target word swaps the effect in place, to Tape and back', async () => {
     const store = await setup(snareLoopProject(), 'mods');
     fireEvent.click(button('+ New mod'));
@@ -199,21 +221,17 @@ describe('Effects', () => {
 });
 
 describe('parseValues', () => {
-  const project = build(createLoop(null, 'fill', 1), createLoop(null, 'fill', 1));
 
-  it('reads numbers, fractions, F/R and loop names per target', () => {
-    expect(parseValues('pitch', '0 +3 -5', project)).toEqual({ ok: true, values: [0, 3, -5], sources: [] });
-    expect(parseValues('tempo', '1/3, 2', project)).toMatchObject({ ok: true, values: [1 / 3, 2] });
-    expect(parseValues('direction', 'F R r', project)).toMatchObject({ ok: true, values: [0, 1, 1] });
-    const [f1, f2] = Object.keys(project.loops);
-    expect(parseValues('sourceLoop', 'F2 F1 F2', project)).toEqual({ ok: true, values: [0, 1, 0], sources: [f2, f1] });
+  it('reads numbers, fractions and F/R per target', () => {
+    expect(parseValues('pitch', '0 +3 -5')).toEqual({ ok: true, values: [0, 3, -5] });
+    expect(parseValues('tempo', '1/3, 2')).toMatchObject({ ok: true, values: [1 / 3, 2] });
+    expect(parseValues('direction', 'F R r')).toMatchObject({ ok: true, values: [0, 1, 1] });
   });
 
   it('says what is wrong', () => {
-    expect(parseValues('ratchet', '9', project)).toEqual({ ok: false, error: 'Ratchet is a whole number from 1 to 8' });
-    expect(parseValues('tempo', '0', project).ok).toBe(false);
-    expect(parseValues('sourceLoop', 'M9', project)).toEqual({ ok: false, error: 'No loop called M9' });
-    expect(parseValues('pitch', 'x', project)).toEqual({ ok: false, error: 'x is not a number' });
+    expect(parseValues('ratchet', '9')).toEqual({ ok: false, error: 'Ratchet is a whole number from 1 to 8' });
+    expect(parseValues('tempo', '0').ok).toBe(false);
+    expect(parseValues('pitch', 'x')).toEqual({ ok: false, error: 'x is not a number' });
   });
 });
 
@@ -227,9 +245,7 @@ describe('randomMod', () => {
       const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : shape.kind === 'ramp' ? [shape.from, shape.to] : [shape.min, shape.max];
       if (target === 'ratchet') expect(values.every((v) => v >= 1 && v <= 8)).toBe(true);
       if (target === 'tempo') expect(values.every((v) => v > 0)).toBe(true);
-      if (target === 'direction' || target === 'sourceLoop') expect(shape.kind).not.toBe('ramp');
-      if (target === 'sourceLoop') expect(mod.sources.length).toBeGreaterThan(0);
-      expect(mod.sources.every((id) => loops.includes(id))).toBe(true);
+      if (target === 'direction') expect(shape.kind).not.toBe('ramp');
       const placed = apply(project, createMod('r', [mod]), setSongCell('main', 0, loops[0]!));
       const id = Object.keys(placed.mods)[0]!;
       expect(() => generateTriggers(apply(placed, setSongCell('modA', 0, id)), seededRng(seed))).not.toThrow();
