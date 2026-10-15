@@ -1,8 +1,11 @@
 import type { Command, CommandContext } from './command';
 import { invalid, notFound, ok } from './command';
-import { emptySteps } from './project';
+import { emptySteps, nextLoopName } from './project';
 import type { AudioData, Hit, Id, Loop, Pad, Project, Sample } from './types';
 import { STEPS_PER_BAR } from './types';
+
+/** A file name without its audio extension: "amen.wav 01" → "amen 01". */
+export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc)(?=\s|$)/gi, '');
 
 /**
  * The automatic chain: every new sample gets a default hit (the whole sample,
@@ -12,15 +15,16 @@ import { STEPS_PER_BAR } from './types';
 function addWithChain(project: Project, sample: Sample, ctx: CommandContext): { project: Project; padId: Id } {
   const hit: Hit = {
     id: ctx.newId(),
-    name: sample.name,
+    name: baseName(sample.name),
     sampleId: sample.id,
     region: { start: 0, end: sample.duration },
     direction: 'forward',
     pitch: 0,
     volume: 0,
     fadeOut: 0,
+    variantOf: null,
   };
-  const pad: Pad = { id: ctx.newId(), name: sample.name, members: [hit.id] };
+  const pad: Pad = { id: ctx.newId(), name: baseName(sample.name), members: [hit.id], auto: true };
   return {
     project: {
       ...project,
@@ -78,13 +82,6 @@ export const setBreak =
 /** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
 export type SliceGrid = 4 | 8 | 16;
 
-function nextMainLoopName(project: Project): string {
-  const names = new Set(Object.values(project.loops).map((l) => l.name));
-  let n = 1;
-  while (names.has(`M${n}`)) n++;
-  return `M${n}`;
-}
-
 /**
  * Slices a break on an equal grid. Each slice becomes a sample (with the
  * chain), and a main loop (M1) plays the slice pads in order, quantized to 1/16.
@@ -113,7 +110,7 @@ export const sliceBreak =
     for (let i = 0; i < count; i++) {
       const slice: Sample = {
         id: ctx.newId(),
-        name: `${source.name} ${String(i + 1).padStart(digits, '0')}`,
+        name: `${baseName(source.name)} ${String(i + 1).padStart(digits, '0')}`,
         audioId: source.audioId,
         offset: source.offset + i * sliceDuration,
         duration: sliceDuration,
@@ -127,6 +124,6 @@ export const sliceBreak =
       steps[i * stepsPerSlice] = { padId: added.padId, memberId: null, ignoreMods: false, nudge: 0 };
     }
 
-    const loop: Loop = { id: ctx.newId(), name: nextMainLoopName(next), kind: 'main', bars, steps };
+    const loop: Loop = { id: ctx.newId(), name: nextLoopName(next, 'main'), kind: 'main', bars, steps };
     return ok({ ...next, loops: { ...next.loops, [loop.id]: loop } });
   };

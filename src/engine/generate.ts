@@ -96,3 +96,13 @@ export function generateTriggers(project: Project, rng: Rng): Trigger[] {
   });
   return triggers;
 }
+
+/** The project with a song that only plays one loop, once, from its first bar. */
+export function loopSong(project: Project, loopId: Id): Project {
+  const loop = project.loops[loopId];
+  const bars = loop?.bars ?? 1;
+  const empty = () => Array.from({ length: bars }, (): Id | null => null);
+  const main = empty();
+  main[0] = loop === undefined ? null : loopId;
+  return { ...project, song: { bpm: project.song.bpm, bars, rows: { main, fill: empty(), modA: empty(), modB: empty() } } };
+}

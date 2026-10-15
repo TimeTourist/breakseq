@@ -1,4 +1,5 @@
 import type { Project } from '../model';
+import { upgradeProject } from '../model';
 
 /** Where the project is autosaved. */
 export interface ProjectStorage {
@@ -34,7 +35,10 @@ export function indexedDbStorage(factory: IDBFactory = indexedDB): ProjectStorag
   let db: Promise<IDBDatabase> | null = null;
   const connect = () => (db ??= open(factory));
   return {
-    load: async () => ((await run(await connect(), 'readonly', (s) => s.get(KEY))) as Project | undefined) ?? null,
+    load: async () => {
+      const saved = (await run(await connect(), 'readonly', (s) => s.get(KEY))) as Project | undefined;
+      return saved === undefined ? null : upgradeProject(saved);
+    },
     save: async (project) => {
       await run(await connect(), 'readwrite', (s) => s.put(project, KEY));
     },

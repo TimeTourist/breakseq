@@ -1,27 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Trigger } from '../engine';
+import { loopSong } from '../engine';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
+import { HitsView } from './HitsView';
 import { ImportView } from './ImportView';
+import { LoopsView, currentLoopId } from './LoopsView';
+import { PadsView } from './PadsView';
 import type { Take } from './playback';
 import type { Services } from './services';
 import { SliceView } from './SliceView';
 import { SongView } from './SongView';
 import type { Store, View } from './store';
+import { TagView } from './TagView';
 import { VIEWS } from './store';
 
 export const RENDER_DEBOUNCE_MS = 300;
 export const SAVE_DEBOUNCE_MS = 1000;
 
-const PHASE: Partial<Record<View, number>> = { tag: 3, hits: 3, pads: 3, loops: 3, mods: 4 };
+const PHASE: Partial<Record<View, number>> = { mods: 4 };
 
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
-/** Renders the song shortly after every change, and on demand for a new random take. */
-function useSongTake() {
+/**
+ * Renders what the view plays shortly after every change, and on demand for a new
+ * random take: the selected loop in Loops, the song everywhere else.
+ */
+function useTake() {
   const { services } = useApp();
-  const project = useProject();
+  const full = useProject();
+  const view = useSelect((s) => s.view);
+  const loopId = useSelect((s) => (s.view === 'loops' ? currentLoopId(s.history.present, s.selection) : null));
+  const project = useMemo(() => (view === 'loops' && loopId !== null ? loopSong(full, loopId) : full), [full, view, loopId]);
   const [take, setTake] = useState<Take | null>(null);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,31 +96,31 @@ function useAutosave() {
   return { error };
 }
 
-/** The bar under the playhead, polled each frame while playing. */
-function usePlayhead(playing: boolean): number | null {
+/** The trigger under the playhead, polled each frame while playing. */
+function usePlayhead(playing: boolean): Trigger | null {
   const { services } = useApp();
-  const [bar, setBar] = useState<number | null>(null);
+  const [trigger, setTrigger] = useState<Trigger | null>(null);
   useEffect(() => {
     if (!playing) {
-      setBar(null);
+      setTrigger(null);
       return;
     }
     let frame = requestAnimationFrame(function tick() {
-      setBar(services.player.currentBar());
+      setTrigger(services.player.currentTrigger());
       frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
   }, [playing, services]);
-  return bar;
+  return trigger;
 }
 
 function Shell() {
   const { store, services } = useApp();
   const view = useSelect((s) => s.view);
-  const { take, rendering, error: renderError, newTake } = useSongTake();
+  const { take, rendering, error: renderError, newTake } = useTake();
   const { error: saveError } = useAutosave();
   const [playing, setPlaying] = useState(false);
-  const playheadBar = usePlayhead(playing);
+  const playhead = usePlayhead(playing);
 
   const setView = useCallback((v: View) => store.dispatch({ type: 'view', view: v }), [store]);
 
@@ -153,7 +165,11 @@ function Shell() {
       />
       {view === 'import' && <ImportView />}
       {view === 'slice' && <SliceView />}
-      {view === 'song' && <SongView playheadBar={playheadBar} rendering={rendering} onNewTake={newTake} />}
+      {view === 'tag' && <TagView />}
+      {view === 'hits' && <HitsView />}
+      {view === 'pads' && <PadsView />}
+      {view === 'loops' && <LoopsView playhead={playhead} />}
+      {view === 'song' && <SongView playheadBar={playhead?.bar ?? null} rendering={rendering} onNewTake={newTake} />}
       {PHASE[view] !== undefined && (
         <main className="view">
           <div className="view-head">

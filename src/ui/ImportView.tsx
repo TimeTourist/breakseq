@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import type { Project, Sample } from '../model';
-import { addSample, setBreak } from '../model';
-import { decodeAudioFile } from '../engine';
+import { addSample, replaceProject, setBreak } from '../model';
+import { decodeAudioFile, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun } from './context';
+import { timestamp } from './services';
 
 const DEFAULT_BREAK_BARS = 4;
 
@@ -29,9 +30,19 @@ function creates(project: Project, sample: Sample): string {
 
 export function ImportView() {
   const project = useProject();
-  const { store } = useApp();
   const run = useRun();
+  const { store, services } = useApp();
   const input = useRef<HTMLInputElement>(null);
+  const projectInput = useRef<HTMLInputElement>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+
+  const openProject = async (file: File) => {
+    try {
+      setProjectError(run(replaceProject(readProjectFile(new Uint8Array(await file.arrayBuffer())))));
+    } catch (e) {
+      setProjectError(e instanceof Error ? e.message : String(e));
+    }
+  };
   const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
 
@@ -101,6 +112,38 @@ export function ImportView() {
           ))}
         </ul>
       )}
+
+      <section className="panel stack-tight" aria-label="Project file">
+        <h2 className="label">Project file</h2>
+        <p className="muted small">The whole project with its audio, as one .zip. Opening one replaces this project; undo brings it back.</p>
+        <div className="row">
+          <button
+            type="button"
+            onClick={() => services.download(`breakseq-project-${timestamp()}.zip`, writeProjectFile(project), 'application/zip')}
+          >
+            Save project
+          </button>
+          <button type="button" onClick={() => projectInput.current?.click()}>
+            Open project
+          </button>
+          <input
+            ref={projectInput}
+            type="file"
+            hidden
+            accept=".zip,application/zip"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file !== undefined) void openProject(file);
+              e.target.value = '';
+            }}
+          />
+        </div>
+        {projectError !== null && (
+          <p className="error" role="alert">
+            {projectError}
+          </p>
+        )}
+      </section>
 
       <section className="stack">
         <h2 className="label">Sources</h2>

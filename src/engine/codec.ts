@@ -176,3 +176,34 @@ export function encodeWav(audio: AudioData): Uint8Array {
   }
   return out;
 }
+
+/** Encodes 32-bit float WAV with every channel as it is: lossless, for project files. */
+export function encodeFloatWav(audio: AudioData): Uint8Array {
+  const channelCount = audio.channels.length;
+  const frames = audio.channels[0]?.length ?? 0;
+  const dataSize = frames * channelCount * 4;
+  const out = new Uint8Array(44 + dataSize);
+  const view = new DataView(out.buffer);
+  const text = (at: number, s: string) => [...s].forEach((ch, i) => view.setUint8(at + i, ch.charCodeAt(0)));
+  text(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  text(8, 'WAVE');
+  text(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 3, true);
+  view.setUint16(22, channelCount, true);
+  view.setUint32(24, audio.sampleRate, true);
+  view.setUint32(28, audio.sampleRate * channelCount * 4, true);
+  view.setUint16(32, channelCount * 4, true);
+  view.setUint16(34, 32, true);
+  text(36, 'data');
+  view.setUint32(40, dataSize, true);
+  let at = 44;
+  for (let frame = 0; frame < frames; frame++) {
+    for (const channel of audio.channels) {
+      view.setFloat32(at, channel[frame]!, true);
+      at += 4;
+    }
+  }
+  return out;
+}

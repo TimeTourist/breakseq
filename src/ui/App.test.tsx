@@ -19,15 +19,17 @@ function fakeServices(): Services {
     replace: vi.fn(),
     stop: vi.fn(),
     isPlaying: () => false,
-    currentBar: () => null,
+    currentTrigger: () => null,
     audition: vi.fn(),
     stopAudition: vi.fn(),
+    playHit: vi.fn(),
   };
   return {
     storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() },
     player,
     renderSong: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [] } satisfies Take),
     exportWav: vi.fn(),
+    download: vi.fn(),
     rng: () => () => 0,
   };
 }

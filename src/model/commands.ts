@@ -1,10 +1,10 @@
 import type { Command } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
-import { emptySteps } from './project';
+import { emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
-import { MAX_TAGS } from './types';
+import { MAX_TAGS, STEPS_PER_BAR } from './types';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
 
@@ -47,7 +47,7 @@ export const duplicateHit =
   (project, ctx) => {
     const hit = project.hits[id];
     if (hit === undefined) return notFound(id);
-    const copy: Hit = { ...hit, id: ctx.newId(), name: name ?? `${hit.name} copy` };
+    const copy: Hit = { ...hit, id: ctx.newId(), name: name ?? `${hit.name} copy`, variantOf: id };
     return ok({ ...project, hits: { ...project.hits, [copy.id]: copy } });
   };
 
@@ -58,7 +58,7 @@ export const createPad =
   (project, ctx) => {
     const missing = members.find((m) => project.hits[m] === undefined);
     if (missing !== undefined) return notFound(missing);
-    const pad: Pad = { id: ctx.newId(), name, members };
+    const pad: Pad = { id: ctx.newId(), name, members, auto: false };
     return ok({ ...project, pads: { ...project.pads, [pad.id]: pad } });
   };
 
@@ -117,12 +117,24 @@ export const removePadMember =
 
 // Loops
 
+/** A new empty loop. Without a name it gets the next free M or F number. */
 export const createLoop =
-  (name: string, kind: LoopKind, bars: number): Command =>
+  (name: string | null, kind: LoopKind, bars: number): Command =>
   (project, ctx) => {
     if (!Number.isInteger(bars) || bars < 1) return invalid('A loop is a whole number of bars');
-    const loop: Loop = { id: ctx.newId(), name, kind, bars, steps: emptySteps(bars) };
+    const loop: Loop = { id: ctx.newId(), name: name ?? nextLoopName(project, kind), kind, bars, steps: emptySteps(bars) };
     return ok({ ...project, loops: { ...project.loops, [loop.id]: loop } });
+  };
+
+/** Changes a loop's length. New bars are empty; steps past the new end are dropped. */
+export const setLoopBars =
+  (id: Id, bars: number): Command =>
+  (project) => {
+    const loop = project.loops[id];
+    if (loop === undefined) return notFound(id);
+    if (!Number.isInteger(bars) || bars < 1) return invalid('A loop is a whole number of bars');
+    const steps = [...loop.steps.slice(0, bars * STEPS_PER_BAR), ...emptySteps(bars)].slice(0, bars * STEPS_PER_BAR);
+    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, bars, steps } } });
   };
 
 export const renameLoop =
@@ -236,3 +248,9 @@ export const remove =
     if (usages.length > 0) return fail({ kind: 'in-use', usages });
     return ok({ ...project, [key]: without(project[key], id) });
   };
+
+/** Swaps in a whole project, as when opening a project file. Undo brings the old one back. */
+export const replaceProject =
+  (next: Project): Command =>
+  () =>
+    ok(next);
