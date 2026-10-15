@@ -26,6 +26,7 @@ import {
   remove,
   removePadMember,
   setBreak,
+  setFillWindow,
   setSongCell,
   updateHit,
   setStep,
@@ -461,5 +462,27 @@ describe('fas 3b: trimming, markers and re-slicing', () => {
     delete old.samples[id]!.break.markers;
     delete old.samples[id]!.break.loop;
     expect(upgradeProject(old as unknown as Project).samples[id]!.break!.markers).toEqual(gridMarkers(2, 2));
+  });
+});
+
+describe('fill window (model)', () => {
+  it('defaults to the whole loop and can only be set on a fill, within its steps', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, createLoop(null, 'fill', 1), createLoop(null, 'main', 1));
+    const [fill, main] = Object.values(project.loops);
+    expect(fill!.window).toEqual({ start: 0, end: 16 });
+    expect(run(project, ctx, setFillWindow(fill!.id, 8, 16)).loops[fill!.id]!.window).toEqual({ start: 8, end: 16 });
+    expect(setFillWindow(main!.id, 8, 16)(project, ctx).ok).toBe(false);
+    expect(setFillWindow(fill!.id, 8, 8)(project, ctx).ok).toBe(false);
+    expect(setFillWindow(fill!.id, 0, 17)(project, ctx).ok).toBe(false);
+  });
+
+  it('setLoopBars keeps a whole window whole and cuts a partial one', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, createLoop(null, 'fill', 2), createLoop(null, 'fill', 2));
+    const [whole, part] = Object.values(project.loops);
+    project = run(project, ctx, setFillWindow(part!.id, 12, 28), setLoopBars(whole!.id, 1), setLoopBars(part!.id, 1));
+    expect(project.loops[whole!.id]!.window).toEqual({ start: 0, end: 16 });
+    expect(project.loops[part!.id]!.window).toEqual({ start: 12, end: 16 });
   });
 });

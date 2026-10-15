@@ -2,7 +2,7 @@ import type { Command, CommandContext, Usage } from './command';
 import { fail, invalid, notFound, ok, sequence } from './command';
 import { findUsages } from './references';
 import type { SliceGrid } from './project';
-import { emptySteps, gridMarkers, nextLoopName } from './project';
+import { emptySteps, fullWindow, gridMarkers, nextLoopName } from './project';
 import type { AudioData, BreakInfo, Hit, Id, Loop, Pad, Project, Sample } from './types';
 import { STEPS_PER_BAR } from './types';
 
@@ -190,7 +190,7 @@ export const sliceAtMarkers =
       if (steps[step]?.padId === null) steps[step] = { padId: added.padId, memberId: null, ignoreMods: false, nudge: 0 };
     });
 
-    const loop: Loop = { id: loopId, name: nextLoopName(next, 'main'), kind: 'main', bars, steps };
+    const loop: Loop = { id: loopId, name: nextLoopName(next, 'main'), kind: 'main', bars, steps, window: fullWindow(bars) };
     return ok({ ...next, loops: { ...next.loops, [loop.id]: loop } });
   };
 

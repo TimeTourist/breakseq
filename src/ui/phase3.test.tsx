@@ -176,3 +176,35 @@ function applyAll(project: Project, ...commands: Command[]): Project {
     return r.project;
   }, project);
 }
+
+describe('Fill window', () => {
+  it('Last 1/2 makes the main show through the first half, in Loops and in Song', async () => {
+    const project = build(createLoop(null, 'main', 4), createLoop(null, 'fill', 1));
+    const [main, fill] = Object.values(project.loops);
+    const store = await setup(applyAll(project, setSongCell('main', 0, main!.id), setSongCell('fill', 2, fill!.id)), 'loops');
+    fireEvent.click(button(/F1/));
+
+    fireEvent.click(button('Last 1/2'));
+
+    expect(present(store).loops[fill!.id]!.window).toEqual({ start: 8, end: 16 });
+    expect(button(/^Bar 1, step 8:/).getAttribute('aria-label')).toMatch(/main shows through$/);
+    expect(button(/^Bar 1, step 9:/).getAttribute('aria-label')).not.toMatch(/through/);
+
+    fireEvent.keyDown(window, { key: '8' });
+    expect(button(/^Fill bar 3:/).getAttribute('aria-label')).toBe('Fill bar 3: F1 bar 1, plays steps 9–16');
+    expect(button(/^Bar 3:/).getAttribute('aria-label')).toBe('Bar 3: M1 bar 3, fill over steps 9–16');
+  });
+
+  it('←/→ on the start handle moves it a step, and Shift a beat', async () => {
+    const project = build(createLoop(null, 'fill', 1));
+    const fill = Object.values(project.loops)[0]!;
+    const store = await setup(project, 'loops');
+    const start = button(/^Fill starts at/);
+
+    fireEvent.keyDown(start, { key: 'ArrowRight', shiftKey: true });
+    fireEvent.keyDown(button(/^Fill starts at/), { key: 'ArrowRight' });
+
+    expect(present(store).loops[fill.id]!.window).toEqual({ start: 5, end: 16 });
+    expect(button(/^Fill starts at/).getAttribute('aria-label')).toBe('Fill starts at T1 · 06');
+  });
+});

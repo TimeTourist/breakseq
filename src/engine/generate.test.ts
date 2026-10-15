@@ -8,6 +8,7 @@ import {
   createProject,
   removePadMember,
   setBpm,
+  setFillWindow,
   setSongBars,
   setSongCell,
   setStep,
@@ -330,5 +331,57 @@ describe('randomness', () => {
 
     expect(generateTriggers(project, seededRng(1))).toEqual(generateTriggers(project, seededRng(1)));
     expect(generateTriggers(project, seededRng(1))).not.toEqual(generateTriggers(project, seededRng(2)));
+  });
+});
+
+describe('fill window', () => {
+  /** Main M1 has pad M on every step; fill F1 has pad F on every step. */
+  function mainAndFill(fillBars: number) {
+    let { project, pad, hit } = withPads(['M', 'F']);
+    let m1: Id, f1: Id;
+    [project, m1] = addLoop(project, 'M1', 'main', 1);
+    [project, f1] = addLoop(project, 'F1', 'fill', fillBars);
+    project = run(
+      project,
+      ...Array.from({ length: 16 }, (_, i) => setStep(m1, i, { padId: pad.M! })),
+      ...Array.from({ length: fillBars * 16 }, (_, i) => setStep(f1, i, { padId: pad.F! })),
+      setSongBars(4),
+      setSongCell('main', 0, m1),
+      setSongCell('fill', 1, f1),
+    );
+    return { project, f1, hit };
+  }
+
+  /** Which pad plays each step of a bar: 'M' or 'F'. */
+  const layerOf = (project: Project, hit: Record<string, Id>, bar: number) =>
+    generateTriggers(project, () => 0)
+      .filter((t) => t.bar === bar)
+      .map((t) => (t.hitId === hit.F ? 'F' : 'M'))
+      .join('');
+
+  it('a fill plays the whole bar by default', () => {
+    const { project, hit } = mainAndFill(1);
+    expect(layerOf(project, hit, 1)).toBe('F'.repeat(16));
+  });
+
+  it('the main shows through outside the window: the last half of a bar', () => {
+    const { project: base, f1, hit } = mainAndFill(1);
+    const project = run(base, setFillWindow(f1, 8, 16));
+    expect(layerOf(project, hit, 1)).toBe('M'.repeat(8) + 'F'.repeat(8));
+    expect(layerOf(project, hit, 2)).toBe('M'.repeat(16));
+  });
+
+  it('silent steps inside the window stay silent', () => {
+    const { project: base, f1, hit } = mainAndFill(1);
+    const project = run(base, setFillWindow(f1, 12, 16), setStep(f1, 13, { padId: null }));
+    expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(3));
+    expect(generateTriggers(project, () => 0).some((t) => t.bar === 1 && t.step === 13)).toBe(false);
+  });
+
+  it('a window can span the bars of a longer fill', () => {
+    const { project: base, f1, hit } = mainAndFill(2);
+    const project = run(base, setFillWindow(f1, 12, 20));
+    expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(4));
+    expect(layerOf(project, hit, 2)).toBe('F'.repeat(4) + 'M'.repeat(12));
   });
 });
