@@ -12,6 +12,7 @@ const LABELS: Record<View, string> = {
   loops: 'Loops',
   mods: 'Mods',
   song: 'Song',
+  project: 'Project',
 };
 
 interface HeaderProps {

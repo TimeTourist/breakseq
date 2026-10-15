@@ -1920,3 +1920,46 @@ input[type='search'] {
   fill: transparent;
   stroke: #23262b;
 }
+
+/* Project: snapshots, newest first, the active one on top. */
+
+.snapshot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.snapshot-row.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.snapshot-row.new {
+  border-style: dashed;
+}
+
+.snapshot-row .mono.muted {
+  min-width: 9.5em;
+  font-size: 13px;
+}
+
+.snapshot-name {
+  font-weight: 600;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.55);
+  z-index: 20;
+}
+
+.dialog {
+  max-width: 520px;
+  margin: 16px;
+}

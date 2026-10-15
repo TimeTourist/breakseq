@@ -11,6 +11,7 @@ import { ModsView, currentModId, previewLoopId } from './ModsView';
 import type { Take } from './playback';
 import type { Services } from './services';
 import { SliceView } from './SliceView';
+import { ProjectView } from './ProjectView';
 import { SongView } from './SongView';
 import type { Store, View } from './store';
 import { VIEWS } from './store';
@@ -176,6 +177,7 @@ function Shell() {
       {view === 'hits' && <HitsView />}
       {view === 'loops' && <LoopsView playhead={playhead.trigger} />}
       {view === 'mods' && <ModsView />}
+      {view === 'project' && <ProjectView />}
       {view === 'song' && (
         <SongView playheadSeconds={playhead.seconds} stepSeconds={stepDuration(bpm)} rendering={rendering} onNewTake={newTake} />
       )}

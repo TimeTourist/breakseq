@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from 'react';
+import type { Folder, SnapshotInfo } from '../engine';
 import type { Command, CommandError, History, Id, Project } from '../model';
 import { apply, createHistory, createProject, redo, seal, undo } from '../model';
 
-export const VIEWS = ['import', 'slice', 'hits', 'loops', 'mods', 'song'] as const;
+export const VIEWS = ['import', 'slice', 'hits', 'loops', 'mods', 'song', 'project'] as const;
 export type View = (typeof VIEWS)[number];
 
 /** What is open in each editing view. */
@@ -17,8 +18,17 @@ export interface Selection {
   readonly previewLoop: Id | null;
 }
 
+/** The project folder open in Project, and which snapshot the work was last saved to. */
+export interface ProjectFolderState {
+  readonly folder: Folder | null;
+  readonly active: SnapshotInfo | null;
+  /** `comparable` of the project as the active snapshot holds it: the work differs from it when changed. */
+  readonly saved: string | null;
+}
+
 export interface AppState {
   readonly history: History;
+  readonly projectFolder: ProjectFolderState;
   readonly view: View;
   /** The break picked in Import for slicing. */
   readonly sliceTarget: string | null;
@@ -35,10 +45,13 @@ export type Action =
   | { readonly type: 'redo' }
   | { readonly type: 'view'; readonly view: View }
   | { readonly type: 'sliceTarget'; readonly sampleId: string | null }
-  | { readonly type: 'load'; readonly project: Project };
+  /** Swaps in a project and starts a new undo history, as a loaded snapshot does. */
+  | { readonly type: 'load'; readonly project: Project }
+  | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> };
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
+  projectFolder: { folder: null, active: null, saved: null },
   view: 'import',
   sliceTarget: null,
   selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },
@@ -70,6 +83,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, sliceTarget: action.sampleId }, error: null };
     case 'load':
       return { state: { ...state, history: createHistory(action.project) }, error: null };
+    case 'projectFolder':
+      return { state: { ...state, projectFolder: { ...state.projectFolder, ...action.state } }, error: null };
   }
 }
 
