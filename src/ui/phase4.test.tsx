@@ -3,10 +3,10 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createProject, setSongCell, setStep } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { addSample, createLoop, createMod, createProject, setSongCell, setStep } from '../model';
+import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
 import { App } from './App';
-import { parseValues } from './modText';
+import { parseValues, randomMod } from './modText';
 import type { Player, Take } from './playback';
 import type { Services } from './services';
 import type { Store, View } from './store';
@@ -49,6 +49,14 @@ function apply(project: Project, ...commands: Command[]): Project {
 
 const build = (...commands: Command[]) => apply(createProject(ctx), ...commands);
 
+/** A snare on every beat of a one-bar main loop, placed in the song. */
+function snareLoopProject(): Project {
+  const project = build(addSample({ name: 'snare.wav', audio: constantAudio(0.1) }), createLoop(null, 'main', 1));
+  const pad = Object.values(project.pads)[0]!.id;
+  const loop = Object.values(project.loops)[0]!.id;
+  return apply(project, ...[0, 4, 8, 12].map((i) => setStep(loop, i, { padId: pad })), setSongCell('main', 0, loop));
+}
+
 async function setup(project: Project, view: View): Promise<Store> {
   const store = createStore({ ...initialState(project), view });
   render(<App store={store} services={services()} />);
@@ -60,16 +68,8 @@ const present = (store: Store) => store.getState().history.present;
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 describe('Mods', () => {
-  /** A snare on every beat of a one-bar main loop, placed in the song. */
-  function snareLoop(): Project {
-    const project = build(addSample({ name: 'snare.wav', audio: constantAudio(0.1) }), createLoop(null, 'main', 1));
-    const pad = Object.values(project.pads)[0]!.id;
-    const loop = Object.values(project.loops)[0]!.id;
-    return apply(project, ...[0, 4, 8, 12].map((i) => setStep(loop, i, { padId: pad })), setSongCell('main', 0, loop));
-  }
-
   it('a new mod with typed values, placed in Mod A, changes the triggers', async () => {
-    const store = await setup(snareLoop(), 'mods');
+    const store = await setup(snareLoopProject(), 'mods');
 
     fireEvent.click(button('+ New mod'));
     fireEvent.click(within(screen.getByRole('group', { name: 'Target' })).getByRole('button', { name: 'Pitch' }));
@@ -106,5 +106,34 @@ describe('parseValues', () => {
     expect(parseValues('tempo', '0', project).ok).toBe(false);
     expect(parseValues('sourceLoop', 'M9', project)).toEqual({ ok: false, error: 'No loop called M9' });
     expect(parseValues('pitch', 'x', project)).toEqual({ ok: false, error: 'x is not a number' });
+  });
+});
+
+describe('randomMod', () => {
+  it('always makes a mod the engine can play, within sensible ranges', () => {
+    const project = build(addSample({ name: 's.wav', audio: constantAudio(0.1) }), createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
+    const loops = Object.keys(project.loops);
+    for (let seed = 1; seed <= 300; seed++) {
+      const mod = randomMod(project, seededRng(seed));
+      const { shape, target } = mod;
+      const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : shape.kind === 'ramp' ? [shape.from, shape.to] : [shape.min, shape.max];
+      if (target === 'ratchet') expect(values.every((v) => v >= 1 && v <= 8)).toBe(true);
+      if (target === 'tempo') expect(values.every((v) => v > 0)).toBe(true);
+      if (target === 'direction' || target === 'sourceLoop') expect(shape.kind).not.toBe('ramp');
+      if (target === 'sourceLoop') expect(mod.sources.length).toBeGreaterThan(0);
+      expect(mod.sources.every((id) => loops.includes(id))).toBe(true);
+      const placed = apply(project, createMod({ name: 'r', ...mod }), setSongCell('main', 0, loops[0]!));
+      const id = Object.keys(placed.mods)[0]!;
+      expect(() => generateTriggers(apply(placed, setSongCell('modA', 0, id)), seededRng(seed))).not.toThrow();
+    }
+  });
+
+  it('Randomize changes the mod in one undo step', async () => {
+    const store = await setup(snareLoopProject(), 'mods');
+    fireEvent.click(button('+ New mod'));
+    const before = present(store);
+    fireEvent.click(button('Randomize'));
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    expect(present(store)).toBe(before);
   });
 });

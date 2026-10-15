@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Id, Mod, ModRate, ModScope, ModShape, ModTarget, Project } from '../model';
 import { MOD_TARGETS, createMod, remove, updateMod } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues } from './modText';
+import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues, randomMod } from './modText';
 import type { Selection } from './store';
 
 /** The mod open in Mods: the selected one, else the first. */
@@ -128,6 +128,9 @@ export function ModsView() {
             {TARGET_LABELS[mod.target]} · {scopeText(mod.scope, project)} · per {mod.rate}
           </span>
           <div className="row push">
+            <button type="button" title="Pick target, scope, rate and shape at random. Undo takes it back." onClick={() => update(randomMod(project))}>
+              Randomize
+            </button>
             <label className="field">
               Try on
               <select value={previewId ?? ''} onChange={(e) => open({ previewLoop: e.target.value }, 'mods')}>
