@@ -44,6 +44,7 @@ export function FillWindowStrip({ loop, bar, onError }: FillWindowProps & { read
         className={`trim-handle window-handle ${which}`}
         style={{ left: `${((at - first) / STEPS_PER_BAR) * 100}%` }}
         aria-label={which === 'start' ? `Fill starts at ${stepName(start)}` : `Fill ends after ${stepName(end - 1)}`}
+        title="In the Fill row the loop plays between the handles. Drag, or use ←/→ (Shift: a beat)."
         onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
         onPointerMove={(e) => {
           if (e.currentTarget.hasPointerCapture(e.pointerId)) moveTo(boundaryAt(e.clientX));
@@ -65,9 +66,7 @@ export function FillWindowStrip({ loop, bar, onError }: FillWindowProps & { read
   const endHere = end > first && end <= first + STEPS_PER_BAR;
   return (
     <div className="step-row">
-      <span className="mono muted small" title="Drag the handles, or focus one and use ←/→ (Shift: a beat)">
-        {bar === 0 ? 'Fill' : ''}
-      </span>
+      <span />
       <div className="window-strip" ref={strip}>
         {to > from && (
           <div className="window-fill" style={{ left: `${(from / STEPS_PER_BAR) * 100}%`, width: `${((to - from) / STEPS_PER_BAR) * 100}%` }} />

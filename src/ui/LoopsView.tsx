@@ -185,7 +185,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </div>
             {Array.from({ length: loop.bars }, (_, bar) => (
               <Fragment key={bar}>
-              {loop.kind === 'fill' && <FillWindowStrip loop={loop} bar={bar} onError={setError} />}
+              <FillWindowStrip loop={loop} bar={bar} onError={setError} />
               <div className="step-row">
                 <span className="mono muted small">T{bar + 1}</span>
                 {Array.from({ length: STEPS_PER_BAR }, (_, s) => {
@@ -195,7 +195,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   const memberIndex = pad === undefined || cell?.memberId == null ? 0 : Math.max(0, pad.members.indexOf(cell.memberId));
                   const color = pad === undefined ? undefined : hitColor(project, pad.members[memberIndex]);
                   const now = playhead !== null && playhead.bar === bar && playhead.step === s;
-                  const through = loop.kind === 'fill' && (index < loop.window.start || index >= loop.window.end);
+                  // Outside its window a loop in the Fill row lets the main through.
+                  const through = index < loop.window.start || index >= loop.window.end;
                   return (
                     <button
                       key={s}
