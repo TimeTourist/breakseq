@@ -94,6 +94,24 @@ export const duplicateHit =
     return ok({ ...project, hits: { ...project.hits, [copy.id]: copy } });
   };
 
+/**
+ * A variant of a hit, added last to the pad made for the original: the pad that
+ * stands for that hit. A variant of a variant goes to the same pad. One undo step.
+ */
+export const addVariant =
+  (id: Id, name?: string): Command =>
+  (project, ctx) => {
+    const hit = project.hits[id];
+    if (hit === undefined) return notFound(id);
+    let root = hit;
+    while (root.variantOf !== null && project.hits[root.variantOf] !== undefined) root = project.hits[root.variantOf]!;
+    const pad = isParentHit(project, root) ? undefined : Object.values(project.pads).find((p) => p.auto && p.members[0] === root.id);
+    const copy: Hit = { ...hit, id: ctx.newId(), name: name ?? `${hit.name} var`, variantOf: id };
+    const hits = { ...project.hits, [copy.id]: copy };
+    const pads = pad === undefined ? project.pads : { ...project.pads, [pad.id]: { ...pad, members: [...pad.members, copy.id] } };
+    return ok({ ...project, hits, pads });
+  };
+
 // Pads
 
 export const createPad =
