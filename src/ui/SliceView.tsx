@@ -3,6 +3,7 @@ import type { SliceGrid } from '../model';
 import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, setMarkers, sliceAtMarkers, unsliceBreak } from '../model';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { sources } from './ImportView';
+import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
 import { Waveform } from './Waveform';
 
 const GRIDS: readonly SliceGrid[] = [4, 8, 16];
@@ -28,6 +29,8 @@ export function SliceView() {
   const [selected, setSelected] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [playingBreak, setPlayingBreak] = useState(false);
+  const [loopBreak, setLoopBreak] = useState(true);
+  const playhead = useAuditionPlayhead(playingBreak);
   const box = useRef<HTMLDivElement>(null);
 
   // Leaving the view stops whatever is being auditioned.
@@ -87,20 +90,29 @@ export function SliceView() {
         </div>
         <div className="row push">
           {audio !== undefined && (
-            <button
-              type="button"
-              aria-pressed={playingBreak}
-              onClick={() => {
-                if (playingBreak) {
-                  services.player.stopAudition();
-                  return;
-                }
-                setPlayingBreak(true);
-                services.player.audition(audio, sample.offset, duration, () => setPlayingBreak(false));
-              }}
-            >
-              {playingBreak ? 'Stop break' : 'Play break'}
-            </button>
+            <>
+              <PlayMode
+                loop={loopBreak}
+                onChange={(next) => {
+                  setLoopBreak(next);
+                  if (playingBreak) services.player.audition(audio, sample.offset, duration, () => setPlayingBreak(false), next);
+                }}
+              />
+              <button
+                type="button"
+                aria-pressed={playingBreak}
+                onClick={() => {
+                  if (playingBreak) {
+                    services.player.stopAudition();
+                    return;
+                  }
+                  setPlayingBreak(true);
+                  services.player.audition(audio, sample.offset, duration, () => setPlayingBreak(false), loopBreak);
+                }}
+              >
+                {playingBreak ? 'Stop break' : 'Play break'}
+              </button>
+            </>
           )}
           {breaks.length > 1 && (
             <label className="field">
@@ -144,6 +156,9 @@ export function SliceView() {
               }}
             >
               <Waveform audio={audio} offset={sample.offset} duration={duration} height={200} />
+              {playhead !== null && (
+                <div className="playhead" style={{ left: `${((playhead - sample.offset) / duration) * 100}%` }} />
+              )}
               {markers.map((m, i) => (
                 <button
                   key={`slice-${i}`}

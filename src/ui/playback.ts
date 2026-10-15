@@ -22,6 +22,17 @@ export function nextLoopBoundary(now: number, startTime: number, duration: numbe
   return boundary - now < MIN_LEAD ? boundary + duration : boundary;
 }
 
+/** Where an audition is, in seconds of its audio: looped within its region, or null once a single play is over. */
+export function auditionPosition(
+  now: number,
+  audition: { readonly startTime: number; readonly offset: number; readonly duration: number; readonly loop: boolean },
+): number | null {
+  const elapsed = now - audition.startTime;
+  if (elapsed < 0 || audition.duration <= 0) return audition.offset;
+  if (!audition.loop) return elapsed > audition.duration ? null : audition.offset + elapsed;
+  return audition.offset + (elapsed % audition.duration);
+}
+
 /** The trigger most recently passed at `position` seconds into a take, or null before the first. */
 export function playheadTrigger(triggers: readonly Trigger[], position: number): Trigger | null {
   let last: Trigger | null = null;
@@ -47,10 +58,14 @@ export interface Player {
   /** The trigger under the playhead now, or null when stopped. */
   readonly currentTrigger: () => Trigger | null;
   /**
-   * Plays part of some audio directly, outside the song. Times in seconds.
+   * Plays part of some audio directly, outside the song: once, or looped. Times in seconds.
    * One voice: a new audition cuts the previous one. `onEnded` runs when it stops either way.
    */
-  readonly audition: (audio: AudioData, offset: number, duration: number, onEnded?: () => void) => void;
+  readonly audition: (audio: AudioData, offset: number, duration: number, onEnded?: () => void, loop?: boolean) => void;
+  /** Moves a looping audition's region while it plays, without restarting it. */
+  readonly setAuditionRegion: (offset: number, duration: number) => void;
+  /** Where the audition is now, in seconds of its audio, or null when nothing plays. */
+  readonly auditionPosition: () => number | null;
   readonly stopAudition: () => void;
   /** Plays a hit with its own settings straight away, sounding as it does in a song. Cuts any audition. */
   readonly playHit: (project: Project, hitId: Id) => void;
@@ -63,6 +78,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
   let pending: Segment | null = null;
   const auditionBuffers = new WeakMap<AudioData, AudioBuffer>();
   let auditioning: AudioBufferSourceNode | null = null;
+  let region: { startTime: number; offset: number; duration: number; loop: boolean } | null = null;
   // Hit buffers are cached per project version, so edits to audio are never stale.
   let hitCache: { project: Project; cache: BufferCache } | null = null;
 
@@ -73,6 +89,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       // Already stopped.
     }
     auditioning = null;
+    region = null;
   };
 
   const ctx = () => {
@@ -147,7 +164,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       if (hitCache?.project.audio !== project.audio) hitCache = { project, cache: new Map() };
       auditioning = scheduleHit(c, hitCache.cache, project, hitPlay(hit), c.currentTime);
     },
-    audition: (audio, offset, duration, onEnded) => {
+    audition: (audio, offset, duration, onEnded, loop = false) => {
       stopAudition();
       const c = ctx();
       let buffer = auditionBuffers.get(audio);
@@ -160,12 +177,34 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       source.buffer = buffer;
       source.connect(c.destination);
       source.onended = () => {
-        if (auditioning === source) auditioning = null;
+        if (auditioning === source) {
+          auditioning = null;
+          region = null;
+        }
         onEnded?.();
       };
-      source.start(c.currentTime, offset, duration);
+      if (loop) {
+        source.loop = true;
+        source.loopStart = offset;
+        source.loopEnd = offset + duration;
+        source.start(c.currentTime, offset);
+      } else {
+        source.start(c.currentTime, offset, duration);
+      }
       auditioning = source;
+      region = { startTime: c.currentTime, offset, duration, loop };
     },
+    setAuditionRegion: (offset, duration) => {
+      if (auditioning === null || region === null || !region.loop || context === null) return;
+      const now = context.currentTime;
+      const at = auditionPosition(now, region) ?? offset;
+      auditioning.loopStart = offset;
+      auditioning.loopEnd = offset + duration;
+      // Keep the playhead where the sound is: inside the new region it carries on, outside it wraps to the start.
+      const into = at >= offset && at < offset + duration ? at - offset : 0;
+      region = { startTime: now - into, offset, duration, loop: true };
+    },
+    auditionPosition: () => (region === null || context === null ? null : auditionPosition(context.currentTime, region)),
     stopAudition,
   };
 }

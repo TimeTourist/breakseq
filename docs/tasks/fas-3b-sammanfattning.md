@@ -12,7 +12,12 @@
   - **Trim i Import:** dragbara handtag, fält i ms, ←/→ för att nudga, "Play trimmed" och Reset.
   - **Slice:** markörer som går att dra, välja och nudga (←/→, med Shift 10 ms), "Add marker", "Remove marker", dubbelklick för att lägga till, och Re-slice.
 
-Testerna från uppdraget finns (83 totalt). Typecheck och lint är gröna.
+- **Lyssna medan man trimmar:**
+  - Once eller Loop i Trim och i Slices "Play break". Loop är förvalt för breaks och Once för one-shots.
+  - Ett vitt sträck visar var uppspelningen är.
+  - En loop som spelar följer start och slut direkt när de ändras, utan omstart (`setAuditionRegion`).
+
+Testerna från uppdraget finns, plus test för loop och sträck (87 totalt). Typecheck och lint är gröna.
 
 ## Verifierat i webbläsaren med `samples/Amen-break.wav`
 

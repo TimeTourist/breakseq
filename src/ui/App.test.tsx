@@ -22,6 +22,8 @@ function fakeServices(): Services {
     currentTrigger: () => null,
     audition: vi.fn(),
     stopAudition: vi.fn(),
+    setAuditionRegion: vi.fn(),
+    auditionPosition: () => null,
     playHit: vi.fn(),
   };
   return {
@@ -136,6 +138,7 @@ describe('Slice', () => {
       sample.offset,
       sample.duration,
       expect.any(Function),
+      true,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Stop break' }));
     expect(services.player.stopAudition).toHaveBeenCalled();

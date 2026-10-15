@@ -15,6 +15,15 @@ afterEach(cleanup);
 const ctx = sequentialIds();
 
 function fakeServices(): Services {
+  return services ?? (services = makeServices());
+}
+
+let services: Services | null = null;
+afterEach(() => {
+  services = null;
+});
+
+function makeServices(): Services {
   const player: Player = {
     play: vi.fn(),
     replace: vi.fn(),
@@ -23,6 +32,8 @@ function fakeServices(): Services {
     currentTrigger: () => null,
     audition: vi.fn(),
     stopAudition: vi.fn(),
+    setAuditionRegion: vi.fn(),
+    auditionPosition: () => null,
     playHit: vi.fn(),
   };
   return {
@@ -112,5 +123,33 @@ describe('Markers in Slice', () => {
     fireEvent.click(button('Re-slice'));
     expect(sample(store).break!.sliced).toBe(false);
     expect(Object.keys(store.getState().history.present.loops)).toHaveLength(0);
+  });
+});
+
+describe('Playing while trimming', () => {
+  it('a break plays looped by default, follows the trim while it plays, and Once restarts it once', async () => {
+    const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const id = Object.keys(project.samples)[0]!;
+    const asBreak = setBreak(id, 1)(project, ctx);
+    if (!asBreak.ok) throw new Error('setBreak failed');
+    await setup(asBreak.project, 'import');
+    const player = fakeServices().player;
+    fireEvent.click(button('Trim amen.wav'));
+
+    fireEvent.click(button('Play trimmed'));
+    expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '100' } });
+    expect(player.setAuditionRegion).toHaveBeenCalledWith(0.1, expect.closeTo(1.9, 6));
+
+    fireEvent.click(button('Once'));
+    expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(false);
+  });
+
+  it('a one-shot plays once by default', async () => {
+    await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'import');
+    fireEvent.click(button('Trim snare.wav'));
+    fireEvent.click(button('Play trimmed'));
+    expect(vi.mocked(fakeServices().player.audition).mock.calls.at(-1)?.[4]).toBe(false);
   });
 });

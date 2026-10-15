@@ -23,6 +23,8 @@ function fakeServices(): Services & { rendered: Project[] } {
     currentTrigger: () => null,
     audition: vi.fn(),
     stopAudition: vi.fn(),
+    setAuditionRegion: vi.fn(),
+    auditionPosition: () => null,
     playHit: vi.fn(),
   };
   return {
