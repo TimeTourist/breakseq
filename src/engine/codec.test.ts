@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AudioFileError, NORMALIZE_PEAK, decodeAudioFile, encodeWav } from './codec';
+import { AudioFileError, NORMALIZE_PEAK, decodeAudioFile, encodeWav, readCues } from './codec';
 
 /** Builds a file from chunks: [id, bytes]. RIFF is little-endian, IFF (AIFF) big-endian. */
 function container(kind: 'RIFF' | 'FORM', type: string, parts: readonly [string, Uint8Array][]): Uint8Array {
@@ -157,5 +157,27 @@ describe('encodeWav', () => {
     const back = decodeAudioFile(encodeWav({ sampleRate: 44100, channels: [new Float32Array(4)] }));
     expect(back.channels).toHaveLength(2);
     expect(channel(back, 1)).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe('readCues', () => {
+  it('reads cue points in seconds, sorted, and none from files without them', () => {
+    const plain = wav(1, 16, 44100, Array.from({ length: 10 }, () => [0]));
+    const cue = bytes(4 + 3 * 24, (v) => {
+      v.setUint32(0, 3, true);
+      [22050, 4410, 0].forEach((frame, i) => {
+        v.setUint32(4 + i * 24, i + 1, true);
+        v.setUint32(4 + i * 24 + 4, frame, true);
+        [...'data'].forEach((ch, j) => v.setUint8(4 + i * 24 + 8 + j, ch.charCodeAt(0)));
+        v.setUint32(4 + i * 24 + 20, frame, true);
+      });
+    });
+    const fmt = plain.slice(20, 36);
+    const data = plain.slice(44);
+    const withCues = container('RIFF', 'WAVE', [['fmt ', fmt], ['cue ', cue], ['data', data]]);
+
+    expect(readCues(withCues)).toEqual([0, 0.1, 0.5]);
+    expect(readCues(plain)).toEqual([]);
+    expect(decodeAudioFile(withCues).channels[0]).toHaveLength(10);
   });
 });

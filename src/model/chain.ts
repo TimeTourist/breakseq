@@ -2,7 +2,7 @@ import type { Command, CommandContext, Usage } from './command';
 import { fail, invalid, notFound, ok, sequence } from './command';
 import { findUsages } from './references';
 import type { SliceGrid } from './project';
-import { emptySteps, fullWindow, gridMarkers, nextLoopName } from './project';
+import { emptySteps, fullWindow, gridMarkers, nextLoopName, onGrid } from './project';
 import type { AudioData, BreakInfo, Hit, Id, Loop, Pad, Project, Sample } from './types';
 import { STEPS_PER_BAR } from './types';
 
@@ -41,11 +41,13 @@ function addWithChain(project: Project, sample: Sample, ctx: CommandContext): { 
 export interface NewSample {
   readonly name: string;
   readonly audio: AudioData;
+  /** Cue markers from the file, in seconds. A file with cues becomes a 4-bar break sliced at them. */
+  readonly cues?: readonly number[];
 }
 
 /** Adds an imported file as a sample, with its default hit and pad. */
 export const addSample =
-  ({ name, audio }: NewSample): Command =>
+  ({ name, audio, cues = [] }: NewSample): Command =>
   (project, ctx) => {
     const length = audio.channels[0]?.length ?? 0;
     if (length === 0 || audio.sampleRate <= 0) return invalid('Audio is empty');
@@ -57,10 +59,15 @@ export const addSample =
       offset: 0,
       duration: length / audio.sampleRate,
       mainTag: null,
+      tagGuessed: false,
       extraTags: [],
       break: null,
       sliceOf: null,
     };
+    if (cues.length > 0) {
+      const withCues = { ...sample, break: breakInfo(sample.duration, 4, cleanMarkers(cues, sample.duration)) };
+      return ok(addWithChain({ ...project, audio: { ...project.audio, [audioId]: audio } }, withCues, ctx).project);
+    }
     return ok(addWithChain({ ...project, audio: { ...project.audio, [audioId]: audio } }, sample, ctx).project);
   };
 
@@ -72,13 +79,23 @@ export function breakBpm(duration: number, bars: number): number {
 /** The shortest slice markers may make, in seconds. */
 export const MIN_SLICE = 0.001;
 
-const breakInfo = (duration: number, bars: number): BreakInfo => ({
+/** A break's info; markers default to 1/16. */
+const breakInfo = (duration: number, bars: number, markers: readonly number[] = gridMarkers(duration, bars)): BreakInfo => ({
   bars,
   bpm: breakBpm(duration, bars),
   sliced: false,
-  markers: gridMarkers(duration, bars),
+  markers,
   loop: null,
 });
+
+/** Markers within a sample of `duration`, the first at 0, too-close ones dropped. */
+function cleanMarkers(markers: readonly number[], duration: number): number[] {
+  const kept: number[] = [0];
+  for (const m of [...markers].sort((a, b) => a - b)) {
+    if (m - kept[kept.length - 1]! >= MIN_SLICE && duration - m >= MIN_SLICE) kept.push(m);
+  }
+  return kept;
+}
 
 const setSample = (project: Project, sample: Sample): Project => ({
   ...project,
@@ -93,7 +110,9 @@ export const setBreak =
     if (sample === undefined) return notFound(sampleId);
     if (sample.break?.sliced === true) return invalid('A sliced break cannot change');
     if (bars !== null && (!Number.isInteger(bars) || bars < 1)) return invalid('A break must be a whole number of bars');
-    return ok(setSample(project, { ...sample, break: bars === null ? null : breakInfo(sample.duration, bars) }));
+    // Markers placed by hand (or from cues) stay; markers on a grid follow the new length.
+    const own = sample.break !== null && !onGrid(sample.break.markers, sample.duration, sample.break.bars) ? sample.break.markers : undefined;
+    return ok(setSample(project, { ...sample, break: bars === null ? null : breakInfo(sample.duration, bars, own) }));
   };
 
 /**
@@ -130,7 +149,17 @@ export const trimSample =
       ...sample,
       offset: from,
       duration,
-      break: sample.break === null ? null : breakInfo(duration, sample.break.bars),
+      break:
+        sample.break === null
+          ? null
+          : breakInfo(
+              duration,
+              sample.break.bars,
+              // Own markers keep their place in the file; markers on a grid follow the new length.
+              onGrid(sample.break.markers, sample.duration, sample.break.bars)
+                ? undefined
+                : cleanMarkers(sample.break.markers.map((m) => m + sample.offset - from), duration),
+            ),
     };
     return ok({ ...setSample(project, trimmed), hits });
   };
@@ -180,6 +209,7 @@ export const sliceAtMarkers =
         offset: source.offset + marker,
         duration: end - marker,
         mainTag: null,
+        tagGuessed: false,
         extraTags: [],
         break: null,
         sliceOf: sampleId,

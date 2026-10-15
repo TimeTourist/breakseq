@@ -41,6 +41,14 @@ export function gridMarkers(duration: number, bars: number, grid: SliceGrid = 16
   return Array.from({ length: count }, (_, i) => (i * duration) / count);
 }
 
+/** Whether markers lie on an equal grid of some resolution, rather than placed by hand. */
+export function onGrid(markers: readonly number[], duration: number, bars: number): boolean {
+  return ([4, 8, 16] as const).some((grid) => {
+    const even = gridMarkers(duration, bars, grid);
+    return even.length === markers.length && even.every((m, i) => Math.abs(m - markers[i]!) < 1e-6);
+  });
+}
+
 /** The next free loop name: M1, M2, … for mains and F1, F2, … for fills. */
 export function nextLoopName(project: Project, kind: LoopKind): string {
   const prefix = kind === 'main' ? 'M' : 'F';
@@ -65,9 +73,10 @@ export function upgradeProject(project: Project): Project {
     Object.entries(project.samples).map(([id, sample]): [Id, Sample] => [
       id,
       sample.break === null || (sample.break.markers !== undefined && sample.break.loop !== undefined)
-        ? sample
+        ? { ...sample, tagGuessed: sample.tagGuessed ?? false }
         : {
             ...sample,
+            tagGuessed: sample.tagGuessed ?? false,
             break: {
               ...sample.break,
               markers: sample.break.markers ?? gridMarkers(sample.duration, sample.break.bars),

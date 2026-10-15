@@ -38,6 +38,8 @@ export interface Sample {
   /** Length in seconds. */
   readonly duration: number;
   readonly mainTag: Id | null;
+  /** The main tag is a guess, not yet confirmed. */
+  readonly tagGuessed: boolean;
   readonly extraTags: readonly Id[];
   /** Set when the sample is a break; null for a one-shot. */
   readonly break: BreakInfo | null;
