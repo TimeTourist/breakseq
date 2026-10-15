@@ -36,8 +36,8 @@ En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man b
 
 Appen har åtta vyer i arbetsordning, nåbara via flikar och tangenterna 1–8. Varje vy har ett ansvar; från andra vyer länkar man dit, men redigerar aldrig där.
 
-1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. För ett break anges antal takter, och BPM räknas fram ur längden.
-2. **Slice** – placera markörer i ett break. Equal grid med valbar upplösning, 1/16 som standard (64 slices för fyra takter Amen); transienter senare.
+1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break anges antal takter, och BPM räknas fram ur den trimmade längden.
+2. **Slice** – placera markörer i ett break. Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare.
 3. **Tag** – ge varje sample en huvudtagg (K, S, H, R, G + egna, max 8). Varje kort har en play-knapp.
 4. **Hits** – redigera region, riktning, pitch, volym och fade; duplicera som variant.
 5. **Pads** – samla hits i pads och bestäm ordning.
@@ -45,7 +45,7 @@ Appen har åtta vyer i arbetsordning, nåbara via flikar och tangenterna 1–8. 
 7. **Mods** – bygg mods.
 8. **Song** – placera loopar och mods i takter.
 
-**Automatisk kedja.** Varje sample får direkt en default-hit (hela samplet, inga ändringar) och en pad med den hitten som enda medlem. När ett break slicas skapas dessutom loopen M1, som spelar breakets pads i ordning, kvantiserad till 1/16. Kedjan körs en gång; därefter är allt vanliga objekt.
+**Automatisk kedja.** Varje sample får direkt en default-hit (hela samplet, inga ändringar) och en pad med den hitten som enda medlem. När ett break slicas skapas dessutom loopen M1, som spelar breakets pads i ordning, kvantiserad till 1/16. Kedjan körs en gång; därefter är allt vanliga objekt. Ett break kan slicas om så länge dess slices inte används utanför M1 och M1 inte ligger i Song; då ersätts slices, hits, pads och M1. Slices med egna markörer placeras i M1 på närmaste 1/16.
 
 **Biblioteksraden.** I Loops och Song finns en rad att dra från: pads i Loops, loopar och mods i Song. Man drar därifrån för att använda, aldrig för att redigera.
 
