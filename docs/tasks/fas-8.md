@@ -14,7 +14,7 @@ Tape får wow och flutter, och man kan välja hur lång tid rampen tar och med v
    - Båda multipliceras med rampens hastighet.
    - Slumpen är deterministisk per take, som all slump.
 2. **Ramp over** sätter hur lång rampen är, i takter, slag och 1/16 från klippets start. Därefter ligger hastigheten kvar på To. Förvalt är hela klippet.
-3. **Kurvan** är Linear, Soft start eller Soft end. Linear är förvald.
+3. **Kurvan** är Linear, Soft start eller Soft end. Linear är förvald. Hard start och Hard end lades till efter fasen (Magnus).
 4. **Mods-vyn** blir en mening per effekt, en graf och färdiga startpunkter.
    - Meningen är redigeraren. Varje del i den är en kontroll, så varje inställning finns på ett enda ställe.
 
