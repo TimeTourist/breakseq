@@ -14,6 +14,7 @@ import {
   redo,
   remove,
   removePadMember,
+  setBreak,
   setSongCell,
   setStep,
   sliceBreak,
@@ -99,6 +100,36 @@ describe('automatic chain', () => {
     const sliced = run(imported, ctx, sliceBreak(id, 4));
     expect(sliced.samples[id]!.break?.bpm).toBeCloseTo(137.142857);
     expect(sliced.samples[id]!.break?.bars).toBe(4);
+  });
+});
+
+describe('breaks', () => {
+  it('setBreak works out the BPM, and null makes the sample a one-shot again', () => {
+    const ctx = sequentialIds();
+    const imported = run(createProject(ctx), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
+    const id = only(imported.samples).id;
+
+    const asBreak = run(imported, ctx, setBreak(id, 4));
+    expect(asBreak.samples[id]!.break).toEqual({ bars: 4, bpm: breakBpm(4 * 1.75, 4), sliced: false });
+
+    const asShot = run(asBreak, ctx, setBreak(id, null));
+    expect(asShot.samples[id]!.break).toBeNull();
+  });
+
+  it('sliceBreak marks the slices and the break, and refuses to slice it twice', () => {
+    const ctx = sequentialIds();
+    const imported = run(createProject(ctx), ctx, addSample({ name: 'Amen', audio: constantAudio(1) }));
+    const id = only(imported.samples).id;
+    const sliced = run(imported, ctx, setBreak(id, 1), sliceBreak(id, 1, 16));
+
+    const slices = Object.values(sliced.samples).filter((s) => s.id !== id);
+    expect(slices).toHaveLength(16);
+    expect(slices.every((s) => s.sliceOf === id)).toBe(true);
+    expect(sliced.samples[id]!.sliceOf).toBeNull();
+    expect(sliced.samples[id]!.break?.sliced).toBe(true);
+
+    expect(sliceBreak(id, 1, 16)(sliced, ctx)).toMatchObject({ ok: false, error: { kind: 'invalid' } });
+    expect(setBreak(id, 2)(sliced, ctx).ok).toBe(false);
   });
 });
 

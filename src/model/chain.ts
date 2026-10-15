@@ -53,6 +53,7 @@ export const addSample =
       mainTag: null,
       extraTags: [],
       break: null,
+      sliceOf: null,
     };
     return ok(addWithChain({ ...project, audio: { ...project.audio, [audioId]: audio } }, sample, ctx).project);
   };
@@ -61,6 +62,18 @@ export const addSample =
 export function breakBpm(duration: number, bars: number): number {
   return (bars * 4 * 60) / duration;
 }
+
+/** Makes a sample a break of `bars` bars, working out its BPM, or a one-shot with null. */
+export const setBreak =
+  (sampleId: Id, bars: number | null): Command =>
+  (project) => {
+    const sample = project.samples[sampleId];
+    if (sample === undefined) return notFound(sampleId);
+    if (sample.break?.sliced === true) return invalid('A sliced break cannot change');
+    if (bars !== null && (!Number.isInteger(bars) || bars < 1)) return invalid('A break must be a whole number of bars');
+    const info = bars === null ? null : { bars, bpm: breakBpm(sample.duration, bars), sliced: false };
+    return ok({ ...project, samples: { ...project.samples, [sampleId]: { ...sample, break: info } } });
+  };
 
 /** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
 export type SliceGrid = 4 | 8 | 16;
@@ -82,6 +95,7 @@ export const sliceBreak =
     const source = project.samples[sampleId];
     if (source === undefined) return notFound(sampleId);
     if (!Number.isInteger(bars) || bars < 1) return invalid('A break must be a whole number of bars');
+    if (source.break?.sliced === true) return invalid('The break is already sliced');
 
     const count = bars * grid;
     const sliceDuration = source.duration / count;
@@ -90,7 +104,10 @@ export const sliceBreak =
 
     let next: Project = {
       ...project,
-      samples: { ...project.samples, [sampleId]: { ...source, break: { bars, bpm: breakBpm(source.duration, bars) } } },
+      samples: {
+        ...project.samples,
+        [sampleId]: { ...source, break: { bars, bpm: breakBpm(source.duration, bars), sliced: true } },
+      },
     };
     const steps = emptySteps(bars);
     for (let i = 0; i < count; i++) {
@@ -103,6 +120,7 @@ export const sliceBreak =
         mainTag: null,
         extraTags: [],
         break: null,
+        sliceOf: sampleId,
       };
       const added = addWithChain(next, slice, ctx);
       next = added.project;
