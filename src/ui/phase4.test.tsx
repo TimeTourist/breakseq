@@ -167,26 +167,28 @@ describe('Effects', () => {
     expect(effects()).toEqual([]);
   });
 
-  it('Borrow picks its loops as chips, how it chooses, and what empty steps do; the graph names the loop per step', async () => {
-    const project = apply(snareLoopProject(), createLoop(null, 'fill', 1));
-    const store = await setup(project, 'mods');
+  it('Swap starts from the stack at random; switched to Shuffle in reverse, the graph shows the groove dealt backwards', async () => {
+    const base = build(...['a', 'b', 'c', 'd'].map((name) => addSample({ name: `${name}.wav`, audio: constantAudio(0.1) })), createLoop(null, 'main', 1));
+    const pads = Object.values(base.pads);
+    const loop = Object.values(base.loops)[0]!.id;
+    const store = await setup(apply(base, ...pads.map((p, i) => setStep(loop, i * 4, { padId: p.id }))), 'mods');
     fireEvent.click(button('+ New mod'));
-    pick('Add effect', 'sourceLoop');
-    const borrow = () => Object.values(present(store).mods)[0]!.effects[0]!;
-    const fill = Object.values(present(store).loops).find((l) => l.kind === 'fill')!;
-    // It starts borrowing from the first fill, half the time, keeping the own hit where the fill is empty.
-    expect(borrow()).toEqual({ target: 'sourceLoop', rate: 'step', sources: [fill.id], pick: { kind: 'random', chance: 50 }, skipEmpty: true });
+    pick('Add effect', 'swap');
+    const effect = () => Object.values(present(store).mods)[0]!.effects[0]!;
+    expect(effect()).toEqual({ target: 'swap', rate: 'step', mode: { kind: 'stack', pick: 'random' } });
+    expect(screen.getByRole('combobox', { name: 'Swap mode' })).toHaveProperty('value', 'stack');
+    expect(screen.getByRole('combobox', { name: 'Stack pick' })).toHaveProperty('value', 'random');
 
-    pick('Pick', 'every');
-    pick('Every', '3');
-    pick('Empty steps', 'silent');
-    const chips = screen.getByRole('group', { name: 'Borrow from' });
-    fireEvent.click(within(chips).getByRole('button', { name: 'M1' }));
-    expect(borrow()).toMatchObject({ sources: [fill.id, Object.values(present(store).loops)[0]!.id], pick: { kind: 'every', n: 3 }, skipEmpty: false });
+    pick('Swap mode', 'shuffle');
+    pick('Shuffle pick', 'reverse');
+    expect(effect()).toEqual({ target: 'swap', rate: 'step', mode: { kind: 'shuffle', pick: { kind: 'reverse' } } });
+    const boxes = [...screen.getByRole('img', { name: 'What Swap does to each step' }).querySelectorAll('text')].map((t) => t.textContent);
+    expect([boxes[0], boxes[4], boxes[8], boxes[12]]).toEqual(['d', 'c', 'b', 'a']);
+    expect(boxes[1]).toBe('');
 
-    fireEvent.click(within(chips).getByRole('button', { name: 'M1' }));
-    const boxes = [...screen.getByRole('img', { name: 'Which loop each step plays from' }).querySelectorAll('text')].map((t) => t.textContent);
-    expect(boxes.slice(0, 6)).toEqual(['M1', 'M1', 'F1', 'M1', 'M1', 'F1']);
+    pick('Shuffle pick', 'rotate');
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Rotate by' }), { target: { value: '2' } });
+    expect(effect()).toMatchObject({ mode: { kind: 'shuffle', pick: { kind: 'rotate', by: 2 } } });
   });
 
   it('the target word swaps the effect in place, to Tape and back', async () => {

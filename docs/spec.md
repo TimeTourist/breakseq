@@ -69,15 +69,15 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 
 | Fält | Val i v1 |
 | --- | --- |
-| Mål | Pad member, Pitch (halvtoner), Volume (dB), Direction, Ratchet (1–8), Tempo (slip), Source loop (Borrow) |
+| Mål | Swap (Stack eller Shuffle), Pad member, Pitch (halvtoner), Volume (dB), Direction, Ratchet (1–8), Tempo (slip), Tape |
 | Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
-| Form | (Alla mål utom Borrow och Tape.) List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
+| Form | (Alla mål utom Swap och Tape.) List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
 
 **Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym), och för lägesvärden (riktning, medlem, ratchet) vinner B. Mods läggs ovanpå hitten och stegets locks.
 
 **Ordning.** Mods tillämpas i fast ordning efter mål, oavsett rad:
 
-1. Source loop (Borrow)
+1. Swap
 2. Pad member
 3. Ratchet
 4. Pitch, volym och riktning – gäller varje retrigger i en ratchet
@@ -85,13 +85,12 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 
 **Var en mod verkar.** En mod har inget eget omfång: den verkar på allt under sitt klipp i Song. Vilka steg bestäms alltså av var och hur långt klippet ligger.
 
-**Borrow** spelar ett stegs hit från en annan loop: samma steg i någon av looparna man valt, med dess pad, medlem och locks. Borrow har ingen form utan väljer, intervall för intervall (per 1/16, beat eller takt):
+**Swap** byter hit på steg som har en, utan att ändra rytmen. Den har två lägen, och algoritmen väljs i moden.
 
-- **Now and then:** med en chans i %. Är flera loopar valda slumpas en av dem.
-- **Regularly:** var n:e gång (2:a–8:e), och flera valda loopar turas om.
-- **In turn:** runt den egna loopen och de valda, en i taget.
+- **Stack** väljer bland allt under spelhuvudet: lagren uppifrån och ner (Fill, sedan Main, även när Main inte hörs), och inom varje lager padens hits i ordning. Per intervall (1/16, beat eller takt) väljer den *at random*, *round robin* (en kandidat längre för varje intervall med en hit), *layer by layer, top down* (Fill, Main, Fill … med varje lagers förvalda hit) eller *layer by layer, bottom up* (Main först).
+- **Shuffle** blandar hitsen som spelas inom klippet: högen är hitsen på stegen med en hit, och varje sådant steg får en hit ur högen, *like a deck* (varje hit en gång, i slumpad ordning), *freely* (samma hit kan komma igen), *in reverse* eller *rotated by n*. Steg utan hit förblir tysta.
 
-Där den valda loopen saknar en hit på steget behålls stegets egen hit eller blir det tyst, efter vad man valt. Borrow tillämpas före alla andra mål. Har både A och B Borrow vinner B där den lånar.
+Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 
 **Längd.** En mod gäller sitt klipp i Song, på 1/16 när. Varje klipp är en sammanhängande modulation: intervallen räknas från klippets början, och Ramp sträcker sig över klippets längd.
 
@@ -175,6 +174,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 7. Mods med flera mål och Tape | Flera effekter per mod; Tape: inspelat segment med riktning och hastighetsramp | En mod kan spela två 1/16 i pendel allt långsammare till tystnad, och låten fortsätter i takt |
 | 8. Wow, flutter och tydligare Mods | Wow och flutter på Tape, rampens tid och kurva; Mods som meningar med graf och startpunkter | En tape-broms kan ta ett slag och sedan ligga kvar, och en mod går att förstå utan att spela den |
 | 9. Breaks, pads och hits; taggar och omfång bort | Sample → Hit → Pad → Break; Hits och Pads blir en vy; taggar och Acts on tas bort | Amen visas med förälder och pads 01–64, pad 08 kan få en variant och en one-shot som alternativ |
+| 10. Swap: Stack och Shuffle | Swap ersätter Borrow: Stack väljer bland lagren under spelhuvudet, Shuffle blandar klippets hits | Main och Fill kan växla per steg, och ett groove kan blandas om med samma rytm |
 
 ## Utanför v1
 

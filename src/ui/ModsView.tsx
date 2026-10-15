@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import type { BorrowEffect, EffectTarget, Id, Mod, ModEffect, ModRate, ModShape, Project, StepEffect, StepTarget } from '../model';
+import type { EffectTarget, Id, Mod, ModEffect, ModRate, ModShape, Project, StepEffect, StepTarget, SwapEffect } from '../model';
 import { MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, remove, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { BorrowGraph, StepGraph, TapeGraph } from './ModGraph';
+import { StepGraph, SwapGraph, TapeGraph } from './ModGraph';
 import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
-import { BorrowSentence, StepSentence, TapeSentence } from './ModSentence';
+import { StepSentence, SwapSentence, TapeSentence } from './ModSentence';
 import { TARGET_LABELS, randomMod } from './modText';
 import type { Selection } from './store';
 
@@ -34,14 +34,10 @@ const DEFAULTS: Record<StepTarget, { rate: ModRate; shape: ModShape }> = {
 /** A new step effect for a target, acting on every step. */
 const stepEffect = (target: StepTarget): StepEffect => ({ target, ...DEFAULTS[target] });
 
-/** Borrow from the first fill, half the time, keeping the own hit where the fill has none. */
-const newBorrow = (project: Project): BorrowEffect => {
-  const fill = Object.values(project.loops).find((l) => l.kind === 'fill');
-  return { target: 'sourceLoop', rate: 'step', sources: fill === undefined ? [] : [fill.id], pick: { kind: 'random', chance: 50 }, skipEmpty: true };
-};
+/** Swap from the stack, at random, step by step. */
+const NEW_SWAP: SwapEffect = { target: 'swap', rate: 'step', mode: { kind: 'stack', pick: 'random' } };
 
-const newEffect = (target: EffectTarget, project: Project): ModEffect =>
-  target === 'tape' ? DEFAULT_TAPE : target === 'sourceLoop' ? newBorrow(project) : stepEffect(target);
+const newEffect = (target: EffectTarget): ModEffect => (target === 'tape' ? DEFAULT_TAPE : target === 'swap' ? NEW_SWAP : stepEffect(target));
 
 /** Every target, in the order effects apply: the step targets, then Tape. */
 const EFFECT_TARGETS: readonly EffectTarget[] = [...MOD_TARGETS, 'tape'];
@@ -125,7 +121,7 @@ export function ModsView() {
   /** Swaps the effect being edited for a new one on another target, in its place. */
   const swap = (target: EffectTarget) => {
     if (effect === undefined) return;
-    const failed = run(replaceEffect(mod.id, effect.target, newEffect(target, project)));
+    const failed = run(replaceEffect(mod.id, effect.target, newEffect(target)));
     setError(failed);
     if (failed === null) setSelectedTarget(target);
   };
@@ -153,9 +149,9 @@ export function ModsView() {
           <div className="row push">
             <button
               type="button"
-              disabled={effect === undefined || effect.target === 'tape'}
+              disabled={effect === undefined || effect.target === 'tape' || effect.target === 'swap'}
               title="Pick this effect's target, rate and shape at random. Undo takes it back."
-              onClick={() => effect !== undefined && change(randomMod(Math.random, taken.filter((t) => t !== effect.target)))}
+              onClick={() => effect !== undefined && effect.target !== 'tape' && effect.target !== 'swap' && change(randomMod(Math.random, taken.filter((t) => t !== effect.target)))}
             >
               Randomize
             </button>
@@ -221,7 +217,7 @@ export function ModsView() {
               onChange={(e) => {
                 const target = e.target.value as EffectTarget;
                 if (target === undefined || (e.target.value as string) === '') return;
-                const failed = run(addEffect(mod.id, newEffect(target, project)));
+                const failed = run(addEffect(mod.id, newEffect(target)));
                 setError(failed);
                 if (failed === null) setSelectedTarget(target);
               }}
@@ -245,20 +241,18 @@ export function ModsView() {
               <TapeGraph tape={effect} clipSteps={Math.max(STEPS_PER_BAR, effect.length)} stepSeconds={stepDuration(project.song.bpm)} />
               <p className="muted small">Speed over a clip of {Math.max(1, Math.ceil(effect.length / STEPS_PER_BAR))} bar: each band is one time round, F forwards and R backwards.</p>
             </>
-          ) : effect.target === 'sourceLoop' ? (
+          ) : effect.target === 'swap' ? (
             <>
-              <BorrowSentence key={mod.id} effect={effect} project={project} taken={taken.filter((t) => t !== 'sourceLoop')} onChange={change} onTarget={swap} onCommit={seal} />
-              <BorrowGraph effect={effect} project={project} own={previewId === null ? 'own' : (project.loops[previewId]?.name ?? 'own')} seed={exampleSeed} />
+              <SwapSentence key={mod.id} effect={effect} taken={taken.filter((t) => t !== 'swap')} onChange={change} onTarget={swap} onCommit={seal} />
+              <SwapGraph effect={effect} project={project} modId={mod.id} loopId={previewId} seed={exampleSeed} />
               <div className="row">
                 <p className="muted small">
-                  Which loop each step of one bar plays from, tried on {previewId === null ? 'a loop' : project.loops[previewId]?.name}.
-                  {effect.pick.kind === 'random' ? ' One example: every take rolls its own.' : ''}
+                  Each step of the first bar of {previewId === null ? 'a loop' : project.loops[previewId]?.name}, lit where Swap changes its hit. One example: every take
+                  rolls its own.
                 </p>
-                {effect.pick.kind === 'random' && (
-                  <button type="button" className="push" onClick={() => setExampleSeed((s) => s + 1)}>
-                    Another example
-                  </button>
-                )}
+                <button type="button" className="push" onClick={() => setExampleSeed((s) => s + 1)}>
+                  Another example
+                </button>
               </div>
             </>
           ) : (

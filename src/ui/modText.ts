@@ -3,7 +3,7 @@ import { STEP_TARGETS } from '../model';
 
 export const TARGET_LABELS: Record<EffectTarget, string> = {
   tape: 'Tape',
-  sourceLoop: 'Borrow',
+  swap: 'Swap',
   padMember: 'Pad member',
   ratchet: 'Ratchet',
   pitch: 'Pitch',

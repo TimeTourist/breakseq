@@ -1820,31 +1820,31 @@ input[type='search'] {
 }
 
 /* Borrow: the step's own loop is dim, a borrowed one lights up. */
-.mod-graph.borrow .layer rect {
+.mod-graph.swap .layer rect {
   fill: #1c1f23;
   stroke: #2c3036;
 }
 
-.mod-graph.borrow .layer text {
+.mod-graph.swap .layer text {
   fill: var(--muted);
 }
 
-.mod-graph.borrow .layer.borrowed rect {
+.mod-graph.swap .layer.borrowed rect {
   fill: var(--fill-bg);
   stroke: var(--fill);
 }
 
-.mod-graph.borrow .layer.borrowed text {
+.mod-graph.swap .layer.borrowed text {
   fill: var(--fill);
   font-weight: 600;
 }
 
-.mod-graph.borrow .layer.borrowed.n1 rect {
+.mod-graph.swap .layer.borrowed.n1 rect {
   fill: #381a27;
   stroke: #e5689a;
 }
 
-.mod-graph.borrow .layer.borrowed.n1 text {
+.mod-graph.swap .layer.borrowed.n1 text {
   fill: #e5689a;
 }
 
@@ -1914,4 +1914,9 @@ input[type='search'] {
 
 .add-hits[open] summary {
   margin-bottom: 8px;
+}
+
+.mod-graph.swap .layer.empty rect {
+  fill: transparent;
+  stroke: #23262b;
 }

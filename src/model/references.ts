@@ -26,9 +26,6 @@ export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage
     case 'loop':
       return [
         ...songUsage(project, id, ['main', 'fill']),
-        ...Object.values(project.mods)
-          .filter((m) => m.effects.some((e) => e.target === 'sourceLoop' && e.sources.includes(id)))
-          .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ];
     case 'mod':
       return songUsage(project, id, ['modA', 'modB']);

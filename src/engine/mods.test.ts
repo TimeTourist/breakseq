@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BorrowPick, Command, Id, ModRate, Project, StepEffect } from '../model';
+import type { Command, Id, Project, StepEffect } from '../model';
 import {
   addClip,
   addPadMember,
@@ -18,7 +18,7 @@ import {
   stepDuration,
   updateHit,
 } from '../model';
-import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Trigger } from './generate';
 import { generateTriggers } from './generate';
 
@@ -71,12 +71,6 @@ function withMod(project: Project, fields: Omit<StepEffect, 'sources'> & { sourc
   const mod = newest(before.mods, next.mods);
   return run(next, ...bars.map((bar) => setSongCell(row, bar, mod)));
 }
-
-/** A mod that borrows from `sources`, not yet placed. */
-function withBorrow(project: Project, sources: Id[], pick: BorrowPick, skipEmpty: boolean, rate: ModRate = 'step'): Project {
-  return run(project, createMod('borrow', [{ target: 'sourceLoop', rate, sources, pick, skipEmpty }]));
-}
-const borrowMod = (project: Project) => Object.values(project.mods).find((m) => m.effects[0]?.target === 'sourceLoop')!.id;
 
 const at = (triggers: Trigger[], step: number) => triggers.filter((t) => t.bar === 0 && t.step === step);
 
@@ -188,32 +182,6 @@ describe('fas 4: mods', () => {
     expect(steps).toEqual([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 8], [7, 10], [12, 12], [13, 13], [14, 14], [15, 15]]);
   });
 
-  it('Borrow swaps the step for the same step in the source loop, with its pad, member and locks', () => {
-    const { project: base, pad, hit } = kit();
-    let [project] = withLoop(base, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.K!])));
-    let source: Id;
-    [project, source] = withLoop(project, {}, 1);
-    project = run(
-      project,
-      setSongCell('main', 0, Object.values(project.loops)[0]!.id),
-      setStep(source, 3, { padId: pad.Snares!, memberId: hit.S3! }),
-      setStep(source, 5, { padId: pad.Snares!, ignoreMods: true }),
-    );
-    project = withBorrow(project, [source], { kind: 'random', chance: 100 }, false);
-    // Borrow's clip covers steps 4–6 (3–5 from 0).
-    project = run(project, addClip('modA', borrowMod(project), 3, 3));
-    project = withMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [5] } }, 'modB');
-
-    const triggers = generateTriggers(project, () => 0);
-
-    expect(at(triggers, 3).map((t) => [t.hitId, t.pitch])).toEqual([[hit.S3, 5]]);
-    // Step 4 is empty in the source and Borrow may go silent.
-    expect(at(triggers, 4)).toEqual([]);
-    // Step 5's borrowed lock ignores mods: no pitch from B.
-    expect(at(triggers, 5).map((t) => [t.hitId, t.pitch])).toEqual([[hit.S1, 0]]);
-    expect(at(triggers, 6).map((t) => t.hitId)).toEqual([hit.K]);
-  });
-
   it('Pad member List 2 plays member 2, and numbers past the pad wrap round', () => {
     const { project: base, pad, hit } = kit();
     let [project] = withLoop(base, { 0: pad.Snares!, 4: pad.Snares! });
@@ -248,19 +216,6 @@ describe('fas 4: mods', () => {
     expect(generateTriggers(dir, () => 0).map((t) => t.direction)).toEqual(['forward']);
   });
 
-  it('Borrow comes before member: a member mod acts on the borrowed pad', () => {
-    const { project: base, pad, hit } = kit();
-    let [project] = withLoop(base, { 0: pad.K! });
-    let source: Id;
-    [project, source] = withLoop(project, { 0: pad.Snares! });
-    project = run(project, setSongCell('main', 0, Object.values(project.loops)[0]!.id));
-    project = withBorrow(project, [source], { kind: 'random', chance: 100 }, true);
-    project = run(project, setSongCell('modA', 0, borrowMod(project)));
-    // In B, member 3: the kick has one member, but Borrow swapped in the Snares pad.
-    project = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [3] } }, 'modB');
-
-    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S3]);
-  });
 });
 
 describe('parent hit', () => {
@@ -329,58 +284,5 @@ describe('parent hit as a macro', () => {
     const withPad = run(project, createPad('Mine'));
     const mine = Object.values(withPad.pads).find((p) => p.name === 'Mine')!;
     expect(addPadMember(mine.id, parent.id)(withPad, ctx)).toMatchObject({ ok: false, error: { kind: 'invalid' } });
-  });
-});
-
-describe('Borrow', () => {
-  /** Main M on every step with K; F1 with S1 on every step but 2; F2 with S2 on every step. */
-  function layers() {
-    const { project: base, pad, hit } = kit();
-    let [project, main] = withLoop(base, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.K!])));
-    let f1: Id, f2: Id;
-    [project, f1] = withLoop(project, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.S1!]).filter(([i]) => i !== 2)));
-    [project, f2] = withLoop(project, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.S2!])));
-    project = run(project, setSongCell('main', 0, main));
-    const name = (id: Id | undefined) => (id === hit.K ? 'M' : id === hit.S1 ? 'F1' : id === hit.S2 ? 'F2' : '?');
-    const heard = (p: Project, rng: () => number = () => 0) =>
-      Array.from({ length: 8 }, (_, s) => at(generateTriggers(p, rng), s).map((t) => name(t.hitId))[0] ?? '-');
-    return { project, f1, f2, heard };
-  }
-  const place = (project: Project) => run(project, setSongCell('modA', 0, borrowMod(project)));
-
-  it('every 2nd time plays the other loop: own, F1, own, F1 …, and with two loops they take turns', () => {
-    const { project, f1, f2, heard } = layers();
-    expect(heard(place(withBorrow(project, [f1], { kind: 'every', n: 2 }, true)))).toEqual(['M', 'F1', 'M', 'F1', 'M', 'F1', 'M', 'F1']);
-    expect(heard(place(withBorrow(project, [f1, f2], { kind: 'every', n: 2 }, true)))).toEqual(['M', 'F1', 'M', 'F2', 'M', 'F1', 'M', 'F2']);
-    expect(heard(place(withBorrow(project, [f2], { kind: 'every', n: 3 }, true)))).toEqual(['M', 'M', 'F2', 'M', 'M', 'F2', 'M', 'M']);
-  });
-
-  it('in turn goes round its own loop and the others', () => {
-    const { project, f1, f2, heard } = layers();
-    expect(heard(place(withBorrow(project, [f1, f2], { kind: 'inTurn' }, true)))).toEqual(['M', 'F1', 'F2', 'M', 'F1', 'F2', 'M', 'F1']);
-  });
-
-  it('per beat it borrows a whole beat', () => {
-    const { project, f2, heard } = layers();
-    expect(heard(place(withBorrow(project, [f2], { kind: 'every', n: 2 }, true, 'beat')))).toEqual(['M', 'M', 'M', 'M', 'F2', 'F2', 'F2', 'F2']);
-  });
-
-  it('where the other loop is empty it keeps its own hit, or goes silent if set to', () => {
-    const { project, f1, heard } = layers();
-    // Step 3 (index 2) is empty in F1.
-    expect(heard(place(withBorrow(project, [f1], { kind: 'inTurn' }, true)))[2]).toBe('M');
-    expect(heard(place(withBorrow(project, [f1], { kind: 'random', chance: 100 }, true)))).toEqual(['F1', 'F1', 'M', 'F1', 'F1', 'F1', 'F1', 'F1']);
-    expect(heard(place(withBorrow(project, [f1], { kind: 'random', chance: 100 }, false)))).toEqual(['F1', 'F1', '-', 'F1', 'F1', 'F1', 'F1', 'F1']);
-  });
-
-  it('at random it borrows with its chance and picks among the loops with a hit', () => {
-    const { project, f1, f2, heard } = layers();
-    expect(heard(place(withBorrow(project, [f1], { kind: 'random', chance: 0 }, true)))).toEqual(Array(8).fill('M'));
-    const mixed = heard(place(withBorrow(project, [f1, f2], { kind: 'random', chance: 50 }, true)), seededRng(3));
-    expect(new Set(mixed).size).toBeGreaterThan(1);
-    // Where F1 is empty, only F2 can be picked.
-    for (let seed = 1; seed < 20; seed++) {
-      expect(['M', 'F2']).toContain(heard(place(withBorrow(project, [f1, f2], { kind: 'random', chance: 100 }, true)), seededRng(seed))[2]);
-    }
   });
 });
