@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import type { EffectTarget, Id, Mod, ModEffect, ModRate, ModScope, ModShape, ModTarget, Project, StepEffect, TapeEffect } from '../model';
-import { MAX_TAPE_SPEED, MOD_TARGETS, addEffect, createMod, isParentPad, remove, removeEffect, renameMod, replaceEffect } from '../model';
-import { lengthText } from './labels';
+import { useState } from 'react';
+import type { EffectTarget, Id, Mod, ModEffect, ModRate, ModShape, ModTarget, Project, StepEffect } from '../model';
+import { MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, remove, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues, randomMod } from './modText';
+import { StepGraph, TapeGraph } from './ModGraph';
+import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
+import { StepSentence, TapeSentence } from './ModSentence';
+import { TARGET_LABELS, randomMod } from './modText';
 import type { Selection } from './store';
 
 /** The mod open in Mods: the selected one, else the first. */
@@ -30,11 +32,8 @@ const DEFAULTS: Record<ModTarget, { rate: ModRate; shape: ModShape }> = {
   tempo: { rate: 'bar', shape: { kind: 'list', values: [1 / 3] } },
 };
 
-/** A new step effect for a target, acting on all steps. */
+/** A new step effect for a target, acting on every step. */
 const stepEffect = (target: ModTarget): StepEffect => ({ target, scope: { kind: 'all' }, ...DEFAULTS[target], sources: [] });
-
-/** Repeat the first 2/16, back and forth, slowing to a quarter speed: tape being braked. */
-export const DEFAULT_TAPE: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
 const newEffect = (target: EffectTarget): ModEffect => (target === 'tape' ? DEFAULT_TAPE : stepEffect(target));
 
@@ -43,23 +42,6 @@ const EFFECT_TARGETS: readonly EffectTarget[] = [...MOD_TARGETS, 'tape'];
 
 /** A mod's effects in short: "Pitch + Ratchet". */
 export const effectsLabel = (mod: Mod) => mod.effects.map((e) => TARGET_LABELS[e.target]).join(' + ');
-
-/** Targets that pick one thing out of several: no ramp, and Random picks among them. */
-const PICKS = new Set<ModTarget>(['sourceLoop', 'direction']);
-
-const SHAPES = ['list', 'cycle', 'ramp', 'random'] as const;
-const RATES: readonly ModRate[] = ['step', 'beat', 'bar'];
-
-function scopeText(scope: ModScope, project: Project): string {
-  switch (scope.kind) {
-    case 'all':
-      return 'every step';
-    case 'tag':
-      return `${project.tags[scope.tagId]?.name ?? '?'} steps`;
-    case 'pad':
-      return `pad ${project.pads[scope.padId]?.name ?? '?'}`;
-  }
-}
 
 export function ModsView() {
   const project = useProject();
@@ -74,10 +56,10 @@ export function ModsView() {
   const previewId = previewLoopId(project, selection);
   const [selectedTarget, setSelectedTarget] = useState<EffectTarget | null>(null);
 
-  const newMod = () => {
+  /** A new mod, plain or from a preset, opened straight away. */
+  const newMod = (name: string | null, effects: readonly ModEffect[]) => {
     const before = store.getState().history.present.mods;
-    const name = `Mod ${Object.keys(before).length + 1}`;
-    if (run(createMod(name, [stepEffect('ratchet')])) === null) {
+    if (run(createMod(name ?? `Mod ${Object.keys(before).length + 1}`, effects)) === null) {
       const id = Object.keys(store.getState().history.present.mods).find((k) => !(k in before));
       if (id !== undefined) open({ mod: id }, 'mods');
     }
@@ -99,9 +81,19 @@ export function ModsView() {
             <span className="muted small ellipsis">{effectsLabel(m)}</span>
           </button>
         ))}
-        <button type="button" className="dashed" onClick={newMod}>
+        <button type="button" className="dashed" onClick={() => newMod(null, [stepEffect('ratchet')])}>
           + New mod
         </button>
+      </section>
+      <section className="stack-tight">
+        <h2 className="label">Start from</h2>
+        <div className="row wrap" role="group" aria-label="Start from">
+          {MOD_PRESETS.map((preset) => (
+            <button key={preset.name} type="button" className="chip" title={preset.does} onClick={() => newMod(preset.name, preset.effects(project))}>
+              {preset.name}
+            </button>
+          ))}
+        </div>
       </section>
     </aside>
   );
@@ -124,7 +116,8 @@ export function ModsView() {
   const taken = mod.effects.map((e) => e.target);
   const effect = mod.effects.find((e) => e.target === selectedTarget) ?? mod.effects[0]!;
   /** Puts a changed version of the effect being edited in its place. */
-  const change = (next: ModEffect, key?: string) => setError(run(replaceEffect(mod.id, effect.target, next), key));
+  const change = (next: ModEffect, key?: string) =>
+    setError(run(replaceEffect(mod.id, effect.target, next), key === undefined ? undefined : `mod:${mod.id}:${effect.target}:${key}`));
 
   return (
     <div className="split">
@@ -192,11 +185,6 @@ export function ModsView() {
               </button>
             ))}
           </div>
-          <span className="muted small">
-            {effect.target === 'tape'
-              ? `repeat ${lengthText(effect.length)} · ${effect.speed.from}× → ${effect.speed.to}×`
-              : `${scopeText(effect.scope, project)} · per ${effect.rate}`}
-          </span>
           <label className="field">
             <span className="sr-only">Add effect</span>
             <select
@@ -229,325 +217,42 @@ export function ModsView() {
           </button>
         </section>
 
-        {effect.target === 'tape' ? (
-          <TapeEditor key={mod.id} tape={effect} onChange={change} onCommit={seal} />
-        ) : (
-          <div className="mod-grid">
-            <section className="panel stack-tight">
-              <h2 className="label">Target</h2>
-              <div className="choice-grid" role="group" aria-label="Target">
-                {MOD_TARGETS.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    aria-pressed={effect.target === t}
-                    disabled={t !== effect.target && taken.includes(t)}
-                    onClick={() => {
-                      if (t === effect.target) return;
-                      const failed = run(replaceEffect(mod.id, effect.target, stepEffect(t)));
-                      setError(failed);
-                      if (failed === null) setSelectedTarget(t);
-                    }}
-                  >
-                    {TARGET_LABELS[t]}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <ScopeEditor effect={effect} project={project} onChange={(scope) => change({ ...effect, scope })} />
-
-            <section className="panel stack-tight">
-              <h2 className="label">Rate · one value per</h2>
-              <div className="segmented" role="group" aria-label="Rate">
-                {RATES.map((r) => (
-                  <button key={r} type="button" aria-pressed={effect.rate === r} onClick={() => change({ ...effect, rate: r })}>
-                    {r}
-                  </button>
-                ))}
-              </div>
-              {effect.target === 'tempo' && <p className="muted small">Tempo ignores scope: it moves the whole layer.</p>}
-            </section>
-
-            <ShapeEditor key={`${mod.id}:${effect.target}`} effect={effect} modId={mod.id} project={project} onChange={change} onCommit={seal} />
-          </div>
-        )}
+        <section className="panel stack">
+          {effect.target === 'tape' ? (
+            <>
+              <TapeSentence key={mod.id} tape={effect} onChange={change} onCommit={seal} />
+              <TapeGraph tape={effect} clipSteps={Math.max(STEPS_PER_BAR, effect.length)} stepSeconds={stepDuration(project.song.bpm)} />
+              <p className="muted small">Speed over a clip of {Math.max(1, Math.ceil(effect.length / STEPS_PER_BAR))} bar: each band is one time round, F forwards and R backwards.</p>
+            </>
+          ) : (
+            <>
+              <StepSentence
+                key={`${mod.id}:${effect.target}`}
+                effect={effect}
+                project={project}
+                taken={taken.filter((t) => t !== effect.target)}
+                onChange={change}
+                onTarget={(t) => {
+                  const failed = run(replaceEffect(mod.id, effect.target, stepEffect(t)));
+                  setError(failed);
+                  if (failed === null) setSelectedTarget(t);
+                }}
+                onCommit={seal}
+              />
+              <StepGraph effect={effect} project={project} />
+              <p className="muted small">
+                Over one bar of its clip.{effect.shape.kind === 'random' ? ' Shaded: where it may jump; darker is more likely.' : ''}
+                {effect.shape.kind === 'cycle' ? ' Drawn as if it hit a step in every interval.' : ''}
+              </p>
+            </>
+          )}
+        </section>
 
         <section className="panel row">
           <span className="label">Used in</span>
           <span className="muted small">{usedIn === 0 ? 'Not in the song. Drag it onto Mod A or Mod B in Song.' : `${usedIn} clip${usedIn === 1 ? '' : 's'} in the song`}</span>
         </section>
       </main>
-    </div>
-  );
-}
-
-function ScopeEditor({ effect, project, onChange }: { effect: StepEffect; project: Project; onChange: (scope: ModScope) => void }) {
-  const { scope } = effect;
-  const tags = Object.values(project.tags);
-  // A break's own pad never plays as a pad, so a mod cannot act on it.
-  const pads = Object.values(project.pads).filter((p) => !isParentPad(project, p));
-  return (
-    <section className="panel stack-tight">
-      <h2 className="label">Acts on</h2>
-      <div className="segmented" role="group" aria-label="Scope">
-        <button type="button" aria-pressed={scope.kind === 'all'} onClick={() => onChange({ kind: 'all' })}>
-          Steps
-        </button>
-        <button
-          type="button"
-          aria-pressed={scope.kind === 'tag'}
-          disabled={tags.length === 0}
-          onClick={() => onChange({ kind: 'tag', tagId: (tags.find((t) => t.name === 'S') ?? tags[0])!.id })}
-        >
-          Tag
-        </button>
-        <button type="button" aria-pressed={scope.kind === 'pad'} disabled={pads.length === 0} onClick={() => onChange({ kind: 'pad', padId: pads[0]!.id })}>
-          Pad
-        </button>
-      </div>
-      {scope.kind === 'tag' && (
-        <label className="field">
-          Tag
-          <select aria-label="Scope tag" value={scope.tagId} onChange={(e) => onChange({ kind: 'tag', tagId: e.target.value })}>
-            {tags.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {scope.kind === 'pad' && (
-        <label className="field">
-          Pad
-          <select aria-label="Scope pad" value={scope.padId} onChange={(e) => onChange({ kind: 'pad', padId: e.target.value })}>
-            {pads.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-    </section>
-  );
-}
-
-interface ShapeEditorProps {
-  readonly effect: StepEffect;
-  readonly modId: Id;
-  readonly project: Project;
-  readonly onChange: (effect: StepEffect, key?: string) => void;
-  readonly onCommit: () => void;
-}
-
-function ShapeEditor({ effect, modId, project, onChange, onCommit }: ShapeEditorProps) {
-  const { shape, target } = effect;
-  const key = (part: string) => `mod:${modId}:${target}:${part}`;
-  const picks = PICKS.has(target);
-  const shownValues = shape.kind === 'list' || shape.kind === 'cycle' ? formatValues(effect, shape.values, project) : '';
-  const [text, setText] = useState(shownValues);
-  const [problem, setProblem] = useState<string | null>(null);
-  // Follow the mod when it changes from elsewhere (another mod, undo).
-  useEffect(() => {
-    setText(shownValues);
-    setProblem(null);
-  }, [shownValues]);
-
-  const commitText = (value: string) => {
-    setText(value);
-    const parsed = parseValues(target, value, project);
-    if (!parsed.ok) {
-      setProblem(parsed.error);
-      return;
-    }
-    setProblem(null);
-    if (shape.kind === 'list' || shape.kind === 'cycle') {
-      onChange({ ...effect, shape: { kind: shape.kind, values: parsed.values }, ...(target === 'sourceLoop' ? { sources: parsed.sources } : {}) }, key('values'));
-    }
-  };
-
-  const setKind = (kind: ModShape['kind']) => {
-    const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [];
-    const range = target === 'sourceLoop' ? { min: 0, max: Math.max(0, effect.sources.length - 1) } : target === 'direction' ? { min: 0, max: 1 } : { min: 1, max: 4 };
-    const next: ModShape =
-      kind === 'list' || kind === 'cycle'
-        ? { kind, values }
-        : kind === 'ramp'
-          ? { kind, from: 0, to: 12 }
-          : { kind, ...range, chance: 50 };
-    onChange({ ...effect, shape: next });
-  };
-
-  const number = (label: string, value: number, apply: (v: number) => ModShape, min?: number, max?: number) => (
-    <label className="field">
-      {label}
-      <input
-        type="number"
-        value={Math.round(value * 1000) / 1000}
-        min={min}
-        max={max}
-        step="any"
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          if (Number.isFinite(v)) onChange({ ...effect, shape: apply(v) }, key(label));
-        }}
-        onBlur={onCommit}
-      />
-    </label>
-  );
-
-  return (
-    <section className="panel stack-tight shape-editor">
-      <h2 className="label">Shape</h2>
-      <div className="segmented" role="group" aria-label="Shape">
-        {SHAPES.map((k) => (
-          <button key={k} type="button" aria-pressed={shape.kind === k} disabled={k === 'ramp' && picks} onClick={() => setKind(k)}>
-            {k[0]!.toUpperCase() + k.slice(1)}
-          </button>
-        ))}
-      </div>
-      {(shape.kind === 'list' || shape.kind === 'cycle') && (
-        <>
-          <label className="field wide">
-            Values
-            <input
-              className="mono grow"
-              aria-label="Values"
-              placeholder={VALUE_HINTS[target]}
-              value={text}
-              onChange={(e) => commitText(e.target.value)}
-              onBlur={onCommit}
-            />
-          </label>
-          <p className="muted small">
-            {shape.kind === 'list'
-              ? 'One value per interval, in turn, then again from the start.'
-              : target === 'padMember' && shape.values.length === 0
-                ? 'Empty: goes round the pad’s members, one further each time the mod hits a step.'
-                : 'One value further each time the mod hits a step in a new interval.'}{' '}
-            {VALUE_HINTS[target]}.
-          </p>
-        </>
-      )}
-      {shape.kind === 'ramp' && (
-        <div className="row">
-          {number('From', shape.from, (v) => ({ ...shape, from: v }))}
-          {number('To', shape.to, (v) => ({ ...shape, to: v }))}
-          <p className="muted small">From the first interval of the run to its last.</p>
-        </div>
-      )}
-      {shape.kind === 'random' && (
-        <div className="row">
-          {!picks && number('Min', shape.min, (v) => ({ ...shape, min: v }))}
-          {!picks && number('Max', shape.max, (v) => ({ ...shape, max: v }))}
-          {number('Chance %', shape.chance, (v) => ({ ...shape, chance: Math.max(0, Math.min(100, v)) }), 0, 100)}
-          {target === 'sourceLoop' && (
-            <label className="field wide">
-              From loops
-              <input
-                className="mono grow"
-                aria-label="Borrow from"
-                placeholder="loop names, e.g. F1 F2"
-                defaultValue={formatValues(effect, effect.sources.map((_, i) => i), project)}
-                onBlur={(e) => {
-                  const parsed = parseValues('sourceLoop', e.target.value, project);
-                  if (parsed.ok) onChange({ ...effect, sources: parsed.sources, shape: { ...shape, min: 0, max: Math.max(0, parsed.sources.length - 1) } });
-                  else setProblem(parsed.error);
-                }}
-              />
-            </label>
-          )}
-          <p className="muted small">Each interval gets a value with this chance{picks ? ', picked at random' : ''}.</p>
-        </div>
-      )}
-      {problem !== null && (
-        <p className="error" role="alert">
-          {problem}
-        </p>
-      )}
-    </section>
-  );
-}
-
-const DIRECTIONS: readonly { value: TapeEffect['direction']; label: string }[] = [
-  { value: 'forward', label: 'Forward' },
-  { value: 'reverse', label: 'Reverse' },
-  { value: 'pingpong', label: 'Ping-pong' },
-];
-
-const REPEAT_PARTS = [
-  { label: 'Bars', size: 16, max: 4 },
-  { label: 'Beats', size: 4, max: 3 },
-  { label: '1/16', size: 1, max: 3 },
-] as const;
-
-interface TapeEditorProps {
-  readonly tape: TapeEffect;
-  readonly onChange: (tape: TapeEffect, key?: string) => void;
-  readonly onCommit: () => void;
-}
-
-/** Repeat length, direction and speed of a Tape. */
-function TapeEditor({ tape, onChange, onCommit }: TapeEditorProps) {
-  const split = [Math.floor(tape.length / 16), Math.floor((tape.length % 16) / 4), tape.length % 4];
-  const setPart = (index: number, value: number) => {
-    const parts = split.map((p, i) => (i === index ? value : p));
-    const length = parts.reduce((sum, p, i) => sum + p * REPEAT_PARTS[i]!.size, 0);
-    if (length >= 1) onChange({ ...tape, length }, 'tape:length');
-  };
-  const speed = (label: string, value: number, apply: (v: number) => TapeEffect) => (
-    <label className="field">
-      {label}
-      <input
-        type="number"
-        min={0}
-        max={MAX_TAPE_SPEED}
-        step={0.05}
-        value={value}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          if (Number.isFinite(v) && v >= 0 && v <= MAX_TAPE_SPEED) onChange(apply(v), `tape:${label}`);
-        }}
-        onBlur={onCommit}
-      />
-    </label>
-  );
-  return (
-    <div className="mod-grid">
-      <section className="panel stack-tight">
-        <h2 className="label">Repeat · records the first</h2>
-        <div className="row" role="group" aria-label="Repeat">
-          {REPEAT_PARTS.map((part, i) => (
-            <label key={part.label} className="field">
-              {part.label}
-              <input type="number" min={0} max={part.max} value={split[i]} onChange={(e) => setPart(i, Math.max(0, Math.round(Number(e.target.value))))} onBlur={onCommit} />
-            </label>
-          ))}
-        </div>
-        <p className="muted small">
-          {lengthText(tape.length)} from where the clip starts, played round and round as long as the clip lasts. The clip is at least this long.
-        </p>
-      </section>
-      <section className="panel stack-tight">
-        <h2 className="label">Direction</h2>
-        <div className="segmented" role="group" aria-label="Tape direction">
-          {DIRECTIONS.map((d) => (
-            <button key={d.value} type="button" aria-pressed={tape.direction === d.value} onClick={() => onChange({ ...tape, direction: d.value })}>
-              {d.label}
-            </button>
-          ))}
-        </div>
-      </section>
-      <section className="panel stack-tight">
-        <h2 className="label">Speed · over the clip</h2>
-        <div className="row">
-          {speed('From', tape.speed.from, (v) => ({ ...tape, speed: { ...tape.speed, from: v } }))}
-          {speed('To', tape.speed.to, (v) => ({ ...tape, speed: { ...tape.speed, to: v } }))}
-        </div>
-        <p className="muted small">Like tape: slower is lower and longer. At 0× it is silent until the clip ends. The song&apos;s tempo never changes.</p>
-      </section>
     </div>
   );
 }

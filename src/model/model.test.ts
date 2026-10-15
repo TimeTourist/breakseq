@@ -748,6 +748,16 @@ describe('mods with effects', () => {
     expect(upgradeProject(legacy).mods.m!.effects).toEqual([{ ...old, rampOver: null, curve: 'linear', wow: 0, flutter: 0 }]);
   });
 
+  it('a saved step range becomes every step: the clip in Song now says which steps', () => {
+    const ctx = sequentialIds();
+    const base = createProject(ctx);
+    const effect = { target: 'pitch', scope: { kind: 'range', from: 4, to: 7 }, rate: 'bar', shape: { kind: 'list', values: [12] }, sources: [] };
+    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [effect] }, n: { id: 'n', name: 'Older', ...effect } } } as unknown as Project;
+    const upgraded = upgradeProject(legacy);
+    expect(upgraded.mods.m!.effects[0]).toMatchObject({ scope: { kind: 'all' } });
+    expect(upgraded.mods.n!.effects[0]).toMatchObject({ scope: { kind: 'all' } });
+  });
+
   it('wow, flutter and ramp time are checked', () => {
     const ctx = sequentialIds();
     expect(createMod('T', [{ ...tape, wow: 1.5 }])(createProject(ctx), ctx).ok).toBe(false);

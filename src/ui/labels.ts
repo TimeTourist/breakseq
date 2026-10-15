@@ -112,3 +112,10 @@ export function lengthText(steps: number): string {
   const barText = bars === 0 ? '' : `${bars} bar${bars === 1 ? '' : 's'}`;
   return [barText, rest === 0 ? '' : `${rest}/16`].filter((s) => s !== '').join(' ');
 }
+
+/** A length in steps as a musician says it: "3/16", "1 beat", "2 beats", "1 bar", "2 bars". */
+export function musicalLength(steps: number): string {
+  if (steps % STEPS_PER_BAR === 0) return `${steps / STEPS_PER_BAR} bar${steps === STEPS_PER_BAR ? '' : 's'}`;
+  if (steps < STEPS_PER_BAR && steps % 4 === 0) return `${steps / 4} beat${steps === 4 ? '' : 's'}`;
+  return lengthText(steps);
+}
