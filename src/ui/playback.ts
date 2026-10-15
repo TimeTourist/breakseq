@@ -45,8 +45,12 @@ export interface Player {
   readonly isPlaying: () => boolean;
   /** The bar under the playhead now, or null when stopped. */
   readonly currentBar: () => number | null;
-  /** Plays part of some audio directly, outside the song. Times in seconds. */
-  readonly audition: (audio: AudioData, offset: number, duration: number) => void;
+  /**
+   * Plays part of some audio directly, outside the song. Times in seconds.
+   * One voice: a new audition cuts the previous one. `onEnded` runs when it stops either way.
+   */
+  readonly audition: (audio: AudioData, offset: number, duration: number, onEnded?: () => void) => void;
+  readonly stopAudition: () => void;
 }
 
 /** Loops rendered takes on an AudioContext. The context is created on first use, inside a user gesture. */
@@ -55,6 +59,16 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
   let current: Segment | null = null;
   let pending: Segment | null = null;
   const auditionBuffers = new WeakMap<AudioData, AudioBuffer>();
+  let auditioning: AudioBufferSourceNode | null = null;
+
+  const stopAudition = () => {
+    try {
+      auditioning?.stop();
+    } catch {
+      // Already stopped.
+    }
+    auditioning = null;
+  };
 
   const ctx = () => {
     context ??= makeContext();
@@ -120,7 +134,8 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       if (elapsed < 0 || duration <= 0) return null;
       return playheadBar(current.take.triggers, elapsed % duration);
     },
-    audition: (audio, offset, duration) => {
+    audition: (audio, offset, duration, onEnded) => {
+      stopAudition();
       const c = ctx();
       let buffer = auditionBuffers.get(audio);
       if (buffer === undefined) {
@@ -131,7 +146,13 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       const source = c.createBufferSource();
       source.buffer = buffer;
       source.connect(c.destination);
+      source.onended = () => {
+        if (auditioning === source) auditioning = null;
+        onEnded?.();
+      };
       source.start(c.currentTime, offset, duration);
+      auditioning = source;
     },
+    stopAudition,
   };
 }

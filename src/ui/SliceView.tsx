@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SliceGrid } from '../model';
 import { STEPS_PER_BAR, sliceBreak } from '../model';
 import { useApp, useProject, useRun, useSelect } from './context';
@@ -20,6 +20,10 @@ export function SliceView() {
   const target = useSelect((s) => s.sliceTarget);
   const [grid, setGrid] = useState<SliceGrid>(16);
   const [error, setError] = useState<string | null>(null);
+  const [playingBreak, setPlayingBreak] = useState(false);
+
+  // Leaving the view stops whatever is being auditioned.
+  useEffect(() => () => services.player.stopAudition(), [services]);
 
   const breaks = sources(project).filter((s) => s.break !== null);
   const sample = breaks.find((s) => s.id === target) ?? breaks.find((s) => s.break?.sliced === false) ?? breaks[0];
@@ -56,6 +60,22 @@ export function SliceView() {
           </p>
         </div>
         <div className="row push">
+          {audio !== undefined && (
+            <button
+              type="button"
+              aria-pressed={playingBreak}
+              onClick={() => {
+                if (playingBreak) {
+                  services.player.stopAudition();
+                  return;
+                }
+                setPlayingBreak(true);
+                services.player.audition(audio, sample.offset, sample.duration, () => setPlayingBreak(false));
+              }}
+            >
+              {playingBreak ? 'Stop break' : 'Play break'}
+            </button>
+          )}
           {breaks.length > 1 && (
             <label className="field">
               Break
