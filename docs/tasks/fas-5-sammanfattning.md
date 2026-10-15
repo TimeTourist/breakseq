@@ -17,7 +17,7 @@
   - **Import:** läser cues.
   - **Drag and drop:** målet markeras medan man drar. I Song flyttas en placerad loop eller mod till en annan takt i samma rad, och med Alt kopieras den. I Loops flyttas eller kopieras steg på samma sätt. En flytt är ett ångra-steg.
 
-Alla tester från uppdraget finns (126 totalt). Typecheck och lint är gröna.
+Alla tester från uppdraget finns (125 totalt). Typecheck och lint är gröna.
 
 ## Verifierat med `samples/Amen-break.wav`
 
