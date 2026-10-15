@@ -117,6 +117,12 @@ export function ModsView() {
   const taken = mod.effects.map((e) => e.target);
   const effect = mod.effects.find((e) => e.target === selectedTarget) ?? mod.effects[0]!;
   /** Puts a changed version of the effect being edited in its place. */
+  /** Swaps the effect being edited for a new one on another target, in its place. */
+  const swap = (target: EffectTarget) => {
+    const failed = run(replaceEffect(mod.id, effect.target, newEffect(target)));
+    setError(failed);
+    if (failed === null) setSelectedTarget(target);
+  };
   const change = (next: ModEffect, key?: string) =>
     setError(run(replaceEffect(mod.id, effect.target, next), key === undefined ? undefined : `mod:${mod.id}:${effect.target}:${key}`));
 
@@ -181,9 +187,22 @@ export function ModsView() {
           <h2 className="label">Effects</h2>
           <div className="segmented" role="group" aria-label="Effects">
             {mod.effects.map((e) => (
-              <button key={e.target} type="button" aria-pressed={e.target === effect.target} onClick={() => setSelectedTarget(e.target)}>
-                {TARGET_LABELS[e.target]}
-              </button>
+              <span key={e.target} className="effect-tab">
+                <button type="button" aria-pressed={e.target === effect.target} onClick={() => setSelectedTarget(e.target)}>
+                  {TARGET_LABELS[e.target]}
+                </button>
+                {mod.effects.length > 1 && (
+                  <button
+                    type="button"
+                    className="effect-remove"
+                    aria-label={`Remove ${TARGET_LABELS[e.target]}`}
+                    title={`Remove ${TARGET_LABELS[e.target]}`}
+                    onClick={() => setError(run(removeEffect(mod.id, e.target)))}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
             ))}
           </div>
           <label className="field">
@@ -207,21 +226,12 @@ export function ModsView() {
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className="push"
-            disabled={mod.effects.length === 1}
-            title={mod.effects.length === 1 ? 'A mod needs at least one effect' : undefined}
-            onClick={() => setError(run(removeEffect(mod.id, effect.target)))}
-          >
-            Remove {TARGET_LABELS[effect.target]}
-          </button>
         </section>
 
         <section className="panel stack">
           {effect.target === 'tape' ? (
             <>
-              <TapeSentence key={mod.id} tape={effect} onChange={change} onCommit={seal} />
+              <TapeSentence key={mod.id} tape={effect} taken={taken.filter((t) => t !== 'tape')} onChange={change} onTarget={swap} onCommit={seal} />
               <TapeGraph tape={effect} clipSteps={Math.max(STEPS_PER_BAR, effect.length)} stepSeconds={stepDuration(project.song.bpm)} />
               <p className="muted small">Speed over a clip of {Math.max(1, Math.ceil(effect.length / STEPS_PER_BAR))} bar: each band is one time round, F forwards and R backwards.</p>
             </>
@@ -233,11 +243,7 @@ export function ModsView() {
                 project={project}
                 taken={taken.filter((t) => t !== effect.target)}
                 onChange={change}
-                onTarget={(t) => {
-                  const failed = run(replaceEffect(mod.id, effect.target, stepEffect(t)));
-                  setError(failed);
-                  if (failed === null) setSelectedTarget(t);
-                }}
+                onTarget={swap}
                 onCommit={seal}
               />
               <StepGraph effect={effect} project={project} seed={exampleSeed} />
