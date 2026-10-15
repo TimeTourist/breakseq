@@ -17,15 +17,16 @@ Designprinciper:
 
 ## Datamodell
 
-Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit, en hit spelar en sample. Alla objekt har fasta id:n som aldrig ändras, oavsett ordning eller namn.
+Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit, en hit spelar en sample. Ordlistan är **Sample → Hit → Pad → Break**. Alla objekt har fasta id:n som aldrig ändras, oavsett ordning eller namn.
 
 | Objekt | Innehåller | Skapas i |
 | --- | --- | --- |
-| Sample | Ljuddata: en slice av ett break eller en importerad fil. Huvudtagg och ev. extra taggar. | Import, Slice |
-| Hit | En sample + region (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms) | Hits |
-| Pad | Ordnad lista av hits. Medlem 1 är default. En ensam hit är en pad med en medlem. | Pads |
+| Sample | Ljuddata: en importerad fil (one-shot eller break) eller en slice av ett break. | Import, Slice |
+| Hit | Hur ett sample spelas: region (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms). Ett breaks egen hit är förälder till dess slices. | Hits |
+| Pad | Det ett steg spelar: en hit plus alternativ, i ordning. Den första spelas utan mods. En one-shot är en pad med en hit. | Hits |
+| Break | Ett slicat sample: dess pads i ordning (groovet) och föräldern, som är ett makro för alla slices. Ingen egen data utöver samplet. | Slice |
 | Loop | Tagg Main/Fill (bara för gruppering och namn; vilken loop som helst kan ligga i Main- eller Fill-raden), längd i steg om 1/16 (från 1/16 till 16 takter), som väljs i takter, slag och 1/16. Varje steg: pad eller tomt, vald medlem, step locks. | Loops |
-| Mod | Mål, omfång, rate, form och formens parametrar | Mods |
+| Mod | Namn och effekter, högst en per mål. En effekt verkar på allt under modens klipp i Song. | Mods |
 | Song | Längd i takter och klipp i raderna Main, Fill, Mod A och Mod B. Ett klipp har start, längd och offset i steg om 1/16. | Song |
 
 Step locks i v1: vald pad-medlem, ”Ignore mods” och nudge (finns i modellen, alltid 0 i v1).
@@ -34,16 +35,14 @@ En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man b
 
 ## Pipeline och vyer
 
-Appen har åtta vyer i arbetsordning, nåbara via flikar och tangenterna 1–8. Varje vy har ett ansvar; från andra vyer länkar man dit, men redigerar aldrig där.
+Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Varje vy har ett ansvar; från andra vyer länkar man dit, men redigerar aldrig där.
 
 1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break gissas antal takter (det av 1, 2, 4, 8 och 16 som ger 70–180 BPM) och ändras i Slice, även efter slicing; BPM räknas fram ur den trimmade längden, och ett tempo under 60 eller över 200 BPM ger en varning.
 2. **Slice** – placera markörer i ett break. Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare.
-3. **Tag** – ge varje sample en huvudtagg (K, S, H, R, G + egna, max 8). Varje kort har en play-knapp.
-4. **Hits** – redigera region, riktning, pitch, volym och fade; duplicera som variant.
-5. **Pads** – samla hits i pads och bestäm ordning.
-6. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks.
-7. **Mods** – bygg mods.
-8. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Alt kopierar) och ändras i längd från båda kanterna.
+3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar sina hits; den valda hitten redigeras (region, riktning, pitch, volym, fade, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort.
+4. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks.
+5. **Mods** – bygg mods.
+6. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Alt kopierar) och ändras i längd från båda kanterna.
 
 **Automatisk kedja.** Varje sample får direkt en default-hit (hela samplet, inga ändringar) och en pad med den hitten som enda medlem. När ett break slicas skapas dessutom loopen M1, som spelar breakets pads i ordning, kvantiserad till 1/16. Kedjan körs en gång; därefter är allt vanliga objekt. Ett break kan slicas om så länge dess slices inte används utanför M1 och M1 inte ligger i Song; då ersätts slices, hits, pads och M1. Slices med egna markörer placeras i M1 på närmaste 1/16.
 
@@ -66,12 +65,11 @@ Samples behåller stereo. Tempo ställs per låt i BPM. En ny låt börjar på 1
 
 ## Mods
 
-En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekter och gör ingenting förrän man lägger till en. En stegeffekt är ett mål, ett omfång, en rate och en form; slump är bara en av formerna. Tape är en effekt som arbetar på ljud (se Tape). Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
+En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekter och gör ingenting förrän man lägger till en. En stegeffekt är ett mål, en rate och en form; slump är bara en av formerna. Tape är en effekt som arbetar på ljud (se Tape). Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
 
 | Fält | Val i v1 |
 | --- | --- |
 | Mål | Pad member, Pitch (halvtoner), Volume (dB), Direction, Ratchet (1–8), Tempo (slip), Source loop (Borrow) |
-| Omfång | Steg (alla), steg med en viss huvudtagg, steg med en viss pad. Vilka steg i tid bestäms av klippet i Song. |
 | Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
 | Form | (Alla mål utom Borrow och Tape.) List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
 
@@ -85,7 +83,7 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 4. Pitch, volym och riktning – gäller varje retrigger i en ratchet
 5. Tempo (slip)
 
-**Omfång.** Omfånget prövas när moden tillämpas, mot den hit som spelas efter tidigare mål i ordningen. Ett taggomfång för S träffar alltså en snare som en Pad member-mod har bytt in.
+**Var en mod verkar.** En mod har inget eget omfång: den verkar på allt under sitt klipp i Song. Vilka steg bestäms alltså av var och hur långt klippet ligger.
 
 **Borrow** spelar ett stegs hit från en annan loop: samma steg i någon av looparna man valt, med dess pad, medlem och locks. Borrow har ingen form utan väljer, intervall för intervall (per 1/16, beat eller takt):
 
@@ -131,7 +129,7 @@ Allt som spelar mer än ett ljud renderas först; uppspelningen spelar den färd
 
 | Vy | Vad som spelas |
 | --- | --- |
-| Tag, Hits, Pads | Ett enskilt ljud direkt vid tryck, ingen rendering |
+| Hits | Ett enskilt ljud direkt vid tryck, ingen rendering |
 | Loops | Den valda loopen, renderad och loopad |
 | Song | Hela låten, renderad och loopad |
 
@@ -149,7 +147,6 @@ I vyer utan egen uppspelning (Import, Slice) spelar och exporterar Play och Expo
 - **Tom pad:** en pads sista medlem får tas bort. En tom pad finns kvar och spelar inget.
 - **Undo:** alla ändringar går att ångra, i en gemensam historik för hela appen. State är oföränderligt (immutable) från start, så undo blir en historik av tillstånd.
 - **Lagring:** projektet autosparas i webbläsaren (IndexedDB). Det går också att exportera och importera ett projekt som en fil: en zip med projektets JSON och alla ljudfiler.
-- **Taggar:** huvudtaggen används av mods; extra taggar (t.ex. ”Also: Ride”) är bara information. Max 8 taggar totalt, inklusive de fem förvalda (K, S, H, R, G).
 
 ## Teknik och arkitektur
 
@@ -177,6 +174,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 6. Klipp i Song | Song som tidslinje med klipp på 1/16, trimning med offset; fill-fönstret ersätts av korta klipp | M1 kan spelas i 6/16 och börja om, en fill kan ligga på sista 1/4 |
 | 7. Mods med flera mål och Tape | Flera effekter per mod; Tape: inspelat segment med riktning och hastighetsramp | En mod kan spela två 1/16 i pendel allt långsammare till tystnad, och låten fortsätter i takt |
 | 8. Wow, flutter och tydligare Mods | Wow och flutter på Tape, rampens tid och kurva; Mods som meningar med graf och startpunkter | En tape-broms kan ta ett slag och sedan ligga kvar, och en mod går att förstå utan att spela den |
+| 9. Breaks, pads och hits; taggar och omfång bort | Sample → Hit → Pad → Break; Hits och Pads blir en vy; taggar och Acts on tas bort | Amen visas med förälder och pads 01–64, pad 08 kan få en variant och en one-shot som alternativ |
 
 ## Utanför v1
 
