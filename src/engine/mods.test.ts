@@ -108,6 +108,21 @@ describe('fas 7: a mod with several effects', () => {
   });
 });
 
+describe('random pitch', () => {
+  it('rolls whole semitones, or any pitch when set to freely', () => {
+    const { project: base, pad } = kit();
+    const [loop] = withLoop(base, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.K!])));
+    const pitches = (whole: boolean) => {
+      const project = withMod(loop, { target: 'pitch', scope: all, rate: 'step', shape: { kind: 'random', min: 1, max: 4, chance: 100, whole } }, 'modA');
+      let seed = 0;
+      return generateTriggers(project, () => ((seed = (seed + 0.137) % 1), seed)).map((t) => t.pitch);
+    };
+    expect(pitches(true).every((p) => Number.isInteger(p) && p >= 1 && p <= 4)).toBe(true);
+    expect(pitches(false).some((p) => !Number.isInteger(p))).toBe(true);
+    expect(pitches(false).every((p) => p >= 1 && p <= 4)).toBe(true);
+  });
+});
+
 describe('fas 4: mods', () => {
   it('stutter: Ratchet 4 on snares gives four even triggers per snare step, and only there', () => {
     const { project: base, pad, tag } = kit();

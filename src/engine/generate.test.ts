@@ -258,7 +258,7 @@ describe('mods', () => {
       target: 'ratchet',
       scope: { kind: 'all' },
       rate: 'step',
-      shape: { kind: 'random', min: 4, max: 4, chance: 100 },
+      shape: { kind: 'random', min: 4, max: 4, chance: 100, whole: true },
     });
     [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [3] } });
     // The ratchet's clip covers step 1 only.
@@ -274,7 +274,7 @@ describe('mods', () => {
   it('ignoreMods turns off every mod for the step', () => {
     let { project, loop } = everyStep();
     let ratchet: Id, pitch: Id;
-    [project, ratchet] = addMod(project, { target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 2, max: 2, chance: 100 } });
+    [project, ratchet] = addMod(project, { target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 2, max: 2, chance: 100, whole: true } });
     [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [3] } });
     project = run(project, setStep(loop, 1, { ignoreMods: true }), setSongCell('modA', 0, ratchet), setSongCell('modB', 0, pitch));
 
@@ -287,7 +287,7 @@ describe('mods', () => {
   it('a random value is held over its interval and applies only with its chance', () => {
     let { project } = everyStep();
     let ratchet: Id;
-    [project, ratchet] = addMod(project, { target: 'ratchet', scope: { kind: 'all' }, rate: 'beat', shape: { kind: 'random', min: 1, max: 8, chance: 50 } });
+    [project, ratchet] = addMod(project, { target: 'ratchet', scope: { kind: 'all' }, rate: 'beat', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } });
     project = run(project, setSongCell('modA', 0, ratchet));
 
     // Beat 1: chance roll 0.1 hits, value roll 0.99 → 8. Beat 2: chance roll 0.9 misses.
@@ -342,7 +342,7 @@ describe('randomness', () => {
     project = run(
       project,
       ...Array.from({ length: 64 }, (_, i) => setStep(loop, i, { padId: pad.K! })),
-      createMod('roll', [{ sources: [], target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50 } }]),
+      createMod('roll', [{ sources: [], target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } }]),
     );
     const mod = added(before, project, 'mods');
     project = run(project, setSongBars(4), setSongCell('main', 0, loop), ...row('modA', '1111', { '1': mod }));

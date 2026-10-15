@@ -152,7 +152,7 @@ function shapeValue(shape: ModShape, index: number, intervals: number, discrete:
     case 'random': {
       if (rng() * 100 >= shape.chance) return null;
       const r = rng();
-      return discrete
+      return discrete || shape.whole
         ? Math.ceil(shape.min) + Math.floor(r * (Math.floor(shape.max) - Math.ceil(shape.min) + 1))
         : shape.min + r * (shape.max - shape.min);
     }

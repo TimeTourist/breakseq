@@ -73,7 +73,7 @@ En mod har ett namn och en eller flera effekter, högst en per mål. En stegeffe
 | Mål | Pad member, Pitch (halvtoner), Volume (dB), Direction, Ratchet (1–8), Tempo (slip), Source loop (Borrow) |
 | Omfång | Steg (alla), steg med en viss huvudtagg, steg med en viss pad. Vilka steg i tid bestäms av klippet i Song. |
 | Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
-| Form | List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %) |
+| Form | List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
 
 **Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym), och för lägesvärden (riktning, medlem, ratchet) vinner B. Mods läggs ovanpå hitten och stegets locks.
 

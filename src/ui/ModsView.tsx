@@ -25,10 +25,10 @@ export function previewLoopId(project: Project, selection: Selection): Id | null
 const DEFAULTS: Record<ModTarget, { rate: ModRate; shape: ModShape }> = {
   sourceLoop: { rate: 'bar', shape: { kind: 'list', values: [] } },
   padMember: { rate: 'step', shape: { kind: 'cycle', values: [] } },
-  ratchet: { rate: 'step', shape: { kind: 'random', min: 2, max: 4, chance: 30 } },
+  ratchet: { rate: 'step', shape: { kind: 'random', min: 2, max: 4, chance: 30, whole: true } },
   pitch: { rate: 'beat', shape: { kind: 'ramp', from: 0, to: 12 } },
   volume: { rate: 'step', shape: { kind: 'list', values: [0, -6] } },
-  direction: { rate: 'step', shape: { kind: 'random', min: 0, max: 1, chance: 25 } },
+  direction: { rate: 'step', shape: { kind: 'random', min: 0, max: 1, chance: 25, whole: true } },
   tempo: { rate: 'bar', shape: { kind: 'list', values: [1 / 3] } },
 };
 

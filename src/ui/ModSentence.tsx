@@ -134,7 +134,8 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
     const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [];
     const range =
       target === 'sourceLoop' ? { min: 0, max: Math.max(0, effect.sources.length - 1) } : target === 'direction' ? { min: 0, max: 1 } : { min: 1, max: 4 };
-    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? { kind, from: 0, to: 12 } : { kind, ...range, chance: 50 });
+    // Pitch rolls whole semitones unless you choose otherwise.
+    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? { kind, from: 0, to: 12 } : { kind, ...range, chance: 50, whole: target === 'pitch' });
   };
 
   const tags = Object.values(project.tags);
@@ -221,7 +222,22 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
             ) : (
               <>
                 to anything from <Amount label="Min" value={shape.min} onChange={(v) => setShape({ ...shape, min: v }, 'min')} onCommit={onCommit} /> to{' '}
-                <Amount label="Max" value={shape.max} onChange={(v) => setShape({ ...shape, max: v }, 'max')} onCommit={onCommit} />.
+                <Amount label="Max" value={shape.max} onChange={(v) => setShape({ ...shape, max: v }, 'max')} onCommit={onCommit} />
+                {target === 'pitch' && (
+                  <>
+                    {' '}
+                    <Choice
+                      label="Pitch steps"
+                      value={shape.whole ? 'whole' : 'free'}
+                      options={[
+                        { value: 'whole', label: 'in semitones' },
+                        { value: 'free', label: 'freely' },
+                      ]}
+                      onChange={(v) => setShape({ ...shape, whole: v === 'whole' })}
+                    />
+                  </>
+                )}
+                .
               </>
             )}
           </>
