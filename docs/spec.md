@@ -66,7 +66,7 @@ Samples behåller stereo. Tempo ställs per låt i BPM. En ny låt börjar på 1
 
 ## Mods
 
-En mod har ett namn och en eller flera effekter, högst en per mål. En stegeffekt är ett mål, ett omfång, en rate och en form; slump är bara en av formerna. Tape är en effekt som arbetar på ljud (se Tape). Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
+En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekter och gör ingenting förrän man lägger till en. En stegeffekt är ett mål, ett omfång, en rate och en form; slump är bara en av formerna. Tape är en effekt som arbetar på ljud (se Tape). Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
 
 | Fält | Val i v1 |
 | --- | --- |

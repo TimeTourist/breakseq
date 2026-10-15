@@ -711,15 +711,15 @@ describe('mods with effects', () => {
   const pitch: StepEffect = { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] }, sources: [] };
   const tape: TapeEffect = { target: 'tape', length: 6, direction: 'pingpong', speed: { from: 1, to: 0 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
-  it('a mod has at least one effect and at most one per target', () => {
+  it('a mod has at most one effect per target, and may have none', () => {
     const ctx = sequentialIds();
     const project = run(createProject(ctx), ctx, createMod('M', [pitch]));
     const id = only(project.mods).id;
-    expect(createMod('X', [])(project, ctx).ok).toBe(false);
+    expect(createMod('X', [])(project, ctx).ok).toBe(true);
     expect(addEffect(id, { ...pitch, rate: 'step' })(project, ctx).ok).toBe(false);
     const both = run(project, ctx, addEffect(id, tape));
     expect(only(both.mods).effects.map((e) => e.target)).toEqual(['pitch', 'tape']);
-    expect(removeEffect(id, 'pitch')(run(both, ctx, removeEffect(id, 'tape')), ctx).ok).toBe(false);
+    expect(only(run(both, ctx, removeEffect(id, 'tape'), removeEffect(id, 'pitch')).mods).effects).toEqual([]);
     expect(replaceEffect(id, 'pitch', { ...pitch, target: 'ratchet' })(both, ctx).ok).toBe(true);
     expect(addEffect(id, { ...tape, length: 0 })(project, ctx).ok).toBe(false);
     expect(addEffect(id, { ...tape, speed: { from: 1, to: 5 } })(project, ctx).ok).toBe(false);

@@ -76,7 +76,7 @@ describe('Mods', () => {
     const store = await setup(snareLoopProject(), 'mods');
 
     fireEvent.click(button('+ New mod'));
-    pick('Target', 'pitch');
+    pick('Add effect', 'pitch');
     pick('Shape', 'list');
     pick('Rate', 'beat');
     fireEvent.change(screen.getByRole('textbox', { name: 'Values' }), { target: { value: '0 3 5 7' } });
@@ -96,7 +96,7 @@ describe('Mods', () => {
   it('a random effect draws an example roll, whole values within its range, and can roll another', async () => {
     const store = await setup(snareLoopProject(), 'mods');
     fireEvent.click(button('+ New mod'));
-    pick('Target', 'pitch');
+    pick('Add effect', 'pitch');
     pick('Shape', 'random');
     pick('Rate', 'beat');
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Min' }), { target: { value: '1' } });
@@ -137,7 +137,11 @@ describe('Effects', () => {
     const store = await setup(snareLoopProject(), 'mods');
     fireEvent.click(button('+ New mod'));
     const effects = () => Object.values(present(store).mods)[0]!.effects;
+    // A new mod starts with no effect: only + Effect.
+    expect(effects()).toEqual([]);
+    expect(screen.queryByRole('combobox', { name: 'Target' })).toBeNull();
 
+    pick('Add effect', 'ratchet');
     pick('Add effect', 'pitch');
     expect(effects().map((e) => e.target)).toEqual(['ratchet', 'pitch']);
     // Ratchet is taken by this mod, so the pitch effect cannot become one.
@@ -159,8 +163,8 @@ describe('Effects', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Pitch' }));
     fireEvent.click(button('Remove Pitch'));
     expect(effects().map((e) => e.target)).toEqual(['ratchet']);
-    // The last effect cannot go: it has no ×.
-    expect(screen.queryByRole('button', { name: 'Remove Ratchet' })).toBeNull();
+    fireEvent.click(button('Remove Ratchet'));
+    expect(effects()).toEqual([]);
   });
 
   it('the target word swaps the effect in place, to Tape and back', async () => {
@@ -168,6 +172,7 @@ describe('Effects', () => {
     fireEvent.click(button('+ New mod'));
     const effects = () => Object.values(present(store).mods)[0]!.effects.map((e) => e.target);
 
+    pick('Add effect', 'ratchet');
     pick('Target', 'tape');
     expect(effects()).toEqual(['tape']);
     pick('Target', 'pitch');
@@ -185,6 +190,7 @@ describe('Effects', () => {
     project = sliced.project;
     await setup(project, 'mods');
     fireEvent.click(button('+ New mod'));
+    pick('Add effect', 'pitch');
     const options = within(screen.getByRole('combobox', { name: 'Scope' })).getAllByRole('option').map((o) => o.textContent);
     const parent = Object.values(project.pads).find((p) => isParentPad(project, p))!;
     expect(options).not.toContain(`pad ${parent.name}`);
@@ -233,8 +239,12 @@ describe('randomMod', () => {
   it('Randomize changes the mod in one undo step', async () => {
     const store = await setup(snareLoopProject(), 'mods');
     fireEvent.click(button('+ New mod'));
+    // Nothing to randomize until the mod has an effect.
+    expect(button('Randomize')).toHaveProperty('disabled', true);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'ratchet' } });
     const before = present(store);
     fireEvent.click(button('Randomize'));
+    expect(present(store)).not.toBe(before);
     fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
     expect(present(store)).toBe(before);
   });
