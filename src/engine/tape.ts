@@ -53,7 +53,18 @@ export const TAPE_GRID = 0.001;
 const MAX_PASSES = 4096;
 const EPSILON = 1e-9;
 
-const shaped = (curve: TapeCurve, u: number) => (curve === 'softStart' ? u * u : curve === 'softEnd' ? 1 - (1 - u) * (1 - u) : u);
+/** Where along the ramp the speed is at `u` (0–1) of its time. */
+const CURVES: Record<TapeCurve, (u: number) => number> = {
+  linear: (u) => u,
+  softStart: (u) => u ** 2,
+  softEnd: (u) => 1 - (1 - u) ** 2,
+  // Most of the change at once, then easing into the end value.
+  hardStart: (u) => 1 - (1 - u) ** 4,
+  // Holding on, then all of the change at the very end.
+  hardEnd: (u) => u ** 4,
+};
+
+const shaped = (curve: TapeCurve, u: number) => CURVES[curve](u);
 
 /** The tape's speed at song time `t`: the ramp, times the wobble, never below 0. */
 export function tapeSpeed(tape: Tape, t: number): number {

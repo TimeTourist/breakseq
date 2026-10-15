@@ -132,8 +132,11 @@ export interface StepEffect {
 }
 
 export type TapeDirection = 'forward' | 'reverse' | 'pingpong';
-/** How the speed moves from `from` to `to`: evenly, starting gently, or ending gently. */
-export type TapeCurve = 'linear' | 'softStart' | 'softEnd';
+/**
+ * How the speed moves from `from` to `to`: evenly; starting or ending gently;
+ * or aggressively, most of the way at once at the start, or all at the end.
+ */
+export type TapeCurve = 'linear' | 'softStart' | 'softEnd' | 'hardStart' | 'hardEnd';
 
 /** The longest tape segment: 4 bars. */
 export const MAX_TAPE_STEPS = 4 * STEPS_PER_BAR;

@@ -247,6 +247,8 @@ const CURVES: readonly { value: TapeCurve; label: string }[] = [
   { value: 'linear', label: 'evenly' },
   { value: 'softStart', label: 'starting gently' },
   { value: 'softEnd', label: 'ending gently' },
+  { value: 'hardStart', label: 'starting hard' },
+  { value: 'hardEnd', label: 'ending hard' },
 ];
 
 /** Lengths to pick from: every 1/16 within a bar, then whole bars. */

@@ -104,11 +104,17 @@ describe('tapeSpeed', () => {
     expect(tapeSpeed(ramped, 12 * STEP)).toBeCloseTo(0.25, 9);
   });
 
-  it('a soft start lies below linear half way down a rise, a soft end above', () => {
-    const at = (curve: TapeCurve) => tapeSpeed(tape({ speed: { from: 0, to: 1, ramp: BAR, curve } }), BAR / 2);
+  it('half way up a rise: hard end < soft start < linear < soft end < hard start, and all end at the end value', () => {
+    const at = (curve: TapeCurve, t = BAR / 2) => tapeSpeed(tape({ speed: { from: 0, to: 1, ramp: BAR, curve } }), t);
     expect(at('linear')).toBeCloseTo(0.5, 9);
+    expect(at('hardEnd')).toBeLessThan(at('softStart'));
     expect(at('softStart')).toBeLessThan(0.5);
     expect(at('softEnd')).toBeGreaterThan(0.5);
+    expect(at('hardStart')).toBeGreaterThan(at('softEnd'));
+    for (const curve of ['linear', 'softStart', 'softEnd', 'hardStart', 'hardEnd'] as const) {
+      expect(at(curve, 0)).toBeCloseTo(0, 9);
+      expect(at(curve, BAR)).toBeCloseTo(1, 9);
+    }
   });
 
   it('wow sways the speed within ±25 %, flutter within ±6 %, and the same rng gives the same sway', () => {
