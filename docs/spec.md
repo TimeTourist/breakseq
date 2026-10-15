@@ -26,7 +26,7 @@ Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit
 | Pad | Ordnad lista av hits. Medlem 1 är default. En ensam hit är en pad med en medlem. | Pads |
 | Loop | Tagg Main/Fill (bara för gruppering och namn; vilken loop som helst kan ligga i Main- eller Fill-raden), längd i hela takter, 16 steg per takt. Varje steg: pad eller tomt, vald medlem, step locks. | Loops |
 | Mod | Mål, omfång, rate, form och formens parametrar | Mods |
-| Song | Takter med raderna Main, Fill, Mod A och Mod B | Song |
+| Song | Längd i takter och klipp i raderna Main, Fill, Mod A och Mod B. Ett klipp har start, längd och offset i steg om 1/16. | Song |
 
 Step locks i v1: vald pad-medlem, ”Ignore mods” och nudge (finns i modellen, alltid 0 i v1).
 
@@ -43,7 +43,7 @@ Appen har åtta vyer i arbetsordning, nåbara via flikar och tangenterna 1–8. 
 5. **Pads** – samla hits i pads och bestäm ordning.
 6. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks.
 7. **Mods** – bygg mods.
-8. **Song** – placera loopar och mods i takter.
+8. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Alt kopierar) och ändras i längd från båda kanterna.
 
 **Automatisk kedja.** Varje sample får direkt en default-hit (hela samplet, inga ändringar) och en pad med den hitten som enda medlem. När ett break slicas skapas dessutom loopen M1, som spelar breakets pads i ordning, kvantiserad till 1/16. Kedjan körs en gång; därefter är allt vanliga objekt. Ett break kan slicas om så länge dess slices inte används utanför M1 och M1 inte ligger i Song; då ersätts slices, hits, pads och M1. Slices med egna markörer placeras i M1 på närmaste 1/16.
 
@@ -55,7 +55,7 @@ Motorn består av två delar: en händelsegenerator som räknar fram triggers, o
 
 **Händelsegeneratorn** tar Song, alla objekt och en slumpkälla, och ger en lista av triggers. Varje trigger har: tid i sekunder, takt och steg (för spelhuvudet), hit-id, samt slutlig pitch, volym, riktning och region. För varje takt:
 
-1. Det aktiva lagret väljs: Fill om raden F har en loop i takten, annars Main. Exakt ett lager hörs. En Main loopar tills nästa Main börjar; en Fill täcker så många takter som den är lång. En Fill har ett fönster med start- och slutmarkör över sina steg (förvalt hela loopen): inom fönstret spelar fillen, även sina tysta steg, och utanför lyser Main igenom.
+1. Det aktiva lagret väljs per steg: ett Fill-klipp går före ett Main-klipp, och där inget klipp ligger är det tyst. Ett klipp spelar sin loop från `offset` och börjar om loopen när den tar slut; steget i loopen är `(t − start + offset) mod looplängd`. Under ett Fill-klipp spelar fillen även sina tysta steg, och Main räknar vidare så att den är i takt efteråt. Ett släppt klipp får loopens egen längd (en mod får 1 takt). Att dra vänsterkanten trimmar början och flyttar offset. Klipp i samma rad överlappar inte: ett nytt eller flyttat klipp kortar, delar eller ersätter det som ligger under.
 2. För varje steg i det lagret ger paden och stegets valda medlem en hit; utan val spelas medlem 1.
 3. Mods från raderna A och B tillämpas på stegen (se Mods). Steg med ”Ignore mods” hoppas över.
 4. Varje steg blir en eller flera triggers (fler vid ratchet), placerade på tidslinjen.
@@ -89,7 +89,7 @@ En mod är ett mål, ett omfång, en rate och en form. Slump är bara en av form
 
 **Borrow** byter steget mot samma steg i angiven loop, med dess pad, medlem och locks.
 
-**Längd.** En mod gäller den takt den står i. Samma mod i angränsande takter i samma rad är en sammanhängande modulation; det påverkar Ramp, List och slip.
+**Längd.** En mod gäller sitt klipp i Song, på 1/16 när. Varje klipp är en sammanhängande modulation: intervallen räknas från klippets början, och Ramp sträcker sig över klippets längd.
 
 **Ratchet** n delar stegets längd i n lika delar och triggar hitten i varje del.
 
@@ -100,7 +100,7 @@ En tempo-mod (t.ex. 1/3) låter det aktiva lagret spelas i ett annat tempo medan
 - **Start:** när moden börjar startar ett lokalt spelhuvud på huvudklockans position i det aktiva lagret.
 - **Under moden:** det lokala spelhuvudet går i det modulerade tempot (1/3 = stegen kommer tre gånger glesare). Samples spelas i normal hastighet och längd; bara avståndet mellan triggers ändras.
 - **Återhopp:** när moden tar slut väntar motorn till nästa hela steg på huvudklockan och fortsätter därifrån.
-- **Längd:** samma tempo-mod i angränsande takter är en sammanhängande modulation, så det lokala spelhuvudet startar inte om.
+- **Längd:** ett mod-klipp är en sammanhängande modulation över sin exakta längd, även när det inte börjar på en taktgräns.
 - **Pitch** ändras inte av tempo-moden, bara av en pitch-mod.
 
 Spelhuvudet i GUI:t följer triggers, så under en tempo-mod tänds stegen i det långsammare tempot utan specialhantering.
@@ -154,6 +154,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 3. Eget material | Tag, Hits, Pads, Loops med medlemsval, Fill-raden, projektfil (zip) | Fyra snares kan bli en pad som placeras i en loop och hörs i Song |
 | 4. Mods | Formerna List, Cycle, Ramp, Random. Mål i ordning: medlem, pitch, volym, riktning, ratchet, tempo (slip), Borrow | Ett break med stutter-rullar, pitchtrappa och 1/3-tempo låter som avsett |
 | 5. Förfining | Transientdetektering, autotaggning, egna taggar, WAV-import med cue-markörer, smidigare drag and drop | – |
+| 6. Klipp i Song | Song som tidslinje med klipp på 1/16, trimning med offset; fill-fönstret ersätts av korta klipp | M1 kan spelas i 6/16 och börja om, en fill kan ligga på sista 1/4 |
 
 ## Utanför v1
 

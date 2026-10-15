@@ -3,13 +3,14 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createPad, createProject, setSongCell, setStep } from '../model';
+import { addSample, createLoop, createPad, createProject, resizeClip, setSongCell, setStep } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
 import type { Services } from './services';
 import type { Store, View } from './store';
 import { createStore, initialState } from './store';
+import { clickLane, clip } from '../test/timeline';
 
 afterEach(cleanup);
 
@@ -21,6 +22,7 @@ function fakeServices(): Services & { rendered: Project[] } {
     stop: vi.fn(),
     isPlaying: () => false,
     currentTrigger: () => null,
+    currentPosition: () => null,
     audition: vi.fn(),
     stopAudition: vi.fn(),
     setAuditionRegion: vi.fn(),
@@ -91,7 +93,7 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
     // Song: the loop in bar 1.
     fireEvent.keyDown(window, { key: '8' });
     fireEvent.click(button(loop.name));
-    fireEvent.click(button(/^Bar 1:/));
+    clickLane('Main', 0);
 
     const triggers = generateTriggers(present(store), () => 0);
     expect(triggers.length).toBeGreaterThan(0);
@@ -157,15 +159,22 @@ describe('Loops', () => {
 });
 
 describe('Song', () => {
-  it('a fill in the Fill lane shows, and hides the main under it', async () => {
+  it('a fill clip on bar 3 takes over from the main there, and the main keeps time', async () => {
     const project = build(createLoop(null, 'main', 4), createLoop(null, 'fill', 1));
     const [main, fill] = Object.values(project.loops);
     await setup(applyAll(project, setSongCell('main', 0, main!.id), setSongCell('fill', 2, fill!.id)), 'song');
 
-    expect(button(/^Fill bar 3:/).getAttribute('aria-label')).toBe('Fill bar 3: F1 bar 1');
-    expect(button(/^Bar 3:/).getAttribute('aria-label')).toBe('Bar 3: M1 bar 3, hidden by fill');
-    expect(button(/^Bar 4:/).getAttribute('aria-label')).toBe('Bar 4: M1 bar 4');
-    expect(button(/^Fill bar 4:/).getAttribute('aria-label')).toBe('Fill bar 4: empty');
+    expect(clip(/^F1, /).getAttribute('aria-label')).toBe('F1, 3.1.1, 1 bar');
+    expect(clip(/^M1, /).getAttribute('aria-label')).toBe('M1, 1.1.1, 4 bars');
+  });
+
+  it('a fill trimmed from the left shows where its content starts', async () => {
+    const project = build(createLoop(null, 'fill', 1));
+    const fill = Object.values(project.loops)[0]!;
+    const placed = applyAll(project, setSongCell('fill', 0, fill.id));
+    const id = placed.song.clips[0]!.id;
+    await setup(applyAll(placed, resizeClip(id, 'start', 12)), 'song');
+    expect(clip(/^F1, /).getAttribute('aria-label')).toBe('F1, 1.4.1, 4/16, from 1.4.1');
   });
 });
 
@@ -177,35 +186,3 @@ function applyAll(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-describe('Fill window', () => {
-  it('a window over the last half makes the main show through the first half, in Loops and in Song', async () => {
-    const project = build(createLoop(null, 'main', 4), createLoop(null, 'fill', 1));
-    const [main, fill] = Object.values(project.loops);
-    const store = await setup(applyAll(project, setSongCell('main', 0, main!.id), setSongCell('fill', 2, fill!.id)), 'loops');
-    fireEvent.click(button(/F1/));
-
-    fireEvent.keyDown(button(/^Fill starts at/), { key: 'ArrowRight', shiftKey: true });
-    fireEvent.keyDown(button(/^Fill starts at/), { key: 'ArrowRight', shiftKey: true });
-
-    expect(present(store).loops[fill!.id]!.window).toEqual({ start: 8, end: 16 });
-    expect(button(/^Bar 1, step 8:/).getAttribute('aria-label')).toMatch(/main shows through$/);
-    expect(button(/^Bar 1, step 9:/).getAttribute('aria-label')).not.toMatch(/through/);
-
-    fireEvent.keyDown(window, { key: '8' });
-    expect(button(/^Fill bar 3:/).getAttribute('aria-label')).toBe('Fill bar 3: F1 bar 1, plays steps 9–16');
-    expect(button(/^Bar 3:/).getAttribute('aria-label')).toBe('Bar 3: M1 bar 3, fill over steps 9–16');
-  });
-
-  it('←/→ on the start handle moves it a step, and Shift a beat', async () => {
-    const project = build(createLoop(null, 'fill', 1));
-    const fill = Object.values(project.loops)[0]!;
-    const store = await setup(project, 'loops');
-    const start = button(/^Fill starts at/);
-
-    fireEvent.keyDown(start, { key: 'ArrowRight', shiftKey: true });
-    fireEvent.keyDown(button(/^Fill starts at/), { key: 'ArrowRight' });
-
-    expect(present(store).loops[fill.id]!.window).toEqual({ start: 5, end: 16 });
-    expect(button(/^Fill starts at/).getAttribute('aria-label')).toBe('Fill starts at T1 · 06');
-  });
-});

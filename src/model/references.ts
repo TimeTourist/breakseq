@@ -4,7 +4,7 @@ import type { Id, Project, SongRow } from './types';
 export type ReferableKind = 'tag' | 'sample' | 'hit' | 'pad' | 'loop' | 'mod';
 
 const songUsage = (project: Project, id: Id, rows: readonly SongRow[]): Usage[] =>
-  rows.some((row) => project.song.rows[row].includes(id)) ? [{ kind: 'song', id: null, name: 'Song' }] : [];
+  project.song.clips.some((c) => c.ref === id && rows.includes(c.row)) ? [{ kind: 'song', id: null, name: 'Song' }] : [];
 
 /** Everything that refers to the given object. An object with usages cannot be removed. */
 export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage[] {

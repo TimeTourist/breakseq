@@ -1,5 +1,5 @@
-import type { Hit, Id, Mod, ModRate, ModShape, ModTarget, Pad, Project, Rng, Song, Step } from '../model';
-import { STEPS_PER_BAR } from '../model';
+import type { Clip, Hit, Mod, ModRate, ModShape, ModTarget, Pad, Project, Rng, Step } from '../model';
+import { STEPS_PER_BAR, clipsByStep } from '../model';
 
 /** What a step will play after mods. Handlers return a changed copy. */
 export interface StepState {
@@ -30,11 +30,11 @@ export function stepState(project: Project, cell: Step): StepState {
 
 export type Row = 'A' | 'B';
 
-/** Where a step is: its index in the active loop, and its bar and step on the main clock. */
+/** Where a step is: its index in the active loop, and its song step on the main clock. */
 export interface StepPlace {
   readonly index: number;
-  readonly bar: number;
-  readonly step: number;
+  /** Song step on the main clock: where the sound is heard. */
+  readonly clock: number;
 }
 
 interface TargetHandler {
@@ -85,62 +85,48 @@ const handlers: readonly (readonly [ModTarget, TargetHandler])[] = [
 
 const RATE_STEPS: Record<ModRate, number> = { step: 1, beat: 4, bar: STEPS_PER_BAR };
 
-/** A mod placed in a row, possibly over several adjacent bars as one continuous modulation. */
+/** A mod's clip in a row: one continuous modulation. */
 export interface ModRun {
   readonly mod: Mod;
   readonly row: Row;
-  readonly startBar: number;
-  /** How many bars the run lasts. */
-  readonly bars: number;
+  readonly clip: Clip;
 }
 
-/** For each bar, the run that is active in row A and row B. */
-export function modRuns(song: Song, mods: Project['mods']): { A: (ModRun | null)[]; B: (ModRun | null)[] } {
-  const runsFor = (row: Row, cells: readonly (Id | null)[]) => {
-    const runs: { mod: Mod; row: Row; startBar: number; bars: number }[] = [];
-    const perBar: (ModRun | null)[] = [];
-    cells.forEach((id, bar) => {
-      const mod = id === null ? undefined : mods[id];
-      const last = runs.at(-1);
-      if (mod === undefined) {
-        perBar.push(null);
-        return;
-      }
-      if (last !== undefined && last.mod.id === mod.id && last.startBar + last.bars === bar) {
-        last.bars++;
-      } else {
-        runs.push({ mod, row, startBar: bar, bars: 1 });
-      }
-      perBar.push(runs.at(-1)!);
+/** For each song step, the run that is active in row A and row B. */
+export function modRuns(project: Project): { A: (ModRun | null)[]; B: (ModRun | null)[] } {
+  const runsFor = (row: Row) =>
+    clipsByStep(project, row === 'A' ? 'modA' : 'modB').map((clip): ModRun | null => {
+      const mod = clip === null ? undefined : project.mods[clip.ref];
+      return clip === null || mod === undefined ? null : { mod, row, clip };
     });
-    return perBar;
-  };
-  return { A: runsFor('A', song.rows.modA), B: runsFor('B', song.rows.modB) };
+  return { A: runsFor('A'), B: runsFor('B') };
 }
 
-/** The value a mod has at a step on the main clock, or null when it has none there. */
-export type ModValues = (run: ModRun, bar: number, step: number, discrete: boolean) => number | null;
+/** The value a mod has at song step `t`, or null when it has none there. */
+export type ModValues = (run: ModRun, t: number, discrete: boolean) => number | null;
 
 /**
- * A value is worked out once per interval of a run and held for every step and
- * trigger in it, so a random value is only rolled once. Steps must be asked for
- * in time order: Cycle counts the intervals it has been used in so far.
+ * A value is worked out once per interval of a clip and held for every step and
+ * trigger in it, so a random value is only rolled once. Intervals count from the
+ * clip's content start, so trimming its start moves into the modulation. Steps
+ * must be asked for in time order: Cycle counts the intervals used so far.
  */
 export function modValues(rng: Rng): ModValues {
   const cache = new Map<string, number | null>();
-  const cycles = new Map<ModRun, number>();
-  return (run, bar, step, discrete) => {
-    const size = RATE_STEPS[run.mod.rate];
-    const interval = Math.floor(((bar - run.startBar) * STEPS_PER_BAR + step) / size);
-    const key = `${run.row}:${run.startBar}:${interval}`;
+  const cycles = new Map<string, number>();
+  return (run, t, discrete) => {
+    const { clip, mod } = run;
+    const size = RATE_STEPS[mod.rate];
+    const interval = Math.floor((t - clip.start + clip.offset) / size);
+    const key = `${run.row}:${clip.id}:${interval}`;
     if (!cache.has(key)) {
-      const intervals = Math.max(1, Math.ceil((run.bars * STEPS_PER_BAR) / size));
+      const intervals = Math.max(1, Math.ceil((clip.offset + clip.length) / size));
       let index = interval;
-      if (run.mod.shape.kind === 'cycle') {
-        index = cycles.get(run) ?? 0;
-        cycles.set(run, index + 1);
+      if (mod.shape.kind === 'cycle') {
+        index = cycles.get(clip.id) ?? 0;
+        cycles.set(clip.id, index + 1);
       }
-      cache.set(key, shapeValue(run.mod.shape, index, intervals, discrete, rng));
+      cache.set(key, shapeValue(mod.shape, index, intervals, discrete, rng));
     }
     return cache.get(key) ?? null;
   };
@@ -178,7 +164,7 @@ function inScope(mod: Mod, state: StepState, place: StepPlace, project: Project)
     case 'pad':
       return state.cell.padId === scope.padId;
     case 'range':
-      return place.step >= scope.from && place.step <= scope.to;
+      return place.clock % STEPS_PER_BAR >= scope.from && place.clock % STEPS_PER_BAR <= scope.to;
   }
 }
 
@@ -200,7 +186,7 @@ export function applyMods(
     if (current.cell.ignoreMods) break;
     const fromRow = (run: ModRun | null) =>
       run !== null && run.mod.target === target && inScope(run.mod, current, place, project)
-        ? values(run, place.bar, place.step, handler.discrete)
+        ? values(run, place.clock, handler.discrete)
         : null;
     const a = fromRow(runs.A);
     const b = fromRow(runs.B);
@@ -212,10 +198,10 @@ export function applyMods(
   return current;
 }
 
-/** The tempo run in each bar: B's if B has one there, else A's. */
+/** The tempo run at each song step: B's if B has one there, else A's. */
 export function tempoRuns(runs: { readonly A: readonly (ModRun | null)[]; readonly B: readonly (ModRun | null)[] }): (ModRun | null)[] {
-  return runs.A.map((a, bar) => {
-    const b = runs.B[bar] ?? null;
+  return runs.A.map((a, t) => {
+    const b = runs.B[t] ?? null;
     return b?.mod.target === 'tempo' ? b : a?.mod.target === 'tempo' ? a : null;
   });
 }

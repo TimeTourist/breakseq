@@ -28,13 +28,18 @@ import {
   breakBpm,
   createHistory,
   createLoop,
+  createMod,
   createPad,
   createProject,
   redo,
   remove,
   removePadMember,
   setBreak,
-  setFillWindow,
+  addClip,
+  copyClip,
+  moveClip,
+  removeClip,
+  resizeClip,
   setLoopKind,
   updateSample,
   setSongCell,
@@ -475,29 +480,6 @@ describe('fas 3b: trimming, markers and re-slicing', () => {
   });
 });
 
-describe('fill window (model)', () => {
-  it('defaults to the whole loop and can be set within its steps', () => {
-    const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, createLoop(null, 'fill', 1), createLoop(null, 'main', 1));
-    const [fill, main] = Object.values(project.loops);
-    expect(fill!.window).toEqual({ start: 0, end: 16 });
-    expect(run(project, ctx, setFillWindow(fill!.id, 8, 16)).loops[fill!.id]!.window).toEqual({ start: 8, end: 16 });
-    // Any loop can play in the Fill row, so any loop has a window.
-    expect(setFillWindow(main!.id, 8, 16)(project, ctx).ok).toBe(true);
-    expect(setFillWindow(fill!.id, 8, 8)(project, ctx).ok).toBe(false);
-    expect(setFillWindow(fill!.id, 0, 17)(project, ctx).ok).toBe(false);
-  });
-
-  it('setLoopBars keeps a whole window whole and cuts a partial one', () => {
-    const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, createLoop(null, 'fill', 2), createLoop(null, 'fill', 2));
-    const [whole, part] = Object.values(project.loops);
-    project = run(project, ctx, setFillWindow(part!.id, 12, 28), setLoopBars(whole!.id, 1), setLoopBars(part!.id, 1));
-    expect(project.loops[whole!.id]!.window).toEqual({ start: 0, end: 16 });
-    expect(project.loops[part!.id]!.window).toEqual({ start: 12, end: 16 });
-  });
-});
-
 describe('fas 5: tags and kept markers', () => {
   const tagId = (project: Project, name: string) => Object.values(project.tags).find((t) => t.name === name)!.id;
 
@@ -563,8 +545,10 @@ describe('loop kind is a tag', () => {
     let project = run(createProject(ctx), ctx, createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
     const [main, fill] = Object.values(project.loops);
     project = run(project, ctx, setSongCell('fill', 0, main!.id), setSongCell('main', 1, fill!.id));
-    expect(project.song.rows.fill[0]).toBe(main!.id);
-    expect(project.song.rows.main[1]).toBe(fill!.id);
+    expect(project.song.clips.map((c) => [c.row, c.ref, c.start])).toEqual([
+      ['fill', main!.id, 0],
+      ['main', fill!.id, 16],
+    ]);
 
     project = run(project, ctx, setLoopKind(main!.id, 'fill'));
     expect(project.loops[main!.id]).toMatchObject({ kind: 'fill', name: 'M1' });
@@ -617,5 +601,93 @@ describe('break length', () => {
     expect(project.samples[id]!.break).toMatchObject({ bars: 1, sliced: true });
     expect(project.samples[id]!.break!.bpm).toBeCloseTo(breakBpm(1.75, 1));
     expect(breakSequence(project, id).map((s) => s.step)).toEqual([0, 4, 8, 12]);
+  });
+});
+
+describe('clips', () => {
+  /** A song of 4 bars with a one-bar loop L and a mod D. */
+  function song() {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod({ name: 'D', target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }));
+    return { ctx, project, loop: only(project.loops).id, mod: only(project.mods).id };
+  }
+  const spans = (project: Project, row = 'main') =>
+    project.song.clips.filter((c) => c.row === row).map((c) => [c.start, c.length, c.offset]);
+
+  it("a dropped clip gets its loop's length, a mod one bar, cut at the song's end", () => {
+    const { ctx, project, loop, mod } = song();
+    const next = run(project, ctx, addClip('main', loop, 4), addClip('modA', mod, 56));
+    expect(spans(next)).toEqual([[4, 16, 0]]);
+    expect(spans(next, 'modA')).toEqual([[56, 8, 0]]);
+    expect(addClip('modA', loop, 0)(project, ctx).ok).toBe(false);
+  });
+
+  it('a new clip removes what it covers, splits what it falls inside, and cuts what it overlaps', () => {
+    const { ctx, project, loop } = song();
+    const long = run(project, ctx, addClip('main', loop, 0, 64));
+    expect(spans(run(long, ctx, addClip('main', loop, 20, 8)))).toEqual([
+      [0, 20, 0],
+      [20, 8, 0],
+      [28, 36, 12],
+    ]);
+    const two = run(project, ctx, addClip('main', loop, 0, 16), addClip('main', loop, 16, 16));
+    expect(spans(run(two, ctx, addClip('main', loop, 8, 16)))).toEqual([
+      [0, 8, 0],
+      [8, 16, 0],
+      [24, 8, 8],
+    ]);
+    expect(spans(run(two, ctx, addClip('main', loop, 0, 32)))).toEqual([[0, 32, 0]]);
+  });
+
+  it('resizing from the left moves the start and the offset; a clip is at least one step', () => {
+    const { ctx, project, loop } = song();
+    let next = run(project, ctx, addClip('main', loop, 16));
+    const id = next.song.clips[0]!.id;
+    next = run(next, ctx, resizeClip(id, 'start', 28));
+    expect(spans(next)).toEqual([[28, 4, 12]]);
+    // Pulled out past its start, the loop wraps round: 4 steps earlier is offset 8.
+    expect(spans(run(next, ctx, resizeClip(id, 'start', 24)))).toEqual([[24, 8, 8]]);
+    expect(spans(run(next, ctx, resizeClip(id, 'end', 0)))).toEqual([[28, 1, 12]]);
+  });
+
+  it('moving and copying keep length and offset, and stay with their kind of row', () => {
+    const { ctx, project, loop, mod } = song();
+    let next = run(project, ctx, addClip('main', loop, 0), addClip('modA', mod, 0));
+    const [l, m] = next.song.clips;
+    next = run(next, ctx, moveClip(l!.id, 'fill', 32), copyClip(m!.id, 'modB', 16));
+    expect(spans(next, 'fill')).toEqual([[32, 16, 0]]);
+    expect(spans(next, 'main')).toEqual([]);
+    expect(spans(next, 'modB')).toEqual([[16, 16, 0]]);
+    expect(moveClip(l!.id, 'modA', 0)(next, ctx).ok).toBe(false);
+    expect(run(next, ctx, removeClip(m!.id)).song.clips).toHaveLength(2);
+  });
+
+  it('setSongBars drops clips past the end and shortens clips across it', () => {
+    const { ctx, project, loop } = song();
+    const next = run(project, ctx, addClip('main', loop, 0, 40), addClip('fill', loop, 48));
+    expect(run(next, ctx, setSongBars(2)).song.clips.map((c) => [c.row, c.start, c.length])).toEqual([['main', 0, 32]]);
+  });
+
+  it('a song saved with rows becomes clips that play the same', () => {
+    const ctx = sequentialIds();
+    const base = run(createProject(ctx), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod({ name: 'D', target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }));
+    const [m, f] = Object.keys(base.loops) as [string, string];
+    const d = Object.keys(base.mods)[0]!;
+    const legacy = {
+      ...base,
+      loops: { ...base.loops, [f]: { ...base.loops[f]!, window: { start: 8, end: 16 } } },
+      song: { bpm: 170, bars: 6, rows: { main: [m, null, null, null, m, null], fill: [null, null, f, null, null, null], modA: [d, d, null, d, null, null], modB: [null, null, null, null, null, null] } },
+    } as unknown as Project;
+
+    const clips = upgradeProject(legacy).song.clips.map((c) => [c.row, c.ref, c.start, c.length, c.offset]);
+
+    expect(clips).toEqual([
+      ['main', m, 0, 64, 0],
+      ['main', m, 64, 32, 0],
+      ['fill', f, 40, 8, 8],
+      ['modA', d, 0, 32, 0],
+      ['modA', d, 48, 16, 0],
+    ]);
+    expect('window' in upgradeProject(legacy).loops[f]!).toBe(false);
   });
 });

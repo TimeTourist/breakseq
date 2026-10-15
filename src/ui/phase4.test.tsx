@@ -11,6 +11,7 @@ import type { Player, Take } from './playback';
 import type { Services } from './services';
 import type { Store, View } from './store';
 import { createStore, initialState } from './store';
+import { clickLane } from '../test/timeline';
 
 afterEach(cleanup);
 
@@ -23,6 +24,7 @@ function services(): Services {
     stop: vi.fn(),
     isPlaying: () => false,
     currentTrigger: () => null,
+    currentPosition: () => null,
     audition: vi.fn(),
     setAuditionRegion: vi.fn(),
     auditionPosition: () => null,
@@ -81,12 +83,9 @@ describe('Mods', () => {
 
     fireEvent.keyDown(window, { key: '8' });
     fireEvent.click(button(mod.name));
-    fireEvent.click(button(/^Mod A bar 1:/));
+    clickLane('Mod A', 0);
 
-    // The mod is in bar 1 only.
-    const pitches = generateTriggers(present(store), () => 0).map((t) => t.pitch);
-    expect(pitches.slice(0, 4)).toEqual([0, 3, 5, 7]);
-    expect(pitches.slice(4, 8)).toEqual([0, 0, 0, 0]);
+    expect(generateTriggers(present(store), () => 0).map((t) => t.pitch)).toEqual([0, 3, 5, 7]);
   });
 });
 

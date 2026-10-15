@@ -56,13 +56,13 @@ Song blir en tidslinje med klipp på 1/16-upplösning. Loopar och mods läggs ut
 
 ## Tester som krävs
 
-- [ ] M1 (4 takter) i ett klipp på 6/16 och därefter M1 igen ger stegen 0–5 och sedan 0, 1, 2, …
-- [ ] Ett klipp längre än loopen börjar om loopen. Offset trimmar början.
-- [ ] Där inget Main-klipp ligger blir det inga triggers.
-- [ ] Fill-klipp på sista 1/4 med offset 12 spelar fillens steg 12–15. Main fortsätter i takt efter fillen.
-- [ ] En mod i ett klipp på 4/16 påverkar bara de stegen. Ramp går över klippets längd.
-- [ ] Slip-tempo i ett klipp som inte börjar på en taktgräns.
-- [ ] Överlapp: ett nytt klipp över ett annat kortar, delar och ersätter rätt.
-- [ ] `resizeClip` från vänster ändrar `offset`, och längden är minst 1 steg.
-- [ ] Uppgradering av `rows`, inklusive fill-fönster, ger samma triggers som före.
-- [ ] UI: ett chip släppt på ett steg ger ett klipp med loopens längd. Att dra i högerkanten ändrar längden, och en flytt flyttar klippet.
+- [x] M1 (4 takter) i ett klipp på 6/16 och därefter M1 igen ger stegen 0–5 och sedan 0, 1, 2, …
+- [x] Ett klipp längre än loopen börjar om loopen. Offset trimmar början.
+- [x] Där inget Main-klipp ligger blir det inga triggers.
+- [x] Fill-klipp på sista 1/4 med offset 12 spelar fillens steg 12–15. Main fortsätter i takt efter fillen.
+- [x] En mod i ett klipp på 4/16 påverkar bara de stegen. Ramp går över klippets längd.
+- [x] Slip-tempo i ett klipp som inte börjar på en taktgräns.
+- [x] Överlapp: ett nytt klipp över ett annat kortar, delar och ersätter rätt.
+- [x] `resizeClip` från vänster ändrar `offset`, och längden är minst 1 steg.
+- [x] Uppgradering av `rows`, inklusive fill-fönster, ger samma triggers som före.
+- [x] UI: ett chip släppt på ett steg ger ett klipp med loopens längd. Att dra i högerkanten ändrar längden, och en flytt flyttar klippet.

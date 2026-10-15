@@ -1515,3 +1515,173 @@ input[type='search'] {
   width: 56px;
   min-height: 32px;
 }
+
+/* Song timeline */
+
+.timeline-box {
+  background: var(--sunken);
+}
+
+.timeline {
+  position: relative;
+  padding: 8px 0 12px;
+}
+
+.timeline-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.lane-head {
+  flex: 0 0 130px;
+  padding-left: 12px;
+}
+
+.timeline-ruler {
+  position: relative;
+  height: 22px;
+}
+
+.ruler-bar {
+  position: absolute;
+  top: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--border-strong);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.timeline-lane {
+  position: relative;
+  height: 56px;
+  border-radius: 6px;
+  /* Steps, beats and bars: 10 px, 40 px and 160 px. */
+  background-color: #16181b;
+  background-image:
+    linear-gradient(to right, #3a3f45 1px, transparent 1px),
+    linear-gradient(to right, #262a2f 1px, transparent 1px),
+    linear-gradient(to right, #1d2024 1px, transparent 1px);
+  background-size: 160px 100%, 40px 100%, 10px 100%;
+}
+
+.drop-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.clip {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  overflow: hidden;
+  cursor: grab;
+}
+
+.clip.fill,
+.clip.tag-fill.main {
+  border-color: var(--fill);
+  background: var(--fill-bg);
+  color: var(--fill);
+}
+
+.clip.modA,
+.clip.modB {
+  border-color: #e5689a;
+  background: #381a27;
+  color: #e5689a;
+}
+
+.clip.selected {
+  outline: 2px solid var(--text);
+  outline-offset: -1px;
+}
+
+/* A trimmed start shows as a notched left edge. */
+.clip.trimmed {
+  border-left-style: dashed;
+  border-left-width: 3px;
+}
+
+.clip-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.clip-step {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+}
+
+.clip-step.restart {
+  border-left: 1px dotted currentColor;
+  opacity: 0.8;
+}
+
+.clip-tick {
+  position: absolute;
+  left: 3px;
+  bottom: 4px;
+  width: 4px;
+  height: 12px;
+  border-radius: 1px;
+  opacity: 0.85;
+}
+
+.clip-label {
+  position: relative;
+  display: block;
+  padding: 4px 8px 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.clip-from {
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.clip-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.clip-edge.start {
+  left: 0;
+}
+
+.clip-edge.end {
+  right: 0;
+}
+
+.clip-edge:hover {
+  background: rgb(236 233 226 / 0.25);
+}
+
+.timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
+  pointer-events: none;
+  z-index: 2;
+}

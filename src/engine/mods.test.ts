@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Id, Mod, Project } from '../model';
 import {
+  addClip,
   addPadMember,
   addSample,
   createLoop,
@@ -114,15 +115,29 @@ describe('fas 4: mods', () => {
     expect(next.time).toBeCloseTo(16 * STEP);
   });
 
-  it('slip over adjacent bars is one run: the local playhead does not restart', () => {
+  it('slip over a clip of two bars is one run: the local playhead does not restart', () => {
     const { project: base, pad } = kit();
     let [project] = withLoop(base, Object.fromEntries(Array.from({ length: 48 }, (_, i) => [i, pad.S1!])), 3);
-    project = withMod(project, { target: 'tempo', scope: all, rate: 'bar', shape: { kind: 'list', values: [1 / 3] } }, 'modA', [0, 1]);
+    project = withMod(project, { target: 'tempo', scope: all, rate: 'bar', shape: { kind: 'list', values: [1 / 3] } }, 'modA', []);
+    project = run(project, addClip('modA', Object.keys(project.mods)[0]!, 0, 32));
 
     const slipped = generateTriggers(project, () => 0).filter((t) => t.time < 32 * STEP - 1e-9);
 
-    // Eleven content steps (0–10) over two bars, all from bar 1 of the content.
+    // Eleven content steps (0–10) over one clip of two bars, all from the start of the content.
     expect(slipped.map((t) => t.bar * 16 + t.step)).toEqual(Array.from({ length: 11 }, (_, i) => i));
+  });
+
+  it('slip in a clip that starts mid-bar runs from there to the clip\'s end', () => {
+    const { project: base, pad } = kit();
+    let [project] = withLoop(base, Object.fromEntries(Array.from({ length: 32 }, (_, i) => [i, pad.S1!])), 2);
+    project = withMod(project, { target: 'tempo', scope: all, rate: 'bar', shape: { kind: 'list', values: [1 / 2] } }, 'modA', []);
+    project = run(project, addClip('modA', Object.keys(project.mods)[0]!, 4, 8));
+
+    const triggers = generateTriggers(project, () => 0);
+    const steps = triggers.filter((t) => t.time < 16 * STEP - 1e-9).map((t) => [t.step, +(t.time / STEP).toFixed(3)]);
+
+    // Steps 0–3 on time; from step 4 at half speed until step 12 on the clock; then on time from 12.
+    expect(steps).toEqual([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 8], [7, 10], [12, 12], [13, 13], [14, 14], [15, 15]]);
   });
 
   it('Borrow swaps the step for the same step in the source loop, with its pad, member and locks', () => {

@@ -30,6 +30,7 @@ function makeServices(): Services {
     stop: vi.fn(),
     isPlaying: () => false,
     currentTrigger: () => null,
+    currentPosition: () => null,
     audition: vi.fn(),
     stopAudition: vi.fn(),
     setAuditionRegion: vi.fn(),

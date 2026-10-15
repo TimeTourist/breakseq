@@ -57,6 +57,8 @@ export interface Player {
   readonly isPlaying: () => boolean;
   /** The trigger under the playhead now, or null when stopped. */
   readonly currentTrigger: () => Trigger | null;
+  /** Seconds into the take that is playing, or null when stopped. */
+  readonly currentPosition: () => number | null;
   /**
    * Plays part of some audio directly, outside the song: once, or looped. Times in seconds.
    * One voice: a new audition cuts the previous one. `onEnded` runs when it stops either way.
@@ -155,6 +157,13 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       const elapsed = context.currentTime - current.startTime;
       if (elapsed < 0 || duration <= 0) return null;
       return playheadTrigger(current.take.triggers, elapsed % duration);
+    },
+    currentPosition: () => {
+      settle();
+      if (current === null || context === null) return null;
+      const duration = current.take.buffer.duration;
+      const elapsed = context.currentTime - current.startTime;
+      return elapsed < 0 || duration <= 0 ? null : elapsed % duration;
     },
     playHit: (project, hitId) => {
       stopAudition();

@@ -6,7 +6,6 @@ import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, loopUsage, padColor, padGroups, padLabel } from './labels';
 import type { Selection } from './store';
-import { FillWindowStrip } from './FillWindow';
 
 export const PAD_MIME = 'application/x-breakseq-pad';
 /** A break's parent: dropping it lays out all its slices. */
@@ -191,7 +190,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </div>
             {Array.from({ length: loop.bars }, (_, bar) => (
               <Fragment key={bar}>
-              <FillWindowStrip loop={loop} bar={bar} onError={setError} />
               <div className="step-row">
                 <span className="mono muted small">T{bar + 1}</span>
                 {Array.from({ length: STEPS_PER_BAR }, (_, s) => {
@@ -201,13 +199,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   const memberIndex = pad === undefined || cell?.memberId == null ? 0 : Math.max(0, pad.members.indexOf(cell.memberId));
                   const color = pad === undefined ? undefined : hitColor(project, pad.members[memberIndex]);
                   const now = playhead !== null && playhead.bar === bar && playhead.step === s;
-                  // Outside its window a loop in the Fill row lets the main through.
-                  const through = index < loop.window.start || index >= loop.window.end;
                   return (
                     <button
                       key={s}
                       type="button"
-                      className={`step${pad !== undefined ? ' filled' : ''}${index === selectedStep ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${through ? ' through' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
+                      className={`step${pad !== undefined ? ' filled' : ''}${index === selectedStep ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
                       draggable={pad !== undefined}
                       onDragStart={(e) => {
                         e.dataTransfer.setData(STEP_MIME, String(index));
@@ -216,7 +212,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       onDragEnd={drops.clear}
                       {...dropOnStep(index)}
                       style={color === undefined ? undefined : { color, boxShadow: `inset 0 -4px 0 ${color}` }}
-                      aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}${through ? ', main shows through' : ''}`}
+                      aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}`}
                       onClick={() => clickStep(index)}
                       onDoubleClick={() => {
                         if (pad !== undefined) open({ pad: pad.id }, 'pads');
