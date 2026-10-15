@@ -180,7 +180,9 @@ describe('fas 4: mods', () => {
       setStep(source, 3, { padId: pad.Snares!, memberId: hit.S3! }),
       setStep(source, 5, { padId: pad.Snares!, ignoreMods: true }),
     );
-    project = withMod(project, { target: 'sourceLoop', scope: { kind: 'range', from: 3, to: 5 }, rate: 'step', shape: { kind: 'list', values: [0] }, sources: [source] }, 'modA');
+    project = withMod(project, { target: 'sourceLoop', scope: all, rate: 'step', shape: { kind: 'list', values: [0] }, sources: [source] }, 'modA', []);
+    // Borrow's clip covers steps 4–6 (3–5 from 0).
+    project = run(project, addClip('modA', Object.values(project.mods).find((m) => m.effects[0]!.target === 'sourceLoop')!.id, 3, 3));
     project = withMod(project, { target: 'pitch', scope: all, rate: 'bar', shape: { kind: 'list', values: [5] } }, 'modB');
 
     const triggers = generateTriggers(project, () => 0);

@@ -159,7 +159,7 @@ function shapeValue(shape: ModShape, index: number, intervals: number, discrete:
   }
 }
 
-function inScope(effect: StepEffect, state: StepState, place: StepPlace, project: Project): boolean {
+function inScope(effect: StepEffect, state: StepState, project: Project): boolean {
   const { scope } = effect;
   switch (scope.kind) {
     case 'all':
@@ -168,8 +168,6 @@ function inScope(effect: StepEffect, state: StepState, place: StepPlace, project
       return state.hit !== undefined && project.samples[state.hit.sampleId]?.mainTag === scope.tagId;
     case 'pad':
       return state.cell.padId === scope.padId;
-    case 'range':
-      return place.clock % STEPS_PER_BAR >= scope.from && place.clock % STEPS_PER_BAR <= scope.to;
   }
 }
 
@@ -191,7 +189,7 @@ export function applyMods(
     if (current.cell.ignoreMods) break;
     const fromRow = (run: ModRun | null) => {
       const effect = run === null ? undefined : effectFor(run.mod, target);
-      return run !== null && effect !== undefined && inScope(effect, current, place, project)
+      return run !== null && effect !== undefined && inScope(effect, current, project)
         ? { effect, value: values(run, effect, place.clock, handler.discrete) }
         : null;
     };

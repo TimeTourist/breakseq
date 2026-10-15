@@ -7,6 +7,7 @@ import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Trigger } from './generate';
 import { CHOKE_FADE, renderTake, renderTriggers } from './render';
 import type { Tape } from './tape';
+import { wobbles } from './tape';
 
 const SAMPLE_RATE = 44100;
 const ctx = sequentialIds();
@@ -132,11 +133,12 @@ describe('tapes', () => {
     const tape: Tape = {
       time: 0,
       end: 2,
+      start: 0,
       source: [trigger(project, hits[0]!, 0)],
       length: SEGMENT,
       direction: 'forward',
-      speed: { start: 1, end: 1 },
-      position: 0,
+      speed: { from: 1, to: 1, ramp: 2, curve: 'linear' },
+      wobble: [],
       ...fields,
     };
     return { project, take: { triggers: [], tapes: [tape] } };
@@ -160,7 +162,7 @@ describe('tapes', () => {
   });
 
   it('slowing to 0× gets quieter and ends in silence, and nothing plays after the tape', async () => {
-    const { project, take } = tapeTake({ speed: { start: 1, end: 0 }, end: 1 });
+    const { project, take } = tapeTake({ speed: { from: 1, to: 0, ramp: 1, curve: 'linear' }, end: 1 });
     const data = (await renderTake(take, project, SAMPLE_RATE)).getChannelData(0);
     const peak = (from: number, to: number) => data.slice(Math.round(from * SAMPLE_RATE), Math.round(to * SAMPLE_RATE)).reduce((m, v) => Math.max(m, Math.abs(v)), 0);
     expect(peak(0.9, 0.99)).toBeLessThan(peak(0, 0.25) / 4);
@@ -170,8 +172,20 @@ describe('tapes', () => {
 
   it('a tape cuts the trigger before it', async () => {
     const { project, hits } = setup([constantAudio(3)]);
-    const { take } = tapeTake({ time: 1, end: 2, source: [] });
+    const { take } = tapeTake({ time: 1, start: 1, end: 2, source: [] });
     const data = (await renderTake({ ...take, triggers: [trigger(project, hits[0]!, 0)] }, project, SAMPLE_RATE)).getChannelData(0);
     expect(lastSound(data)).toBeLessThanOrEqual(Math.round((1 + CHOKE_FADE) * SAMPLE_RATE) + 1);
+  });
+
+  it('flutter changes the sound but not where the passes turn', async () => {
+    const { project, take } = tapeTake({});
+    const plain = (await renderTake(take, project, SAMPLE_RATE)).getChannelData(0);
+    const fluttered = { ...take, tapes: [{ ...take.tapes[0]!, wobble: wobbles({ wow: 0, flutter: 1 }, () => 0.5) }] };
+    const wobbly = (await renderTake(fluttered, project, SAMPLE_RATE)).getChannelData(0);
+    // Both start the first pass from the top of the recording.
+    expect(wobbly[10]).toBeCloseTo(plain[10]!, 2);
+    let differs = 0;
+    for (let i = 0; i < plain.length; i += 100) if (Math.abs(plain[i]! - wobbly[i]!) > 0.01) differs++;
+    expect(differs).toBeGreaterThan(100);
   });
 });

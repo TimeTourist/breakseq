@@ -2,7 +2,7 @@ import type { AudioData, Direction, Hit, Project, Sample } from '../model';
 import { effectiveHit, songDuration } from '../model';
 import type { Take, Trigger } from './generate';
 import type { Tape } from './tape';
-import { tapePasses } from './tape';
+import { speedCurve, tapePasses } from './tape';
 
 /** Seconds a choked voice takes to fade out when the next trigger starts. */
 export const CHOKE_FADE = 0.003;
@@ -145,17 +145,13 @@ function scheduleTape(context: BaseAudioContext, tape: Tape, recording: AudioBuf
   // Like tape, it gets quieter as it slows below 1×, so at 0× it is silent: a
   // stopped buffer would otherwise hold its last sample.
   const level = context.createGain();
-  const { start: s0, end: s1 } = tape.speed;
-  level.gain.setValueAtTime(Math.min(1, s0), tape.time);
-  if ((s0 - 1) * (s1 - 1) < 0) level.gain.linearRampToValueAtTime(1, tape.time + ((1 - s0) / (s1 - s0)) * (tape.end - tape.time));
-  level.gain.linearRampToValueAtTime(Math.min(1, s1), tape.end);
+  level.gain.setValueCurveAtTime(speedCurve(tape, tape.time, tape.end).map((s) => Math.min(1, s)), tape.time, tape.end - tape.time);
   level.connect(gain);
   for (const pass of tapePasses(tape)) {
     if (pass.end - pass.time <= 0) continue;
     const source = context.createBufferSource();
     source.buffer = pass.direction === 'forward' ? recording : backwards;
-    source.playbackRate.setValueAtTime(pass.speedStart, pass.time);
-    source.playbackRate.linearRampToValueAtTime(pass.speedEnd, pass.end);
+    source.playbackRate.setValueCurveAtTime(speedCurve(tape, pass.time, pass.end), pass.time, pass.end - pass.time);
     source.connect(level);
     // A backwards pass plays the reversed recording, so both start `from` into their buffer.
     source.start(pass.time, pass.from);
