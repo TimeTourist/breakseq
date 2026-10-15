@@ -91,7 +91,7 @@ export interface Loop {
 }
 
 /** What a mod changes. Applied in this order, whatever row the mod is in. */
-export const MOD_TARGETS = ['sourceLoop', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'tempo'] as const;
+export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'tempo'] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
 export type ModRate = 'step' | 'beat' | 'bar';
@@ -110,9 +110,9 @@ export type ModShape =
    */
   | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number; readonly whole: boolean };
 
-/** Targets that set a value on a step through a shape: all but Borrow. */
-export type StepTarget = Exclude<ModTarget, 'sourceLoop'>;
-export const STEP_TARGETS = MOD_TARGETS.filter((t): t is StepTarget => t !== 'sourceLoop');
+/** Targets that set a value on a step through a shape: all but Swap. */
+export type StepTarget = Exclude<ModTarget, 'swap'>;
+export const STEP_TARGETS = MOD_TARGETS.filter((t): t is StepTarget => t !== 'swap');
 
 /** An effect that changes steps as they play, by a value from its shape. */
 export interface StepEffect {
@@ -122,25 +122,30 @@ export interface StepEffect {
 }
 
 /**
- * How Borrow chooses, interval by interval: at random with a chance; every
- * nth interval; or round its own loop and the others in turn.
+ * Stack chooses among everything under the playhead: the layers top down (Fill,
+ * then Main), and in each the hits of its pad in order. At random; round robin,
+ * one candidate further each interval with a hit; or layer by layer, a layer's
+ * default hit each interval, from the top or from the bottom.
  */
-export type BorrowPick =
-  | { readonly kind: 'random'; readonly chance: number }
-  | { readonly kind: 'every'; readonly n: number }
-  | { readonly kind: 'inTurn' };
+export type StackPick = 'random' | 'roundRobin' | 'topDown' | 'bottomUp';
 
 /**
- * Plays a step's hit from another loop: the same step in one of `sources`,
- * with its pad, member and locks. Where that loop has nothing on the step,
- * `skipEmpty` keeps the step's own hit; otherwise it goes silent.
+ * Shuffle deals out the hits played within the clip to the steps that have one:
+ * like a deck (each once, in a random order), freely (any, again and again), in
+ * reverse, or rotated by `by` hits.
  */
-export interface BorrowEffect {
-  readonly target: 'sourceLoop';
+export type ShufflePick =
+  | { readonly kind: 'deck' }
+  | { readonly kind: 'random' }
+  | { readonly kind: 'reverse' }
+  | { readonly kind: 'rotate'; readonly by: number };
+
+/** Swaps the hit on steps that have one, keeping the rhythm. */
+export interface SwapEffect {
+  readonly target: 'swap';
+  /** How often Stack picks; Shuffle works hit by hit. */
   readonly rate: ModRate;
-  readonly sources: readonly Id[];
-  readonly pick: BorrowPick;
-  readonly skipEmpty: boolean;
+  readonly mode: { readonly kind: 'stack'; readonly pick: StackPick } | { readonly kind: 'shuffle'; readonly pick: ShufflePick };
 }
 
 export type TapeDirection = 'forward' | 'reverse' | 'pingpong';
@@ -174,7 +179,7 @@ export interface TapeEffect {
   readonly flutter: number;
 }
 
-export type ModEffect = StepEffect | BorrowEffect | TapeEffect;
+export type ModEffect = StepEffect | SwapEffect | TapeEffect;
 export type EffectTarget = ModEffect['target'];
 
 /** A mod does things through its effects: at most one per target. A new mod has none, and does nothing until it gets one. */
@@ -184,9 +189,8 @@ export interface Mod {
   readonly effects: readonly ModEffect[];
 }
 
-export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape' && effect.target !== 'sourceLoop';
-export const borrowOf = (mod: Mod | undefined): BorrowEffect | undefined =>
-  mod?.effects.find((e): e is BorrowEffect => e.target === 'sourceLoop');
+export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape' && effect.target !== 'swap';
+export const swapOf = (mod: Mod | undefined): SwapEffect | undefined => mod?.effects.find((e): e is SwapEffect => e.target === 'swap');
 export const tapeOf = (mod: Mod | undefined): TapeEffect | undefined =>
   mod?.effects.find((e): e is TapeEffect => e.target === 'tape');
 

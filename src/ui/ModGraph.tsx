@@ -1,7 +1,7 @@
 import type { Tape } from '../engine';
-import { borrowPreview, effectPreview, tapePasses, tapeSpeed, wobbles } from '../engine';
-import type { BorrowEffect, Project, StepEffect, TapeEffect } from '../model';
-import { STEPS_PER_BAR } from '../model';
+import { effectPreview, generateTriggers, loopSong, modPreviewSong, tapePasses, tapeSpeed, wobbles } from '../engine';
+import type { Id, Project, StepEffect, SwapEffect, TapeEffect } from '../model';
+import { STEPS_PER_BAR, baseName } from '../model';
 import { formatValues } from './modText';
 
 const WIDTH = 640;
@@ -57,24 +57,48 @@ export function StepGraph({ effect, seed }: { effect: StepEffect; seed: number }
   );
 }
 
+/** A hit's short name: a slice's number ("amen 07" → "07"), else the start of its name. */
+const shortName = (name: string) => {
+  const base = baseName(name);
+  return /\s(\d+)$/.exec(base)?.[1] ?? (base.length > 6 ? `${base.slice(0, 5)}…` : base);
+};
+
 /**
- * Which loop Borrow plays from on each step of one bar: the step's own loop
- * (`own`, the loop it is tried on) or a borrowed one, named in its box.
+ * What Swap does to the loop it is tried on, over its first bar: each step's
+ * hit after Swap, lit up where it differs from the loop's own. One example:
+ * every take rolls its own.
  */
-export function BorrowGraph({ effect, project, own, seed }: { effect: BorrowEffect; project: Project; own: string; seed: number }) {
-  const layers = borrowPreview(effect, STEPS_PER_BAR, seeded(seed));
+export function SwapGraph({ effect, project, modId, loopId, seed }: { effect: SwapEffect; project: Project; modId: Id; loopId: Id | null; seed: number }) {
+  const mod = project.mods[modId];
+  if (mod === undefined || loopId === null || project.loops[loopId] === undefined) {
+    return <p className="muted small">Make a loop to try Swap on.</p>;
+  }
+  const alone: Project = { ...project, mods: { ...project.mods, [modId]: { ...mod, effects: [effect] } } };
+  const perStep = (p: Project) => {
+    const byStep = new Map<number, string>();
+    for (const t of generateTriggers(p, seeded(seed))) {
+      const at = t.bar * STEPS_PER_BAR + t.step;
+      if (at < STEPS_PER_BAR && !byStep.has(at)) byStep.set(at, t.hitId);
+    }
+    return byStep;
+  };
+  const before = perStep(loopSong(project, loopId));
+  const after = perStep(modPreviewSong(alone, modId, loopId));
   const w = WIDTH / STEPS_PER_BAR;
-  const name = (layer: number) => (layer < 0 ? own : (project.loops[effect.sources[layer] ?? '']?.name ?? '?'));
   return (
-    <svg className="mod-graph borrow" viewBox={`0 0 ${WIDTH} ${HEIGHT / 2}`} role="img" aria-label="Which loop each step plays from">
-      {layers.map((layer, i) => (
-        <g key={i} className={layer < 0 ? 'layer own' : `layer borrowed n${layer % 4}`}>
-          <rect x={i * w + 2} width={w - 4} y={8} height={HEIGHT / 2 - 16} rx={3} />
-          <text x={i * w + w / 2} y={HEIGHT / 4 + 4} textAnchor="middle">
-            {name(layer)}
-          </text>
-        </g>
-      ))}
+    <svg className="mod-graph swap" viewBox={`0 0 ${WIDTH} ${HEIGHT / 2}`} role="img" aria-label="What Swap does to each step">
+      {Array.from({ length: STEPS_PER_BAR }, (_, i) => {
+        const hitId = after.get(i);
+        const changed = hitId !== before.get(i);
+        return (
+          <g key={i} className={hitId === undefined ? 'layer empty' : changed ? 'layer borrowed n0' : 'layer own'}>
+            <rect x={i * w + 2} width={w - 4} y={8} height={HEIGHT / 2 - 16} rx={3} />
+            <text x={i * w + w / 2} y={HEIGHT / 4 + 4} textAnchor="middle">
+              {hitId === undefined ? '' : shortName(project.hits[hitId]?.name ?? '?')}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }

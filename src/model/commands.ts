@@ -240,10 +240,11 @@ export const placeBreak =
 
 /** What is wrong with an effect, or null. */
 function effectProblem(effect: ModEffect): string | null {
-  if (effect.target === 'sourceLoop') {
-    const { pick } = effect;
-    if (pick.kind === 'random' && !(pick.chance >= 0 && pick.chance <= 100)) return 'Chance is 0 to 100 %';
-    if (pick.kind === 'every' && !(Number.isInteger(pick.n) && pick.n >= 2)) return 'Every is every 2nd or more';
+  if (effect.target === 'swap') {
+    const { mode } = effect;
+    if (mode.kind === 'shuffle' && mode.pick.kind === 'rotate' && !(Number.isInteger(mode.pick.by) && mode.pick.by >= 1 && mode.pick.by <= 15)) {
+      return 'Rotate is by 1 to 15';
+    }
     return null;
   }
   if (effect.target !== 'tape') return null;

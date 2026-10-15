@@ -1,5 +1,5 @@
-import type { BorrowEffect, Clip, Hit, Mod, ModRate, ModShape, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
-import { STEPS_PER_BAR, borrowOf, clipsByStep } from '../model';
+import type { Clip, Hit, Mod, ModRate, ModShape, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
+import { STEPS_PER_BAR, clipsByStep } from '../model';
 
 /** What a step will play after mods. Handlers return a changed copy. */
 export interface StepState {
@@ -148,70 +148,10 @@ function shapeValue(shape: ModShape, index: number, intervals: number, discrete:
   }
 }
 
-/** Borrow's dice for one interval: whether it borrows at all, and which loop. Rolled once per interval. */
-export interface BorrowRoll {
-  readonly take: boolean;
-  readonly pick: number;
-}
-export type BorrowRolls = (run: ModRun, effect: BorrowEffect, t: number) => BorrowRoll;
-
-/** Borrow's interval at song step `t`, counted from the clip's content start. */
-const borrowInterval = (run: ModRun, effect: BorrowEffect, t: number) => Math.floor((t - run.clip.start + run.clip.offset) / RATE_STEPS[effect.rate]);
-
-/** Rolls Borrow's dice once per interval of a clip and keeps them for every step in it. */
-export function borrowRolls(rng: Rng): BorrowRolls {
-  const cache = new Map<string, BorrowRoll>();
-  return (run, effect, t) => {
-    const key = `${run.row}:${run.clip.id}:${borrowInterval(run, effect, t)}`;
-    let roll = cache.get(key);
-    if (roll === undefined) {
-      roll = effect.pick.kind === 'random' ? { take: rng() * 100 < effect.pick.chance, pick: rng() } : { take: true, pick: 0 };
-      cache.set(key, roll);
-    }
-    return roll;
-  };
-}
-
 /**
- * Which loop an interval plays from: -1 for the step's own, else an index into
- * `effect.sources`. `usable` are the sources it may take from on this step: all,
- * or with skipEmpty only those with a hit there. Random takes with its chance
- * and picks among the usable; Every takes every nth interval, the sources in
- * turn; In turn goes round its own loop and the sources.
- */
-export function borrowLayer(effect: BorrowEffect, interval: number, roll: BorrowRoll, usable: readonly number[]): number {
-  const count = effect.sources.length;
-  if (count === 0) return -1;
-  const { pick } = effect;
-  if (pick.kind === 'random') {
-    return roll.take && usable.length > 0 ? usable[Math.min(usable.length - 1, Math.floor(roll.pick * usable.length))]! : -1;
-  }
-  const choice =
-    pick.kind === 'every'
-      ? wrap(interval, pick.n) === pick.n - 1
-        ? Math.floor(interval / pick.n) % count
-        : -1
-      : wrap(interval, count + 1) - 1;
-  return choice >= 0 && usable.includes(choice) ? choice : -1;
-}
-
-/** Borrow from one row, if it has it: the step it plays instead, or null. */
-function borrowed(run: ModRun | null, place: StepPlace, project: Project, rolls: BorrowRolls): Step | null {
-  const effect = borrowOf(run?.mod);
-  if (run === null || effect === undefined) return null;
-  const cells = effect.sources.map((id) => {
-    const loop = project.loops[id];
-    return loop === undefined || loop.steps.length === 0 ? undefined : loop.steps[place.index % loop.steps.length];
-  });
-  const usable = cells.flatMap((cell, i) => (cell === undefined || (effect.skipEmpty && cell.padId === null) ? [] : [i]));
-  const layer = borrowLayer(effect, borrowInterval(run, effect, place.clock), rolls(run, effect, place.clock), usable);
-  return layer < 0 ? null : (cells[layer] ?? null);
-}
-
-/**
- * Applies the mods from rows A and B to one step: Borrow first, then target by
- * target in the fixed order. A mod acts on every step under its clip. A
- * borrowed step that ignores mods stops the rest.
+ * Applies the mods from rows A and B to one step, target by target in the fixed
+ * order. Swap has already chosen the step. A mod acts on every step under its
+ * clip that has a hit; a step that ignores mods is left alone.
  */
 export function applyMods(
   state: StepState,
@@ -219,15 +159,10 @@ export function applyMods(
   place: StepPlace,
   project: Project,
   values: ModValues,
-  rolls: BorrowRolls,
 ): StepState {
   let current = state;
-  if (current.cell.ignoreMods) return current;
-  // B's Borrow wins where it borrows; elsewhere A's may.
-  const cell = borrowed(runs.B, place, project, rolls) ?? borrowed(runs.A, place, project, rolls);
-  if (cell !== null) current = { ...current, cell, ...resolve(project, cell) };
   // Effects act on hits: an empty step has nothing to change, and Cycle does not count it.
-  if (current.hit === undefined) return current;
+  if (current.cell.ignoreMods || current.hit === undefined) return current;
   for (const [target, handler] of handlers) {
     if (current.cell.ignoreMods) break;
     const fromRow = (run: ModRun | null) => {
@@ -268,18 +203,4 @@ export function effectPreview(effect: StepEffect, steps: number, rng: Rng): (num
   const intervals = Math.max(1, Math.ceil(steps / size));
   const values = Array.from({ length: intervals }, (_, i) => shapeValue(effect.shape, i, intervals, isDiscrete(effect.target), rng));
   return Array.from({ length: steps }, (_, t) => values[Math.floor(t / size)] ?? null);
-}
-
-/**
- * Which loop Borrow plays from on each of the first `steps` steps of a clip: -1
- * for the step's own, else an index into its sources. Random rolls with `rng`,
- * so it is one example. Empty steps are not known here, so all sources count.
- */
-export function borrowPreview(effect: BorrowEffect, steps: number, rng: Rng): number[] {
-  const size = RATE_STEPS[effect.rate];
-  const usable = effect.sources.map((_, i) => i);
-  const rolls = Array.from({ length: Math.ceil(steps / size) }, (): BorrowRoll =>
-    effect.pick.kind === 'random' ? { take: rng() * 100 < effect.pick.chance, pick: rng() } : { take: true, pick: 0 },
-  );
-  return Array.from({ length: steps }, (_, t) => borrowLayer(effect, Math.floor(t / size), rolls[Math.floor(t / size)]!, usable));
 }

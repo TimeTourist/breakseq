@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { BorrowEffect, BorrowPick, EffectTarget, ModRate, ModShape, Project, StepEffect, StepTarget, TapeCurve, TapeEffect } from '../model';
+import type { EffectTarget, ModRate, ModShape, ShufflePick, StackPick, StepEffect, StepTarget, SwapEffect, TapeCurve, TapeEffect } from '../model';
 import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, MOD_TARGETS } from '../model';
 import { musicalLength } from './labels';
 import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues } from './modText';
@@ -215,95 +215,89 @@ export function StepSentence({ effect, taken, onChange, onTarget, onCommit }: St
   );
 }
 
-const ORDINALS = ['2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+const STACK_PICKS: readonly { value: StackPick; label: string }[] = [
+  { value: 'random', label: 'at random' },
+  { value: 'roundRobin', label: 'round robin' },
+  { value: 'topDown', label: 'layer by layer, top down' },
+  { value: 'bottomUp', label: 'layer by layer, bottom up' },
+];
 
-const PICK_WORDS: Record<BorrowPick['kind'], string> = {
-  random: 'now and then',
-  every: 'regularly',
-  inTurn: 'in turn',
-};
+const SHUFFLE_PICKS: readonly { value: ShufflePick['kind']; label: string }[] = [
+  { value: 'deck', label: 'like a deck' },
+  { value: 'random', label: 'freely' },
+  { value: 'reverse', label: 'in reverse' },
+  { value: 'rotate', label: 'rotated' },
+];
 
-interface BorrowSentenceProps {
-  readonly effect: BorrowEffect;
-  readonly project: Project;
+interface SwapSentenceProps {
+  readonly effect: SwapEffect;
   readonly taken: readonly EffectTarget[];
-  readonly onChange: (effect: BorrowEffect, key?: string) => void;
+  readonly onChange: (effect: SwapEffect, key?: string) => void;
   readonly onTarget: (target: EffectTarget) => void;
   readonly onCommit: () => void;
 }
 
 /**
- * "Every 1/16: Borrow now and then — 50 % of the time, play the
- * hit from F1 instead. Where F1 has nothing, keep its own hit." Loops are toggled as chips.
+ * "Every 1/16: Swap from the stack — at random." or "Swap by shuffling the
+ * clip — like a deck." Every part is its control.
  */
-export function BorrowSentence({ effect, project, taken, onChange, onTarget, onCommit }: BorrowSentenceProps) {
-  const change = (patch: Partial<BorrowEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
-  const { pick } = effect;
-  const loops = Object.values(project.loops);
-  const chosen = effect.sources.map((id) => project.loops[id]?.name ?? '?');
-  const names = chosen.length === 0 ? 'the loops you pick' : chosen.join(' or ');
-  const toggle = (id: string) =>
-    change({ sources: effect.sources.includes(id) ? effect.sources.filter((s) => s !== id) : [...effect.sources, id] });
-  const setPick = (kind: BorrowPick['kind']) =>
-    change({ pick: kind === 'random' ? { kind, chance: 50 } : kind === 'every' ? { kind, n: 2 } : { kind } });
+export function SwapSentence({ effect, taken, onChange, onTarget, onCommit }: SwapSentenceProps) {
+  const { mode } = effect;
+  const change = (patch: Partial<SwapEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
+  const setMode = (kind: SwapEffect['mode']['kind']) =>
+    change({ mode: kind === 'stack' ? { kind, pick: 'random' } : { kind, pick: { kind: 'deck' } } });
+  const setShuffle = (kind: ShufflePick['kind']) => change({ mode: { kind: 'shuffle', pick: kind === 'rotate' ? { kind, by: 1 } : { kind } } });
   return (
     <div className="stack-tight">
       <p className="sentence">
-        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />:{' '}
-        <Choice<EffectTarget> label="Target" value="sourceLoop" options={targetOptions('sourceLoop', taken)} onChange={onTarget} />{' '}
-        <Choice
-          label="Pick"
-          value={pick.kind}
-          options={(Object.keys(PICK_WORDS) as BorrowPick['kind'][]).map((k) => ({ value: k, label: PICK_WORDS[k] }))}
-          onChange={setPick}
-        />
-        {pick.kind === 'random' && (
+        {mode.kind === 'stack' && (
           <>
-            {' '}
-            — <Amount label="Chance" value={pick.chance} min={0} max={100} step={1} suffix="%" onChange={(v) => change({ pick: { ...pick, chance: v } }, 'chance')} onCommit={onCommit} /> of
-            the time, play the hit from {names} instead.
+            Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />:{' '}
           </>
         )}
-        {pick.kind === 'every' && (
-          <>
-            {' '}
-            — every{' '}
-            <Choice
-              label="Every"
-              value={String(pick.n)}
-              options={ORDINALS.map((o, i) => ({ value: String(i + 2), label: o }))}
-              onChange={(v) => change({ pick: { kind: 'every', n: Number(v) } })}
-            />{' '}
-            time, play the hit from {names} instead{chosen.length > 1 ? ', taking them in turn' : ''}.
-          </>
-        )}
-        {pick.kind === 'inTurn' && <> — go round its own loop and {names}, one after the other.</>}{' '}
-        Where {chosen.length === 1 ? chosen[0] : 'a loop'} has nothing on the step,{' '}
+        <Choice<EffectTarget> label="Target" value="swap" options={targetOptions('swap', taken)} onChange={onTarget} />{' '}
         <Choice
-          label="Empty steps"
-          value={effect.skipEmpty ? 'skip' : 'silent'}
+          label="Swap mode"
+          value={mode.kind}
           options={[
-            { value: 'skip', label: 'keep its own hit' },
-            { value: 'silent', label: 'go silent' },
+            { value: 'stack', label: 'from the stack' },
+            { value: 'shuffle', label: 'by shuffling the clip' },
           ]}
-          onChange={(v) => change({ skipEmpty: v === 'skip' })}
-        />
-        .
+          onChange={setMode}
+        />{' '}
+        —{' '}
+        {mode.kind === 'stack' ? (
+          <>
+            <Choice label="Stack pick" value={mode.pick} options={STACK_PICKS} onChange={(pick) => change({ mode: { kind: 'stack', pick } })} />.
+          </>
+        ) : (
+          <>
+            <Choice label="Shuffle pick" value={mode.pick.kind} options={SHUFFLE_PICKS} onChange={setShuffle} />
+            {mode.pick.kind === 'rotate' && (
+              <>
+                {' '}
+                by{' '}
+                <Amount
+                  label="Rotate by"
+                  value={mode.pick.by}
+                  min={1}
+                  max={15}
+                  step={1}
+                  suffix={mode.pick.by === 1 ? ' hit' : ' hits'}
+                  onChange={(by) => change({ mode: { kind: 'shuffle', pick: { kind: 'rotate', by } } }, 'rotate')}
+                  onCommit={onCommit}
+                />
+              </>
+            )}
+            .
+          </>
+        )}
       </p>
-      <div className="row wrap" role="group" aria-label="Borrow from">
-        <span className="muted small">Borrow from:</span>
-        {loops.map((loop) => (
-          <button
-            key={loop.id}
-            type="button"
-            className={`chip mono loop-name ${loop.kind}`}
-            aria-pressed={effect.sources.includes(loop.id)}
-            onClick={() => toggle(loop.id)}
-          >
-            {loop.name}
-          </button>
-        ))}
-      </div>
+      <p className="muted small">
+        {mode.kind === 'stack'
+          ? 'The stack is everything under the playhead: the Fill and the Main under it, and every hit in their pads. Only steps with a hit change.'
+          : 'The hits played under the clip, dealt out again to the same steps: the rhythm stays as it is.'}
+      </p>
     </div>
   );
 }

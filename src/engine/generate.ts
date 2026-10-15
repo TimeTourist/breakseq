@@ -1,6 +1,7 @@
 import type { Clip, Direction, Id, Loop, Project, Region, Rng } from '../model';
 import { STEPS_PER_BAR, clipsByStep, effectiveHit, stepDuration } from '../model';
-import { applyMods, borrowRolls, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
+import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
+import { swapper } from './swap';
 import type { Tape } from './tape';
 import { tapeWindows, windowTape } from './tape';
 
@@ -78,7 +79,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
   const layers = songLayers(project);
   const tempo = tempoRuns(runs);
   const values = modValues(rng);
-  const rolls = borrowRolls(rng);
+  const swap = swapper(project, runs, layers.map((l) => l?.loop.steps[l.index]), rng);
   const triggers: Trigger[] = [];
 
   /**
@@ -87,10 +88,11 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
    */
   const play = (content: number, clock: number, time: number, length: number) => {
     const layer = layers[content];
-    const cell = layer?.loop.steps[layer.index];
-    if (layer == null || cell === undefined) return;
+    const own = layer?.loop.steps[layer.index];
+    if (layer == null || own === undefined) return;
+    const cell = swap(content, clock, own);
     const place = { index: layer.index, clock };
-    const state = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values, rolls);
+    const state = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values);
     if (state.hit === undefined) return;
     const hit = effectiveHit(project, state.hit);
     for (let i = 0; i < state.ratchet; i++) {

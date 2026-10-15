@@ -1,4 +1,4 @@
-import type { BorrowEffect, Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, Pad, Project, Sample, Song, SongRow, Step, StepTarget, TapeEffect } from './types';
+import type { Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, Pad, Project, Sample, Song, SongRow, Step, StepTarget, SwapEffect, TapeEffect } from './types';
 import { STEPS_PER_BAR } from './types';
 
 // A new song starts at 170 BPM and 8 bars.
@@ -118,11 +118,9 @@ function upgradeEffect(saved: SavedEffect): ModEffect {
   const rest: Record<string, unknown> = { ...saved };
   delete rest.scope;
   const rate = saved.rate as ModRate;
-  if (saved.target === 'sourceLoop') {
-    if ('pick' in saved) return rest as unknown as BorrowEffect;
-    // Borrow used to pick its loop by value; it now borrows from the same loops half the time, silent where they are.
-    return { target: 'sourceLoop', rate, sources: (saved.sources as readonly Id[] | undefined) ?? [], pick: { kind: 'random', chance: 50 }, skipEmpty: false };
-  }
+  if (saved.target === 'swap') return rest as unknown as SwapEffect;
+  // Borrow became Swap: it now takes from the layers under the playhead, at random.
+  if (saved.target === 'sourceLoop') return { target: 'swap', rate, mode: { kind: 'stack', pick: 'random' } };
   // Random got a choice of whole numbers; pitch rolls semitones unless set otherwise.
   const savedShape = saved.shape as ModShape;
   const shape: ModShape =

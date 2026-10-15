@@ -737,21 +737,20 @@ describe('mods with effects', () => {
     expect(upgradeProject(legacy).mods.m!.effects.map((e) => 'shape' in e && e.shape.kind === 'random' && e.shape.whole)).toEqual([true, false]);
   });
 
-  it('a saved Borrow borrows from the same loops half the time, silent where they are empty', () => {
+  it('a saved Borrow becomes Swap from the stack, at random, at its rate', () => {
     const base = createProject();
-    const old = { id: 'm', name: 'Old', target: 'sourceLoop', rate: 'beat', shape: { kind: 'list', values: [0, 1] }, sources: ['a', 'b'] };
-    const legacy = { ...base, mods: { m: old } } as unknown as Project;
-    expect(upgradeProject(legacy).mods.m!.effects).toEqual([
-      { target: 'sourceLoop', rate: 'beat', sources: ['a', 'b'], pick: { kind: 'random', chance: 50 }, skipEmpty: false },
-    ]);
+    const oldest = { id: 'm', name: 'Old', target: 'sourceLoop', rate: 'beat', shape: { kind: 'list', values: [0, 1] }, sources: ['a', 'b'] };
+    const newer = { target: 'sourceLoop', rate: 'step', sources: ['a'], pick: { kind: 'every', n: 2 }, skipEmpty: true };
+    const legacy = { ...base, mods: { m: oldest, n: { id: 'n', name: 'Newer', effects: [newer] } } } as unknown as Project;
+    const upgraded = upgradeProject(legacy);
+    expect(upgraded.mods.m!.effects).toEqual([{ target: 'swap', rate: 'beat', mode: { kind: 'stack', pick: 'random' } }]);
+    expect(upgraded.mods.n!.effects).toEqual([{ target: 'swap', rate: 'step', mode: { kind: 'stack', pick: 'random' } }]);
   });
 
-  it('Borrow checks its chance and its every', () => {
+  it('Shuffle rotates by 1 to 15', () => {
     const ctx = sequentialIds();
-    const borrow = { target: 'sourceLoop', rate: 'step', sources: [], skipEmpty: true } as const;
-    expect(createMod('B', [{ ...borrow, pick: { kind: 'random', chance: 120 } }])(createProject(), ctx).ok).toBe(false);
-    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 1 } }])(createProject(), ctx).ok).toBe(false);
-    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 3 } }])(createProject(), ctx).ok).toBe(true);
+    const rotate = (by: number) => createMod('S', [{ target: 'swap', rate: 'step', mode: { kind: 'shuffle', pick: { kind: 'rotate', by } } }])(createProject(), ctx).ok;
+    expect([0, 1, 15, 16, 1.5].map(rotate)).toEqual([false, true, true, false, false]);
   });
 
   it('wow, flutter and ramp time are checked', () => {
