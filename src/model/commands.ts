@@ -1,6 +1,6 @@
 import type { Command } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
-import { DEFAULT_TAG_NAMES, emptySteps, fullWindow, nextLoopName } from './project';
+import { DEFAULT_TAG_NAMES, breakSequence, emptySteps, fullWindow, isParentHit, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
@@ -121,6 +121,8 @@ export const addPadMember =
     if (pad === undefined) return notFound(padId);
     if (project.hits[hitId] === undefined) return notFound(hitId);
     if (pad.members.includes(hitId)) return invalid('The hit is already a member of the pad');
+    const hit = project.hits[hitId]!;
+    if (isParentHit(project, hit)) return invalid('A parent is a macro for its slices; place it in a loop instead');
     return ok(setPad(project, { ...pad, members: [...pad.members, hitId] }));
   };
 
@@ -240,6 +242,29 @@ export const setStep =
       return invalid('An empty step cannot choose a member');
     }
     const steps = loop.steps.map((s, i) => (i === index ? next : s));
+    return ok({ ...project, loops: { ...project.loops, [loopId]: { ...loop, steps } } });
+  };
+
+/**
+ * Lays a sliced break's slices out in a loop from step `at`, each on its own
+ * step as in the loop the slicing made: what placing the break's parent means.
+ * Slices past the loop's end, or on the same step as an earlier one, are left out.
+ */
+export const placeBreak =
+  (loopId: Id, breakId: Id, at: number): Command =>
+  (project) => {
+    const loop = project.loops[loopId];
+    if (loop === undefined) return notFound(loopId);
+    const sequence = breakSequence(project, breakId);
+    if (sequence.length === 0) return invalid('Slice the break first');
+    const steps = [...loop.steps];
+    const used = new Set<number>();
+    for (const { padId, step } of sequence) {
+      const index = at + step;
+      if (index >= steps.length || used.has(index)) continue;
+      used.add(index);
+      steps[index] = { padId, memberId: null, ignoreMods: false, nudge: 0 };
+    }
     return ok({ ...project, loops: { ...project.loops, [loopId]: { ...loop, steps } } });
   };
 

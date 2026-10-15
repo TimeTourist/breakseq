@@ -69,7 +69,8 @@ export function scheduleHit(
   const choked = chokeAt < naturalEnd;
 
   const level = dbToGain(play.volume);
-  const fadeOut = hit.fadeOut / 1000;
+  // The parent's fade applies where the slice has none.
+  const fadeOut = effectiveHit(project, hit).fadeOut / 1000;
   const fadeStart = fadeOut > 0 ? Math.max(start, naturalEnd - fadeOut) : naturalEnd;
   const levelAt = (t: number) => (t <= fadeStart ? level : (level * (naturalEnd - t)) / (naturalEnd - fadeStart));
 

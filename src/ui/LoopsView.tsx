@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, remove, renameLoop, sequence, setLoopBars, setLoopKind, setStep } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, placeBreak, remove, renameLoop, sequence, setLoopBars, setLoopKind, setStep } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, loopUsage, padColor, padGroups, padLabel } from './labels';
@@ -9,6 +9,8 @@ import type { Selection } from './store';
 import { FillWindowStrip } from './FillWindow';
 
 export const PAD_MIME = 'application/x-breakseq-pad';
+/** A break's parent: dropping it lays out all its slices. */
+export const BREAK_MIME = 'application/x-breakseq-break';
 
 /** The loop open in Loops: the selected one, else the first. */
 export function currentLoopId(project: Project, selection: Selection): Id | null {
@@ -29,6 +31,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const open = useOpen();
   const selection = useSelect((s) => s.selection);
   const [shelfPad, setShelfPad] = useState<Id | null>(null);
+  const [shelfBreak, setShelfBreak] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
   const drops = useDropTargets();
   const loopId = currentLoopId(project, selection);
@@ -92,9 +95,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const place = (index: number, padId: Id | null) => setError(run(setStep(loop.id, index, { padId })));
   /** A pad from the shelf, or another step: moved, or copied with Alt. */
   const dropOnStep = (index: number) =>
-    drops.bind(`step:${index}`, [PAD_MIME, STEP_MIME], (e, type) => {
+    drops.bind(`step:${index}`, [PAD_MIME, BREAK_MIME, STEP_MIME], (e, type) => {
       if (type === PAD_MIME) {
         place(index, e.dataTransfer.getData(PAD_MIME));
+      } else if (type === BREAK_MIME) {
+        setError(run(placeBreak(loop.id, e.dataTransfer.getData(BREAK_MIME), index)));
       } else {
         const from = Number(e.dataTransfer.getData(STEP_MIME));
         const source = loop.steps[from];
@@ -106,6 +111,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
     });
   const clickStep = (index: number) => {
     if (shelfPad !== null) place(index, shelfPad);
+    if (shelfBreak !== null) setError(run(placeBreak(loop.id, shelfBreak, index)));
     open({ step: index }, 'loops');
   };
 
@@ -242,12 +248,33 @@ export function LoopsView({ playhead }: LoopsViewProps) {
               Build pads in Pads →
             </button>
           </div>
+          <div className="shelf">
           {padGroups(project).map((group) => (
             <div key={group.name} className="shelf-group">
               <span className="muted small shelf-label ellipsis" title={group.name}>
                 {group.name}
               </span>
               <div className="row">
+                {group.breakId !== undefined && (
+                  <button
+                    type="button"
+                    draggable
+                    className="chip parent-chip"
+                    aria-pressed={shelfBreak === group.breakId}
+                    aria-label={`Break ${group.name}: lay out all its slices`}
+                    title="The whole break: lays out all its slices from the step"
+                    onClick={() => {
+                      setShelfBreak(shelfBreak === group.breakId ? null : (group.breakId ?? null));
+                      setShelfPad(null);
+                    }}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(BREAK_MIME, group.breakId!);
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                  >
+                    {baseName(group.name)} ▸ all
+                  </button>
+                )}
                 {group.items.map((p) => (
                   <button
                     key={p.id}
@@ -259,7 +286,10 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     aria-label={`Pad ${p.name}`}
                     title={p.name}
                     style={{ color: padColor(project, p), boxShadow: `inset 0 -3px 0 ${padColor(project, p)}` }}
-                    onClick={() => setShelfPad(shelfPad === p.id ? null : p.id)}
+                    onClick={() => {
+                      setShelfPad(shelfPad === p.id ? null : p.id);
+                      setShelfBreak(null);
+                    }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData(PAD_MIME, p.id);
                       e.dataTransfer.effectAllowed = 'copy';
@@ -271,6 +301,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
               </div>
             </div>
           ))}
+          </div>
         </section>
       </main>
 

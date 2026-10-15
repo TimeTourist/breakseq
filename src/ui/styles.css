@@ -1481,3 +1481,27 @@ input[type='search'] {
 [draggable='true'] {
   cursor: grab;
 }
+
+.parent-chip {
+  height: 40px;
+  min-height: 40px;
+  font-weight: 600;
+  color: var(--text);
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.parent-chip[aria-pressed='true'] {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The pad shelf scrolls on its own, so steps and pads are on screen together while dragging. */
+.shelf {
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

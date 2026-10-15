@@ -125,8 +125,51 @@ export function parentHit(project: Project, hit: Hit): Hit | undefined {
   return Object.values(project.hits).find((h) => h.sampleId === breakId && h.variantOf === null);
 }
 
-/** A hit as it plays: its own pitch and volume plus its parent's. */
+/**
+ * A hit as it plays, with its parent working like a macro on it: pitch and
+ * volume add, reverse on the parent turns each slice round (a reversed slice
+ * plays forward again), and the parent's fade applies where the slice has none.
+ */
 export function effectiveHit(project: Project, hit: Hit): Hit {
   const parent = parentHit(project, hit);
-  return parent === undefined ? hit : { ...hit, pitch: hit.pitch + parent.pitch, volume: hit.volume + parent.volume };
+  if (parent === undefined) return hit;
+  const flipped = parent.direction === 'reverse';
+  return {
+    ...hit,
+    pitch: hit.pitch + parent.pitch,
+    volume: hit.volume + parent.volume,
+    direction: flipped ? (hit.direction === 'reverse' ? 'forward' : 'reverse') : hit.direction,
+    fadeOut: hit.fadeOut > 0 ? hit.fadeOut : parent.fadeOut,
+  };
+}
+
+/** Whether a hit is the parent of a sliced break: a macro for its slices, never played as a pad. */
+export function isParentHit(project: Project, hit: Hit): boolean {
+  return project.samples[hit.sampleId]?.break?.sliced === true && hit.variantOf === null;
+}
+
+/** A pad whose members are only parent hits: hidden, because parents are not played. */
+export function isParentPad(project: Project, pad: Pad): boolean {
+  return pad.members.length > 0 && pad.members.every((m) => {
+    const hit = project.hits[m];
+    return hit !== undefined && isParentHit(project, hit);
+  });
+}
+
+/**
+ * A sliced break's slice pads in order, each with the step it plays on from the
+ * break's start, as in the loop the slicing made.
+ */
+export function breakSequence(project: Project, breakId: Id): { padId: Id; step: number }[] {
+  const source = project.samples[breakId];
+  if (source?.break?.sliced !== true) return [];
+  const stepTime = source.duration / (source.break.bars * STEPS_PER_BAR);
+  const slices = Object.values(project.samples)
+    .filter((s) => s.sliceOf === breakId)
+    .sort((a, b) => a.offset - b.offset);
+  return slices.flatMap((slice) => {
+    const hit = Object.values(project.hits).find((h) => h.sampleId === slice.id && h.variantOf === null);
+    const pad = hit === undefined ? undefined : Object.values(project.pads).find((p) => p.auto && p.members[0] === hit.id);
+    return pad === undefined ? [] : [{ padId: pad.id, step: Math.round((slice.offset - source.offset) / stepTime) }];
+  });
 }

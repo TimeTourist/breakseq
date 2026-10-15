@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Id, Mod, Project } from '../model';
 import {
+  addPadMember,
   addSample,
   createLoop,
   createMod,
   createPad,
   createProject,
+  effectiveHit,
+  placeBreak,
   setBpm,
   setSongBars,
   setSongCell,
@@ -214,5 +217,51 @@ describe('parent hit', () => {
 
     expect(triggers.map((t) => t.pitch)).toEqual([1, 2, 1, 1]);
     expect(triggers.map((t) => t.volume)).toEqual([-3, -3, -3, -3]);
+  });
+});
+
+describe('parent hit as a macro', () => {
+  function slicedBreak() {
+    let project = run(createProject(ctx), setBpm(120), addSample({ name: 'amen.wav', audio: constantAudio(1) }));
+    const breakId = Object.keys(project.samples)[0]!;
+    const parent = Object.values(project.hits)[0]!;
+    project = run(project, sliceBreak(breakId, 1, 4));
+    const m1 = Object.values(project.loops)[0]!;
+    const sliceHit = (i: number) => project.pads[m1.steps[i * 4]!.padId!]!.members[0]!;
+    return { project: run(project, setSongBars(1), setSongCell('main', 0, m1.id)), breakId, parent, sliceHit };
+  }
+
+  it("reverse on the parent turns each slice round; a reversed slice plays forward again", () => {
+    const { project: base, parent, sliceHit } = slicedBreak();
+    const project = run(base, updateHit(parent.id, { direction: 'reverse' }), updateHit(sliceHit(2), { direction: 'reverse' }));
+    expect(generateTriggers(project, () => 0).map((t) => t.direction)).toEqual(['reverse', 'reverse', 'forward', 'reverse']);
+  });
+
+  it("the parent's fade applies where a slice has none", () => {
+    const { project: base, parent, sliceHit } = slicedBreak();
+    const project = run(base, updateHit(parent.id, { fadeOut: 8 }), updateHit(sliceHit(1), { fadeOut: 20 }));
+    expect([0, 1].map((i) => effectiveHit(project, project.hits[sliceHit(i)]!).fadeOut)).toEqual([8, 20]);
+  });
+
+  it('placing the parent lays its slices out from a step, each on its own step', () => {
+    const { project: base, breakId, sliceHit } = slicedBreak();
+    let project = run(base, createLoop('Mine', 'main', 1));
+    const mine = Object.values(project.loops).find((l) => l.name === 'Mine')!;
+    project = run(project, placeBreak(mine.id, breakId, 2));
+    const padsAt = project.loops[mine.id]!.steps.flatMap((s, i) => (s.padId === null ? [] : [[i, project.pads[s.padId]!.members[0]]]));
+    // Slices start on steps 0, 4, 8 and 12 of the break, so from step 2 they land on 2, 6, 10 and 14.
+    expect(padsAt).toEqual([
+      [2, sliceHit(0)],
+      [6, sliceHit(1)],
+      [10, sliceHit(2)],
+      [14, sliceHit(3)],
+    ]);
+  });
+
+  it('a parent is never a pad member', () => {
+    const { project, parent } = slicedBreak();
+    const withPad = run(project, createPad('Mine'));
+    const mine = Object.values(withPad.pads).find((p) => p.name === 'Mine')!;
+    expect(addPadMember(mine.id, parent.id)(withPad, ctx)).toMatchObject({ ok: false, error: { kind: 'invalid' } });
   });
 });
