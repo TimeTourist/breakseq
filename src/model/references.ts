@@ -1,11 +1,7 @@
 import type { Usage } from './command';
-import type { BorrowEffect, Id, Mod, Project, SongRow, StepEffect } from './types';
-import { isScopedEffect } from './types';
+import type { Id, Project, SongRow } from './types';
 
-/** A mod's effects that act on some steps, and so have a scope. */
-export const stepEffects = (mod: Mod): (StepEffect | BorrowEffect)[] => mod.effects.filter(isScopedEffect);
-
-export type ReferableKind = 'tag' | 'sample' | 'hit' | 'pad' | 'loop' | 'mod';
+export type ReferableKind = 'sample' | 'hit' | 'pad' | 'loop' | 'mod';
 
 const songUsage = (project: Project, id: Id, rows: readonly SongRow[]): Usage[] =>
   project.song.clips.some((c) => c.ref === id && rows.includes(c.row)) ? [{ kind: 'song', id: null, name: 'Song' }] : [];
@@ -13,15 +9,6 @@ const songUsage = (project: Project, id: Id, rows: readonly SongRow[]): Usage[] 
 /** Everything that refers to the given object. An object with usages cannot be removed. */
 export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage[] {
   switch (kind) {
-    case 'tag':
-      return [
-        ...Object.values(project.samples)
-          .filter((s) => s.mainTag === id || s.extraTags.includes(id))
-          .map((s): Usage => ({ kind: 'sample', id: s.id, name: s.name })),
-        ...Object.values(project.mods)
-          .filter((m) => stepEffects(m).some((e) => e.scope.kind === 'tag' && e.scope.tagId === id))
-          .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
-      ];
     case 'sample':
       return Object.values(project.hits)
         .filter((h) => h.sampleId === id)
@@ -35,9 +22,6 @@ export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage
         ...Object.values(project.loops)
           .filter((l) => l.steps.some((s) => s.padId === id))
           .map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),
-        ...Object.values(project.mods)
-          .filter((m) => stepEffects(m).some((e) => e.scope.kind === 'pad' && e.scope.padId === id))
-          .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ];
     case 'loop':
       return [

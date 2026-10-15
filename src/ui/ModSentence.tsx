@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { BorrowEffect, BorrowPick, EffectTarget, ModRate, ModScope, ModShape, Project, StepEffect, StepTarget, TapeCurve, TapeEffect } from '../model';
-import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, MOD_TARGETS, isParentPad } from '../model';
+import type { BorrowEffect, BorrowPick, EffectTarget, ModRate, ModShape, Project, StepEffect, StepTarget, TapeCurve, TapeEffect } from '../model';
+import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, MOD_TARGETS } from '../model';
 import { musicalLength } from './labels';
 import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues } from './modText';
 import { Slider } from './Slider';
@@ -88,25 +88,8 @@ function Amount({ label, value, onChange, onCommit, min, max, step = 'any', suff
 const targetOptions = (own: EffectTarget, taken: readonly EffectTarget[]) =>
   [...MOD_TARGETS, 'tape' as const].filter((t) => t === own || !taken.includes(t)).map((t) => ({ value: t, label: TARGET_LABELS[t] }));
 
-/** What a mod can act on: every step, a tag's steps, or a pad's. A break's own pad never plays as a pad, so it is left out. */
-function scopeOptions(project: Project) {
-  const pads = Object.values(project.pads).filter((p) => !isParentPad(project, p));
-  return [
-    { value: 'all', label: 'every step' },
-    ...Object.values(project.tags).map((t) => ({ value: `tag:${t.id}`, label: `${t.name} steps`, group: 'Tag' })),
-    ...pads.map((p) => ({ value: `pad:${p.id}`, label: `pad ${p.name}`, group: 'Pad' })),
-  ];
-}
-
-const scopeKey = (scope: ModScope) => (scope.kind === 'all' ? 'all' : scope.kind === 'tag' ? `tag:${scope.tagId}` : `pad:${scope.padId}`);
-const scopeFrom = (key: string): ModScope => {
-  const [kind, id] = key.split(':') as [string, string];
-  return kind === 'tag' ? { kind: 'tag', tagId: id } : kind === 'pad' ? { kind: 'pad', padId: id } : { kind: 'all' };
-};
-
 interface StepSentenceProps {
   readonly effect: StepEffect;
-  readonly project: Project;
   /** Targets other effects of the mod have: this one cannot take them. */
   readonly taken: readonly EffectTarget[];
   readonly onChange: (effect: StepEffect, key?: string) => void;
@@ -115,8 +98,8 @@ interface StepSentenceProps {
   readonly onCommit: () => void;
 }
 
-/** "Every beat, on S steps: Pitch goes through 0 3 5 7 in turn." Every part is its control. */
-export function StepSentence({ effect, project, taken, onChange, onTarget, onCommit }: StepSentenceProps) {
+/** "Every beat: Pitch goes through 0 3 5 7 in turn." Every part is its control. */
+export function StepSentence({ effect, taken, onChange, onTarget, onCommit }: StepSentenceProps) {
   const { shape, target } = effect;
   const picks = PICKS.has(target);
   const change = (patch: Partial<StepEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
@@ -151,7 +134,6 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
     setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? { kind, from: 0, to: 12 } : { kind, ...range, chance: 50, whole: target === 'pitch' });
   };
 
-  const scopes = scopeOptions(project);
 
   const valuesInput = (
     <input
@@ -168,15 +150,7 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
   return (
     <div className="stack-tight">
       <p className="sentence">
-        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />, on{' '}
-        {target === 'tempo' ? (
-          <span className="word fixed" title="Tempo moves the whole layer">
-            the whole layer
-          </span>
-        ) : (
-          <Choice label="Scope" value={scopeKey(effect.scope)} options={scopes} onChange={(key) => change({ scope: scopeFrom(key) })} />
-        )}
-        :{' '}
+        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />:{' '}
         <Choice<EffectTarget>
           label="Target"
           value={target}
@@ -259,7 +233,7 @@ interface BorrowSentenceProps {
 }
 
 /**
- * "Every 1/16, on every step: Borrow now and then — 50 % of the time, play the
+ * "Every 1/16: Borrow now and then — 50 % of the time, play the
  * hit from F1 instead. Where F1 has nothing, keep its own hit." Loops are toggled as chips.
  */
 export function BorrowSentence({ effect, project, taken, onChange, onTarget, onCommit }: BorrowSentenceProps) {
@@ -275,8 +249,7 @@ export function BorrowSentence({ effect, project, taken, onChange, onTarget, onC
   return (
     <div className="stack-tight">
       <p className="sentence">
-        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />, on{' '}
-        <Choice label="Scope" value={scopeKey(effect.scope)} options={scopeOptions(project)} onChange={(key) => change({ scope: scopeFrom(key) })} />:{' '}
+        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />:{' '}
         <Choice<EffectTarget> label="Target" value="sourceLoop" options={targetOptions('sourceLoop', taken)} onChange={onTarget} />{' '}
         <Choice
           label="Pick"

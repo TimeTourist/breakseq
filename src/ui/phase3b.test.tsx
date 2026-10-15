@@ -52,7 +52,7 @@ function build(...commands: Command[]): Project {
     const r = c(p, ctx);
     if (!r.ok) throw new Error(JSON.stringify(r.error));
     return r.project;
-  }, createProject(ctx));
+  }, createProject());
 }
 
 async function setup(project: Project, view: View): Promise<Store> {

@@ -1,78 +1,22 @@
 import type { Command, CommandResult } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
 import { addClip, fitClips } from './clips';
-import { DEFAULT_TAG_NAMES, breakSequence, emptyStep, emptySteps, isParentHit, nextLoopName } from './project';
+import { breakSequence, emptyStep, emptySteps, isParentHit, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
-import type { EffectTarget, Hit, Id, Loop, LoopKind, Mod, ModEffect, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
-import { MAX_TAGS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, STEPS_PER_BAR } from './types';
+import type { EffectTarget, Hit, Id, Loop, LoopKind, Mod, ModEffect, Pad, Project, Sample, Song, SongRow, Step } from './types';
+import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, STEPS_PER_BAR } from './types';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
-
-// Tags
-
-export const addTag =
-  (name: string): Command =>
-  (project, ctx) => {
-    if (Object.keys(project.tags).length >= MAX_TAGS) return invalid(`At most ${MAX_TAGS} tags`);
-    const tag: Tag = { id: ctx.newId(), name };
-    return ok({ ...project, tags: { ...project.tags, [tag.id]: tag } });
-  };
 
 // Samples
 
 export const updateSample =
-  (id: Id, patch: Patch<Pick<Sample, 'name' | 'mainTag' | 'extraTags'>>): Command =>
+  (id: Id, patch: Patch<Pick<Sample, 'name'>>): Command =>
   (project) => {
     const sample = project.samples[id];
     if (sample === undefined) return notFound(id);
-    const tagIds = [patch.mainTag, ...(patch.extraTags ?? [])].filter((t): t is Id => typeof t === 'string');
-    const missing = tagIds.find((t) => project.tags[t] === undefined);
-    if (missing !== undefined) return notFound(missing);
-    // A tag set by hand is never a guess.
-    const guessed = patch.mainTag === undefined ? sample.tagGuessed : false;
-    return ok({ ...project, samples: { ...project.samples, [id]: { ...sample, ...patch, tagGuessed: guessed } } });
-  };
-
-/**
- * Guesses the main tag of the untagged samples among `ids`. `guess` names a tag
- * (K, S, …) or returns null; guesses are marked until confirmed.
- */
-export const guessTags =
-  (ids: readonly Id[], guess: (sample: Sample) => string | null): Command =>
-  (project) => {
-    const byName = new Map(Object.values(project.tags).map((t) => [t.name, t.id]));
-    const samples = { ...project.samples };
-    for (const id of ids) {
-      const sample = samples[id];
-      if (sample === undefined || sample.mainTag !== null) continue;
-      const name = guess(sample);
-      const tagId = name === null ? undefined : byName.get(name);
-      if (tagId !== undefined) samples[id] = { ...sample, mainTag: tagId, tagGuessed: true };
-    }
-    return ok({ ...project, samples });
-  };
-
-/** Confirms guessed tags: they become ordinary tags. */
-export const confirmTags =
-  (ids: readonly Id[]): Command =>
-  (project) => {
-    const samples = { ...project.samples };
-    for (const id of ids) {
-      const sample = samples[id];
-      if (sample?.tagGuessed === true) samples[id] = { ...sample, tagGuessed: false };
-    }
-    return ok({ ...project, samples });
-  };
-
-/** Removes a tag of your own. The five defaults stay, and a tag in use cannot go. */
-export const removeTag =
-  (id: Id): Command =>
-  (project, ctx) => {
-    const tag = project.tags[id];
-    if (tag === undefined) return notFound(id);
-    if ((DEFAULT_TAG_NAMES as readonly string[]).includes(tag.name)) return invalid(`${tag.name} is one of the default tags`);
-    return remove('tag', id)(project, ctx);
+    return ok({ ...project, samples: { ...project.samples, [id]: { ...sample, ...patch } } });
   };
 
 // Hits
@@ -397,7 +341,6 @@ export const setSongCell =
 // Removal
 
 const collection = {
-  tag: 'tags',
   sample: 'samples',
   hit: 'hits',
   pad: 'pads',
@@ -413,7 +356,7 @@ export const remove =
     if (project[key][id] === undefined) return notFound(id);
     const usages = findUsages(project, kind, id);
     if (usages.length > 0) return fail({ kind: 'in-use', usages });
-    return ok({ ...project, [key]: without(project[key], id) });
+    return ok({ ...project, [key]: without<unknown>(project[key], id) });
   };
 
 /** Swaps in a whole project, as when opening a project file. Undo brings the old one back. */

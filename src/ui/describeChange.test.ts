@@ -13,7 +13,7 @@ const apply = (project: Project, command: Command) => {
 
 describe('describeChange', () => {
   it('names what changed, in a few words', () => {
-    const empty = createProject(ctx);
+    const empty = createProject();
     const one = apply(empty, addSample({ name: 'amen.wav', audio: constantAudio(0.1) }));
     expect(describeChange(empty, one)).toBe('add sample amen');
     const hit = Object.values(one.hits)[0]!;

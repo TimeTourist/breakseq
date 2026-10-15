@@ -3,7 +3,7 @@ import { createEvent, act, cleanup, fireEvent, render, screen, within } from '@t
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createPad, createProject, resizeClip, setSongCell, setStep } from '../model';
+import { addSample, createLoop, createMod, createPad, createProject, resizeClip, setSongCell, setStep, sliceBreak } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -51,7 +51,7 @@ function build(...commands: Command[]): Project {
     const r = c(p, ctx);
     if (!r.ok) throw new Error(JSON.stringify(r.error));
     return r.project;
-  }, createProject(ctx));
+  }, createProject());
 }
 
 async function setup(project: Project, view: View): Promise<Store> {
@@ -65,24 +65,18 @@ const present = (store: Store) => store.getState().history.present;
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 describe('Klart när: four snares become a pad, placed in a loop and heard in Song', () => {
-  it('tags, builds the pad, fills a loop and places it in the song', async () => {
+  it('builds the pad in Hits, fills a loop and places it in the song', async () => {
     const snares = ['snare_01.wav', 'snare_02.wav', 'snare_03.wav', 'snare_04.wav'];
-    const store = await setup(build(...snares.map((name) => addSample({ name, audio: constantAudio(0.2) }))), 'tag');
+    const store = await setup(build(...snares.map((name) => addSample({ name, audio: constantAudio(0.2) }))), 'hits');
 
-    // Tag: each snare gets S.
-    for (const name of snares) fireEvent.click(button(`${name.replace('.wav', '')}: Snare`));
-    const sTag = Object.values(present(store).tags).find((t) => t.name === 'S')!.id;
-    expect(Object.values(present(store).samples).every((s) => s.mainTag === sTag)).toBe(true);
-
-    // Pads: a new pad with all four.
-    fireEvent.keyDown(window, { key: '5' });
+    // Hits: a new pad with all four.
     fireEvent.click(button('+ New pad'));
     for (const name of snares) fireEvent.click(button(`Add ${name.replace('.wav', '')} to pad`));
     const pad = Object.values(present(store).pads).find((p) => !p.auto)!;
     expect(pad.members).toHaveLength(4);
 
     // Loops: a new main with the pad on two steps.
-    fireEvent.keyDown(window, { key: '6' });
+    fireEvent.keyDown(window, { key: '4' });
     fireEvent.click(button('+ New loop'));
     fireEvent.click(button(`Pad ${pad.name}`));
     fireEvent.click(button(/^Bar 1, step 5:/));
@@ -91,7 +85,7 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
     expect(loop.steps.filter((s) => s.padId === pad.id)).toHaveLength(2);
 
     // Song: the loop in bar 1.
-    fireEvent.keyDown(window, { key: '8' });
+    fireEvent.keyDown(window, { key: '6' });
     fireEvent.click(button(loop.name));
     clickLane('Main', 0);
 
@@ -129,11 +123,65 @@ function twoHitPad(...more: Command[]) {
   return { project, pad, a, b };
 }
 
-describe('Pads', () => {
+describe('Hits: breaks, pads and their hits', () => {
+  /** A one-bar break amen.wav sliced in four, and a one-shot snare.wav. */
+  function breakAndOneShot() {
+    const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
+    const amen = Object.values(project.samples).find((s) => s.name === 'amen.wav')!;
+    return applyAll(project, sliceBreak(amen.id, 1, 4));
+  }
+
+  it('lists each break with its parent, its pads in order, then one-shots', async () => {
+    await setup(breakAndOneShot(), 'hits');
+    const side = screen.getByRole('complementary', { name: 'Breaks and pads' });
+    expect(within(side).getByRole('button', { name: /amen\.wav.*parent/ })).toBeTruthy();
+    const pads = within(side).getAllByRole('button', { name: /^Pad / }).map((b) => b.getAttribute('aria-label'));
+    expect(pads).toEqual(['Pad amen 1', 'Pad amen 2', 'Pad amen 3', 'Pad amen 4', 'Pad snare']);
+    expect(within(side).getByRole('heading', { name: 'One-shots' })).toBeTruthy();
+  });
+
+  it('the parent opens on its own, as the macro for every slice', async () => {
+    const store = await setup(breakAndOneShot(), 'hits');
+    fireEvent.click(within(screen.getByRole('complementary', { name: 'Breaks and pads' })).getByRole('button', { name: /amen\.wav.*parent/ }));
+    expect(screen.queryByRole('region', { name: 'Pad' })).toBeNull();
+    expect(screen.getByText(/parent: its pitch, volume and direction apply to all 4 slices/)).toBeTruthy();
+    expect(present(store).hits[store.getState().selection.hit!]!.sampleId).toBe(Object.values(present(store).samples).find((s) => s.name === 'amen.wav')!.id);
+  });
+
+  it('a one-shot dragged onto a pad of the break becomes its second hit, and Pad member 2 plays it', async () => {
+    const store = await setup(breakAndOneShot(), 'hits');
+    const side = screen.getByRole('complementary', { name: 'Breaks and pads' });
+    fireEvent.click(within(side).getByRole('button', { name: 'Pad amen 2' }));
+    const snare = Object.values(present(store).hits).find((h) => h.name.startsWith('snare'))!;
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? '', get types() { return [...data.keys()]; }, effectAllowed: 'all', dropEffect: 'copy' };
+    const chip = within(side).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare')!;
+    fireEvent.dragStart(chip, { dataTransfer });
+    const list = screen.getByRole('list', { name: 'Hits in this pad' });
+    fireEvent.dragOver(list, { dataTransfer });
+    fireEvent.drop(list, { dataTransfer });
+
+    const pad = Object.values(present(store).pads).find((p) => p.name === 'amen 2')!;
+    expect(pad.members[1]).toBe(snare.id);
+
+    // In a loop with Pad member 2, the step plays the snare.
+    const withLoop = applyAll(
+      present(store),
+      createLoop('L', 'main', 1),
+      createMod('Second', [{ target: 'padMember', rate: 'step', shape: { kind: 'list', values: [2] } }]),
+    );
+    const loop = Object.values(withLoop.loops).find((l) => l.name === 'L')!;
+    const mod = Object.values(withLoop.mods)[0]!;
+    const playing = applyAll(withLoop, setStep(loop.id, 0, { padId: pad.id }), setSongCell('main', 0, loop.id), setSongCell('modA', 0, mod.id));
+    expect(generateTriggers(playing, () => 0).filter((t) => t.bar === 0 && t.step === 0).map((t) => t.hitId)).toEqual([snare.id]);
+  });
+});
+
+describe('Pads in Hits', () => {
   it('moving a member up makes it member 1', async () => {
     const { project, pad, a, b } = twoHitPad();
-    const store = await setup(project, 'pads');
-    fireEvent.click(button('Pad Both, 2 hits'));
+    const store = await setup(project, 'hits');
+    fireEvent.click(button('Pad Both'));
 
     fireEvent.click(button('Move b up'));
 

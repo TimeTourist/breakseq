@@ -4,17 +4,11 @@ export type Id = string;
 export type Rng = () => number;
 
 export const STEPS_PER_BAR = 16;
-export const MAX_TAGS = 8;
 
 /** Raw audio. Treated as immutable once created. */
 export interface AudioData {
   readonly sampleRate: number;
   readonly channels: readonly Float32Array[];
-}
-
-export interface Tag {
-  readonly id: Id;
-  readonly name: string;
 }
 
 export interface BreakInfo {
@@ -37,10 +31,6 @@ export interface Sample {
   readonly offset: number;
   /** Length in seconds. */
   readonly duration: number;
-  readonly mainTag: Id | null;
-  /** The main tag is a guess, not yet confirmed. */
-  readonly tagGuessed: boolean;
-  readonly extraTags: readonly Id[];
   /** Set when the sample is a break; null for a one-shot. */
   readonly break: BreakInfo | null;
   /** The break this sample was sliced from, or null for an imported file. */
@@ -104,11 +94,6 @@ export interface Loop {
 export const MOD_TARGETS = ['sourceLoop', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'tempo'] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
-export type ModScope =
-  | { readonly kind: 'all' }
-  | { readonly kind: 'tag'; readonly tagId: Id }
-  | { readonly kind: 'pad'; readonly padId: Id };
-
 export type ModRate = 'step' | 'beat' | 'bar';
 
 export type ModShape =
@@ -132,7 +117,6 @@ export const STEP_TARGETS = MOD_TARGETS.filter((t): t is StepTarget => t !== 'so
 /** An effect that changes steps as they play, by a value from its shape. */
 export interface StepEffect {
   readonly target: StepTarget;
-  readonly scope: ModScope;
   readonly rate: ModRate;
   readonly shape: ModShape;
 }
@@ -153,7 +137,6 @@ export type BorrowPick =
  */
 export interface BorrowEffect {
   readonly target: 'sourceLoop';
-  readonly scope: ModScope;
   readonly rate: ModRate;
   readonly sources: readonly Id[];
   readonly pick: BorrowPick;
@@ -202,8 +185,6 @@ export interface Mod {
 }
 
 export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape' && effect.target !== 'sourceLoop';
-/** Effects that act on some steps: everything but Tape. */
-export const isScopedEffect = (effect: ModEffect): effect is StepEffect | BorrowEffect => effect.target !== 'tape';
 export const borrowOf = (mod: Mod | undefined): BorrowEffect | undefined =>
   mod?.effects.find((e): e is BorrowEffect => e.target === 'sourceLoop');
 export const tapeOf = (mod: Mod | undefined): TapeEffect | undefined =>
@@ -236,7 +217,6 @@ export interface Song {
 
 export interface Project {
   readonly audio: Readonly<Record<Id, AudioData>>;
-  readonly tags: Readonly<Record<Id, Tag>>;
   readonly samples: Readonly<Record<Id, Sample>>;
   readonly hits: Readonly<Record<Id, Hit>>;
   readonly pads: Readonly<Record<Id, Pad>>;

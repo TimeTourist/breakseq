@@ -22,7 +22,7 @@ function run(project: Project, ...commands: Command[]): Project {
 
 /** A 2-bar song at 120 BPM (4 s) with one hit per audio. */
 function setup(audios: readonly AudioData[]): { project: Project; hits: Id[] } {
-  let project = run(createProject(ctx), setBpm(120), setSongBars(2));
+  let project = run(createProject(), setBpm(120), setSongBars(2));
   const hits: Id[] = [];
   audios.forEach((audio, i) => {
     const before = project;

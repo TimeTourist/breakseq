@@ -32,12 +32,12 @@ const DEFAULTS: Record<StepTarget, { rate: ModRate; shape: ModShape }> = {
 };
 
 /** A new step effect for a target, acting on every step. */
-const stepEffect = (target: StepTarget): StepEffect => ({ target, scope: { kind: 'all' }, ...DEFAULTS[target] });
+const stepEffect = (target: StepTarget): StepEffect => ({ target, ...DEFAULTS[target] });
 
 /** Borrow from the first fill, half the time, keeping the own hit where the fill has none. */
 const newBorrow = (project: Project): BorrowEffect => {
   const fill = Object.values(project.loops).find((l) => l.kind === 'fill');
-  return { target: 'sourceLoop', scope: { kind: 'all' }, rate: 'step', sources: fill === undefined ? [] : [fill.id], pick: { kind: 'random', chance: 50 }, skipEmpty: true };
+  return { target: 'sourceLoop', rate: 'step', sources: fill === undefined ? [] : [fill.id], pick: { kind: 'random', chance: 50 }, skipEmpty: true };
 };
 
 const newEffect = (target: EffectTarget, project: Project): ModEffect =>
@@ -154,8 +154,8 @@ export function ModsView() {
             <button
               type="button"
               disabled={effect === undefined || effect.target === 'tape'}
-              title="Pick this effect's target, scope, rate and shape at random. Undo takes it back."
-              onClick={() => effect !== undefined && change(randomMod(project, Math.random, taken.filter((t) => t !== effect.target)))}
+              title="Pick this effect's target, rate and shape at random. Undo takes it back."
+              onClick={() => effect !== undefined && change(randomMod(Math.random, taken.filter((t) => t !== effect.target)))}
             >
               Randomize
             </button>
@@ -266,7 +266,6 @@ export function ModsView() {
               <StepSentence
                 key={`${mod.id}:${effect.target}`}
                 effect={effect}
-                project={project}
                 taken={taken.filter((t) => t !== effect.target)}
                 onChange={change}
                 onTarget={swap}

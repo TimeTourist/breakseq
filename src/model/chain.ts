@@ -1,6 +1,6 @@
 import type { Command, CommandContext, Usage } from './command';
 import { fail, invalid, notFound, ok, sequence } from './command';
-import { findUsages, stepEffects } from './references';
+import { findUsages } from './references';
 import type { SliceGrid } from './project';
 import { emptySteps, gridMarkers, nextLoopName, onGrid } from './project';
 import type { AudioData, BreakInfo, Hit, Id, Loop, Pad, Project, Sample } from './types';
@@ -58,9 +58,6 @@ export const addSample =
       audioId,
       offset: 0,
       duration: length / audio.sampleRate,
-      mainTag: null,
-      tagGuessed: false,
-      extraTags: [],
       break: null,
       sliceOf: null,
     };
@@ -239,9 +236,6 @@ export const sliceAtMarkers =
         audioId: source.audioId,
         offset: source.offset + marker,
         duration: end - marker,
-        mainTag: null,
-        tagGuessed: false,
-        extraTags: [],
         break: null,
         sliceOf: sampleId,
       };
@@ -297,9 +291,6 @@ export const unsliceBreak =
         .filter((p) => !pads.has(p.id) && p.members.some((m) => hits.has(m)))
         .map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name })),
       ...loops.filter((l) => !own.includes(l)).map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),
-      ...Object.values(project.mods)
-        .filter((m) => stepEffects(m).some((e) => e.scope.kind === 'pad' && pads.has(e.scope.padId)))
-        .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ...own
         .filter((l) => findUsages(project, 'loop', l.id).length > 0)
         .map((l): Usage => ({ kind: 'song', id: null, name: `${l.name} in Song` })),

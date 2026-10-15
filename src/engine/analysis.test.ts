@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AudioData } from '../model';
 import { seededRng } from '../test/fixtures';
-import { classifyHit, detectTransients, peakLevel } from './analysis';
+import { detectTransients } from './analysis';
 
 const SR = 44100;
 
@@ -47,10 +47,6 @@ const hat = (() => {
   const n = brightNoise(7);
   return (t: number) => n() * Math.exp(-t * 60);
 })();
-const ride = (() => {
-  const n = brightNoise(9);
-  return (t: number) => n() * Math.exp(-t * 6);
-})();
 
 describe('detectTransients', () => {
   const times = [0.1, 0.35, 0.6, 0.9];
@@ -82,20 +78,5 @@ describe('detectTransients', () => {
     const audio = render(1.2, times.map((at) => ({ at, gain: 0.8, sound: snare })));
     const found = detectTransients(audio, 0.3, 0.5, 60);
     expect(found.map((t) => Math.round((t + 0.3) * 100) / 100)).toEqual([0.35, 0.6]);
-  });
-});
-
-describe('classifyHit', () => {
-  const kinds = { K: kick, S: snare, H: hat, R: ride } as const;
-
-  it.each(Object.entries(kinds))('guesses %s', (tag, sound) => {
-    const audio = render(0.5, [{ at: 0, gain: 0.8, sound }]);
-    expect(classifyHit(audio, 0, 0.5, 0.8)).toBe(tag);
-  });
-
-  it('a hit far below the loudest is a ghost', () => {
-    const loud = render(0.3, [{ at: 0, gain: 0.8, sound: snare }]);
-    const soft = render(0.3, [{ at: 0, gain: 0.8 * 10 ** (-20 / 20), sound: snare }]);
-    expect(classifyHit(soft, 0, 0.3, peakLevel(loud, 0, 0.3))).toBe('G');
   });
 });

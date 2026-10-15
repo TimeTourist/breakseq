@@ -11,7 +11,7 @@ describe('indexedDbStorage', () => {
 
   it('saves and loads a project with its audio', async () => {
     const ctx = sequentialIds();
-    const result = addSample({ name: 'Amen', audio: constantAudio(0.01, [0.25, -0.5]) })(createProject(ctx), ctx);
+    const result = addSample({ name: 'Amen', audio: constantAudio(0.01, [0.25, -0.5]) })(createProject(), ctx);
     if (!result.ok) throw new Error('addSample failed');
     const factory = new IDBFactory();
 

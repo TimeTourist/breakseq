@@ -8,13 +8,11 @@ import { HitsView } from './HitsView';
 import { ImportView } from './ImportView';
 import { LoopsView, currentLoopId } from './LoopsView';
 import { ModsView, currentModId, previewLoopId } from './ModsView';
-import { PadsView } from './PadsView';
 import type { Take } from './playback';
 import type { Services } from './services';
 import { SliceView } from './SliceView';
 import { SongView } from './SongView';
 import type { Store, View } from './store';
-import { TagView } from './TagView';
 import { VIEWS } from './store';
 
 export const RENDER_DEBOUNCE_MS = 300;
@@ -175,9 +173,7 @@ function Shell() {
       />
       {view === 'import' && <ImportView />}
       {view === 'slice' && <SliceView />}
-      {view === 'tag' && <TagView />}
       {view === 'hits' && <HitsView />}
-      {view === 'pads' && <PadsView />}
       {view === 'loops' && <LoopsView playhead={playhead.trigger} />}
       {view === 'mods' && <ModsView />}
       {view === 'song' && (

@@ -8,10 +8,7 @@ export interface ModPreset {
   readonly effects: (project: Project) => readonly ModEffect[];
 }
 
-const step = (fields: Omit<StepEffect, 'scope'> & Partial<Pick<StepEffect, 'scope'>>): StepEffect => ({
-  scope: { kind: 'all' },
-  ...fields,
-});
+const step = (fields: StepEffect): StepEffect => fields;
 
 const tape = (fields: Partial<TapeEffect>): TapeEffect => ({
   target: 'tape',
@@ -28,12 +25,6 @@ const tape = (fields: Partial<TapeEffect>): TapeEffect => ({
 /** Repeat the first 2/16, back and forth, slowing to a quarter: tape being braked. */
 export const DEFAULT_TAPE: TapeEffect = tape({});
 
-/** The snares if there is an S tag, else every step. */
-const snares = (project: Project): StepEffect['scope'] => {
-  const tag = Object.values(project.tags).find((t) => t.name === 'S');
-  return tag === undefined ? { kind: 'all' } : { kind: 'tag', tagId: tag.id };
-};
-
 export const MOD_PRESETS: readonly ModPreset[] = [
   {
     name: 'Tape rock',
@@ -47,8 +38,8 @@ export const MOD_PRESETS: readonly ModPreset[] = [
   },
   {
     name: 'Stutter',
-    does: 'Snares roll in fours',
-    effects: (project) => [step({ target: 'ratchet', scope: snares(project), rate: 'step', shape: { kind: 'list', values: [4] } })],
+    does: 'Every step under the clip rolls in fours',
+    effects: () => [step({ target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [4] } })],
   },
   {
     name: 'Pitch stair',

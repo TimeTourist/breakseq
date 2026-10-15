@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, guessTags, setBreakBars, setMarkers, sliceAtMarkers, unlikelyBpm, unsliceBreak } from '../model';
-import { classifyHit, detectTransients, peakLevel } from '../engine';
+import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, setBreakBars, setMarkers, sliceAtMarkers, unlikelyBpm, unsliceBreak } from '../model';
+import { detectTransients } from '../engine';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { sources } from './ImportView';
 import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
@@ -88,25 +88,7 @@ export function SliceView() {
     setError(run(setMarkers(sample.id, detectTransients(audio, sample.offset, duration, value)), mergeKey));
   };
 
-  /** Slices, then guesses a tag for each new slice, as one undo step. */
-  const apply = () => {
-    const failed = run(sliceAtMarkers(sample.id), `apply:${sample.id}`);
-    if (failed !== null || audio === undefined) {
-      setError(failed);
-      return;
-    }
-    const loudest = peakLevel(audio, sample.offset, duration);
-    const slices = Object.values(store.getState().history.present.samples).filter((s) => s.sliceOf === sample.id);
-    run(
-      guessTags(
-        slices.map((s) => s.id),
-        (s) => classifyHit(audio, s.offset, s.duration, loudest),
-      ),
-      `apply:${sample.id}`,
-    );
-    seal();
-    setError(null);
-  };
+  const apply = () => setError(run(sliceAtMarkers(sample.id)));
 
   return (
     <main className="view">
