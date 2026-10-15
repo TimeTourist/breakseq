@@ -93,6 +93,28 @@ describe('Mods', () => {
     expect(generateTriggers(present(store), () => 0).map((t) => t.pitch)).toEqual([0, 3, 5, 7]);
   });
 
+  it('a random effect draws an example roll, whole values within its range, and can roll another', async () => {
+    await setup(snareLoopProject(), 'mods');
+    fireEvent.click(button('+ New mod'));
+    pick('Target', 'pitch');
+    pick('Shape', 'random');
+    pick('Rate', 'beat');
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Min' }), { target: { value: '1' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Max' }), { target: { value: '4' } });
+    const graph = () => screen.getByRole('img', { name: 'What the effect does over one bar' });
+    const drawn = () => [...graph().querySelectorAll('text')].map((t) => t.textContent);
+    const examples = new Set<string>();
+    for (let i = 0; i < 6; i++) {
+      // Each beat either jumps to one value for all its steps, or does nothing.
+      expect(graph().querySelectorAll('.step-value').length % 4).toBe(0);
+      drawn().forEach((v) => expect(Number(v)).toBeGreaterThanOrEqual(1));
+      drawn().forEach((v) => expect(Number(v)).toBeLessThanOrEqual(4));
+      examples.add(drawn().join(','));
+      fireEvent.click(button('Another example'));
+    }
+    expect(examples.size).toBeGreaterThan(1);
+  });
+
   it('a preset makes a ready mod and opens it', async () => {
     const store = await setup(snareLoopProject(), 'mods');
     fireEvent.click(within(screen.getByRole('group', { name: 'Start from' })).getByRole('button', { name: 'Pitch stair' }));

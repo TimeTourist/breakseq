@@ -1,4 +1,4 @@
-import type { PreviewPoint, Tape } from '../engine';
+import type { Tape } from '../engine';
 import { effectPreview, tapePasses, tapeSpeed, wobbles } from '../engine';
 import type { Project, StepEffect, TapeEffect } from '../model';
 import { STEPS_PER_BAR } from '../model';
@@ -8,22 +8,30 @@ const WIDTH = 640;
 const HEIGHT = 120;
 const PAD = 18;
 
-/** What a step effect does over one bar: a bar per step, or a band where it is random. */
-export function StepGraph({ effect, project }: { effect: StepEffect; project: Project }) {
-  const points = effectPreview(effect, STEPS_PER_BAR);
-  const numbers = points.flatMap((p): number[] => (p === null ? [] : p.kind === 'value' ? [p.value] : [p.min, p.max]));
-  const low = Math.min(0, ...numbers);
-  const high = Math.max(effect.target === 'tempo' ? 1 : 0, ...numbers);
+/** A small seeded generator, so a drawing stays put while you edit. */
+const seeded = (seed: number) => {
+  let state = 1 + Math.abs(Math.floor(seed)) % 2147483646;
+  return () => ((state = (state * 16807) % 2147483647) - 1) / 2147483646;
+};
+
+/**
+ * What a step effect does over one bar: a bar per step. Random draws one
+ * example roll, from `seed`; each take rolls its own.
+ */
+export function StepGraph({ effect, project, seed }: { effect: StepEffect; project: Project; seed: number }) {
+  const points = effectPreview(effect, STEPS_PER_BAR, seeded(seed));
+  const numbers = points.filter((p): p is number => p !== null);
+  // Random's whole range sets the scale, so rolling again does not rescale it.
+  const range = effect.shape.kind === 'random' ? [effect.shape.min, effect.shape.max] : [];
+  const low = Math.min(0, ...numbers, ...range);
+  const high = Math.max(effect.target === 'tempo' ? 1 : 0, ...numbers, ...range);
   const span = high - low || 1;
   const y = (v: number) => HEIGHT - PAD - ((v - low) / span) * (HEIGHT - 2 * PAD);
   const w = WIDTH / STEPS_PER_BAR;
   // Write a value where it changes, the way it is typed.
-  const label = (p: PreviewPoint, i: number) => {
-    if (p?.kind !== 'value') return null;
-    const before = points[i - 1];
-    if (i > 0 && before?.kind === 'value' && before.value === p.value) return null;
-    return formatValues(effect, [p.value], project);
-  };
+  // Values are rounded to a tenth here, so a random pitch does not print three decimals.
+  const label = (p: number | null, i: number) =>
+    p === null || (i > 0 && points[i - 1] === p) ? null : formatValues(effect, [Math.round(p * 10) / 10], project);
   return (
     <svg className="mod-graph" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="What the effect does over one bar">
       {Array.from({ length: STEPS_PER_BAR }, (_, i) => (
@@ -32,28 +40,14 @@ export function StepGraph({ effect, project }: { effect: StepEffect; project: Pr
       <line x1={0} x2={WIDTH} y1={y(0)} y2={y(0)} className="grid zero" />
       {points.map((p, i) => {
         if (p === null) return null;
-        if (p.kind === 'random') {
-          return (
-            <rect
-              key={i}
-              className="band"
-              x={i * w + 2}
-              width={w - 4}
-              y={y(p.max)}
-              height={Math.max(2, y(p.min) - y(p.max))}
-              style={{ opacity: 0.2 + (0.6 * p.chance) / 100 }}
-            >
-              <title>{`${p.chance} % chance, ${p.min} to ${p.max}`}</title>
-            </rect>
-          );
-        }
-        const top = Math.min(y(p.value), y(0));
+        const top = Math.min(y(p), y(0));
+        const text = label(p, i);
         return (
           <g key={i} className="step-value">
-            <rect x={i * w + 2} width={w - 4} y={top} height={Math.max(2, Math.abs(y(p.value) - y(0)))} />
-            {label(p, i) !== null && (
+            <rect x={i * w + 2} width={w - 4} y={top} height={Math.max(2, Math.abs(y(p) - y(0)))} />
+            {text !== null && (
               <text x={i * w + w / 2} y={Math.max(11, top - 4)} textAnchor="middle">
-                {label(p, i)}
+                {text}
               </text>
             )}
           </g>
