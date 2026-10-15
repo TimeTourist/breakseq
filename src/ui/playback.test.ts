@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Trigger } from '../engine';
-import { nextLoopBoundary, playheadTrigger } from './playback';
+import { auditionPosition, nextLoopBoundary, playheadTrigger } from './playback';
 
 const at = (time: number, bar: number): Trigger => ({
   time,
@@ -36,5 +36,22 @@ describe('nextLoopBoundary', () => {
 
   it('waits for a take that has not started yet', () => {
     expect(nextLoopBoundary(9, 10, 4)).toBe(10);
+  });
+});
+
+describe('auditionPosition', () => {
+  // A region of 2 s starting 0.5 s into the audio, started at t = 10.
+  const once = { startTime: 10, offset: 0.5, duration: 2, loop: false };
+  const looped = { ...once, loop: true };
+
+  it('runs through the region once, then is over', () => {
+    expect(auditionPosition(10, once)).toBe(0.5);
+    expect(auditionPosition(11.25, once)).toBe(1.75);
+    expect(auditionPosition(12.5, once)).toBeNull();
+  });
+
+  it('wraps to the start of the region when looping', () => {
+    expect(auditionPosition(12.5, looped)).toBeCloseTo(1);
+    expect(auditionPosition(15.25, looped)).toBeCloseTo(1.75);
   });
 });

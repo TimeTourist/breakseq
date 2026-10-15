@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Sample } from '../model';
 import { trimSample } from '../model';
 import { useApp, useProject, useRun, useSeal } from './context';
+import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
 import { Waveform } from './Waveform';
 
 const ms = (seconds: number) => Math.round(seconds * 1000);
@@ -14,14 +15,34 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
   const seal = useSeal();
   const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  // Breaks are trimmed to loop; one-shots to play once.
+  const [loop, setLoop] = useState(sample.break !== null);
+  const playhead = useAuditionPlayhead(playing);
   const audio = project.audio[sample.audioId];
+
+  // Closing the editor stops what it plays.
+  useEffect(() => () => services.player.stopAudition(), [services]);
+
   if (audio === undefined) return null;
 
   const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
   const start = sample.offset;
   const end = sample.offset + sample.duration;
   const locked = sample.break?.sliced === true;
-  const trim = (from: number, to: number) => setError(run(trimSample(sample.id, from, to), `trim:${sample.id}`));
+  const trim = (from: number, to: number) => {
+    const failed = run(trimSample(sample.id, from, to), `trim:${sample.id}`);
+    setError(failed);
+    // A loop that is playing follows the new start and end straight away.
+    if (failed === null && playing) {
+      const clampedStart = Math.max(0, from);
+      services.player.setAuditionRegion(clampedStart, Math.min(length, to) - clampedStart);
+    }
+  };
+  const play = (looped: boolean) => {
+    setPlaying(true);
+    services.player.audition(audio, start, sample.duration, () => setPlaying(false), looped);
+  };
   const at = (clientX: number) => {
     const rect = box.current?.getBoundingClientRect();
     return rect === undefined ? 0 : Math.max(0, Math.min(length, ((clientX - rect.left) / rect.width) * length));
@@ -61,6 +82,7 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
         <Waveform audio={audio} offset={0} duration={length} height={120} color="#9aa0a6" />
         <div className="region-shade" style={{ left: 0, width: `${(start / length) * 100}%` }} />
         <div className="region-shade" style={{ left: `${(end / length) * 100}%`, right: 0 }} />
+        {playhead !== null && <div className="playhead" style={{ left: `${(playhead / length) * 100}%` }} />}
         {handle('start')}
         {handle('end')}
       </div>
@@ -93,8 +115,15 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
           {ms(sample.duration)} ms of {ms(length)} ms
         </span>
         <div className="row push">
-          <button type="button" onClick={() => services.player.audition(audio, start, sample.duration)}>
-            Play trimmed
+          <PlayMode
+            loop={loop}
+            onChange={(next) => {
+              setLoop(next);
+              if (playing) play(next);
+            }}
+          />
+          <button type="button" aria-pressed={playing} onClick={() => (playing ? services.player.stopAudition() : play(loop))}>
+            {playing ? 'Stop' : 'Play trimmed'}
           </button>
           <button type="button" disabled={locked || (start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>
             Reset

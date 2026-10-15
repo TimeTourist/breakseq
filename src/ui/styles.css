@@ -1284,3 +1284,14 @@ input[type='search'] {
 .trim-handle:disabled::after {
   background: var(--faint);
 }
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  pointer-events: none;
+  z-index: 2;
+}
