@@ -62,7 +62,7 @@ export function generateTake(project: Project, rng: Rng): Take {
   const covered = (time: number) => windows.some((w) => time >= w.start * stepTime - 1e-9 && time < w.end * stepTime - 1e-9);
   return {
     triggers: heard.filter((t) => !covered(t.time)),
-    tapes: windows.map((w) => windowTape(project, w, heard)),
+    tapes: windows.map((w) => windowTape(project, w, heard, rng)),
   };
 }
 

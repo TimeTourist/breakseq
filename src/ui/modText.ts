@@ -113,15 +113,14 @@ export function randomMod(project: Project, rng: () => number = Math.random, tak
   const tags = Object.values(project.tags);
   const pads = Object.values(project.pads).filter((p) => !p.auto || p.members.length > 1);
   const scopeRoll = rng();
-  const from = between(rng, 0, 15);
   const scope: ModScope =
-    scopeRoll < 0.4 || target === 'tempo'
+    scopeRoll < 0.5 || target === 'tempo'
       ? { kind: 'all' }
-      : scopeRoll < 0.7 && tags.length > 0
+      : scopeRoll < 0.8 && tags.length > 0
         ? { kind: 'tag', tagId: pick(rng, tags).id }
-        : scopeRoll < 0.8 && pads.length > 0
+        : pads.length > 0
           ? { kind: 'pad', padId: pick(rng, pads).id }
-          : { kind: 'range', from, to: between(rng, from, 15) };
+          : { kind: 'all' };
 
   const rate = pick(rng, ['step', 'beat', 'bar'] as const);
   const sources = target === 'sourceLoop' ? [...new Set(several(rng, [1, 3], () => between(rng, 0, loops.length - 1)))].map((i) => loops[i]!) : [];

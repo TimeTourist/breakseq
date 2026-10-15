@@ -709,7 +709,7 @@ describe('clips', () => {
 
 describe('mods with effects', () => {
   const pitch: StepEffect = { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] }, sources: [] };
-  const tape: TapeEffect = { target: 'tape', length: 6, direction: 'pingpong', speed: { from: 1, to: 0 } };
+  const tape: TapeEffect = { target: 'tape', length: 6, direction: 'pingpong', speed: { from: 1, to: 0 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
   it('a mod has at least one effect and at most one per target', () => {
     const ctx = sequentialIds();
@@ -738,6 +738,21 @@ describe('mods with effects', () => {
     expect(addClip('modA', id, 50)(project, ctx).ok).toBe(false);
     expect(addClip('modA', id, 0, 8)(project, ctx).ok).toBe(true);
     expect(run(project, ctx, addClip('modA', id, 0, 8)).song.clips[0]!.length).toBe(20);
+  });
+
+  it('a tape saved before ramp time, curve, wow and flutter gets their defaults', () => {
+    const ctx = sequentialIds();
+    const base = createProject(ctx);
+    const old = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } };
+    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [old] } } } as unknown as Project;
+    expect(upgradeProject(legacy).mods.m!.effects).toEqual([{ ...old, rampOver: null, curve: 'linear', wow: 0, flutter: 0 }]);
+  });
+
+  it('wow, flutter and ramp time are checked', () => {
+    const ctx = sequentialIds();
+    expect(createMod('T', [{ ...tape, wow: 1.5 }])(createProject(ctx), ctx).ok).toBe(false);
+    expect(createMod('T', [{ ...tape, rampOver: 0 }])(createProject(ctx), ctx).ok).toBe(false);
+    expect(createMod('T', [{ ...tape, rampOver: 4, wow: 0.5, flutter: 1 }])(createProject(ctx), ctx).ok).toBe(true);
   });
 
   it('a mod saved before effects becomes a mod with that one effect', () => {

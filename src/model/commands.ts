@@ -300,6 +300,8 @@ function effectProblem(effect: ModEffect): string | null {
   if (!Number.isInteger(effect.length) || effect.length < 1 || effect.length > MAX_TAPE_STEPS) return 'Repeat is 1/16 to 4 bars';
   const { from, to } = effect.speed;
   if (![from, to].every((v) => Number.isFinite(v) && v >= 0 && v <= MAX_TAPE_SPEED)) return `Speed is 0× to ${MAX_TAPE_SPEED}×`;
+  if (effect.rampOver !== null && !(Number.isInteger(effect.rampOver) && effect.rampOver >= 1)) return 'Ramp over is at least 1/16';
+  if (![effect.wow, effect.flutter].every((v) => Number.isFinite(v) && v >= 0 && v <= 1)) return 'Wow and flutter are 0 to 100 %';
   return null;
 }
 

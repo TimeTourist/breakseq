@@ -107,9 +107,7 @@ export type ModTarget = (typeof MOD_TARGETS)[number];
 export type ModScope =
   | { readonly kind: 'all' }
   | { readonly kind: 'tag'; readonly tagId: Id }
-  | { readonly kind: 'pad'; readonly padId: Id }
-  /** Steps within the bar, 0-based and inclusive. */
-  | { readonly kind: 'range'; readonly from: number; readonly to: number };
+  | { readonly kind: 'pad'; readonly padId: Id };
 
 export type ModRate = 'step' | 'beat' | 'bar';
 
@@ -134,6 +132,8 @@ export interface StepEffect {
 }
 
 export type TapeDirection = 'forward' | 'reverse' | 'pingpong';
+/** How the speed moves from `from` to `to`: evenly, starting gently, or ending gently. */
+export type TapeCurve = 'linear' | 'softStart' | 'softEnd';
 
 /** The longest tape segment: 4 bars. */
 export const MAX_TAPE_STEPS = 4 * STEPS_PER_BAR;
@@ -150,6 +150,13 @@ export interface TapeEffect {
   readonly direction: TapeDirection;
   /** Playback speed, 0 to MAX_TAPE_SPEED: 1 is as recorded, 0 is stopped. */
   readonly speed: { readonly from: number; readonly to: number };
+  /** Steps the ramp takes from the clip's start, then it holds `to`; null ramps over the whole clip. */
+  readonly rampOver: number | null;
+  readonly curve: TapeCurve;
+  /** Slow wobble in speed, 0–1: up to ±25 %. */
+  readonly wow: number;
+  /** Fast, uneven flutter in speed, 0–1: up to ±6 %. */
+  readonly flutter: number;
 }
 
 export type ModEffect = StepEffect | TapeEffect;

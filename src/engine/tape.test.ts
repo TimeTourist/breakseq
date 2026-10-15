@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Command, Id, ModEffect, Project, TapeEffect } from '../model';
+import type { Command, Id, ModEffect, Project, TapeCurve, TapeEffect } from '../model';
 import { addClip, addSample, createLoop, createMod, createProject, resizeClip, setBpm, setSongBars, setStep, stepDuration } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
 import type { Tape } from './tape';
-import { tapePasses } from './tape';
+import { tapePasses, tapeSpeed, wobbles } from './tape';
 
 const ctx = sequentialIds();
 const STEP = stepDuration(120);
@@ -17,28 +17,42 @@ function run(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-const tape = (fields: Partial<Tape>): Tape => ({
+const BAR = 16 * STEP;
+
+/** A tape over one bar from 0, a segment of 2/16, at a speed from `from` to `to` over the whole bar. */
+const tape = (fields: Partial<Tape>, from = 1, to = 1): Tape => ({
   time: 0,
-  end: 16 * STEP,
+  end: BAR,
+  start: 0,
   source: [],
   length: 2 * STEP,
   direction: 'forward',
-  speed: { start: 1, end: 1 },
-  position: 0,
+  speed: { from, to, ramp: BAR, curve: 'linear' },
+  wobble: [],
   ...fields,
 });
 
-const close = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+/** Where a linear speed from s0 to s1 over T reaches each multiple of L: the exact answer. */
+function exactBoundaries(s0: number, s1: number, T: number, L: number): number[] {
+  const a = (s1 - s0) / (2 * T);
+  const times: number[] = [];
+  for (let n = 1; ; n++) {
+    const target = n * L;
+    const t = Math.abs(a) < 1e-12 ? target / s0 : (-s0 + Math.sqrt(s0 * s0 + 4 * a * target)) / (2 * a);
+    if (!(t < T)) return times;
+    times.push(t);
+  }
+}
 
 describe('tapePasses', () => {
   it('at a steady 1× a segment of 2/16 comes round every two steps; ping-pong turns each time', () => {
     const passes = tapePasses(tape({ direction: 'pingpong' }));
     expect(passes).toHaveLength(8);
     passes.forEach((pass, i) => {
-      expect(pass.time).toBeCloseTo(i * 2 * STEP, 9);
-      expect(pass.end).toBeCloseTo((i + 1) * 2 * STEP, 9);
+      expect(pass.time).toBeCloseTo(i * 2 * STEP, 6);
+      expect(pass.end).toBeCloseTo((i + 1) * 2 * STEP, 6);
       expect(pass.direction).toBe(i % 2 === 0 ? 'forward' : 'reverse');
-      expect(pass.from).toBeCloseTo(0, 9);
+      expect(pass.from).toBeCloseTo(0, 6);
     });
   });
 
@@ -47,30 +61,70 @@ describe('tapePasses', () => {
     expect(tapePasses(tape({ direction: 'reverse' })).every((p) => p.direction === 'reverse')).toBe(true);
   });
 
+  it('the passes of a linear speed match the exact solution to well within the 1 ms grid', () => {
+    for (const [s0, s1] of [
+      [2, 0.5],
+      [1, 0],
+      [0.5, 3],
+    ] as const) {
+      const ends = tapePasses(tape({}, s0, s1)).map((p) => p.end).slice(0, -1);
+      const exact = exactBoundaries(s0, s1, BAR, 2 * STEP);
+      expect(ends).toHaveLength(exact.length);
+      ends.forEach((t, i) => expect(Math.abs(t - exact[i]!)).toBeLessThan(1e-4));
+    }
+  });
+
   it('slowing from 1× to 0× makes each pass longer, and no pass starts once it has stopped', () => {
-    const passes = tapePasses(tape({ speed: { start: 1, end: 0 } }));
+    const passes = tapePasses(tape({}, 1, 0));
     const lengths = passes.map((p) => p.end - p.time);
     for (let i = 1; i < lengths.length - 1; i++) expect(lengths[i]!).toBeGreaterThan(lengths[i - 1]!);
-    // The tape covers ∫ of a speed from 1 to 0 over 16 steps: 8 steps of tape, four times round 2/16.
+    // ∫ of a speed from 1 to 0 over 16 steps is 8 steps of tape: four times round 2/16.
     expect(passes).toHaveLength(4);
-    expect(passes.at(-1)!.end).toBeCloseTo(16 * STEP, 9);
+    expect(passes.at(-1)!.end).toBeCloseTo(BAR, 9);
     expect(passes.every((p) => p.speedStart > 0)).toBe(true);
     expect(passes.at(-1)!.speedEnd).toBeCloseTo(0, 9);
   });
 
-  it('the speed of each pass follows the ramp, joined end to start', () => {
-    const passes = tapePasses(tape({ speed: { start: 2, end: 0.5 } }));
-    expect(passes[0]!.speedStart).toBe(2);
-    passes.slice(1).forEach((p, i) => expect(close(p.speedStart, passes[i]!.speedEnd)).toBe(true));
-    expect(passes.at(-1)!.speedEnd).toBeCloseTo(0.5, 9);
+  it('a tape heard from part way through its clip starts inside its pass', () => {
+    const passes = tapePasses(tape({ time: 3 * STEP, direction: 'pingpong' }));
+    // 3 steps in: pass 1 (backwards), 1 step into the segment, ending at step 4.
+    expect(passes[0]).toMatchObject({ direction: 'reverse' });
+    expect(passes[0]!.time).toBeCloseTo(3 * STEP, 9);
+    expect(passes[0]!.from).toBeCloseTo(STEP, 6);
+    expect(passes[0]!.end).toBeCloseTo(4 * STEP, 6);
+  });
+});
+
+describe('tapeSpeed', () => {
+  it('ramps over its ramp time and then holds the end value', () => {
+    const ramped = tape({ speed: { from: 1, to: 0.25, ramp: 4 * STEP, curve: 'linear' } });
+    expect(tapeSpeed(ramped, 0)).toBe(1);
+    expect(tapeSpeed(ramped, 2 * STEP)).toBeCloseTo(0.625, 9);
+    expect(tapeSpeed(ramped, 4 * STEP)).toBeCloseTo(0.25, 9);
+    expect(tapeSpeed(ramped, 12 * STEP)).toBeCloseTo(0.25, 9);
   });
 
-  it('a tape part way through starts inside its pass', () => {
-    const passes = tapePasses(tape({ position: 3 * STEP, direction: 'pingpong' }));
-    // 3 steps in: pass 1 (backwards), 1 step into the segment.
-    expect(passes[0]).toMatchObject({ direction: 'reverse' });
-    expect(passes[0]!.from).toBeCloseTo(STEP, 9);
-    expect(passes[0]!.end).toBeCloseTo(STEP, 9);
+  it('a soft start lies below linear half way down a rise, a soft end above', () => {
+    const at = (curve: TapeCurve) => tapeSpeed(tape({ speed: { from: 0, to: 1, ramp: BAR, curve } }), BAR / 2);
+    expect(at('linear')).toBeCloseTo(0.5, 9);
+    expect(at('softStart')).toBeLessThan(0.5);
+    expect(at('softEnd')).toBeGreaterThan(0.5);
+  });
+
+  it('wow sways the speed within ±25 %, flutter within ±6 %, and the same rng gives the same sway', () => {
+    const sway = (wow: number, flutter: number, seed: number) => {
+      const wobbly = tape({ wobble: wobbles({ wow, flutter }, seededRng(seed)) });
+      return Array.from({ length: 2000 }, (_, i) => tapeSpeed(wobbly, (i / 2000) * 4));
+    };
+    const wow = sway(1, 0, 1);
+    expect(Math.max(...wow)).toBeLessThanOrEqual(1.25 + 1e-9);
+    expect(Math.min(...wow)).toBeGreaterThanOrEqual(0.75 - 1e-9);
+    expect(Math.max(...wow) - Math.min(...wow)).toBeGreaterThan(0.2);
+    const flutter = sway(0, 1, 1);
+    expect(Math.max(...flutter.map((v) => Math.abs(v - 1)))).toBeLessThanOrEqual(0.06 + 1e-9);
+    expect(sway(1, 1, 7)).toEqual(sway(1, 1, 7));
+    expect(sway(1, 1, 7)).not.toEqual(sway(1, 1, 8));
+    expect(wobbles({ wow: 0, flutter: 0 }, seededRng(1))).toEqual([]);
   });
 });
 
@@ -83,7 +137,7 @@ describe('generateTake', () => {
     project = run(project, ...Array.from({ length: 16 }, (_, i) => setStep(loop, i, { padId: pad })), addClip('main', loop, 0, 64), createMod('T', effects));
     return { project, mod: Object.values(project.mods)[0]!.id as Id };
   }
-  const brake: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } };
+  const brake: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
   it('under a Tape clip the song is not heard: the tape plays a recording of the segment', () => {
     const { project: base, mod } = song([brake]);
@@ -102,7 +156,8 @@ describe('generateTake', () => {
       [0, 0],
       [1, 1],
     ]);
-    expect(only!.speed).toEqual({ start: 1, end: 0 });
+    expect(only!.speed).toEqual({ from: 1, to: 0, ramp: 16 * STEP, curve: 'linear' });
+    expect(only!.start).toBeCloseTo(16 * STEP, 9);
     expect(only!.direction).toBe('pingpong');
   });
 
@@ -122,9 +177,9 @@ describe('generateTake', () => {
       expect(only!.time).toBeCloseTo(3 * STEP, 9);
       expect(only!.source.map((t) => t.step)).toEqual([3, 4]);
       expect(only!.source[0]!.time).toBeCloseTo(0, 9);
-      // The ramp runs over the clip as it stands: it starts at 1 and there is no tape behind it.
-      expect(only!.speed.start).toBe(1);
-      expect(only!.position).toBe(0);
+      // The ramp runs over the clip as it stands, from where it starts.
+      expect(only!.start).toBeCloseTo(3 * STEP, 9);
+      expect(only!.speed.ramp).toBeCloseTo(13 * STEP, 9);
     }
   });
 

@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, StepEffect, Tag } from './types';
+import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, ModEffect, Song, SongRow, Step, StepEffect, Tag, TapeEffect } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -96,15 +96,23 @@ export function upgradeProject(project: Project): Project {
   // A mod used to be one step effect: it becomes a mod with that effect.
   const mods = Object.fromEntries(
     Object.entries(project.mods as Readonly<Record<Id, Mod | LegacyMod>>).map(([id, mod]): [Id, Mod] => {
-      if ('effects' in mod) return [id, mod as Mod];
+      if ('effects' in mod) return [id, { ...mod, effects: (mod as Mod).effects.map(upgradeEffect) }];
       const { target, scope, rate, shape, sources } = mod;
-      return [id, { id, name: mod.name, effects: [{ target, scope, rate, shape, sources: sources ?? [] }] }];
+      return [id, { id, name: mod.name, effects: [upgradeEffect({ target, scope, rate, shape, sources: sources ?? [] })] }];
     }),
   );
   return { ...project, samples, hits, pads, loops, mods, song };
 }
 
 /** Songs saved before clips: one cell per bar and row. */
+/** A tape saved before ramp time, curve, wow and flutter gets their defaults. */
+function upgradeEffect(effect: ModEffect): ModEffect {
+  // Step ranges went: a clip in Song now covers exactly the steps a mod acts on.
+  if (effect.target !== 'tape') return (effect.scope.kind as string) === 'range' ? { ...effect, scope: { kind: 'all' } } : effect;
+  const saved = effect as Partial<TapeEffect> & Pick<TapeEffect, 'target' | 'length' | 'direction' | 'speed'>;
+  return { rampOver: null, curve: 'linear', wow: 0, flutter: 0, ...saved };
+}
+
 /** A mod as saved before effects: one step effect, maybe without sources. */
 type LegacyMod = Omit<StepEffect, 'sources'> & { readonly id: Id; readonly name: string; readonly sources?: readonly Id[] };
 

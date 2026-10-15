@@ -101,13 +101,13 @@ describe('Effects', () => {
     expect(within(screen.getByRole('group', { name: 'Target' })).getByRole('button', { name: 'Ratchet' })).toHaveProperty('disabled', true);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'tape' } });
-    expect(effects().at(-1)).toEqual({ target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 } });
+    expect(effects().at(-1)).toEqual({ target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 });
 
     const repeat = screen.getByRole('group', { name: 'Repeat' });
     fireEvent.change(within(repeat).getByLabelText('Beats'), { target: { value: '1' } });
     fireEvent.click(within(screen.getByRole('group', { name: 'Tape direction' })).getByRole('button', { name: 'Reverse' }));
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '0.5' } });
-    expect(effects().at(-1)).toEqual({ target: 'tape', length: 6, direction: 'reverse', speed: { from: 1, to: 0.5 } });
+    expect(effects().at(-1)).toEqual({ target: 'tape', length: 6, direction: 'reverse', speed: { from: 1, to: 0.5 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 });
 
     fireEvent.click(button('Remove Tape'));
     fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Pitch' }));

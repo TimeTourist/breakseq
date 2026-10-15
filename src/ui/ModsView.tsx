@@ -34,7 +34,7 @@ const DEFAULTS: Record<ModTarget, { rate: ModRate; shape: ModShape }> = {
 const stepEffect = (target: ModTarget): StepEffect => ({ target, scope: { kind: 'all' }, ...DEFAULTS[target], sources: [] });
 
 /** Repeat the first 2/16, back and forth, slowing to a quarter speed: tape being braked. */
-export const DEFAULT_TAPE: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 } };
+export const DEFAULT_TAPE: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
 const newEffect = (target: EffectTarget): ModEffect => (target === 'tape' ? DEFAULT_TAPE : stepEffect(target));
 
@@ -53,13 +53,11 @@ const RATES: readonly ModRate[] = ['step', 'beat', 'bar'];
 function scopeText(scope: ModScope, project: Project): string {
   switch (scope.kind) {
     case 'all':
-      return 'all steps';
+      return 'every step';
     case 'tag':
       return `${project.tags[scope.tagId]?.name ?? '?'} steps`;
     case 'pad':
       return `pad ${project.pads[scope.padId]?.name ?? '?'}`;
-    case 'range':
-      return `steps ${scope.from + 1}–${scope.to + 1}`;
   }
 }
 
@@ -294,7 +292,7 @@ function ScopeEditor({ effect, project, onChange }: { effect: StepEffect; projec
       <h2 className="label">Acts on</h2>
       <div className="segmented" role="group" aria-label="Scope">
         <button type="button" aria-pressed={scope.kind === 'all'} onClick={() => onChange({ kind: 'all' })}>
-          All steps
+          Steps
         </button>
         <button
           type="button"
@@ -306,9 +304,6 @@ function ScopeEditor({ effect, project, onChange }: { effect: StepEffect; projec
         </button>
         <button type="button" aria-pressed={scope.kind === 'pad'} disabled={pads.length === 0} onClick={() => onChange({ kind: 'pad', padId: pads[0]!.id })}>
           Pad
-        </button>
-        <button type="button" aria-pressed={scope.kind === 'range'} onClick={() => onChange({ kind: 'range', from: 12, to: 15 })}>
-          Steps
         </button>
       </div>
       {scope.kind === 'tag' && (
@@ -334,18 +329,6 @@ function ScopeEditor({ effect, project, onChange }: { effect: StepEffect; projec
             ))}
           </select>
         </label>
-      )}
-      {scope.kind === 'range' && (
-        <div className="row">
-          <label className="field">
-            From step
-            <input type="number" min={1} max={scope.to + 1} value={scope.from + 1} onChange={(e) => onChange({ ...scope, from: Math.max(0, Math.min(scope.to, Number(e.target.value) - 1)) })} />
-          </label>
-          <label className="field">
-            to
-            <input type="number" min={scope.from + 1} max={16} value={scope.to + 1} onChange={(e) => onChange({ ...scope, to: Math.max(scope.from, Math.min(15, Number(e.target.value) - 1)) })} />
-          </label>
-        </div>
       )}
     </section>
   );
