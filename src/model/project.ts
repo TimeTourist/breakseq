@@ -82,12 +82,12 @@ export function upgradeProject(project: Project): Project {
     ]),
   );
   const legacyLoops = project.loops as Readonly<Record<Id, Loop & { window?: LegacyWindow }>>;
-  // Fill windows became clips: drop them from the loops.
+  // Fill windows became clips, and a loop's length is its steps: drop both fields.
   const loops = Object.fromEntries(
     Object.entries(legacyLoops).map(([id, loop]): [Id, Loop] => {
-      if (loop.window === undefined) return [id, loop];
-      const copy: Loop & { window?: LegacyWindow } = { ...loop };
+      const copy: Loop & { window?: LegacyWindow; bars?: number } = { ...loop };
       delete copy.window;
+      delete copy.bars;
       return [id, copy];
     }),
   );

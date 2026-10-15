@@ -251,7 +251,7 @@ export const sliceAtMarkers =
       if (steps[step]?.padId === null) steps[step] = { padId: added.padId, memberId: null, ignoreMods: false, nudge: 0 };
     });
 
-    const loop: Loop = { id: loopId, name: nextLoopName(next, 'main'), kind: 'main', bars, steps };
+    const loop: Loop = { id: loopId, name: nextLoopName(next, 'main'), kind: 'main', steps };
     return ok({ ...next, loops: { ...next.loops, [loop.id]: loop } });
   };
 

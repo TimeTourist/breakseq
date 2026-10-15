@@ -4,7 +4,7 @@ import type { Clip, Id, Project, SongRow } from '../model';
 import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, removeClip, resizeClip, setSongBars } from '../model';
 import { useOpen, useProject, useRun, useSeal } from './context';
 import { copies } from './dnd';
-import { hitColor } from './labels';
+import { hitColor, lengthText } from './labels';
 import { TARGET_LABELS } from './modText';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
@@ -25,14 +25,6 @@ const ROWS: readonly { row: SongRow; key: string; name: string }[] = [
 /** A step as bar.beat.sixteenth, 1-based. */
 export const position = (step: number) =>
   `${Math.floor(step / STEPS_PER_BAR) + 1}.${Math.floor((step % STEPS_PER_BAR) / 4) + 1}.${(step % 4) + 1}`;
-
-/** A length in steps, as bars and sixteenths: "1 bar", "6/16", "2 bars 4/16". */
-export function lengthText(steps: number): string {
-  const bars = Math.floor(steps / STEPS_PER_BAR);
-  const rest = steps % STEPS_PER_BAR;
-  const barText = bars === 0 ? '' : `${bars} bar${bars === 1 ? '' : 's'}`;
-  return [barText, rest === 0 ? '' : `${rest}/16`].filter((s) => s !== '').join(' ');
-}
 
 const clipName = (project: Project, clip: Clip) =>
   (isLoopRow(clip.row) ? project.loops[clip.ref]?.name : project.mods[clip.ref]?.name) ?? '?';

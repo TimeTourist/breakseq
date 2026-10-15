@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createProject, setBpm, setSongBars, setSongCell, setStep, songDuration, stepDuration } from '../model';
+import { addClip, addSample, createLoop, createProject, setBpm, setLoopLength, setSongBars, setSongCell, setStep, songDuration, stepDuration } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTriggers, loopSong } from './generate';
 
@@ -30,5 +30,26 @@ describe('loopSong', () => {
       [0, 0],
       [1, 4],
     ]);
+  });
+
+  it('a loop of 6/16 is previewed as exactly 6/16, so it loops without a gap', () => {
+    let project = run(createProject(), setBpm(120), addSample({ name: 'k', audio: constantAudio(0.1) }), createLoop(null, 'main', 1));
+    const pad = Object.values(project.pads)[0]!;
+    const loop = Object.values(project.loops)[0]!;
+    project = run(project, setLoopLength(loop.id, 6), setStep(loop.id, 0, { padId: pad.id }), setStep(loop.id, 5, { padId: pad.id }));
+
+    const alone = loopSong(project, loop.id);
+
+    expect(songDuration(alone.song)).toBeCloseTo(6 * stepDuration(120));
+    expect(generateTriggers(alone, () => 0).map((t) => t.step)).toEqual([0, 5]);
+  });
+
+  it('a loop of 6/16 in a clip of one bar starts over after six steps', () => {
+    let project = run(createProject(), addSample({ name: 'k', audio: constantAudio(0.1) }), createLoop(null, 'main', 1));
+    const pad = Object.values(project.pads)[0]!;
+    const loop = Object.values(project.loops)[0]!;
+    project = run(project, setLoopLength(loop.id, 6), setStep(loop.id, 0, { padId: pad.id }), setSongBars(1), addClip('main', loop.id, 0, 16));
+
+    expect(generateTriggers(project, () => 0).map((t) => t.step)).toEqual([0, 6, 12]);
   });
 });

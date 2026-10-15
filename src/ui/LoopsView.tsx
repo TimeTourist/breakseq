@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, placeBreak, remove, renameLoop, sequence, setLoopBars, setLoopKind, setStep } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { hitColor, loopUsage, padColor, padGroups, padLabel } from './labels';
+import { hitColor, lengthText, loopUsage, padColor, padGroups, padLabel } from './labels';
+import { LoopLength } from './LoopLength';
 import type { Selection } from './store';
 
 export const PAD_MIME = 'application/x-breakseq-pad';
@@ -35,8 +36,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const drops = useDropTargets();
   const loopId = currentLoopId(project, selection);
   const loop = loopId === null ? undefined : project.loops[loopId];
-  const [barsDraft, setBarsDraft] = useState(String(loop?.bars ?? 1));
-  useEffect(() => setBarsDraft(String(loop?.bars ?? 1)), [loop?.bars, loopId]);
 
   const newLoop = (kind: LoopKind) => {
     const before = store.getState().history.present.loops;
@@ -62,7 +61,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             <span className={`mono loop-name ${l.kind}`}>{l.name}</span>
             <span className="grow" />
             <span className="muted small">{l.kind}</span>
-            <span className="mono muted small">{l.bars} bar{l.bars === 1 ? '' : 's'}</span>
+            <span className="mono muted small">{lengthText(l.steps.length)}</span>
           </button>
         ))}
         <button type="button" className="dashed" onClick={() => newLoop('main')}>
@@ -136,23 +135,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
               </button>
             ))}
           </div>
-          <label className="field">
-            Bars
-            <input
-              type="number"
-              min={1}
-              max={16}
-              value={barsDraft}
-              onChange={(e) => setBarsDraft(e.target.value)}
-              onBlur={() => {
-                const bars = Math.round(Number(barsDraft));
-                if (!(bars >= 1 && bars <= 16) || run(setLoopBars(loop.id, bars)) !== null) setBarsDraft(String(loop.bars));
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur();
-              }}
-            />
-          </label>
+          <LoopLength loop={loop} onError={setError} />
           <div className="row push">
             <button type="button" disabled={step?.padId == null} onClick={() => selectedStep !== null && place(selectedStep, null)}>
               Clear step
@@ -188,11 +171,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                 </span>
               ))}
             </div>
-            {Array.from({ length: loop.bars }, (_, bar) => (
+            {Array.from({ length: Math.ceil(loop.steps.length / STEPS_PER_BAR) }, (_, bar) => (
               <Fragment key={bar}>
               <div className="step-row">
                 <span className="mono muted small">T{bar + 1}</span>
-                {Array.from({ length: STEPS_PER_BAR }, (_, s) => {
+                {Array.from({ length: Math.min(STEPS_PER_BAR, loop.steps.length - bar * STEPS_PER_BAR) }, (_, s) => {
                   const index = bar * STEPS_PER_BAR + s;
                   const cell = loop.steps[index];
                   const pad = cell?.padId == null ? undefined : project.pads[cell.padId];

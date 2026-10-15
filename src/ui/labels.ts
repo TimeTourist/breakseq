@@ -1,5 +1,5 @@
 import type { Hit, Id, Pad, Project, Sample } from '../model';
-import { baseName, isParentPad } from '../model';
+import { STEPS_PER_BAR, baseName, isParentPad } from '../model';
 
 const TAG_COLORS: Record<string, string> = {
   K: '#F0883E',
@@ -104,3 +104,11 @@ export const padUsages = (project: Project, padId: Id) =>
 /** How many song clips play a loop. */
 export const loopUsage = (project: Project, loopId: Id): number =>
   project.song.clips.filter((c) => c.ref === loopId && (c.row === 'main' || c.row === 'fill')).length;
+
+/** A length in steps, as bars and sixteenths: "1 bar", "6/16", "2 bars 4/16". */
+export function lengthText(steps: number): string {
+  const bars = Math.floor(steps / STEPS_PER_BAR);
+  const rest = steps % STEPS_PER_BAR;
+  const barText = bars === 0 ? '' : `${bars} bar${bars === 1 ? '' : 's'}`;
+  return [barText, rest === 0 ? '' : `${rest}/16`].filter((s) => s !== '').join(' ');
+}

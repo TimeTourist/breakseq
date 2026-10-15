@@ -96,8 +96,7 @@ export interface Loop {
   readonly id: Id;
   readonly name: string;
   readonly kind: LoopKind;
-  readonly bars: number;
-  /** bars × STEPS_PER_BAR steps. */
+  /** Its length is the number of steps: any number of 1/16, not only whole bars. */
   readonly steps: readonly Step[];
 }
 
@@ -155,6 +154,7 @@ export interface Clip {
 
 export interface Song {
   readonly bpm: number;
+  /** Whole bars, except in a preview of one loop, which is exactly as long as the loop. */
   readonly bars: number;
   readonly clips: readonly Clip[];
 }

@@ -24,7 +24,7 @@ Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit
 | Sample | Ljuddata: en slice av ett break eller en importerad fil. Huvudtagg och ev. extra taggar. | Import, Slice |
 | Hit | En sample + region (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms) | Hits |
 | Pad | Ordnad lista av hits. Medlem 1 är default. En ensam hit är en pad med en medlem. | Pads |
-| Loop | Tagg Main/Fill (bara för gruppering och namn; vilken loop som helst kan ligga i Main- eller Fill-raden), längd i hela takter, 16 steg per takt. Varje steg: pad eller tomt, vald medlem, step locks. | Loops |
+| Loop | Tagg Main/Fill (bara för gruppering och namn; vilken loop som helst kan ligga i Main- eller Fill-raden), längd i steg om 1/16 (från 1/16 till 16 takter), som väljs i takter, slag och 1/16. Varje steg: pad eller tomt, vald medlem, step locks. | Loops |
 | Mod | Mål, omfång, rate, form och formens parametrar | Mods |
 | Song | Längd i takter och klipp i raderna Main, Fill, Mod A och Mod B. Ett klipp har start, längd och offset i steg om 1/16. | Song |
 

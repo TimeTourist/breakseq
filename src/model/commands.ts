@@ -1,7 +1,7 @@
 import type { Command } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
 import { addClip, fitClips } from './clips';
-import { DEFAULT_TAG_NAMES, breakSequence, emptySteps, isParentHit, nextLoopName } from './project';
+import { DEFAULT_TAG_NAMES, breakSequence, emptyStep, emptySteps, isParentHit, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
@@ -190,22 +190,23 @@ export const createLoop =
       id: ctx.newId(),
       name: name ?? nextLoopName(project, kind),
       kind,
-      bars,
       steps: emptySteps(bars),
     };
     return ok({ ...project, loops: { ...project.loops, [loop.id]: loop } });
   };
 
-/** Changes a loop's length. New bars are empty; steps past the new end are dropped. */
-export const setLoopBars =
-  (id: Id, bars: number): Command =>
+/** The longest loop: 16 bars. */
+export const MAX_LOOP_STEPS = 16 * STEPS_PER_BAR;
+
+/** Changes a loop's length in steps of 1/16. New steps are empty; steps past the new end are dropped. */
+export const setLoopLength =
+  (id: Id, length: number): Command =>
   (project) => {
     const loop = project.loops[id];
     if (loop === undefined) return notFound(id);
-    if (!Number.isInteger(bars) || bars < 1) return invalid('A loop is a whole number of bars');
-    const length = bars * STEPS_PER_BAR;
-    const steps = [...loop.steps.slice(0, length), ...emptySteps(bars)].slice(0, length);
-    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, bars, steps } } });
+    if (!Number.isInteger(length) || length < 1 || length > MAX_LOOP_STEPS) return invalid('A loop is 1/16 to 16 bars long');
+    const steps = Array.from({ length }, (_, i) => loop.steps[i] ?? emptyStep);
+    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, steps } } });
   };
 
 /** Tags a loop as a main or a fill. It only groups and names loops; the Song row decides how it plays. */
