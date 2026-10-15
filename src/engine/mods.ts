@@ -33,7 +33,6 @@ const handlers: readonly (readonly [ModTarget, TargetHandler])[] = [
     'ratchet',
     {
       discrete: true,
-      // TODO(spec): the spec only says numeric values (pitch, volume) add and mode values (direction, member) let B win. Ratchet is treated as a mode value.
       combine: 'b-wins',
       apply: (state, value) => ({ ...state, ratchet: Math.max(1, Math.min(8, Math.round(value))) }),
     },
@@ -111,7 +110,6 @@ function inScope(mod: Mod, state: StepState, step: number, project: Project): bo
     case 'all':
       return true;
     case 'tag':
-      // TODO(spec): the spec does not say whether the tag is read before or after other mods change the hit. It is read from the step's own hit.
       return project.samples[state.hit.sampleId]?.mainTag === scope.tagId;
     case 'pad':
       return state.padId === scope.padId;
@@ -120,7 +118,11 @@ function inScope(mod: Mod, state: StepState, step: number, project: Project): bo
   }
 }
 
-/** Applies the mods from rows A and B to one step, target by target in the fixed order. */
+/**
+ * Applies the mods from rows A and B to one step, target by target in the
+ * fixed order. Scope is tested against the step as earlier targets left it,
+ * so a tag scope sees a hit that a padMember mod swapped in.
+ */
 export function applyMods(
   state: StepState,
   runs: { readonly A: ModRun | null; readonly B: ModRun | null },
@@ -132,7 +134,7 @@ export function applyMods(
   let current = state;
   for (const [target, handler] of handlers) {
     const fromRow = (run: ModRun | null) =>
-      run !== null && run.mod.target === target && inScope(run.mod, state, step, project)
+      run !== null && run.mod.target === target && inScope(run.mod, current, step, project)
         ? values(run, bar, step, handler.discrete)
         : null;
     const a = fromRow(runs.A);

@@ -62,7 +62,7 @@ Motorn består av två delar: en händelsegenerator som räknar fram triggers, o
 
 **Renderaren** spelar triggers i en `OfflineAudioContext` och ger en ljudbuffer. All uppspelning sker på en röst: en ny trigger klipper den föregående med en kort fade (ca 2–5 ms) så att det inte klickar. Baklänges-versioner av samples förberäknas en gång.
 
-Samples behåller stereo. Tempo ställs per låt i BPM. Pitch ändrar uppspelningshastigheten och därmed längden, vilket är avsiktligt.
+Samples behåller stereo. Tempo ställs per låt i BPM. En ny låt börjar på 170 BPM och 8 takter. Pitch ändrar uppspelningshastigheten och därmed längden, vilket är avsiktligt.
 
 ## Mods
 
@@ -75,7 +75,7 @@ En mod är ett mål, ett omfång, en rate och en form. Slump är bara en av form
 | Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
 | Form | List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %) |
 
-**Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym), och för lägesvärden (riktning, medlem) vinner B. Mods läggs ovanpå hitten och stegets locks.
+**Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym), och för lägesvärden (riktning, medlem, ratchet) vinner B. Mods läggs ovanpå hitten och stegets locks.
 
 **Ordning.** Mods tillämpas i fast ordning efter mål, oavsett rad:
 
@@ -84,6 +84,8 @@ En mod är ett mål, ett omfång, en rate och en form. Slump är bara en av form
 3. Ratchet
 4. Pitch, volym och riktning – gäller varje retrigger i en ratchet
 5. Tempo (slip)
+
+**Omfång.** Omfånget prövas när moden tillämpas, mot den hit som spelas efter tidigare mål i ordningen. Ett taggomfång för S träffar alltså en snare som en Pad member-mod har bytt in.
 
 **Borrow** byter steget mot samma steg i angiven loop, med dess pad, medlem och locks.
 
@@ -122,6 +124,7 @@ Allt som spelar mer än ett ljud renderas först; uppspelningen spelar den färd
 
 - **Borttagning:** något som används (sample, hit, pad, loop, mod) kan inte tas bort. Vyn visar i stället var det används, med länkar dit.
 - **Pad-medlem tas bort:** steg som valt den medlemmen faller tillbaka på padens medlem 1.
+- **Tom pad:** en pads sista medlem får tas bort. En tom pad finns kvar och spelar inget.
 - **Undo:** alla ändringar går att ångra, i en gemensam historik för hela appen. State är oföränderligt (immutable) från start, så undo blir en historik av tillstånd.
 - **Lagring:** projektet autosparas i webbläsaren (IndexedDB). Det går också att exportera och importera ett projekt som en fil: en zip med projektets JSON och alla ljudfiler.
 - **Taggar:** huvudtaggen används av mods; extra taggar (t.ex. ”Also: Ride”) är bara information. Max 8 taggar totalt, inklusive de fem förvalda (K, S, H, R, G).

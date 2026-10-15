@@ -5,7 +5,7 @@ import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
 
-// TODO(spec): the spec does not give a default tempo or song length.
+// A new song starts at 170 BPM and 8 bars.
 export const DEFAULT_BPM = 170;
 export const DEFAULT_SONG_BARS = 8;
 

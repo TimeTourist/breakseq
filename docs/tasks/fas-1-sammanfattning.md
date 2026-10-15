@@ -27,12 +27,14 @@ Alla tester från uppdraget finns. Typecheck och lint är gröna.
 
 Renderartesterna använder `node-web-audio-api` (en Rust-implementation av Web Audio för Node). Den är snabb (ingen webbläsare), kör i samma Vitest-miljö som övriga tester och har en äkta `OfflineAudioContext`. Vitest browser mode hade gett webbläsarens exakta beteende, men kräver Playwright och en webbläsare i CI. Det kan bli aktuellt i fas 2 för UI-tester.
 
-## TODO(spec)
+## Beslut efter fas 1
 
-1. Standardtempo och låtlängd anges inte i specen. Satt till 170 BPM och 8 takter (`src/model/project.ts`).
-2. Specen säger inte hur Ratchet från A och B kombineras. Ratchet behandlas som ett lägesvärde, så B vinner (`src/engine/mods.ts`).
-3. Specen säger inte om ett taggomfång läses före eller efter att andra mods ändrat hitten. Det läses från stegets egen hit (`src/engine/mods.ts`).
-4. Specen säger inte om en pad får bli tom. Det är tillåtet, och en tom pad spelar inget (`src/model/commands.ts`).
+De fyra öppna frågorna är besvarade (2026-10-15) och införda i specen och koden. Det finns inga `TODO(spec)` kvar.
+
+1. En ny låt börjar på 170 BPM och 8 takter.
+2. Ratchet räknas som ett lägesvärde, så B vinner när både A och B har en ratchet-mod.
+3. Omfånget prövas mot den hit som spelas efter tidigare mål i ordningen. Det märks först i fas 4, när Pad member-moden finns.
+4. En pad får bli tom, och en tom pad spelar inget.
 
 ## Tolkningar att granska
 
