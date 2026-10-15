@@ -4,6 +4,7 @@ import type { Command, CommandContext, Project } from './index';
 import {
   addPadMember,
   addSample,
+  addVariant,
   confirmTags,
   duplicateHit,
   gridMarkers,
@@ -562,5 +563,23 @@ describe('loop kind is a tag', () => {
 
     project = run(project, ctx, setLoopKind(main!.id, 'fill'));
     expect(project.loops[main!.id]).toMatchObject({ kind: 'fill', name: 'M1' });
+  });
+});
+
+describe('addVariant', () => {
+  it("adds the variant last to the original's own pad; a variant of a variant goes there too", () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
+    const id = only(project.samples).id;
+    project = run(project, ctx, sliceBreak(id, 1, 4));
+    const slicePad = Object.values(project.pads).find((p) => p.auto && project.samples[project.hits[p.members[0]!]!.sampleId]!.sliceOf === id)!;
+    const original = slicePad.members[0]!;
+
+    project = run(project, ctx, addVariant(original));
+    const variant = Object.values(project.hits).find((h) => h.variantOf === original)!;
+    project = run(project, ctx, addVariant(variant.id));
+    const second = Object.values(project.hits).find((h) => h.variantOf === variant.id)!;
+
+    expect(project.pads[slicePad.id]!.members).toEqual([original, variant.id, second.id]);
   });
 });

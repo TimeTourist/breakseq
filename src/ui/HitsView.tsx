@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Hit } from '../model';
-import { baseName, duplicateHit, parentHit, remove, updateHit } from '../model';
+import { addVariant, baseName, parentHit, remove, updateHit } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, hitGroups, hitUsages } from './labels';
 import { Slider } from './Slider';
@@ -97,7 +97,7 @@ export function HitsView() {
               type="button"
               onClick={() => {
                 const before = store.getState().history.present.hits;
-                if (run(duplicateHit(hit.id, `${hit.name} var`)) === null) {
+                if (run(addVariant(hit.id, `${hit.name} var`)) === null) {
                   const copy = Object.keys(store.getState().history.present.hits).find((id) => !(id in before));
                   if (copy !== undefined) open({ hit: copy }, 'hits');
                 }
