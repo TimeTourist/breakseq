@@ -1,0 +1,55 @@
+// Web Audio in Node: node-web-audio-api puts OfflineAudioContext and friends on globalThis.
+import 'node-web-audio-api/polyfill.js';
+import { describe, expect, it } from 'vitest';
+import type { Command, Project } from '../model';
+import { addSample, createProject, setBpm, setBreak, setSongBars, setSongCell, sliceBreak } from '../model';
+import { seededRng, sequentialIds } from '../test/fixtures';
+import { generateTriggers } from './generate';
+import { renderTriggers } from './render';
+
+const SAMPLE_RATE = 44100;
+
+function run(project: Project, ...commands: Command[]): Project {
+  const ctx = sequentialIds();
+  return commands.reduce((p, command) => {
+    const result = command(p, ctx);
+    if (!result.ok) throw new Error(JSON.stringify(result.error));
+    return result.project;
+  }, project);
+}
+
+/** Stereo noise, the hardest material to reproduce: every sample differs. */
+function noiseBreak(seconds: number): Float32Array[] {
+  const rng = seededRng(7);
+  const length = Math.round(seconds * SAMPLE_RATE);
+  return [0, 1].map(() => Float32Array.from({ length }, () => rng() * 2 - 1));
+}
+
+describe('a sliced break played at its own tempo', () => {
+  it.each([16, 8, 4] as const)('sounds like the original break (1/%i grid)', async (grid) => {
+    const bars = 4;
+    const bpm = 136;
+    const channels = noiseBreak((bars * 4 * 60) / bpm);
+
+    let project = run(createProject(), addSample({ name: 'break', audio: { sampleRate: SAMPLE_RATE, channels } }));
+    const id = Object.keys(project.samples)[0]!;
+    project = run(project, setBreak(id, bars), sliceBreak(id, bars, grid));
+    const m1 = Object.values(project.loops)[0]!.id;
+    // Its own tempo is worked out from its length, which is a whole number of samples.
+    const ownBpm = project.samples[id]!.break!.bpm;
+    expect(ownBpm).toBeCloseTo(bpm, 3);
+    project = run(project, setBpm(ownBpm), setSongBars(bars), setSongCell('main', 0, m1));
+
+    const triggers = generateTriggers(project, seededRng(1));
+    const rendered = await renderTriggers(triggers, project, SAMPLE_RATE);
+
+    // Starts land on sample frames and neighbouring slices share their boundaries,
+    // so every sample comes back as it was.
+    for (const [c, original] of channels.entries()) {
+      const out = rendered.getChannelData(c);
+      let maxError = 0;
+      for (let i = 0; i < original.length; i++) maxError = Math.max(maxError, Math.abs((out[i] ?? 0) - original[i]!));
+      expect(maxError, `channel ${c}`).toBeLessThan(1e-6);
+    }
+  });
+});
