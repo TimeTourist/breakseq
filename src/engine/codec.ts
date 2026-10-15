@@ -207,3 +207,25 @@ export function encodeFloatWav(audio: AudioData): Uint8Array {
   }
   return out;
 }
+
+/**
+ * Cue markers in a WAV file, in seconds from its start, sorted. An empty list for
+ * files without a `cue ` chunk, and for AIFF.
+ */
+export function readCues(bytes: ArrayBuffer | Uint8Array): number[] {
+  const view =
+    bytes instanceof Uint8Array ? new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength) : new DataView(bytes);
+  if (view.byteLength < 12 || ascii(view, 0, 4) !== 'RIFF' || ascii(view, 8, 4) !== 'WAVE') return [];
+  const all = chunks(view, true);
+  const fmt = all.find((c) => c.id === 'fmt ');
+  const cue = all.find((c) => c.id === 'cue ');
+  if (fmt === undefined || cue === undefined || cue.size < 4) return [];
+  const sampleRate = view.getUint32(fmt.start + 4, true);
+  const count = view.getUint32(cue.start, true);
+  const cues = new Set<number>();
+  for (let i = 0; i < count && cue.start + 4 + (i + 1) * 24 <= cue.start + cue.size; i++) {
+    // Each cue point: id, position, chunk id, chunk start, block start, sample offset.
+    cues.add(view.getUint32(cue.start + 4 + i * 24 + 20, true) / sampleRate);
+  }
+  return [...cues].sort((a, b) => a - b);
+}

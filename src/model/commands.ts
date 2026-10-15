@@ -1,6 +1,6 @@
 import type { Command } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
-import { emptySteps, fullWindow, nextLoopName } from './project';
+import { DEFAULT_TAG_NAMES, emptySteps, fullWindow, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
@@ -28,7 +28,50 @@ export const updateSample =
     const tagIds = [patch.mainTag, ...(patch.extraTags ?? [])].filter((t): t is Id => typeof t === 'string');
     const missing = tagIds.find((t) => project.tags[t] === undefined);
     if (missing !== undefined) return notFound(missing);
-    return ok({ ...project, samples: { ...project.samples, [id]: { ...sample, ...patch } } });
+    // A tag set by hand is never a guess.
+    const guessed = patch.mainTag === undefined ? sample.tagGuessed : false;
+    return ok({ ...project, samples: { ...project.samples, [id]: { ...sample, ...patch, tagGuessed: guessed } } });
+  };
+
+/**
+ * Guesses the main tag of the untagged samples among `ids`. `guess` names a tag
+ * (K, S, …) or returns null; guesses are marked until confirmed.
+ */
+export const guessTags =
+  (ids: readonly Id[], guess: (sample: Sample) => string | null): Command =>
+  (project) => {
+    const byName = new Map(Object.values(project.tags).map((t) => [t.name, t.id]));
+    const samples = { ...project.samples };
+    for (const id of ids) {
+      const sample = samples[id];
+      if (sample === undefined || sample.mainTag !== null) continue;
+      const name = guess(sample);
+      const tagId = name === null ? undefined : byName.get(name);
+      if (tagId !== undefined) samples[id] = { ...sample, mainTag: tagId, tagGuessed: true };
+    }
+    return ok({ ...project, samples });
+  };
+
+/** Confirms guessed tags: they become ordinary tags. */
+export const confirmTags =
+  (ids: readonly Id[]): Command =>
+  (project) => {
+    const samples = { ...project.samples };
+    for (const id of ids) {
+      const sample = samples[id];
+      if (sample?.tagGuessed === true) samples[id] = { ...sample, tagGuessed: false };
+    }
+    return ok({ ...project, samples });
+  };
+
+/** Removes a tag of your own. The five defaults stay, and a tag in use cannot go. */
+export const removeTag =
+  (id: Id): Command =>
+  (project, ctx) => {
+    const tag = project.tags[id];
+    if (tag === undefined) return notFound(id);
+    if ((DEFAULT_TAG_NAMES as readonly string[]).includes(tag.name)) return invalid(`${tag.name} is one of the default tags`);
+    return remove('tag', id)(project, ctx);
   };
 
 // Hits

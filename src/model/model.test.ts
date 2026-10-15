@@ -4,8 +4,11 @@ import type { Command, CommandContext, Project } from './index';
 import {
   addPadMember,
   addSample,
+  confirmTags,
   duplicateHit,
   gridMarkers,
+  guessTags,
+  removeTag,
   seal,
   setMarkers,
   sliceAtMarkers,
@@ -27,6 +30,7 @@ import {
   removePadMember,
   setBreak,
   setFillWindow,
+  updateSample,
   setSongCell,
   updateHit,
   setStep,
@@ -484,5 +488,63 @@ describe('fill window (model)', () => {
     project = run(project, ctx, setFillWindow(part!.id, 12, 28), setLoopBars(whole!.id, 1), setLoopBars(part!.id, 1));
     expect(project.loops[whole!.id]!.window).toEqual({ start: 0, end: 16 });
     expect(project.loops[part!.id]!.window).toEqual({ start: 12, end: 16 });
+  });
+});
+
+describe('fas 5: tags and kept markers', () => {
+  const tagId = (project: Project, name: string) => Object.values(project.tags).find((t) => t.name === name)!.id;
+
+  it('guessTags marks guesses on untagged samples only; confirmTags and a tag set by hand clear the mark', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, addSample({ name: 'a', audio: constantAudio(0.1) }), addSample({ name: 'b', audio: constantAudio(0.1) }));
+    const [a, b] = Object.keys(project.samples) as [string, string];
+    project = run(project, ctx, updateSample(b, { mainTag: tagId(project, 'K') }));
+
+    project = run(project, ctx, guessTags([a, b], () => 'S'));
+    expect(project.samples[a]).toMatchObject({ mainTag: tagId(project, 'S'), tagGuessed: true });
+    expect(project.samples[b]).toMatchObject({ mainTag: tagId(project, 'K'), tagGuessed: false });
+
+    expect(run(project, ctx, confirmTags([a])).samples[a]!.tagGuessed).toBe(false);
+    expect(run(project, ctx, updateSample(a, { mainTag: tagId(project, 'H') })).samples[a]!.tagGuessed).toBe(false);
+  });
+
+  it('setBreak and trimSample keep markers placed by hand, but move grid markers to the new grid', () => {
+    const ctx = sequentialIds();
+    const { project: start, id } = (() => {
+      const p = run(createProject(ctx), ctx, addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+      return { project: p, id: only(p.samples).id };
+    })();
+    let project = run(start, ctx, setBreak(id, 1), setMarkers(id, [0.3, 1.1]));
+
+    expect(run(project, ctx, setBreak(id, 2)).samples[id]!.break!.markers).toEqual([0, 0.3, 1.1]);
+
+    project = run(project, ctx, trimSample(id, 0.2, 1.2));
+    // 0.3 and 1.1 s in the file are 0.1 and 0.9 s into the trimmed sample.
+    const markers = project.samples[id]!.break!.markers;
+    expect(markers).toHaveLength(3);
+    expect(markers[1]).toBeCloseTo(0.1);
+    expect(markers[2]).toBeCloseTo(0.9);
+
+    const grid = run(start, ctx, setBreak(id, 1), setBreak(id, 2));
+    expect(grid.samples[id]!.break!.markers).toEqual(gridMarkers(2, 2));
+  });
+
+  it('a file with cues imports as a 4-bar break with markers at the cues', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, addSample({ name: 'cued.wav', audio: constantAudio(2), cues: [0, 0.5, 1.25] }));
+    expect(only(project.samples).break).toMatchObject({ bars: 4, markers: [0, 0.5, 1.25], sliced: false });
+  });
+
+  it('removeTag refuses the defaults and tags in use, and removes your own', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, addTag('P'), addSample({ name: 'a', audio: constantAudio(0.1) }));
+    const p = tagId(project, 'P');
+    expect(removeTag(tagId(project, 'K'))(project, ctx)).toMatchObject({ ok: false, error: { kind: 'invalid' } });
+
+    const tagged = run(project, ctx, updateSample(only(project.samples).id, { mainTag: p }));
+    expect(removeTag(p)(tagged, ctx)).toMatchObject({ ok: false, error: { kind: 'in-use' } });
+
+    project = run(project, ctx, removeTag(p));
+    expect(Object.values(project.tags).map((t) => t.name)).toEqual(['K', 'S', 'H', 'R', 'G']);
   });
 });
