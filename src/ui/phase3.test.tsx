@@ -178,13 +178,14 @@ function applyAll(project: Project, ...commands: Command[]): Project {
 }
 
 describe('Fill window', () => {
-  it('Last 1/2 makes the main show through the first half, in Loops and in Song', async () => {
+  it('a window over the last half makes the main show through the first half, in Loops and in Song', async () => {
     const project = build(createLoop(null, 'main', 4), createLoop(null, 'fill', 1));
     const [main, fill] = Object.values(project.loops);
     const store = await setup(applyAll(project, setSongCell('main', 0, main!.id), setSongCell('fill', 2, fill!.id)), 'loops');
     fireEvent.click(button(/F1/));
 
-    fireEvent.click(button('Last 1/2'));
+    fireEvent.keyDown(button(/^Fill starts at/), { key: 'ArrowRight', shiftKey: true });
+    fireEvent.keyDown(button(/^Fill starts at/), { key: 'ArrowRight', shiftKey: true });
 
     expect(present(store).loops[fill!.id]!.window).toEqual({ start: 8, end: 16 });
     expect(button(/^Bar 1, step 8:/).getAttribute('aria-label')).toMatch(/main shows through$/);
