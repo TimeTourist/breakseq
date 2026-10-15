@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Trigger } from '../engine';
-import { loopSong } from '../engine';
+import { loopSong, modPreviewSong } from '../engine';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
 import { HitsView } from './HitsView';
 import { ImportView } from './ImportView';
 import { LoopsView, currentLoopId } from './LoopsView';
+import { ModsView, currentModId, previewLoopId } from './ModsView';
 import { PadsView } from './PadsView';
 import type { Take } from './playback';
 import type { Services } from './services';
@@ -18,7 +19,6 @@ import { VIEWS } from './store';
 export const RENDER_DEBOUNCE_MS = 300;
 export const SAVE_DEBOUNCE_MS = 1000;
 
-const PHASE: Partial<Record<View, number>> = { mods: 4 };
 
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -32,8 +32,16 @@ function useTake() {
   const { services } = useApp();
   const full = useProject();
   const view = useSelect((s) => s.view);
-  const loopId = useSelect((s) => (s.view === 'loops' ? currentLoopId(s.history.present, s.selection) : null));
-  const project = useMemo(() => (view === 'loops' && loopId !== null ? loopSong(full, loopId) : full), [full, view, loopId]);
+  const loopId = useSelect((s) =>
+    s.view === 'loops' ? currentLoopId(s.history.present, s.selection) : s.view === 'mods' ? previewLoopId(s.history.present, s.selection) : null,
+  );
+  const modId = useSelect((s) => (s.view === 'mods' ? currentModId(s.history.present, s.selection) : null));
+  const project = useMemo(() => {
+    if (view === 'loops' && loopId !== null) return loopSong(full, loopId);
+    if (view === 'mods' && loopId !== null && modId !== null) return modPreviewSong(full, modId, loopId);
+    if (view === 'mods' && loopId !== null) return loopSong(full, loopId);
+    return full;
+  }, [full, view, loopId, modId]);
   const [take, setTake] = useState<Take | null>(null);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,15 +177,8 @@ function Shell() {
       {view === 'hits' && <HitsView />}
       {view === 'pads' && <PadsView />}
       {view === 'loops' && <LoopsView playhead={playhead} />}
+      {view === 'mods' && <ModsView />}
       {view === 'song' && <SongView playheadBar={playhead?.bar ?? null} rendering={rendering} onNewTake={newTake} />}
-      {PHASE[view] !== undefined && (
-        <main className="view">
-          <div className="view-head">
-            <h1>{view[0]!.toUpperCase() + view.slice(1)}</h1>
-            <p className="muted">This view comes in phase {PHASE[view]}.</p>
-          </div>
-        </main>
-      )}
     </div>
   );
 }
