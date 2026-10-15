@@ -107,8 +107,13 @@ export function upgradeProject(project: Project): Project {
 /** Songs saved before clips: one cell per bar and row. */
 /** A tape saved before ramp time, curve, wow and flutter gets their defaults. */
 function upgradeEffect(effect: ModEffect): ModEffect {
-  // Step ranges went: a clip in Song now covers exactly the steps a mod acts on.
-  if (effect.target !== 'tape') return (effect.scope.kind as string) === 'range' ? { ...effect, scope: { kind: 'all' } } : effect;
+  if (effect.target !== 'tape') {
+    // Step ranges went: a clip in Song now covers exactly the steps a mod acts on.
+    const scope = (effect.scope.kind as string) === 'range' ? { kind: 'all' as const } : effect.scope;
+    // Random got a choice of whole numbers; pitch rolls semitones unless set otherwise.
+    const shape = effect.shape.kind === 'random' && effect.shape.whole === undefined ? { ...effect.shape, whole: effect.target === 'pitch' } : effect.shape;
+    return { ...effect, scope, shape };
+  }
   const saved = effect as Partial<TapeEffect> & Pick<TapeEffect, 'target' | 'length' | 'direction' | 'speed'>;
   return { rampOver: null, curve: 'linear', wow: 0, flutter: 0, ...saved };
 }

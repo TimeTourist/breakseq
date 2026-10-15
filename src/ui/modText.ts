@@ -145,7 +145,7 @@ export function randomMod(project: Project, rng: () => number = Math.random, tak
       : target === 'volume' ? [-12, 0]
       : target === 'tempo' ? [1 / 3, 1]
       : [-between(rng, 2, 12), between(rng, 2, 12)];
-    return { kind: 'random', min, max, chance: pick(rng, [15, 25, 33, 50, 75]) };
+    return { kind: 'random', min, max, chance: pick(rng, [15, 25, 33, 50, 75]), whole: target === 'pitch' };
   };
   const shape: ModShape =
     kind === 'random'

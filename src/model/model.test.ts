@@ -758,6 +758,14 @@ describe('mods with effects', () => {
     expect(upgraded.mods.n!.effects[0]).toMatchObject({ scope: { kind: 'all' } });
   });
 
+  it('a saved random shape gets whole numbers for pitch and stays free elsewhere', () => {
+    const ctx = sequentialIds();
+    const base = createProject(ctx);
+    const random = (target: string) => ({ target, scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'random', min: 0, max: 4, chance: 50 }, sources: [] });
+    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [random('pitch'), random('volume')] } } } as unknown as Project;
+    expect(upgradeProject(legacy).mods.m!.effects.map((e) => e.target !== 'tape' && e.shape.kind === 'random' && e.shape.whole)).toEqual([true, false]);
+  });
+
   it('wow, flutter and ramp time are checked', () => {
     const ctx = sequentialIds();
     expect(createMod('T', [{ ...tape, wow: 1.5 }])(createProject(ctx), ctx).ok).toBe(false);

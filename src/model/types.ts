@@ -119,7 +119,8 @@ export type ModShape =
   /** From the first interval of the run to its last. */
   | { readonly kind: 'ramp'; readonly from: number; readonly to: number }
   /** Chance in percent (0–100) that an interval gets a value at all. */
-  | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number };
+  /** `whole` rolls whole numbers only, e.g. pitch in semitones; targets that take whole numbers always do. */
+  | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number; readonly whole: boolean };
 
 /** An effect that changes steps as they play. */
 export interface StepEffect {

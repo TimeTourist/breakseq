@@ -94,7 +94,7 @@ describe('Mods', () => {
   });
 
   it('a random effect draws an example roll, whole values within its range, and can roll another', async () => {
-    await setup(snareLoopProject(), 'mods');
+    const store = await setup(snareLoopProject(), 'mods');
     fireEvent.click(button('+ New mod'));
     pick('Target', 'pitch');
     pick('Shape', 'random');
@@ -113,6 +113,12 @@ describe('Mods', () => {
       fireEvent.click(button('Another example'));
     }
     expect(examples.size).toBeGreaterThan(1);
+
+    // Pitch rolls semitones until set to freely.
+    const mod = () => Object.values(store.getState().history.present.mods)[0]!;
+    expect(mod().effects[0]).toMatchObject({ shape: { kind: 'random', whole: true } });
+    pick('Pitch steps', 'free');
+    expect(mod().effects[0]).toMatchObject({ shape: { kind: 'random', whole: false } });
   });
 
   it('a preset makes a ready mod and opens it', async () => {
