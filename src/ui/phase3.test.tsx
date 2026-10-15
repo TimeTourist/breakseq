@@ -156,6 +156,25 @@ describe('Loops', () => {
     fireEvent.keyDown(button(/^Bar 1, step 1:/), { key: 'Delete' });
     expect(present(store).loops[loop.id]!.steps[0]!.padId).toBeNull();
   });
+
+  it('the length is set in bars, beats and 1/16, saved on leaving the fields, and keeps the steps on the way', async () => {
+    const { project: withPad, pad } = twoHitPad(createLoop(null, 'main', 4));
+    const loop = Object.values(withPad.loops)[0]!;
+    const store = await setup(applyAll(withPad, setStep(loop.id, 5, { padId: pad.id })), 'loops');
+    const length = screen.getByRole('group', { name: 'Length' });
+    const field = (name: string) => within(length).getByLabelText(name);
+
+    fireEvent.change(field('Bars'), { target: { value: '0' } });
+    fireEvent.change(field('Beats'), { target: { value: '1' } });
+    fireEvent.change(field('1/16'), { target: { value: '2' } });
+    expect(present(store).loops[loop.id]!.steps).toHaveLength(64);
+    fireEvent.keyDown(field('1/16'), { key: 'Enter' });
+
+    const steps = present(store).loops[loop.id]!.steps;
+    expect(steps).toHaveLength(6);
+    expect(steps[5]!.padId).toBe(pad.id);
+    expect(screen.getAllByRole('button', { name: /^Bar 1, step / })).toHaveLength(6);
+  });
 });
 
 describe('Song', () => {

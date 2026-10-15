@@ -20,7 +20,7 @@ import {
   trimSample,
   unsliceBreak,
   setBpm,
-  setLoopBars,
+  setLoopLength,
   setSongBars,
   upgradeProject,
   addTag,
@@ -97,7 +97,7 @@ describe('automatic chain', () => {
     expect(newPads).toHaveLength(64);
 
     const m1 = only(sliced.loops);
-    expect(m1).toMatchObject({ name: 'M1', kind: 'main', bars: 4 });
+    expect(m1).toMatchObject({ name: 'M1', kind: 'main' });
     expect(m1.steps).toHaveLength(64);
     // Step i plays the pad of slice i, and slices follow each other through the break.
     m1.steps.forEach((step, i) => {
@@ -319,23 +319,34 @@ describe('fas 3 model', () => {
     expect(Object.values(project.pads).find((p) => p.name === 'Mine')!.auto).toBe(false);
   });
 
-  it('setLoopBars lengthens with empty bars and shortens, keeping the steps that remain', () => {
+  it('setLoopLength lengthens with empty steps and shortens, keeping the steps that remain', () => {
     const ctx = sequentialIds();
     let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createLoop(null, 'main', 2));
     const pad = only(project.pads);
     const loop = only(project.loops);
     project = run(project, ctx, setStep(loop.id, 3, { padId: pad.id }), setStep(loop.id, 20, { padId: pad.id }));
 
-    const longer = run(project, ctx, setLoopBars(loop.id, 3)).loops[loop.id]!;
+    const longer = run(project, ctx, setLoopLength(loop.id, 48)).loops[loop.id]!;
     expect(longer.steps).toHaveLength(48);
     expect(longer.steps.filter((s) => s.padId !== null)).toHaveLength(2);
     expect(longer.steps[3]!.padId).toBe(pad.id);
     expect(longer.steps[20]!.padId).toBe(pad.id);
     expect(longer.steps.slice(32).every((s) => s.padId === null)).toBe(true);
 
-    const shorter = run(project, ctx, setLoopBars(loop.id, 1)).loops[loop.id]!;
-    expect(shorter.steps).toHaveLength(16);
+    const shorter = run(project, ctx, setLoopLength(loop.id, 6)).loops[loop.id]!;
+    expect(shorter.steps).toHaveLength(6);
     expect(shorter.steps[3]!.padId).toBe(pad.id);
+
+    expect(setLoopLength(loop.id, 0)(project, ctx).ok).toBe(false);
+    expect(setLoopLength(loop.id, 16 * 16 + 1)(project, ctx).ok).toBe(false);
+  });
+
+  it('an older loop with a bars field loses it: its length is its steps', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, createLoop(null, 'main', 1));
+    const loop = only(project.loops);
+    const legacy = { ...project, loops: { [loop.id]: { ...loop, bars: 1 } } } as unknown as Project;
+    expect('bars' in upgradeProject(legacy).loops[loop.id]!).toBe(false);
   });
 
   it('createLoop without a name takes the next free M or F number', () => {

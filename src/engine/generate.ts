@@ -103,10 +103,13 @@ export function generateTriggers(project: Project, rng: Rng): Trigger[] {
   return triggers;
 }
 
-/** The project with a song that only plays one loop, once, from its start. */
+/**
+ * The project with a song that only plays one loop, once, from its start. The
+ * song is exactly as long as the loop, so a loop of 6/16 gives 6/16 bars.
+ */
 export function loopSong(project: Project, loopId: Id): Project {
   const loop = project.loops[loopId];
-  const bars = loop?.bars ?? 1;
+  const bars = loop === undefined ? 1 : loop.steps.length / STEPS_PER_BAR;
   const clips: Clip[] = loop === undefined ? [] : [{ id: 'preview-loop', row: 'main', ref: loopId, start: 0, length: loop.steps.length, offset: 0 }];
   return { ...project, song: { bpm: project.song.bpm, bars, clips } };
 }
