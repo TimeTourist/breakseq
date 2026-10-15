@@ -1,3 +1,4 @@
+import type { Folder } from '../engine/project-folder';
 import type { AudioData, CommandContext } from '../model';
 
 /** Ids id-1, id-2, … so tests are deterministic. */
@@ -27,5 +28,22 @@ export function seededRng(seed: number): () => number {
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** A project folder in memory, for snapshot tests. `files` shows what is on its "disk". */
+export function memoryFolder(name = 'Project'): Folder & { readonly files: Map<string, Uint8Array>; readonly writes: string[] } {
+  const files = new Map<string, Uint8Array>();
+  const writes: string[] = [];
+  return {
+    name,
+    files,
+    writes,
+    read: async (path) => files.get(path) ?? null,
+    write: async (path, bytes) => {
+      files.set(path, bytes);
+      writes.push(path);
+    },
+    list: async (dir) => [...files.keys()].filter((p) => p.startsWith(`${dir}/`)).map((p) => p.slice(dir.length + 1)).filter((p) => !p.includes('/')),
   };
 }

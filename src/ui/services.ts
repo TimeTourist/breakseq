@@ -1,5 +1,7 @@
 import type { Project, Rng } from '../model';
 import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, renderTake } from '../engine';
+import type { FolderService } from './folders';
+import { browserFolders } from './folders';
 import type { ProjectStorage } from './persist';
 import { indexedDbStorage } from './persist';
 import type { Player, Take } from './playback';
@@ -15,6 +17,8 @@ export interface Services {
   readonly download: (name: string, bytes: Uint8Array, type: string) => void;
   /** Fresh randomness for each take. */
   readonly rng: () => Rng;
+  /** Project folders on disk; without it, Project only explains what it would do. */
+  readonly folders?: FolderService;
 }
 
 async function renderSong(project: Project, rng: Rng): Promise<Take> {
@@ -43,6 +47,7 @@ function exportWav(take: Take): void {
 export function browserServices(): Services {
   return {
     storage: indexedDbStorage(),
+    folders: browserFolders(),
     player: createPlayer(),
     renderSong,
     exportWav,

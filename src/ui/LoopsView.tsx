@@ -254,7 +254,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           <div className="row spread">
             <h2 className="label">Pads · drag onto a step, or select one and click steps</h2>
             <button type="button" className="link-text small" onClick={() => open({}, 'hits')}>
-              Build pads in Pads →
+              Build pads in Hits →
             </button>
           </div>
           <div className="shelf">
@@ -332,7 +332,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     {stepPad.name}
                   </span>
                   <button type="button" className="link-text small" onClick={() => open({ pad: stepPad.id, hit: null }, 'hits')}>
-                    Edit in Pads →
+                    Edit in Hits →
                   </button>
                 </div>
               )}
