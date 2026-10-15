@@ -1505,3 +1505,13 @@ input[type='search'] {
   flex-direction: column;
   gap: 8px;
 }
+
+.warn-text {
+  color: var(--accent);
+  margin-left: 6px;
+}
+
+.field.inline input {
+  width: 56px;
+  min-height: 32px;
+}

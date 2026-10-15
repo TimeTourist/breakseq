@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, guessTags, setMarkers, sliceAtMarkers, unsliceBreak } from '../model';
+import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, guessTags, setBreakBars, setMarkers, sliceAtMarkers, unlikelyBpm, unsliceBreak } from '../model';
 import { classifyHit, detectTransients, peakLevel } from '../engine';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { sources } from './ImportView';
@@ -115,8 +115,24 @@ export function SliceView() {
           <h1>
             Slice <span className="mono muted title-file">{sample.name}</span>
           </h1>
-          <p className="muted">
-            {info.bars} bars · {info.bpm.toFixed(2)} BPM · {markers.length} slices
+          <p className="muted row">
+            <label className="field inline">
+              <input
+                type="number"
+                min={1}
+                max={64}
+                aria-label="Bars in the break"
+                value={info.bars}
+                onChange={(e) => {
+                  const bars = Math.round(Number(e.target.value));
+                  if (bars >= 1) setError(run(setBreakBars(sample.id, bars), `bars:${sample.id}`));
+                }}
+                onBlur={seal}
+              />
+              bars
+            </label>
+            · {info.bpm.toFixed(2)} BPM
+            {unlikelyBpm(info.bpm) && <span className="warn-text">· check the bars: that tempo looks wrong</span>} · {markers.length} slices
             {sliced ? ' · sliced' : grid === null ? ' · own markers' : ` · equal 1/${grid}`}
           </p>
         </div>
