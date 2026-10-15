@@ -45,3 +45,7 @@ Inga fel i konsolen.
 - **Import:** filer avkodas med egen kod istället för `decodeAudioData`, eftersom Chrome och Firefox inte avkodar AIFF.
 - **Tom cell:** töms med Delete eller Backspace på en fokuserad cell. Det finns ingen högerklicksmeny.
 - **Takter i Import:** varje ändring av antal takter blir ett eget ångra-steg.
+
+## Öppet efter fas 2
+
+- Uppspelningen låter "ok, inte bra" enligt Magnus (2026-10-15), med det syntetiska testbreaket. Renderaren är verifierad bitexakt i breakets eget tempo efter rättningen (round-trip-testet). Vi tar upp det igen med ett riktigt break när hits och pads går att justera i fas 3.
