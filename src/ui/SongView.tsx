@@ -1,6 +1,6 @@
 import type { DragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useRef, useState } from 'react';
-import type { Clip, Id, Project, SongRow } from '../model';
+import type { Clip, Id, Mod, Project, SongRow } from '../model';
 import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, removeClip, resizeClip, setSongBars } from '../model';
 import { useOpen, useProject, useRun, useSeal } from './context';
 import { copies } from './dnd';
@@ -15,16 +15,21 @@ export const CLIP_MIME = 'application/x-breakseq-clip';
 /** Width of one 1/16 step on the timeline. */
 export const STEP_PX = 10;
 
-const ROWS: readonly { row: SongRow; key: string; name: string }[] = [
-  { row: 'main', key: 'M', name: 'Main' },
-  { row: 'fill', key: 'F', name: 'Fill' },
-  { row: 'modA', key: 'A', name: 'Mod A' },
-  { row: 'modB', key: 'B', name: 'Mod B' },
+/** The lanes, each tinted in its colour instead of a label beside it. */
+const ROWS: readonly { row: SongRow; name: string }[] = [
+  { row: 'main', name: 'Main' },
+  { row: 'fill', name: 'Fill' },
+  { row: 'modA', name: 'Mod A' },
+  { row: 'modB', name: 'Mod B' },
 ];
 
 /** A step as bar.beat.sixteenth, 1-based. */
 export const position = (step: number) =>
   `${Math.floor(step / STEPS_PER_BAR) + 1}.${Math.floor((step % STEPS_PER_BAR) / 4) + 1}.${(step % 4) + 1}`;
+
+/** A mod's effects in a clip: "pitch + ratchet", "tape 2/16". */
+const effectsText = (mod: Mod) =>
+  mod.effects.map((e) => `${TARGET_LABELS[e.target].toLowerCase()}${e.target === 'tape' ? ` ${lengthText(e.length)}` : ''}`).join(' + ');
 
 const clipName = (project: Project, clip: Clip) =>
   (isLoopRow(clip.row) ? project.loops[clip.ref]?.name : project.mods[clip.ref]?.name) ?? '?';
@@ -161,7 +166,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake }:
         <span className="clip-label">
           {name}
           {clip.offset > 0 && loop !== undefined && <span className="clip-from"> from {position(clip.offset)}</span>}
-          {mod !== undefined && <span className="clip-from"> {TARGET_LABELS[mod.target].toLowerCase()}</span>}
+          {mod !== undefined && <span className="clip-from"> {effectsText(mod)}</span>}
         </span>
         <span className="clip-edge start" aria-hidden="true" {...edge(clip, 'start')} />
         <span className="clip-edge end" aria-hidden="true" {...edge(clip, 'end')} />
@@ -204,9 +209,8 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake }:
       </div>
 
       <div className="table-scroll timeline-box" onClick={() => setSelected(null)}>
-        <div className="timeline" style={{ width: width + 130 }}>
+        <div className="timeline" style={{ width }}>
           <div className="timeline-row">
-            <span className="muted mono small lane-head">Bar</span>
             <div className="timeline-ruler" style={{ width }}>
               {Array.from({ length: bars }, (_, bar) => (
                 <span key={bar} className="ruler-bar mono" style={{ left: bar * STEPS_PER_BAR * STEP_PX }}>
@@ -215,16 +219,13 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake }:
               ))}
             </div>
           </div>
-          {ROWS.map(({ row, key, name }) => (
+          {ROWS.map(({ row, name }) => (
             <div key={row} className="timeline-row">
-              <div className="lane-name lane-head">
-                <span className={`lane-key mono ${row === 'main' ? 'main' : row === 'fill' ? 'fill' : 'mod'}`}>{key}</span>
-                <span className="muted">{name}</span>
-              </div>
               <div
                 className={`timeline-lane ${row}`}
                 style={{ width }}
                 aria-label={`${name} lane`}
+                title={name}
                 onDragOver={(e) => {
                   if (!accepts(row, e)) return;
                   e.preventDefault();
@@ -244,7 +245,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake }:
               </div>
             </div>
           ))}
-          {playheadStep !== null && <span className="timeline-playhead" style={{ left: 130 + playheadStep * STEP_PX }} />}
+          {playheadStep !== null && <span className="timeline-playhead" style={{ left: playheadStep * STEP_PX }} />}
         </div>
       </div>
 

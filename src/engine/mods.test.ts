@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Command, Id, Mod, Project } from '../model';
+import type { Command, Id, StepEffect, Project } from '../model';
 import {
   addClip,
   addPadMember,
@@ -69,15 +69,44 @@ function withLoop(project: Project, steps: Record<number, Id>, bars = 1, songBar
   return [next, loop];
 }
 
-function withMod(project: Project, fields: Omit<Mod, 'id' | 'name' | 'sources'> & { sources?: Id[] }, row: 'modA' | 'modB', bars: number[] = [0]): Project {
+function withMod(project: Project, fields: Omit<StepEffect, 'sources'> & { sources?: Id[] }, row: 'modA' | 'modB', bars: number[] = [0]): Project {
   const before = project;
-  const next = run(project, createMod({ name: 'mod', ...fields }));
+  const next = run(project, createMod('mod', [{ sources: [], ...fields }]));
   const mod = newest(before.mods, next.mods);
   return run(next, ...bars.map((bar) => setSongCell(row, bar, mod)));
 }
 
 const at = (triggers: Trigger[], step: number) => triggers.filter((t) => t.bar === 0 && t.step === step);
 const all = { kind: 'all' } as const;
+
+describe('fas 7: a mod with several effects', () => {
+  it('Pitch and Ratchet in one mod: the snare rolls in four and is a fifth up, the kick only goes up', () => {
+    const { project: base, pad, tag } = kit();
+    let [project] = withLoop(base, { 0: pad.K!, 4: pad.S1! });
+    const before = project;
+    project = run(
+      project,
+      createMod('both', [
+        { target: 'pitch', scope: all, rate: 'step', shape: { kind: 'list', values: [7] }, sources: [] },
+        { target: 'ratchet', scope: { kind: 'tag', tagId: tag('S') }, rate: 'step', shape: { kind: 'list', values: [4] }, sources: [] },
+      ]),
+    );
+    project = run(project, setSongCell('modA', 0, newest(before.mods, project.mods)));
+
+    const triggers = generateTriggers(project, () => 0);
+
+    expect(at(triggers, 0).map((t) => t.pitch)).toEqual([7]);
+    expect(at(triggers, 4).map((t) => t.pitch)).toEqual([7, 7, 7, 7]);
+  });
+
+  it('effects in A and B on the same target still combine: pitch adds', () => {
+    const { project: base, pad } = kit();
+    let [project] = withLoop(base, { 0: pad.K! });
+    project = withMod(project, { target: 'pitch', scope: all, rate: 'step', shape: { kind: 'list', values: [3] } }, 'modA');
+    project = withMod(project, { target: 'pitch', scope: all, rate: 'step', shape: { kind: 'list', values: [4] } }, 'modB');
+    expect(at(generateTriggers(project, () => 0), 0).map((t) => t.pitch)).toEqual([7]);
+  });
+});
 
 describe('fas 4: mods', () => {
   it('stutter: Ratchet 4 on snares gives four even triggers per snare step, and only there', () => {

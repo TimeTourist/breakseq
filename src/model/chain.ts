@@ -1,6 +1,6 @@
 import type { Command, CommandContext, Usage } from './command';
 import { fail, invalid, notFound, ok, sequence } from './command';
-import { findUsages } from './references';
+import { findUsages, stepEffects } from './references';
 import type { SliceGrid } from './project';
 import { emptySteps, gridMarkers, nextLoopName, onGrid } from './project';
 import type { AudioData, BreakInfo, Hit, Id, Loop, Pad, Project, Sample } from './types';
@@ -298,7 +298,7 @@ export const unsliceBreak =
         .map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name })),
       ...loops.filter((l) => !own.includes(l)).map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),
       ...Object.values(project.mods)
-        .filter((m) => m.scope.kind === 'pad' && pads.has(m.scope.padId))
+        .filter((m) => stepEffects(m).some((e) => e.scope.kind === 'pad' && pads.has(e.scope.padId)))
         .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ...own
         .filter((l) => findUsages(project, 'loop', l.id).length > 0)

@@ -1533,11 +1533,6 @@ input[type='search'] {
   margin-bottom: 6px;
 }
 
-.lane-head {
-  flex: 0 0 130px;
-  padding-left: 12px;
-}
-
 .timeline-ruler {
   position: relative;
   height: 22px;
@@ -1563,6 +1558,20 @@ input[type='search'] {
     linear-gradient(to right, #262a2f 1px, transparent 1px),
     linear-gradient(to right, #1d2024 1px, transparent 1px);
   background-size: 160px 100%, 40px 100%, 10px 100%;
+}
+
+/* Each lane is tinted in its colour, which names it: no label beside it. */
+.timeline-lane.main {
+  background-color: #1f1b12;
+}
+
+.timeline-lane.fill {
+  background-color: #131b24;
+}
+
+.timeline-lane.modA,
+.timeline-lane.modB {
+  background-color: #22141b;
 }
 
 .drop-marker {

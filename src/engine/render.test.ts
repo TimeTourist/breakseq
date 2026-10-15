@@ -5,7 +5,8 @@ import type { AudioData, Command, Id, Project } from '../model';
 import { addSample, createProject, setBpm, setSongBars, songDuration, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Trigger } from './generate';
-import { CHOKE_FADE, renderTriggers } from './render';
+import { CHOKE_FADE, renderTake, renderTriggers } from './render';
+import type { Tape } from './tape';
 
 const SAMPLE_RATE = 44100;
 const ctx = sequentialIds();
@@ -117,5 +118,60 @@ describe('renderTriggers', () => {
     const data = (await renderTriggers([trigger(withFade, hits[0]!, 0)], withFade, SAMPLE_RATE)).getChannelData(0);
     expect(data[Math.round(0.35 * SAMPLE_RATE)]).toBeCloseTo(1, 3);
     expect(data[Math.round(0.45 * SAMPLE_RATE)]).toBeCloseTo(0.5, 1);
+  });
+});
+
+describe('tapes', () => {
+  const SEGMENT = 0.25;
+  const frames = Math.round(SEGMENT * SAMPLE_RATE);
+  /** Rises from 0 to 1 over the segment, so order and direction can be told apart. */
+  const rising: AudioData = { sampleRate: SAMPLE_RATE, channels: [0, 1].map(() => Float32Array.from({ length: frames }, (_, i) => i / frames)) };
+
+  function tapeTake(fields: Partial<Tape>) {
+    const { project, hits } = setup([rising]);
+    const tape: Tape = {
+      time: 0,
+      end: 2,
+      source: [trigger(project, hits[0]!, 0)],
+      length: SEGMENT,
+      direction: 'forward',
+      speed: { start: 1, end: 1 },
+      position: 0,
+      ...fields,
+    };
+    return { project, take: { triggers: [], tapes: [tape] } };
+  }
+
+  it('at 1× forward it plays the recorded segment round and round', async () => {
+    const { project, take } = tapeTake({});
+    const data = (await renderTake(take, project, SAMPLE_RATE)).getChannelData(0);
+    for (const pass of [0, 1, 5]) {
+      for (const j of [10, Math.floor(frames / 2), frames - 10]) expect(data[pass * frames + j]).toBeCloseTo(j / frames, 2);
+    }
+  });
+
+  it('in ping-pong every other pass plays backwards', async () => {
+    const { project, take } = tapeTake({ direction: 'pingpong' });
+    const data = (await renderTake(take, project, SAMPLE_RATE)).getChannelData(0);
+    for (const j of [10, Math.floor(frames / 2), frames - 10]) {
+      expect(data[j]).toBeCloseTo(j / frames, 2);
+      expect(data[frames + j]).toBeCloseTo((frames - j) / frames, 2);
+    }
+  });
+
+  it('slowing to 0× gets quieter and ends in silence, and nothing plays after the tape', async () => {
+    const { project, take } = tapeTake({ speed: { start: 1, end: 0 }, end: 1 });
+    const data = (await renderTake(take, project, SAMPLE_RATE)).getChannelData(0);
+    const peak = (from: number, to: number) => data.slice(Math.round(from * SAMPLE_RATE), Math.round(to * SAMPLE_RATE)).reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    expect(peak(0.9, 0.99)).toBeLessThan(peak(0, 0.25) / 4);
+    expect(Math.abs(data[Math.round(0.9995 * SAMPLE_RATE)]!)).toBeLessThan(0.01);
+    expect(peak(1.01, 4)).toBe(0);
+  });
+
+  it('a tape cuts the trigger before it', async () => {
+    const { project, hits } = setup([constantAudio(3)]);
+    const { take } = tapeTake({ time: 1, end: 2, source: [] });
+    const data = (await renderTake({ ...take, triggers: [trigger(project, hits[0]!, 0)] }, project, SAMPLE_RATE)).getChannelData(0);
+    expect(lastSound(data)).toBeLessThanOrEqual(Math.round((1 + CHOKE_FADE) * SAMPLE_RATE) + 1);
   });
 });

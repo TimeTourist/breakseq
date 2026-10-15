@@ -1,6 +1,8 @@
 import type { Clip, Direction, Id, Loop, Project, Region, Rng } from '../model';
 import { STEPS_PER_BAR, clipsByStep, effectiveHit, stepDuration } from '../model';
-import { applyMods, modRuns, modValues, stepState, tempoRuns } from './mods';
+import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
+import type { Tape } from './tape';
+import { tapeWindows, windowTape } from './tape';
 
 export interface Trigger {
   /** Seconds from the start of the song. */
@@ -40,12 +42,40 @@ export function songLayers(project: Project): (Layer | null)[] {
   });
 }
 
-/** Works out every trigger in the song. Pure: no DOM, no audio, randomness only from `rng`. */
+/** What a take plays: triggers, and tapes where a mod's Tape plays instead. */
+export interface Take {
+  readonly triggers: readonly Trigger[];
+  readonly tapes: readonly Tape[];
+}
+
+/**
+ * Works out everything in the song. Pure: no DOM, no audio, randomness only
+ * from `rng`. Under a Tape the song is not heard; the tape plays a recording of
+ * what would have been heard in its segment.
+ */
+export function generateTake(project: Project, rng: Rng): Take {
+  const runs = modRuns(project);
+  const heard = heardTriggers(project, runs, rng);
+  const windows = tapeWindows(runs);
+  if (windows.length === 0) return { triggers: heard, tapes: [] };
+  const stepTime = stepDuration(project.song.bpm);
+  const covered = (time: number) => windows.some((w) => time >= w.start * stepTime - 1e-9 && time < w.end * stepTime - 1e-9);
+  return {
+    triggers: heard.filter((t) => !covered(t.time)),
+    tapes: windows.map((w) => windowTape(project, w, heard)),
+  };
+}
+
+/** The triggers in the song, where tapes are not heard. */
 export function generateTriggers(project: Project, rng: Rng): Trigger[] {
+  return [...generateTake(project, rng).triggers];
+}
+
+/** Every trigger the song plays, as if no mod had Tape. */
+function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: Rng): Trigger[] {
   const stepTime = stepDuration(project.song.bpm);
   const totalSteps = project.song.bars * STEPS_PER_BAR;
   const layers = songLayers(project);
-  const runs = modRuns(project);
   const tempo = tempoRuns(runs);
   const values = modValues(rng);
   const triggers: Trigger[] = [];
@@ -92,7 +122,7 @@ export function generateTriggers(project: Project, rng: Rng): Trigger[] {
     let time = clock * stepTime;
     while (time < endTime - 1e-9 && content < totalSteps) {
       const at = Math.min(end - 1, Math.floor(time / stepTime + 1e-9));
-      const factor = values(run, at, false);
+      const factor = values(run, effectFor(run.mod, 'tempo')!, at, false);
       const length = stepTime / (factor !== null && factor > 0 ? factor : 1);
       play(content, at, time, Math.min(length, endTime - time));
       content++;

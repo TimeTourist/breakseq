@@ -1,5 +1,5 @@
 import type { Project, Rng } from '../model';
-import { EXPORT_SAMPLE_RATE, encodeWav, generateTriggers, renderTriggers } from '../engine';
+import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, renderTake } from '../engine';
 import type { ProjectStorage } from './persist';
 import { indexedDbStorage } from './persist';
 import type { Player, Take } from './playback';
@@ -18,9 +18,9 @@ export interface Services {
 }
 
 async function renderSong(project: Project, rng: Rng): Promise<Take> {
-  const triggers = generateTriggers(project, rng);
-  const buffer = await renderTriggers(triggers, project, EXPORT_SAMPLE_RATE);
-  return { buffer, triggers };
+  const take = generateTake(project, rng);
+  const buffer = await renderTake(take, project, EXPORT_SAMPLE_RATE);
+  return { buffer, triggers: take.triggers };
 }
 
 function download(name: string, bytes: Uint8Array, type: string): void {

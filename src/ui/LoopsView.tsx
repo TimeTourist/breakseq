@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, lengthText, loopUsage, padColor, padGroups, padLabel } from './labels';
@@ -34,6 +34,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const [shelfBreak, setShelfBreak] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
   const drops = useDropTargets();
+  // The other end of a Shift-click range; the selected step is the first end.
+  const [rangeEnd, setRangeEnd] = useState<number | null>(null);
   const loopId = currentLoopId(project, selection);
   const loop = loopId === null ? undefined : project.loops[loopId];
 
@@ -90,7 +92,19 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const stepPad = step?.padId == null ? undefined : project.pads[step.padId];
   const usedInSong = loopUsage(project, loop.id);
 
+  const range =
+    selectedStep === null || rangeEnd === null || rangeEnd >= loop.steps.length
+      ? null
+      : { from: Math.min(selectedStep, rangeEnd), to: Math.max(selectedStep, rangeEnd) };
+  const inRange = (index: number) => (range === null ? index === selectedStep : index >= range.from && index <= range.to);
+
   const place = (index: number, padId: Id | null) => setError(run(setStep(loop.id, index, { padId })));
+  /** Empties the selected steps: the range, or the one step. */
+  const clearSelected = () => {
+    const [from, to] = range === null ? [selectedStep, selectedStep] : [range.from, range.to];
+    if (from === null || to === null) return;
+    setError(run(sequence(...Array.from({ length: to - from + 1 }, (_, i) => setStep(loop.id, from + i, { padId: null })))));
+  };
   /** A pad from the shelf, or another step: moved, or copied with Alt. */
   const dropOnStep = (index: number) =>
     drops.bind(`step:${index}`, [PAD_MIME, BREAK_MIME, STEP_MIME], (e, type) => {
@@ -99,15 +113,29 @@ export function LoopsView({ playhead }: LoopsViewProps) {
       } else if (type === BREAK_MIME) {
         setError(run(placeBreak(loop.id, e.dataTransfer.getData(BREAK_MIME), index)));
       } else {
-        const from = Number(e.dataTransfer.getData(STEP_MIME));
-        const source = loop.steps[from];
-        if (source === undefined || from === index) return;
-        const copy = setStep(loop.id, index, { padId: source.padId, memberId: source.memberId, ignoreMods: source.ignoreMods });
-        setError(run(copies(e) ? copy : sequence(copy, setStep(loop.id, from, { padId: null, memberId: null, ignoreMods: false }))));
+        // A block of steps, grabbed at one of them: that one lands here.
+        const { from, count, grab } = JSON.parse(e.dataTransfer.getData(STEP_MIME)) as { from: number; count: number; grab: number };
+        const to = index - grab;
+        if (to === from) return;
+        const failed = run(moveSteps(loop.id, from, count, to, copies(e)));
+        setError(failed);
+        if (failed === null) {
+          const start = Math.max(0, to);
+          open({ step: start }, 'loops');
+          setRangeEnd(count > 1 ? Math.min(loop.steps.length - 1, to + count - 1) : null);
+        }
+        return;
       }
+      setRangeEnd(null);
       open({ step: index }, 'loops');
     });
-  const clickStep = (index: number) => {
+  const clickStep = (index: number, shift: boolean) => {
+    // Shift-click selects every step from the selected one to here.
+    if (shift && selectedStep !== null && shelfPad === null && shelfBreak === null) {
+      setRangeEnd(index === selectedStep ? null : index);
+      return;
+    }
+    setRangeEnd(null);
     if (shelfPad !== null) place(index, shelfPad);
     if (shelfBreak !== null) setError(run(placeBreak(loop.id, shelfBreak, index)));
     open({ step: index }, 'loops');
@@ -137,8 +165,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           </div>
           <LoopLength loop={loop} onError={setError} />
           <div className="row push">
-            <button type="button" disabled={step?.padId == null} onClick={() => selectedStep !== null && place(selectedStep, null)}>
-              Clear step
+            <button type="button" disabled={range === null && step?.padId == null} onClick={clearSelected}>
+              {range === null ? 'Clear step' : `Clear ${range.to - range.from + 1} steps`}
             </button>
             <button
               type="button"
@@ -186,24 +214,26 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     <button
                       key={s}
                       type="button"
-                      className={`step${pad !== undefined ? ' filled' : ''}${index === selectedStep ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
-                      draggable={pad !== undefined}
+                      className={`step${pad !== undefined ? ' filled' : ''}${inRange(index) ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
+                      draggable={pad !== undefined || (range !== null && inRange(index))}
                       onDragStart={(e) => {
-                        e.dataTransfer.setData(STEP_MIME, String(index));
+                        const block = range !== null && inRange(index) ? range : { from: index, to: index };
+                        e.dataTransfer.setData(STEP_MIME, JSON.stringify({ from: block.from, count: block.to - block.from + 1, grab: index - block.from }));
                         e.dataTransfer.effectAllowed = 'copyMove';
                       }}
                       onDragEnd={drops.clear}
                       {...dropOnStep(index)}
                       style={color === undefined ? undefined : { color, boxShadow: `inset 0 -4px 0 ${color}` }}
                       aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}`}
-                      onClick={() => clickStep(index)}
+                      onClick={(e) => clickStep(index, e.shiftKey)}
                       onDoubleClick={() => {
                         if (pad !== undefined) open({ pad: pad.id }, 'pads');
                       }}
                       onKeyDown={(e) => {
-                        if ((e.key === 'Delete' || e.key === 'Backspace') && pad !== undefined) {
+                        if (e.key === 'Delete' || e.key === 'Backspace') {
                           e.preventDefault();
-                          place(index, null);
+                          if (range !== null && inRange(index)) clearSelected();
+                          else if (pad !== undefined) place(index, null);
                         }
                       }}
                     >

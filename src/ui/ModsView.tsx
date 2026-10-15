@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { Id, Mod, ModRate, ModScope, ModShape, ModTarget, Project } from '../model';
-import { MOD_TARGETS, createMod, remove, updateMod } from '../model';
+import type { EffectTarget, Id, Mod, ModEffect, ModRate, ModScope, ModShape, ModTarget, Project, StepEffect, TapeEffect } from '../model';
+import { MAX_TAPE_SPEED, MOD_TARGETS, addEffect, createMod, isParentPad, remove, removeEffect, renameMod, replaceEffect } from '../model';
+import { lengthText } from './labels';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues, randomMod } from './modText';
 import type { Selection } from './store';
@@ -28,6 +29,20 @@ const DEFAULTS: Record<ModTarget, { rate: ModRate; shape: ModShape }> = {
   direction: { rate: 'step', shape: { kind: 'random', min: 0, max: 1, chance: 25 } },
   tempo: { rate: 'bar', shape: { kind: 'list', values: [1 / 3] } },
 };
+
+/** A new step effect for a target, acting on all steps. */
+const stepEffect = (target: ModTarget): StepEffect => ({ target, scope: { kind: 'all' }, ...DEFAULTS[target], sources: [] });
+
+/** Repeat the first 2/16, back and forth, slowing to a stop: tape being braked. */
+export const DEFAULT_TAPE: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } };
+
+const newEffect = (target: EffectTarget): ModEffect => (target === 'tape' ? DEFAULT_TAPE : stepEffect(target));
+
+/** Every target, in the order effects apply: the step targets, then Tape. */
+const EFFECT_TARGETS: readonly EffectTarget[] = [...MOD_TARGETS, 'tape'];
+
+/** A mod's effects in short: "Pitch + Ratchet". */
+export const effectsLabel = (mod: Mod) => mod.effects.map((e) => TARGET_LABELS[e.target]).join(' + ');
 
 /** Targets that pick one thing out of several: no ramp, and Random picks among them. */
 const PICKS = new Set<ModTarget>(['sourceLoop', 'direction']);
@@ -59,11 +74,12 @@ export function ModsView() {
   const modId = currentModId(project, selection);
   const mod = modId === null ? undefined : project.mods[modId];
   const previewId = previewLoopId(project, selection);
+  const [selectedTarget, setSelectedTarget] = useState<EffectTarget | null>(null);
 
   const newMod = () => {
     const before = store.getState().history.present.mods;
     const name = `Mod ${Object.keys(before).length + 1}`;
-    if (run(createMod({ name, target: 'ratchet', scope: { kind: 'all' }, ...DEFAULTS.ratchet })) === null) {
+    if (run(createMod(name, [stepEffect('ratchet')])) === null) {
       const id = Object.keys(store.getState().history.present.mods).find((k) => !(k in before));
       if (id !== undefined) open({ mod: id }, 'mods');
     }
@@ -82,7 +98,7 @@ export function ModsView() {
             onClick={() => open({ mod: m.id }, 'mods')}
           >
             <span className="mono mod-name grow ellipsis">{m.name}</span>
-            <span className="muted small">{TARGET_LABELS[m.target]}</span>
+            <span className="muted small ellipsis">{effectsLabel(m)}</span>
           </button>
         ))}
         <button type="button" className="dashed" onClick={newMod}>
@@ -106,8 +122,11 @@ export function ModsView() {
     );
   }
 
-  const update = (patch: Partial<Omit<Mod, 'id'>>, key?: string) => setError(run(updateMod(mod.id, patch), key));
   const usedIn = project.song.clips.filter((c) => c.ref === mod.id && (c.row === 'modA' || c.row === 'modB')).length;
+  const taken = mod.effects.map((e) => e.target);
+  const effect = mod.effects.find((e) => e.target === selectedTarget) ?? mod.effects[0]!;
+  /** Puts a changed version of the effect being edited in its place. */
+  const change = (next: ModEffect, key?: string) => setError(run(replaceEffect(mod.id, effect.target, next), key));
 
   return (
     <div className="split">
@@ -121,14 +140,17 @@ export function ModsView() {
             id="mod-name"
             className="title-input mono mod-name"
             value={mod.name}
-            onChange={(e) => update({ name: e.target.value }, `mod:${mod.id}:name`)}
+            onChange={(e) => setError(run(renameMod(mod.id, e.target.value), `mod:${mod.id}:name`))}
             onBlur={seal}
           />
-          <span className="muted">
-            {TARGET_LABELS[mod.target]} · {scopeText(mod.scope, project)} · per {mod.rate}
-          </span>
+          <span className="muted">{effectsLabel(mod)}</span>
           <div className="row push">
-            <button type="button" title="Pick target, scope, rate and shape at random. Undo takes it back." onClick={() => update(randomMod(project))}>
+            <button
+              type="button"
+              disabled={effect.target === 'tape'}
+              title="Pick this effect's target, scope, rate and shape at random. Undo takes it back."
+              onClick={() => change(randomMod(project, Math.random, taken.filter((t) => t !== effect.target)))}
+            >
               Randomize
             </button>
             <label className="field">
@@ -163,41 +185,95 @@ export function ModsView() {
           </p>
         )}
 
-        <div className="mod-grid">
-          <section className="panel stack-tight">
-            <h2 className="label">Target</h2>
-            <div className="choice-grid" role="group" aria-label="Target">
-              {MOD_TARGETS.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  aria-pressed={mod.target === t}
-                  onClick={() => {
-                    if (t !== mod.target) update({ target: t, ...DEFAULTS[t], sources: [] });
-                  }}
-                >
+        <section className="panel row effects-bar">
+          <h2 className="label">Effects</h2>
+          <div className="segmented" role="group" aria-label="Effects">
+            {mod.effects.map((e) => (
+              <button key={e.target} type="button" aria-pressed={e.target === effect.target} onClick={() => setSelectedTarget(e.target)}>
+                {TARGET_LABELS[e.target]}
+              </button>
+            ))}
+          </div>
+          <span className="muted small">
+            {effect.target === 'tape'
+              ? `repeat ${lengthText(effect.length)} · ${effect.speed.from}× → ${effect.speed.to}×`
+              : `${scopeText(effect.scope, project)} · per ${effect.rate}`}
+          </span>
+          <label className="field">
+            <span className="sr-only">Add effect</span>
+            <select
+              aria-label="Add effect"
+              value=""
+              onChange={(e) => {
+                const target = e.target.value as EffectTarget;
+                if (target === undefined || (e.target.value as string) === '') return;
+                const failed = run(addEffect(mod.id, newEffect(target)));
+                setError(failed);
+                if (failed === null) setSelectedTarget(target);
+              }}
+            >
+              <option value="">+ Effect</option>
+              {EFFECT_TARGETS.filter((t) => !taken.includes(t)).map((t) => (
+                <option key={t} value={t}>
                   {TARGET_LABELS[t]}
-                </button>
+                </option>
               ))}
-            </div>
-          </section>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="push"
+            disabled={mod.effects.length === 1}
+            title={mod.effects.length === 1 ? 'A mod needs at least one effect' : undefined}
+            onClick={() => setError(run(removeEffect(mod.id, effect.target)))}
+          >
+            Remove {TARGET_LABELS[effect.target]}
+          </button>
+        </section>
 
-          <ScopeEditor mod={mod} project={project} onChange={(scope) => update({ scope })} />
+        {effect.target === 'tape' ? (
+          <TapeEditor key={mod.id} tape={effect} onChange={change} onCommit={seal} />
+        ) : (
+          <div className="mod-grid">
+            <section className="panel stack-tight">
+              <h2 className="label">Target</h2>
+              <div className="choice-grid" role="group" aria-label="Target">
+                {MOD_TARGETS.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={effect.target === t}
+                    disabled={t !== effect.target && taken.includes(t)}
+                    onClick={() => {
+                      if (t === effect.target) return;
+                      const failed = run(replaceEffect(mod.id, effect.target, stepEffect(t)));
+                      setError(failed);
+                      if (failed === null) setSelectedTarget(t);
+                    }}
+                  >
+                    {TARGET_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </section>
 
-          <section className="panel stack-tight">
-            <h2 className="label">Rate · one value per</h2>
-            <div className="segmented" role="group" aria-label="Rate">
-              {RATES.map((r) => (
-                <button key={r} type="button" aria-pressed={mod.rate === r} onClick={() => update({ rate: r })}>
-                  {r}
-                </button>
-              ))}
-            </div>
-            {mod.target === 'tempo' && <p className="muted small">Tempo ignores scope: it moves the whole layer.</p>}
-          </section>
+            <ScopeEditor effect={effect} project={project} onChange={(scope) => change({ ...effect, scope })} />
 
-          <ShapeEditor mod={mod} project={project} onChange={update} onCommit={seal} />
-        </div>
+            <section className="panel stack-tight">
+              <h2 className="label">Rate · one value per</h2>
+              <div className="segmented" role="group" aria-label="Rate">
+                {RATES.map((r) => (
+                  <button key={r} type="button" aria-pressed={effect.rate === r} onClick={() => change({ ...effect, rate: r })}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+              {effect.target === 'tempo' && <p className="muted small">Tempo ignores scope: it moves the whole layer.</p>}
+            </section>
+
+            <ShapeEditor key={`${mod.id}:${effect.target}`} effect={effect} modId={mod.id} project={project} onChange={change} onCommit={seal} />
+          </div>
+        )}
 
         <section className="panel row">
           <span className="label">Used in</span>
@@ -208,10 +284,11 @@ export function ModsView() {
   );
 }
 
-function ScopeEditor({ mod, project, onChange }: { mod: Mod; project: Project; onChange: (scope: ModScope) => void }) {
-  const { scope } = mod;
+function ScopeEditor({ effect, project, onChange }: { effect: StepEffect; project: Project; onChange: (scope: ModScope) => void }) {
+  const { scope } = effect;
   const tags = Object.values(project.tags);
-  const pads = Object.values(project.pads);
+  // A break's own pad never plays as a pad, so a mod cannot act on it.
+  const pads = Object.values(project.pads).filter((p) => !isParentPad(project, p));
   return (
     <section className="panel stack-tight">
       <h2 className="label">Acts on</h2>
@@ -275,23 +352,25 @@ function ScopeEditor({ mod, project, onChange }: { mod: Mod; project: Project; o
 }
 
 interface ShapeEditorProps {
-  readonly mod: Mod;
+  readonly effect: StepEffect;
+  readonly modId: Id;
   readonly project: Project;
-  readonly onChange: (patch: Partial<Omit<Mod, 'id'>>, key?: string) => void;
+  readonly onChange: (effect: StepEffect, key?: string) => void;
   readonly onCommit: () => void;
 }
 
-function ShapeEditor({ mod, project, onChange, onCommit }: ShapeEditorProps) {
-  const { shape, target } = mod;
+function ShapeEditor({ effect, modId, project, onChange, onCommit }: ShapeEditorProps) {
+  const { shape, target } = effect;
+  const key = (part: string) => `mod:${modId}:${target}:${part}`;
   const picks = PICKS.has(target);
-  const shownValues = shape.kind === 'list' || shape.kind === 'cycle' ? formatValues(mod, shape.values, project) : '';
+  const shownValues = shape.kind === 'list' || shape.kind === 'cycle' ? formatValues(effect, shape.values, project) : '';
   const [text, setText] = useState(shownValues);
   const [problem, setProblem] = useState<string | null>(null);
   // Follow the mod when it changes from elsewhere (another mod, undo).
   useEffect(() => {
     setText(shownValues);
     setProblem(null);
-  }, [mod.id, shownValues]);
+  }, [shownValues]);
 
   const commitText = (value: string) => {
     setText(value);
@@ -302,20 +381,20 @@ function ShapeEditor({ mod, project, onChange, onCommit }: ShapeEditorProps) {
     }
     setProblem(null);
     if (shape.kind === 'list' || shape.kind === 'cycle') {
-      onChange({ shape: { kind: shape.kind, values: parsed.values }, ...(target === 'sourceLoop' ? { sources: parsed.sources } : {}) }, `mod:${mod.id}:values`);
+      onChange({ ...effect, shape: { kind: shape.kind, values: parsed.values }, ...(target === 'sourceLoop' ? { sources: parsed.sources } : {}) }, key('values'));
     }
   };
 
   const setKind = (kind: ModShape['kind']) => {
     const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [];
-    const range = target === 'sourceLoop' ? { min: 0, max: Math.max(0, mod.sources.length - 1) } : target === 'direction' ? { min: 0, max: 1 } : { min: 1, max: 4 };
+    const range = target === 'sourceLoop' ? { min: 0, max: Math.max(0, effect.sources.length - 1) } : target === 'direction' ? { min: 0, max: 1 } : { min: 1, max: 4 };
     const next: ModShape =
       kind === 'list' || kind === 'cycle'
         ? { kind, values }
         : kind === 'ramp'
           ? { kind, from: 0, to: 12 }
           : { kind, ...range, chance: 50 };
-    onChange({ shape: next });
+    onChange({ ...effect, shape: next });
   };
 
   const number = (label: string, value: number, apply: (v: number) => ModShape, min?: number, max?: number) => (
@@ -329,7 +408,7 @@ function ShapeEditor({ mod, project, onChange, onCommit }: ShapeEditorProps) {
         step="any"
         onChange={(e) => {
           const v = Number(e.target.value);
-          if (Number.isFinite(v)) onChange({ shape: apply(v) }, `mod:${mod.id}:${label}`);
+          if (Number.isFinite(v)) onChange({ ...effect, shape: apply(v) }, key(label));
         }}
         onBlur={onCommit}
       />
@@ -388,10 +467,10 @@ function ShapeEditor({ mod, project, onChange, onCommit }: ShapeEditorProps) {
                 className="mono grow"
                 aria-label="Borrow from"
                 placeholder="loop names, e.g. F1 F2"
-                defaultValue={formatValues(mod, mod.sources.map((_, i) => i), project)}
+                defaultValue={formatValues(effect, effect.sources.map((_, i) => i), project)}
                 onBlur={(e) => {
                   const parsed = parseValues('sourceLoop', e.target.value, project);
-                  if (parsed.ok) onChange({ sources: parsed.sources, shape: { ...shape, min: 0, max: Math.max(0, parsed.sources.length - 1) } });
+                  if (parsed.ok) onChange({ ...effect, sources: parsed.sources, shape: { ...shape, min: 0, max: Math.max(0, parsed.sources.length - 1) } });
                   else setProblem(parsed.error);
                 }}
               />
@@ -406,5 +485,86 @@ function ShapeEditor({ mod, project, onChange, onCommit }: ShapeEditorProps) {
         </p>
       )}
     </section>
+  );
+}
+
+const DIRECTIONS: readonly { value: TapeEffect['direction']; label: string }[] = [
+  { value: 'forward', label: 'Forward' },
+  { value: 'reverse', label: 'Reverse' },
+  { value: 'pingpong', label: 'Ping-pong' },
+];
+
+const REPEAT_PARTS = [
+  { label: 'Bars', size: 16, max: 4 },
+  { label: 'Beats', size: 4, max: 3 },
+  { label: '1/16', size: 1, max: 3 },
+] as const;
+
+interface TapeEditorProps {
+  readonly tape: TapeEffect;
+  readonly onChange: (tape: TapeEffect, key?: string) => void;
+  readonly onCommit: () => void;
+}
+
+/** Repeat length, direction and speed of a Tape. */
+function TapeEditor({ tape, onChange, onCommit }: TapeEditorProps) {
+  const split = [Math.floor(tape.length / 16), Math.floor((tape.length % 16) / 4), tape.length % 4];
+  const setPart = (index: number, value: number) => {
+    const parts = split.map((p, i) => (i === index ? value : p));
+    const length = parts.reduce((sum, p, i) => sum + p * REPEAT_PARTS[i]!.size, 0);
+    if (length >= 1) onChange({ ...tape, length }, 'tape:length');
+  };
+  const speed = (label: string, value: number, apply: (v: number) => TapeEffect) => (
+    <label className="field">
+      {label}
+      <input
+        type="number"
+        min={0}
+        max={MAX_TAPE_SPEED}
+        step={0.05}
+        value={value}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (Number.isFinite(v) && v >= 0 && v <= MAX_TAPE_SPEED) onChange(apply(v), `tape:${label}`);
+        }}
+        onBlur={onCommit}
+      />
+    </label>
+  );
+  return (
+    <div className="mod-grid">
+      <section className="panel stack-tight">
+        <h2 className="label">Repeat · records the first</h2>
+        <div className="row" role="group" aria-label="Repeat">
+          {REPEAT_PARTS.map((part, i) => (
+            <label key={part.label} className="field">
+              {part.label}
+              <input type="number" min={0} max={part.max} value={split[i]} onChange={(e) => setPart(i, Math.max(0, Math.round(Number(e.target.value))))} onBlur={onCommit} />
+            </label>
+          ))}
+        </div>
+        <p className="muted small">
+          {lengthText(tape.length)} from where the clip starts, played round and round as long as the clip lasts. The clip is at least this long.
+        </p>
+      </section>
+      <section className="panel stack-tight">
+        <h2 className="label">Direction</h2>
+        <div className="segmented" role="group" aria-label="Tape direction">
+          {DIRECTIONS.map((d) => (
+            <button key={d.value} type="button" aria-pressed={tape.direction === d.value} onClick={() => onChange({ ...tape, direction: d.value })}>
+              {d.label}
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className="panel stack-tight">
+        <h2 className="label">Speed · over the clip</h2>
+        <div className="row">
+          {speed('From', tape.speed.from, (v) => ({ ...tape, speed: { ...tape.speed, from: v } }))}
+          {speed('To', tape.speed.to, (v) => ({ ...tape, speed: { ...tape.speed, to: v } }))}
+        </div>
+        <p className="muted small">Like tape: slower is lower and longer. At 0× it is silent until the clip ends. The song&apos;s tempo never changes.</p>
+      </section>
+    </div>
   );
 }

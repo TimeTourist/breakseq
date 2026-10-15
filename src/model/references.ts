@@ -1,5 +1,8 @@
 import type { Usage } from './command';
-import type { Id, Project, SongRow } from './types';
+import type { Id, Mod, Project, SongRow, StepEffect } from './types';
+import { isStepEffect } from './types';
+
+export const stepEffects = (mod: Mod): StepEffect[] => mod.effects.filter(isStepEffect);
 
 export type ReferableKind = 'tag' | 'sample' | 'hit' | 'pad' | 'loop' | 'mod';
 
@@ -15,7 +18,7 @@ export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage
           .filter((s) => s.mainTag === id || s.extraTags.includes(id))
           .map((s): Usage => ({ kind: 'sample', id: s.id, name: s.name })),
         ...Object.values(project.mods)
-          .filter((m) => m.scope.kind === 'tag' && m.scope.tagId === id)
+          .filter((m) => stepEffects(m).some((e) => e.scope.kind === 'tag' && e.scope.tagId === id))
           .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ];
     case 'sample':
@@ -32,14 +35,14 @@ export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage
           .filter((l) => l.steps.some((s) => s.padId === id))
           .map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),
         ...Object.values(project.mods)
-          .filter((m) => m.scope.kind === 'pad' && m.scope.padId === id)
+          .filter((m) => stepEffects(m).some((e) => e.scope.kind === 'pad' && e.scope.padId === id))
           .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ];
     case 'loop':
       return [
         ...songUsage(project, id, ['main', 'fill']),
         ...Object.values(project.mods)
-          .filter((m) => m.sources.includes(id))
+          .filter((m) => stepEffects(m).some((e) => e.sources.includes(id)))
           .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ];
     case 'mod':

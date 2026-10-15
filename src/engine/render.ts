@@ -1,6 +1,8 @@
 import type { AudioData, Direction, Hit, Project, Sample } from '../model';
 import { effectiveHit, songDuration } from '../model';
-import type { Trigger } from './generate';
+import type { Take, Trigger } from './generate';
+import type { Tape } from './tape';
+import { tapePasses } from './tape';
 
 /** Seconds a choked voice takes to fade out when the next trigger starts. */
 export const CHOKE_FADE = 0.003;
@@ -98,23 +100,83 @@ export function scheduleHit(
   return source;
 }
 
-/**
- * Renders triggers to audio offline. One voice: a new trigger cuts the
- * previous one with a short fade. The buffer is exactly as long as the song.
- */
-export async function renderTriggers(triggers: readonly Trigger[], project: Project, sampleRate: number): Promise<AudioBuffer> {
-  const length = Math.round(songDuration(project.song) * sampleRate);
-  const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
+/** Plays triggers on a context, one voice: each trigger is cut where the next sound starts. */
+function scheduleTriggers(context: BaseAudioContext, project: Project, triggers: readonly Trigger[], cuts: readonly number[], sampleRate: number) {
   const cache: BufferCache = new Map();
   const sorted = [...triggers].sort((a, b) => a.time - b.time);
   // Starts are placed on whole sample frames. Between frames Web Audio interpolates,
   // which dulls a slice by a varying amount; on a frame a slice plays back bit for bit.
   const onFrame = (time: number) => Math.round(time * sampleRate) / sampleRate;
-
-  sorted.forEach((trigger, i) => {
-    const following = sorted[i + 1];
-    scheduleHit(context, cache, project, trigger, onFrame(trigger.time), following === undefined ? Infinity : onFrame(following.time));
+  const starts = [...sorted.map((t) => onFrame(t.time)), ...cuts.map(onFrame)].sort((a, b) => a - b);
+  sorted.forEach((trigger) => {
+    const start = onFrame(trigger.time);
+    const next = starts.find((s) => s > start);
+    scheduleHit(context, cache, project, trigger, start, next ?? Infinity);
   });
+}
 
+/** Renders triggers alone into a buffer of `duration` seconds. */
+async function renderPart(triggers: readonly Trigger[], project: Project, duration: number, sampleRate: number, cutAt: number): Promise<AudioBuffer> {
+  const length = Math.max(1, Math.round(duration * sampleRate));
+  const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
+  // The recording ends at the segment's end: what still rings is cut there.
+  scheduleTriggers(context, project, triggers, [cutAt], sampleRate);
   return context.startRendering();
+}
+
+const reversed = (context: BaseAudioContext, buffer: AudioBuffer): AudioBuffer => {
+  const copy = context.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+  for (let i = 0; i < buffer.numberOfChannels; i++) copy.copyToChannel(buffer.getChannelData(i).slice().reverse(), i);
+  return copy;
+};
+
+/**
+ * Plays a tape: its recording round and round as its passes say, with the
+ * speed ramping as playback rate, so pitch and length follow like tape. It
+ * fades out over CHOKE_FADE at its end.
+ */
+function scheduleTape(context: BaseAudioContext, tape: Tape, recording: AudioBuffer) {
+  const backwards = reversed(context, recording);
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(1, tape.time);
+  gain.gain.setValueAtTime(1, Math.max(tape.time, tape.end - CHOKE_FADE));
+  gain.gain.linearRampToValueAtTime(0, tape.end);
+  gain.connect(context.destination);
+  // Like tape, it gets quieter as it slows below 1×, so at 0× it is silent: a
+  // stopped buffer would otherwise hold its last sample.
+  const level = context.createGain();
+  const { start: s0, end: s1 } = tape.speed;
+  level.gain.setValueAtTime(Math.min(1, s0), tape.time);
+  if ((s0 - 1) * (s1 - 1) < 0) level.gain.linearRampToValueAtTime(1, tape.time + ((1 - s0) / (s1 - s0)) * (tape.end - tape.time));
+  level.gain.linearRampToValueAtTime(Math.min(1, s1), tape.end);
+  level.connect(gain);
+  for (const pass of tapePasses(tape)) {
+    if (pass.end - pass.time <= 0) continue;
+    const source = context.createBufferSource();
+    source.buffer = pass.direction === 'forward' ? recording : backwards;
+    source.playbackRate.setValueAtTime(pass.speedStart, pass.time);
+    source.playbackRate.linearRampToValueAtTime(pass.speedEnd, pass.end);
+    source.connect(level);
+    // A backwards pass plays the reversed recording, so both start `from` into their buffer.
+    source.start(pass.time, pass.from);
+    source.stop(pass.end);
+  }
+}
+
+/**
+ * Renders a take to audio offline. One voice: a new trigger or tape cuts the
+ * sound before it with a short fade. The buffer is exactly as long as the song.
+ */
+export async function renderTake(take: Take, project: Project, sampleRate: number): Promise<AudioBuffer> {
+  const recordings = await Promise.all(take.tapes.map((tape) => renderPart(tape.source, project, tape.length, sampleRate, tape.length)));
+  const length = Math.round(songDuration(project.song) * sampleRate);
+  const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
+  scheduleTriggers(context, project, take.triggers, take.tapes.map((t) => t.time), sampleRate);
+  take.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!));
+  return context.startRendering();
+}
+
+/** Renders triggers to audio offline, with no tapes. */
+export async function renderTriggers(triggers: readonly Trigger[], project: Project, sampleRate: number): Promise<AudioBuffer> {
+  return renderTake({ triggers, tapes: [] }, project, sampleRate);
 }

@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createMod, createProject, setSongCell, setStep } from '../model';
+import { addSample, createLoop, createMod, createProject, isParentPad, setSongCell, setStep, sliceBreak } from '../model';
 import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import { parseValues, randomMod } from './modText';
@@ -79,13 +79,59 @@ describe('Mods', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Rate' })).getByRole('button', { name: 'beat' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Values' }), { target: { value: '0 3 5 7' } });
     const mod = Object.values(present(store).mods)[0]!;
-    expect(mod).toMatchObject({ target: 'pitch', rate: 'beat', shape: { kind: 'list', values: [0, 3, 5, 7] } });
+    expect(mod.effects).toMatchObject([{ target: 'pitch', rate: 'beat', shape: { kind: 'list', values: [0, 3, 5, 7] } }]);
 
     fireEvent.keyDown(window, { key: '8' });
     fireEvent.click(button(mod.name));
     clickLane('Mod A', 0);
 
     expect(generateTriggers(present(store), () => 0).map((t) => t.pitch)).toEqual([0, 3, 5, 7]);
+  });
+});
+
+describe('Effects', () => {
+  it('a mod gets a second effect and a Tape, which can be set up and taken out again', async () => {
+    const store = await setup(snareLoopProject(), 'mods');
+    fireEvent.click(button('+ New mod'));
+    const effects = () => Object.values(present(store).mods)[0]!.effects;
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'pitch' } });
+    expect(effects().map((e) => e.target)).toEqual(['ratchet', 'pitch']);
+    // Ratchet is taken by this mod, so the pitch effect cannot become one.
+    expect(within(screen.getByRole('group', { name: 'Target' })).getByRole('button', { name: 'Ratchet' })).toHaveProperty('disabled', true);
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'tape' } });
+    expect(effects().at(-1)).toEqual({ target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } });
+
+    const repeat = screen.getByRole('group', { name: 'Repeat' });
+    fireEvent.change(within(repeat).getByLabelText('Beats'), { target: { value: '1' } });
+    fireEvent.click(within(screen.getByRole('group', { name: 'Tape direction' })).getByRole('button', { name: 'Reverse' }));
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '0.5' } });
+    expect(effects().at(-1)).toEqual({ target: 'tape', length: 6, direction: 'reverse', speed: { from: 1, to: 0.5 } });
+
+    fireEvent.click(button('Remove Tape'));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Pitch' }));
+    fireEvent.click(button('Remove Pitch'));
+    expect(effects().map((e) => e.target)).toEqual(['ratchet']);
+    expect(button('Remove Ratchet')).toHaveProperty('disabled', true);
+  });
+
+  it("the Pad scope does not list a break's own pad", async () => {
+    let project = snareLoopProject();
+    const ctx2 = sequentialIds();
+    const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(project, ctx2);
+    if (!added.ok) throw new Error('addSample failed');
+    const id = Object.keys(added.project.samples).find((k) => !(k in project.samples))!;
+    const sliced = sliceBreak(id, 1, 4)(added.project, ctx2);
+    if (!sliced.ok) throw new Error('sliceBreak failed');
+    project = sliced.project;
+    await setup(project, 'mods');
+    fireEvent.click(button('+ New mod'));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Scope' })).getByRole('button', { name: 'Pad' }));
+    const options = within(screen.getByRole('combobox', { name: 'Scope pad' })).getAllByRole('option').map((o) => o.textContent);
+    const parent = Object.values(project.pads).find((p) => isParentPad(project, p))!;
+    expect(options).not.toContain(parent.name);
+    expect(options).toContain(Object.values(project.pads).find((p) => p.name !== parent.name)!.name);
   });
 });
 
@@ -121,7 +167,7 @@ describe('randomMod', () => {
       if (target === 'direction' || target === 'sourceLoop') expect(shape.kind).not.toBe('ramp');
       if (target === 'sourceLoop') expect(mod.sources.length).toBeGreaterThan(0);
       expect(mod.sources.every((id) => loops.includes(id))).toBe(true);
-      const placed = apply(project, createMod({ name: 'r', ...mod }), setSongCell('main', 0, loops[0]!));
+      const placed = apply(project, createMod('r', [mod]), setSongCell('main', 0, loops[0]!));
       const id = Object.keys(placed.mods)[0]!;
       expect(() => generateTriggers(apply(placed, setSongCell('modA', 0, id)), seededRng(seed))).not.toThrow();
     }

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { createEvent, act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
@@ -155,6 +155,40 @@ describe('Loops', () => {
 
     fireEvent.keyDown(button(/^Bar 1, step 1:/), { key: 'Delete' });
     expect(present(store).loops[loop.id]!.steps[0]!.padId).toBeNull();
+  });
+
+  it('Shift-click selects a block of steps; a drag moves it, Alt copies it, Delete empties it', async () => {
+    const { project: withPad, pad } = twoHitPad(createLoop(null, 'main', 1));
+    const loop = Object.values(withPad.loops)[0]!;
+    const store = await setup(applyAll(withPad, setStep(loop.id, 5, { padId: pad.id }), setStep(loop.id, 7, { padId: pad.id })), 'loops');
+    const stepButton = (n: number) => button(new RegExp(`^Bar 1, step ${n}:`));
+    const filled = () => present(store).loops[loop.id]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i + 1]));
+    /** Drags step `from` onto step `to`, as a browser does: the data set on drag start comes back on drop. */
+    const drag = (from: number, to: number, altKey = false) => {
+      const data = new Map<string, string>();
+      const dataTransfer = { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? '', get types() { return [...data.keys()]; }, effectAllowed: 'all', dropEffect: 'move' };
+      fireEvent.dragStart(stepButton(from), { dataTransfer });
+      fireEvent.dragOver(stepButton(to), { dataTransfer });
+      // happy-dom leaves altKey off drag events, so it goes on the event itself.
+      const drop = createEvent.drop(stepButton(to), { dataTransfer });
+      Object.defineProperty(drop, 'altKey', { value: altKey });
+      fireEvent(stepButton(to), drop);
+    };
+
+    fireEvent.click(stepButton(6));
+    fireEvent.click(stepButton(8), { shiftKey: true });
+    expect([6, 7, 8].every((n) => stepButton(n).className.includes('selected'))).toBe(true);
+
+    // Grabbed at step 7, dropped on step 11: the block 6–8 lands on 10–12.
+    drag(7, 11);
+    expect(filled()).toEqual([10, 12]);
+    expect([10, 11, 12].every((n) => stepButton(n).className.includes('selected'))).toBe(true);
+
+    drag(10, 2, true);
+    expect(filled()).toEqual([2, 4, 10, 12]);
+
+    fireEvent.keyDown(stepButton(3), { key: 'Delete' });
+    expect(filled()).toEqual([10, 12]);
   });
 
   it('the length is set in bars, beats and 1/16, saved on leaving the fields, and keeps the steps on the way', async () => {
