@@ -1,12 +1,10 @@
 import { Fragment, useRef, useState } from 'react';
 import type { Project, Sample } from '../model';
-import { addSample, replaceProject, setBreak } from '../model';
+import { addSample, guessBars, replaceProject, setBreak, setBreakBars, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun } from './context';
 import { timestamp } from './services';
 import { TrimEditor } from './TrimEditor';
-
-const DEFAULT_BREAK_BARS = 4;
 
 /** Files imported directly, in import order (slices are not sources). */
 export const sources = (project: Project): Sample[] => Object.values(project.samples).filter((s) => s.sliceOf === null);
@@ -204,7 +202,7 @@ export function ImportView() {
                             type="button"
                             aria-pressed={sample.break !== null}
                             disabled={sliced}
-                            onClick={() => run(setBreak(sample.id, sample.break?.bars ?? DEFAULT_BREAK_BARS))}
+                            onClick={() => run(setBreak(sample.id, sample.break?.bars ?? guessBars(sample.duration)))}
                           >
                             Break
                           </button>
@@ -229,13 +227,13 @@ export function ImportView() {
                               max={64}
                               aria-label={`Bars in ${sample.name}`}
                               value={sample.break.bars}
-                              disabled={sliced}
                               onChange={(e) => {
                                 const bars = Math.round(Number(e.target.value));
-                                if (bars >= 1) run(setBreak(sample.id, bars));
+                                if (bars >= 1) run(setBreakBars(sample.id, bars));
                               }}
                             />
                             bars · {sample.break.bpm.toFixed(1)} BPM
+                            {unlikelyBpm(sample.break.bpm) && <span className="warn-text">check bars</span>}
                           </span>
                         )}
                       </td>

@@ -5,6 +5,10 @@ import {
   addPadMember,
   addSample,
   addVariant,
+  breakSequence,
+  guessBars,
+  setBreakBars,
+  unlikelyBpm,
   confirmTags,
   duplicateHit,
   gridMarkers,
@@ -532,10 +536,11 @@ describe('fas 5: tags and kept markers', () => {
     expect(grid.samples[id]!.break!.markers).toEqual(gridMarkers(2, 2));
   });
 
-  it('a file with cues imports as a 4-bar break with markers at the cues', () => {
+  it('a file with cues imports as a break with markers at the cues', () => {
     const ctx = sequentialIds();
     const project = run(createProject(ctx), ctx, addSample({ name: 'cued.wav', audio: constantAudio(2), cues: [0, 0.5, 1.25] }));
-    expect(only(project.samples).break).toMatchObject({ bars: 4, markers: [0, 0.5, 1.25], sliced: false });
+    // Two seconds is one bar at 120 BPM.
+    expect(only(project.samples).break).toMatchObject({ bars: 1, markers: [0, 0.5, 1.25], sliced: false });
   });
 
   it('removeTag refuses the defaults and tags in use, and removes your own', () => {
@@ -581,5 +586,36 @@ describe('addVariant', () => {
     const second = Object.values(project.hits).find((h) => h.variantOf === variant.id)!;
 
     expect(project.pads[slicePad.id]!.members).toEqual([original, variant.id, second.id]);
+  });
+});
+
+describe('break length', () => {
+  it('guesses the bars that give a tempo from 70 to 180 BPM', () => {
+    expect(guessBars(6.94)).toBe(4); // Four bars of Amen at 138 BPM.
+    expect(guessBars(6.94 / 4)).toBe(1);
+    expect(guessBars(6.94 / 2)).toBe(2);
+    expect(unlikelyBpm(552)).toBe(true);
+    expect(unlikelyBpm(138)).toBe(false);
+  });
+
+  it('a file with cues gets its bars guessed', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0, 0.4] }));
+    expect(only(project.samples).break?.bars).toBe(1);
+  });
+
+  it('bars can change after slicing: the BPM and where the slices land follow', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1.75) }));
+    const id = only(project.samples).id;
+    // Sliced as 4 bars by mistake: one bar of 1/4 slices lands 4 times too far apart.
+    project = run(project, ctx, setBreak(id, 4), setMarkers(id, [0.4375, 0.875, 1.3125]), sliceAtMarkers(id));
+    expect(breakSequence(project, id).map((s) => s.step)).toEqual([0, 16, 32, 48]);
+
+    project = run(project, ctx, setBreakBars(id, 1));
+
+    expect(project.samples[id]!.break).toMatchObject({ bars: 1, sliced: true });
+    expect(project.samples[id]!.break!.bpm).toBeCloseTo(breakBpm(1.75, 1));
+    expect(breakSequence(project, id).map((s) => s.step)).toEqual([0, 4, 8, 12]);
   });
 });

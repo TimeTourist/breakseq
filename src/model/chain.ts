@@ -65,7 +65,7 @@ export const addSample =
       sliceOf: null,
     };
     if (cues.length > 0) {
-      const withCues = { ...sample, break: breakInfo(sample.duration, 4, cleanMarkers(cues, sample.duration)) };
+      const withCues = { ...sample, break: breakInfo(sample.duration, guessBars(sample.duration), cleanMarkers(cues, sample.duration)) };
       return ok(addWithChain({ ...project, audio: { ...project.audio, [audioId]: audio } }, withCues, ctx).project);
     }
     return ok(addWithChain({ ...project, audio: { ...project.audio, [audioId]: audio } }, sample, ctx).project);
@@ -101,6 +101,37 @@ const setSample = (project: Project, sample: Sample): Project => ({
   ...project,
   samples: { ...project.samples, [sample.id]: sample },
 });
+
+/**
+ * A likely length in bars for a break of `duration` seconds: the number among
+ * 1, 2, 4, 8 and 16 that gives a tempo from 70 to 180 BPM, nearest 140.
+ */
+export function guessBars(duration: number): number {
+  const options = [1, 2, 4, 8, 16].map((bars) => ({ bars, bpm: breakBpm(duration, bars) }));
+  const fitting = options.filter((o) => o.bpm >= 70 && o.bpm <= 180);
+  const pool = fitting.length > 0 ? fitting : options;
+  return pool.reduce((best, o) => (Math.abs(o.bpm - 140) < Math.abs(best.bpm - 140) ? o : best)).bars;
+}
+
+/** Whether a break's tempo looks wrong, which usually means its bars are. */
+export const unlikelyBpm = (bpm: number): boolean => bpm < 60 || bpm > 200;
+
+/**
+ * Changes how many bars a break is, even once it is sliced: its BPM follows, and
+ * so does where its slices land when the break is laid out in a loop. Loops
+ * already made stay as they are.
+ */
+export const setBreakBars =
+  (sampleId: Id, bars: number): Command =>
+  (project, ctx) => {
+    const sample = project.samples[sampleId];
+    if (sample?.break == null) return sample === undefined ? notFound(sampleId) : invalid('Only a break has bars');
+    if (!Number.isInteger(bars) || bars < 1) return invalid('A break must be a whole number of bars');
+    if (sample.break.sliced) {
+      return ok(setSample(project, { ...sample, break: { ...sample.break, bars, bpm: breakBpm(sample.duration, bars) } }));
+    }
+    return setBreak(sampleId, bars)(project, ctx);
+  };
 
 /** Makes a sample a break of `bars` bars, working out its BPM, or a one-shot with null. Markers start on 1/16. */
 export const setBreak =

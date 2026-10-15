@@ -36,7 +36,7 @@ En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man b
 
 Appen har åtta vyer i arbetsordning, nåbara via flikar och tangenterna 1–8. Varje vy har ett ansvar; från andra vyer länkar man dit, men redigerar aldrig där.
 
-1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break anges antal takter, och BPM räknas fram ur den trimmade längden.
+1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break gissas antal takter (det av 1, 2, 4, 8 och 16 som ger 70–180 BPM) och kan ändras, även efter slicing; BPM räknas fram ur den trimmade längden, och ett tempo under 60 eller över 200 BPM ger en varning.
 2. **Slice** – placera markörer i ett break. Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare.
 3. **Tag** – ge varje sample en huvudtagg (K, S, H, R, G + egna, max 8). Varje kort har en play-knapp.
 4. **Hits** – redigera region, riktning, pitch, volym och fade; duplicera som variant.
