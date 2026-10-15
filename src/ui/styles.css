@@ -1117,6 +1117,8 @@ input[type='search'] {
 
 .steps {
   min-width: 820px;
+  /* Room for the window's end handle, which reaches 8 px past the last step. */
+  padding-right: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
