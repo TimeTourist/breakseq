@@ -159,7 +159,19 @@ describe('Effects', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Pitch' }));
     fireEvent.click(button('Remove Pitch'));
     expect(effects().map((e) => e.target)).toEqual(['ratchet']);
-    expect(button('Remove Ratchet')).toHaveProperty('disabled', true);
+    // The last effect cannot go: it has no ×.
+    expect(screen.queryByRole('button', { name: 'Remove Ratchet' })).toBeNull();
+  });
+
+  it('the target word swaps the effect in place, to Tape and back', async () => {
+    const store = await setup(snareLoopProject(), 'mods');
+    fireEvent.click(button('+ New mod'));
+    const effects = () => Object.values(present(store).mods)[0]!.effects.map((e) => e.target);
+
+    pick('Target', 'tape');
+    expect(effects()).toEqual(['tape']);
+    pick('Target', 'pitch');
+    expect(effects()).toEqual(['pitch']);
   });
 
   it("the scope does not list a break's own pad", async () => {

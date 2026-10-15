@@ -84,6 +84,10 @@ function Amount({ label, value, onChange, onCommit, min, max, step = 'any', suff
   );
 }
 
+/** Every target an effect can switch to: its own, and those the mod does not have yet. Tape last. */
+const targetOptions = (own: EffectTarget, taken: readonly EffectTarget[]) =>
+  [...MOD_TARGETS, 'tape' as const].filter((t) => t === own || !taken.includes(t)).map((t) => ({ value: t, label: TARGET_LABELS[t] }));
+
 const scopeKey = (scope: ModScope) => (scope.kind === 'all' ? 'all' : scope.kind === 'tag' ? `tag:${scope.tagId}` : `pad:${scope.padId}`);
 const scopeFrom = (key: string): ModScope => {
   const [kind, id] = key.split(':') as [string, string];
@@ -96,8 +100,8 @@ interface StepSentenceProps {
   /** Targets other effects of the mod have: this one cannot take them. */
   readonly taken: readonly EffectTarget[];
   readonly onChange: (effect: StepEffect, key?: string) => void;
-  /** Swaps the effect for a new one on another target. */
-  readonly onTarget: (target: ModTarget) => void;
+  /** Swaps the effect for a new one on another target, Tape too. */
+  readonly onTarget: (target: EffectTarget) => void;
   readonly onCommit: () => void;
 }
 
@@ -171,10 +175,10 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
           <Choice label="Scope" value={scopeKey(effect.scope)} options={scopes} onChange={(key) => change({ scope: scopeFrom(key) })} />
         )}
         :{' '}
-        <Choice
+        <Choice<EffectTarget>
           label="Target"
           value={target}
-          options={MOD_TARGETS.filter((t) => t === target || !taken.includes(t)).map((t) => ({ value: t, label: TARGET_LABELS[t] }))}
+          options={targetOptions(target, taken)}
           onChange={onTarget}
         />{' '}
         <Choice
@@ -273,12 +277,16 @@ const lengths = (max: number) =>
 
 interface TapeSentenceProps {
   readonly tape: TapeEffect;
+  /** Targets other effects of the mod have. */
+  readonly taken: readonly EffectTarget[];
   readonly onChange: (tape: TapeEffect, key?: string) => void;
+  /** Swaps Tape for a new effect on another target. */
+  readonly onTarget: (target: EffectTarget) => void;
   readonly onCommit: () => void;
 }
 
 /** "Record the first 2/16 of the clip and play it back and forth. Speed goes from 1× to 0.25× over the whole clip, evenly." */
-export function TapeSentence({ tape, onChange, onCommit }: TapeSentenceProps) {
+export function TapeSentence({ tape, taken, onChange, onTarget, onCommit }: TapeSentenceProps) {
   const change = (patch: Partial<TapeEffect>, key?: string) => onChange({ ...tape, ...patch }, key);
   const repeatOptions = lengths(MAX_TAPE_STEPS);
   const rampOptions = [{ value: 'clip', label: 'the whole clip' }, ...lengths(128)];
@@ -288,7 +296,7 @@ export function TapeSentence({ tape, onChange, onCommit }: TapeSentenceProps) {
   return (
     <div className="stack-tight">
       <p className="sentence">
-        Record the first{' '}
+        <Choice<EffectTarget> label="Target" value="tape" options={targetOptions('tape', taken)} onChange={onTarget} />: record the first{' '}
         <Choice label="Repeat" value={String(tape.length)} options={withOwn(repeatOptions, tape.length)} onChange={(v) => change({ length: Number(v) })} /> of the clip and
         play it <Choice label="Tape direction" value={tape.direction} options={DIRECTIONS} onChange={(direction) => change({ direction })} />. Speed goes from{' '}
         <Amount label="From" value={tape.speed.from} min={0} max={MAX_TAPE_SPEED} step={0.05} suffix="×" onChange={(v) => change({ speed: { ...tape.speed, from: v } }, 'from')} onCommit={onCommit} />{' '}

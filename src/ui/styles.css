@@ -1800,3 +1800,21 @@ input[type='search'] {
   stroke: #f2a3c3;
   stroke-width: 2;
 }
+
+.effect-tab {
+  display: inline-flex;
+  align-items: center;
+}
+
+.effect-remove {
+  min-height: 0;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.effect-remove:hover {
+  color: var(--text);
+}
