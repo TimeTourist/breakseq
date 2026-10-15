@@ -81,7 +81,7 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
 
     // Loops: a new main with the pad on two steps.
     fireEvent.keyDown(window, { key: '6' });
-    fireEvent.click(button('+ New main'));
+    fireEvent.click(button('+ New loop'));
     fireEvent.click(button(`Pad ${pad.name}`));
     fireEvent.click(button(/^Bar 1, step 5:/));
     fireEvent.click(button(/^Bar 1, step 13:/));
@@ -90,7 +90,7 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
 
     // Song: the loop in bar 1.
     fireEvent.keyDown(window, { key: '8' });
-    fireEvent.click(within(screen.getByText('Mains').parentElement!).getByRole('button', { name: loop.name }));
+    fireEvent.click(button(loop.name));
     fireEvent.click(button(/^Bar 1:/));
 
     const triggers = generateTriggers(present(store), () => 0);

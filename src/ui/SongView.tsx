@@ -96,13 +96,14 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
         return;
       }
       const from = JSON.parse(e.dataTransfer.getData(CELL_MIME)) as { row: SongRow; bar: number; id: Id };
-      if (from.row !== row) {
-        setError('Drag it within its own lane');
+      const isLoopRow = (r: SongRow) => r === 'main' || r === 'fill';
+      if (from.row !== row && !(isLoopRow(from.row) && isLoopRow(row))) {
+        setError('Mods go in Mod A or Mod B, loops in Main or Fill');
         return;
       }
-      if (from.bar === bar) return;
+      if (from.row === row && from.bar === bar) return;
       // A drag moves the cell; with Alt it copies.
-      setError(run(copies(e) ? setSongCell(row, bar, from.id) : sequence(setSongCell(row, from.bar, null), setSongCell(row, bar, from.id))));
+      setError(run(copies(e) ? setSongCell(row, bar, from.id) : sequence(setSongCell(from.row, from.bar, null), setSongCell(row, bar, from.id))));
     });
 
   /** A placed cell can be dragged to another bar of its lane. */
@@ -291,17 +292,14 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
         {loops.length === 0 ? (
           <p className="muted">No loops yet. Slice a break to get M1.</p>
         ) : (
-          (['main', 'fill'] as const).map((kind) => (
-            <div key={kind} className="row">
-              <span className="muted small library-label">{kind === 'main' ? 'Mains' : 'Fills'}</span>
-              {loops
-                .filter((l) => l.kind === kind)
-                .map((loop) => (
+          <div className="row">
+              <span className="muted small library-label">Loops</span>
+              {loops.map((loop) => (
                   <button
                     key={loop.id}
                     type="button"
                     draggable
-                    className={`chip mono loop-name ${kind}`}
+                    className={`chip mono loop-name ${loop.kind}`}
                     title="Drag onto a lane · double-click to edit"
                     onDoubleClick={() => open({ loop: loop.id, step: null }, 'loops')}
                     aria-pressed={selected === loop.id}
@@ -317,8 +315,7 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
                     {loop.name}
                   </button>
                 ))}
-            </div>
-          ))
+          </div>
         )}
         <div className="row">
           <span className="muted small library-label">Mods</span>

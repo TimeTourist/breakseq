@@ -192,17 +192,24 @@ export const setLoopBars =
     return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, bars, steps, window } } });
   };
 
-/** Sets the steps a fill plays; the main shows through the rest. End is exclusive. */
+/** Sets the steps a loop plays when it is in the Fill row; the main shows through the rest. End is exclusive. */
 export const setFillWindow =
   (id: Id, start: number, end: number): Command =>
   (project) => {
     const loop = project.loops[id];
     if (loop === undefined) return notFound(id);
-    if (loop.kind !== 'fill') return invalid('Only a fill has a window');
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > loop.steps.length || end <= start) {
       return invalid('The window must cover at least one step of the loop');
     }
     return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, window: { start, end } } } });
+  };
+
+/** Tags a loop as a main or a fill. It only groups loops and shows the fill window; the Song row decides how it plays. */
+export const setLoopKind =
+  (id: Id, kind: LoopKind): Command =>
+  (project) => {
+    const loop = project.loops[id];
+    return loop === undefined ? notFound(id) : ok({ ...project, loops: { ...project.loops, [id]: { ...loop, kind } } });
   };
 
 export const renameLoop =
@@ -285,9 +292,8 @@ export const setSongCell =
     if (!Number.isInteger(bar) || bar < 0 || bar >= project.song.bars) return invalid(`Bar ${bar} is outside the song`);
     if (id !== null) {
       if (row === 'main' || row === 'fill') {
-        const loop = project.loops[id];
-        if (loop === undefined) return notFound(id);
-        if (loop.kind !== row) return invalid(`A ${loop.kind} loop cannot go in the ${row} row`);
+        // Any loop can go in either row: the row decides how it plays.
+        if (project.loops[id] === undefined) return notFound(id);
       } else if (project.mods[id] === undefined) {
         return notFound(id);
       }

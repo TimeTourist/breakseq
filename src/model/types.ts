@@ -89,6 +89,7 @@ export interface Step {
   readonly nudge: number;
 }
 
+/** A tag for grouping and naming loops (M1, F1). Any loop can go in either Song row. */
 export type LoopKind = 'main' | 'fill';
 
 export interface Loop {
@@ -99,8 +100,8 @@ export interface Loop {
   /** bars × STEPS_PER_BAR steps. */
   readonly steps: readonly Step[];
   /**
-   * The steps a fill plays, start inclusive and end exclusive. Outside it the
-   * main shows through. Mains ignore it. Defaults to the whole loop.
+   * The steps the loop plays when it is in the Fill row, start inclusive and end
+   * exclusive. Outside it the main shows through. Defaults to the whole loop.
    */
   readonly window: StepWindow;
 }
