@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from 'react';
 import type { Project, Sample } from '../model';
-import { addSample, guessBars, replaceProject, setBreak, setBreakBars, unlikelyBpm } from '../model';
+import { addSample, guessBars, replaceProject, setBreak, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun } from './context';
 import { timestamp } from './services';
@@ -220,20 +220,9 @@ export function ImportView() {
                         {sample.break === null ? (
                           `${sample.duration.toFixed(2)} s`
                         ) : (
-                          <span className="bars">
-                            <input
-                              type="number"
-                              min={1}
-                              max={64}
-                              aria-label={`Bars in ${sample.name}`}
-                              value={sample.break.bars}
-                              onChange={(e) => {
-                                const bars = Math.round(Number(e.target.value));
-                                if (bars >= 1) run(setBreakBars(sample.id, bars));
-                              }}
-                            />
-                            bars · {sample.break.bpm.toFixed(1)} BPM
-                            {unlikelyBpm(sample.break.bpm) && <span className="warn-text">check bars</span>}
+                          <span className="bars" title="Bars are set in Slice">
+                            {sample.break.bars} bars · {sample.break.bpm.toFixed(1)} BPM
+                            {unlikelyBpm(sample.break.bpm) && <span className="warn-text">check bars in Slice</span>}
                           </span>
                         )}
                       </td>
