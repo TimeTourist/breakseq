@@ -1,5 +1,5 @@
-import type { EffectTarget, Id, ModScope, ModShape, ModTarget, Project, StepEffect } from '../model';
-import { MOD_TARGETS } from '../model';
+import type { EffectTarget, ModScope, ModShape, Project, StepEffect, StepTarget } from '../model';
+import { STEP_TARGETS } from '../model';
 
 export const TARGET_LABELS: Record<EffectTarget, string> = {
   tape: 'Tape',
@@ -13,8 +13,7 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
 };
 
 /** How values read for each target, for the input's hint. */
-export const VALUE_HINTS: Record<ModTarget, string> = {
-  sourceLoop: 'loop names, e.g. F1 F2',
+export const VALUE_HINTS: Record<StepTarget, string> = {
   padMember: 'member numbers, e.g. 1 2 3',
   ratchet: 'repeats per step, 1–8, e.g. 2 4',
   pitch: 'semitones, e.g. 0 3 5 7',
@@ -23,7 +22,7 @@ export const VALUE_HINTS: Record<ModTarget, string> = {
   tempo: 'speed, e.g. 1/3 1/2 2',
 };
 
-export type Parsed = { readonly ok: true; readonly values: number[]; readonly sources: Id[] } | { readonly ok: false; readonly error: string };
+export type Parsed = { readonly ok: true; readonly values: number[] } | { readonly ok: false; readonly error: string };
 
 const number = (word: string): number | null => {
   const fraction = /^(-?\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/.exec(word);
@@ -33,21 +32,12 @@ const number = (word: string): number | null => {
 };
 
 /**
- * Reads the values typed for a target. Borrow values are loop names, which become
- * the mod's sources and indexes into them.
+ * Reads the values typed for a target.
  */
-export function parseValues(target: ModTarget, text: string, project: Project): Parsed {
+export function parseValues(target: StepTarget, text: string): Parsed {
   const words = text.split(/[\s,]+/).filter((w) => w !== '');
   const values: number[] = [];
-  const sources: Id[] = [];
   for (const word of words) {
-    if (target === 'sourceLoop') {
-      const loop = Object.values(project.loops).find((l) => l.name.toLowerCase() === word.toLowerCase());
-      if (loop === undefined) return { ok: false, error: `No loop called ${word}` };
-      if (!sources.includes(loop.id)) sources.push(loop.id);
-      values.push(sources.indexOf(loop.id));
-      continue;
-    }
     if (target === 'direction') {
       const w = word.toLowerCase();
       if (w === 'f' || w === '0' || w === 'fwd' || w === 'forward') values.push(0);
@@ -62,7 +52,7 @@ export function parseValues(target: ModTarget, text: string, project: Project): 
     if (target === 'tempo' && !(value > 0)) return { ok: false, error: 'Tempo is a speed above 0, e.g. 1/3' };
     values.push(value);
   }
-  return { ok: true, values, sources };
+  return { ok: true, values };
 }
 
 const fractions: [number, string][] = [
@@ -74,7 +64,7 @@ const fractions: [number, string][] = [
   [3 / 2, '3/2'],
 ];
 
-const formatNumber = (target: ModTarget, value: number): string => {
+const formatNumber = (target: StepTarget, value: number): string => {
   if (target === 'tempo') {
     const known = fractions.find(([f]) => Math.abs(f - value) < 1e-6);
     if (known !== undefined) return known[1];
@@ -84,10 +74,9 @@ const formatNumber = (target: ModTarget, value: number): string => {
 };
 
 /** Values written back the way they are typed. */
-export function formatValues(mod: Pick<StepEffect, 'target' | 'sources'>, values: readonly number[], project: Project): string {
+export function formatValues(mod: Pick<StepEffect, 'target'>, values: readonly number[]): string {
   return values
     .map((v) => {
-      if (mod.target === 'sourceLoop') return project.loops[mod.sources[v] ?? '']?.name ?? '?';
       if (mod.target === 'direction') return v === 1 ? 'R' : 'F';
       return formatNumber(mod.target, v);
     })
@@ -105,10 +94,8 @@ const several = (rng: () => number, count: [number, number], make: () => number)
  * left out, unless that leaves none.
  */
 export function randomMod(project: Project, rng: () => number = Math.random, taken: readonly EffectTarget[] = []): StepEffect {
-  const loops = Object.keys(project.loops);
-  const usable = MOD_TARGETS.filter((t) => t !== 'sourceLoop' || loops.length > 0);
-  const free = usable.filter((t) => !taken.includes(t));
-  const target = pick(rng, free.length > 0 ? free : usable);
+  const free = STEP_TARGETS.filter((t) => !taken.includes(t));
+  const target = pick(rng, free.length > 0 ? free : STEP_TARGETS);
 
   const tags = Object.values(project.tags);
   const pads = Object.values(project.pads).filter((p) => !p.auto || p.members.length > 1);
@@ -123,9 +110,7 @@ export function randomMod(project: Project, rng: () => number = Math.random, tak
           : { kind: 'all' };
 
   const rate = pick(rng, ['step', 'beat', 'bar'] as const);
-  const sources = target === 'sourceLoop' ? [...new Set(several(rng, [1, 3], () => between(rng, 0, loops.length - 1)))].map((i) => loops[i]!) : [];
-  const value: Record<ModTarget, () => number> = {
-    sourceLoop: () => between(rng, 0, Math.max(0, sources.length - 1)),
+  const value: Record<StepTarget, () => number> = {
     padMember: () => between(rng, 1, 4),
     ratchet: () => pick(rng, [2, 2, 3, 4, 4, 6, 8]),
     pitch: () => pick(rng, [-12, -7, -5, -3, 0, 3, 5, 7, 12]),
@@ -134,12 +119,11 @@ export function randomMod(project: Project, rng: () => number = Math.random, tak
     tempo: () => pick(rng, [1 / 3, 1 / 2, 2 / 3, 3 / 2, 2]),
   };
   const kinds: ModShape['kind'][] =
-    target === 'sourceLoop' || target === 'direction' ? ['list', 'cycle', 'random'] : target === 'tempo' ? ['list', 'list', 'ramp'] : ['list', 'cycle', 'ramp', 'random'];
+    target === 'direction' ? ['list', 'cycle', 'random'] : target === 'tempo' ? ['list', 'list', 'ramp'] : ['list', 'cycle', 'ramp', 'random'];
   const kind = pick(rng, kinds);
   const random = (): ModShape => {
     const [min, max] =
-      target === 'sourceLoop' ? [0, Math.max(0, sources.length - 1)]
-      : target === 'direction' ? [0, 1]
+      target === 'direction' ? [0, 1]
       : target === 'ratchet' ? [between(rng, 1, 2), between(rng, 3, 6)]
       : target === 'padMember' ? [1, 4]
       : target === 'volume' ? [-12, 0]
@@ -153,5 +137,5 @@ export function randomMod(project: Project, rng: () => number = Math.random, tak
       : kind === 'ramp'
         ? { kind: 'ramp', from: value[target](), to: value[target]() }
         : { kind, values: target === 'padMember' && kind === 'cycle' && rng() < 0.5 ? [] : several(rng, [1, 4], value[target]) };
-  return { target, scope, rate, shape, sources };
+  return { target, scope, rate, shape };
 }

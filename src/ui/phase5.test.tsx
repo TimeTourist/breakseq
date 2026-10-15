@@ -139,7 +139,7 @@ describe('Double-click opens the editor', () => {
       project,
       setStep(loop.id, 4, { padId: pad.id }),
       setSongCell('main', 0, loop.id),
-      createMod('Roll', [{ sources: [], target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]),
+      createMod('Roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]),
     );
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(apply(project, setSongCell('modA', 0, mod.id)), 'song');
@@ -172,7 +172,7 @@ describe('Double-clicking a mod in Song', () => {
       project,
       setSongCell('main', 0, main!.id),
       setSongCell('fill', 3, fill!.id),
-      createMod('Roll', [{ sources: [], target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]),
+      createMod('Roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]),
     );
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(apply(project, setSongCell('modA', 1, mod.id), setSongCell('modA', 3, mod.id)), 'song');
@@ -189,7 +189,7 @@ describe('Double-clicking a mod in Song', () => {
 
 describe('Dragging mods between rows', () => {
   it('a mod clip moves from Mod A to Mod B, but not into a loop row', async () => {
-    let project = apply(createProject(ctx), createMod('Roll', [{ sources: [], target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]));
+    let project = apply(createProject(ctx), createMod('Roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]));
     const mod = Object.values(project.mods)[0]!;
     project = apply(project, setSongCell('modA', 0, mod.id));
     const id = project.song.clips[0]!.id;

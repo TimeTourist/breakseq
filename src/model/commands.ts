@@ -296,6 +296,12 @@ export const placeBreak =
 
 /** What is wrong with an effect, or null. */
 function effectProblem(effect: ModEffect): string | null {
+  if (effect.target === 'sourceLoop') {
+    const { pick } = effect;
+    if (pick.kind === 'random' && !(pick.chance >= 0 && pick.chance <= 100)) return 'Chance is 0 to 100 %';
+    if (pick.kind === 'every' && !(Number.isInteger(pick.n) && pick.n >= 2)) return 'Every is every 2nd or more';
+    return null;
+  }
   if (effect.target !== 'tape') return null;
   if (!Number.isInteger(effect.length) || effect.length < 1 || effect.length > MAX_TAPE_STEPS) return 'Repeat is 1/16 to 4 bars';
   const { from, to } = effect.speed;

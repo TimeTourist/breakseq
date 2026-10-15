@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, ModEffect, Song, SongRow, Step, StepEffect, Tag, TapeEffect } from './types';
+import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, ModEffect, ModRate, ModScope, ModShape, Song, SongRow, Step, StepTarget, BorrowEffect, Tag, TapeEffect } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -95,32 +95,41 @@ export function upgradeProject(project: Project): Project {
   const song: Song = legacy.rows === undefined ? legacy : { bpm: legacy.bpm, bars: legacy.bars, clips: clipsFromRows(legacy.rows, legacy.bars, legacyLoops) };
   // A mod used to be one step effect: it becomes a mod with that effect.
   const mods = Object.fromEntries(
-    Object.entries(project.mods as Readonly<Record<Id, Mod | LegacyMod>>).map(([id, mod]): [Id, Mod] => {
-      if ('effects' in mod) return [id, { ...mod, effects: (mod as Mod).effects.map(upgradeEffect) }];
-      const { target, scope, rate, shape, sources } = mod;
-      return [id, { id, name: mod.name, effects: [upgradeEffect({ target, scope, rate, shape, sources: sources ?? [] })] }];
+    Object.entries(project.mods as unknown as Readonly<Record<Id, SavedMod>>).map(([id, mod]): [Id, Mod] => {
+      const effects = mod.effects ?? [mod as unknown as SavedEffect];
+      return [id, { id, name: mod.name, effects: effects.map(upgradeEffect) }];
     }),
   );
   return { ...project, samples, hits, pads, loops, mods, song };
 }
 
-/** Songs saved before clips: one cell per bar and row. */
-/** A tape saved before ramp time, curve, wow and flutter gets their defaults. */
-function upgradeEffect(effect: ModEffect): ModEffect {
-  if (effect.target !== 'tape') {
-    // Step ranges went: a clip in Song now covers exactly the steps a mod acts on.
-    const scope = (effect.scope.kind as string) === 'range' ? { kind: 'all' as const } : effect.scope;
-    // Random got a choice of whole numbers; pitch rolls semitones unless set otherwise.
-    const shape = effect.shape.kind === 'random' && effect.shape.whole === undefined ? { ...effect.shape, whole: effect.target === 'pitch' } : effect.shape;
-    return { ...effect, scope, shape };
+/** An effect as an older version may have saved it. */
+type SavedEffect = { readonly target: string; readonly [field: string]: unknown };
+/** A mod as an older version may have saved it: with effects, or as one effect itself. */
+type SavedMod = { readonly id: Id; readonly name: string; readonly effects?: readonly SavedEffect[] };
+
+/** An effect brought up to date, with defaults for what it was saved without. */
+function upgradeEffect(saved: SavedEffect): ModEffect {
+  if (saved.target === 'tape') {
+    return { rampOver: null, curve: 'linear', wow: 0, flutter: 0, ...(saved as unknown as Partial<TapeEffect>) } as TapeEffect;
   }
-  const saved = effect as Partial<TapeEffect> & Pick<TapeEffect, 'target' | 'length' | 'direction' | 'speed'>;
-  return { rampOver: null, curve: 'linear', wow: 0, flutter: 0, ...saved };
+  // Step ranges went: a clip in Song now covers exactly the steps a mod acts on.
+  const savedScope = saved.scope as ModScope | { kind: 'range' };
+  const scope: ModScope = savedScope.kind === 'range' ? { kind: 'all' } : savedScope;
+  const rate = saved.rate as ModRate;
+  if (saved.target === 'sourceLoop') {
+    if ('pick' in saved) return { ...(saved as unknown as BorrowEffect), scope };
+    // Borrow used to pick its loop by value; it now borrows from the same loops half the time, silent where they are.
+    return { target: 'sourceLoop', scope, rate, sources: (saved.sources as readonly Id[] | undefined) ?? [], pick: { kind: 'random', chance: 50 }, skipEmpty: false };
+  }
+  // Random got a choice of whole numbers; pitch rolls semitones unless set otherwise.
+  const savedShape = saved.shape as ModShape;
+  const shape: ModShape =
+    savedShape.kind === 'random' && (savedShape as { whole?: boolean }).whole === undefined ? { ...savedShape, whole: saved.target === 'pitch' } : savedShape;
+  return { target: saved.target as StepTarget, scope, rate, shape };
 }
 
-/** A mod as saved before effects: one step effect, maybe without sources. */
-type LegacyMod = Omit<StepEffect, 'sources'> & { readonly id: Id; readonly name: string; readonly sources?: readonly Id[] };
-
+/** Songs saved before clips: one cell per bar and row. */
 type LegacyRows = { readonly [R in SongRow]: readonly (Id | null)[] };
 /** Fill windows saved before clips, in steps of the loop. */
 type LegacyWindow = { readonly start: number; readonly end: number };

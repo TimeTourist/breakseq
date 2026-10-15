@@ -1,8 +1,9 @@
 import type { Usage } from './command';
-import type { Id, Mod, Project, SongRow, StepEffect } from './types';
-import { isStepEffect } from './types';
+import type { BorrowEffect, Id, Mod, Project, SongRow, StepEffect } from './types';
+import { isScopedEffect } from './types';
 
-export const stepEffects = (mod: Mod): StepEffect[] => mod.effects.filter(isStepEffect);
+/** A mod's effects that act on some steps, and so have a scope. */
+export const stepEffects = (mod: Mod): (StepEffect | BorrowEffect)[] => mod.effects.filter(isScopedEffect);
 
 export type ReferableKind = 'tag' | 'sample' | 'hit' | 'pad' | 'loop' | 'mod';
 
@@ -42,7 +43,7 @@ export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage
       return [
         ...songUsage(project, id, ['main', 'fill']),
         ...Object.values(project.mods)
-          .filter((m) => stepEffects(m).some((e) => e.sources.includes(id)))
+          .filter((m) => m.effects.some((e) => e.target === 'sourceLoop' && e.sources.includes(id)))
           .map((m): Usage => ({ kind: 'mod', id: m.id, name: m.name })),
       ];
     case 'mod':

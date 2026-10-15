@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { EffectTarget, ModRate, ModScope, ModShape, ModTarget, Project, StepEffect, TapeCurve, TapeEffect } from '../model';
+import type { BorrowEffect, BorrowPick, EffectTarget, ModRate, ModScope, ModShape, Project, StepEffect, StepTarget, TapeCurve, TapeEffect } from '../model';
 import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, MOD_TARGETS, isParentPad } from '../model';
 import { musicalLength } from './labels';
 import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues } from './modText';
 import { Slider } from './Slider';
 
-/** Targets that pick one thing out of several: no ramp, and Random picks among them. */
-const PICKS = new Set<ModTarget>(['sourceLoop', 'direction']);
+/** Targets that pick one thing out of two: no ramp, and Random picks between them. */
+const PICKS = new Set<StepTarget>(['direction']);
 
 const RATES: readonly { value: ModRate; label: string }[] = [
   { value: 'step', label: '1/16' },
@@ -88,6 +88,16 @@ function Amount({ label, value, onChange, onCommit, min, max, step = 'any', suff
 const targetOptions = (own: EffectTarget, taken: readonly EffectTarget[]) =>
   [...MOD_TARGETS, 'tape' as const].filter((t) => t === own || !taken.includes(t)).map((t) => ({ value: t, label: TARGET_LABELS[t] }));
 
+/** What a mod can act on: every step, a tag's steps, or a pad's. A break's own pad never plays as a pad, so it is left out. */
+function scopeOptions(project: Project) {
+  const pads = Object.values(project.pads).filter((p) => !isParentPad(project, p));
+  return [
+    { value: 'all', label: 'every step' },
+    ...Object.values(project.tags).map((t) => ({ value: `tag:${t.id}`, label: `${t.name} steps`, group: 'Tag' })),
+    ...pads.map((p) => ({ value: `pad:${p.id}`, label: `pad ${p.name}`, group: 'Pad' })),
+  ];
+}
+
 const scopeKey = (scope: ModScope) => (scope.kind === 'all' ? 'all' : scope.kind === 'tag' ? `tag:${scope.tagId}` : `pad:${scope.padId}`);
 const scopeFrom = (key: string): ModScope => {
   const [kind, id] = key.split(':') as [string, string];
@@ -112,7 +122,7 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
   const change = (patch: Partial<StepEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
   const setShape = (next: ModShape, key?: string) => change({ shape: next }, key);
 
-  const shownValues = shape.kind === 'list' || shape.kind === 'cycle' ? formatValues(effect, shape.values, project) : '';
+  const shownValues = shape.kind === 'list' || shape.kind === 'cycle' ? formatValues(effect, shape.values) : '';
   const [text, setText] = useState(shownValues);
   const [problem, setProblem] = useState<string | null>(null);
   // Follow the effect when it changes from elsewhere (undo, another effect).
@@ -123,33 +133,25 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
 
   const typeValues = (value: string) => {
     setText(value);
-    const parsed = parseValues(target, value, project);
+    const parsed = parseValues(target, value);
     if (!parsed.ok) {
       setProblem(parsed.error);
       return;
     }
     setProblem(null);
     if (shape.kind === 'list' || shape.kind === 'cycle') {
-      change({ shape: { kind: shape.kind, values: parsed.values }, ...(target === 'sourceLoop' ? { sources: parsed.sources } : {}) }, 'values');
+      change({ shape: { kind: shape.kind, values: parsed.values } }, 'values');
     }
   };
 
   const setKind = (kind: ModShape['kind']) => {
     const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [];
-    const range =
-      target === 'sourceLoop' ? { min: 0, max: Math.max(0, effect.sources.length - 1) } : target === 'direction' ? { min: 0, max: 1 } : { min: 1, max: 4 };
+    const range = target === 'direction' ? { min: 0, max: 1 } : { min: 1, max: 4 };
     // Pitch rolls whole semitones unless you choose otherwise.
     setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? { kind, from: 0, to: 12 } : { kind, ...range, chance: 50, whole: target === 'pitch' });
   };
 
-  const tags = Object.values(project.tags);
-  // A break's own pad never plays as a pad, so a mod cannot act on it.
-  const pads = Object.values(project.pads).filter((p) => !isParentPad(project, p));
-  const scopes = [
-    { value: 'all', label: 'every step' },
-    ...tags.map((t) => ({ value: `tag:${t.id}`, label: `${t.name} steps`, group: 'Tag' })),
-    ...pads.map((p) => ({ value: `pad:${p.id}`, label: `pad ${p.name}`, group: 'Pad' })),
-  ];
+  const scopes = scopeOptions(project);
 
   const valuesInput = (
     <input
@@ -204,25 +206,7 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
             <Amount label="Chance" value={shape.chance} min={0} max={100} step={1} suffix="%" onChange={(v) => setShape({ ...shape, chance: v }, 'chance')} onCommit={onCommit} /> of the
             time{' '}
             {picks ? (
-              target === 'sourceLoop' ? (
-                <>
-                  to a step from{' '}
-                  <input
-                    className="word values mono"
-                    aria-label="Borrow from"
-                    placeholder="loop names, e.g. F1 F2"
-                    defaultValue={formatValues(effect, effect.sources.map((_, i) => i), project)}
-                    onBlur={(e) => {
-                      const parsed = parseValues('sourceLoop', e.target.value, project);
-                      if (parsed.ok) change({ sources: parsed.sources, shape: { ...shape, min: 0, max: Math.max(0, parsed.sources.length - 1) } });
-                      else setProblem(parsed.error);
-                    }}
-                  />
-                  , picked at random.
-                </>
-              ) : (
-                <>to forward or backwards, at random.</>
-              )
+              <>to forward or backwards, at random.</>
             ) : (
               <>
                 to anything from <Amount label="Min" value={shape.min} onChange={(v) => setShape({ ...shape, min: v }, 'min')} onCommit={onCommit} /> to{' '}
@@ -253,6 +237,100 @@ export function StepSentence({ effect, project, taken, onChange, onTarget, onCom
           {problem}
         </p>
       )}
+    </div>
+  );
+}
+
+const ORDINALS = ['2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+
+const PICK_WORDS: Record<BorrowPick['kind'], string> = {
+  random: 'now and then',
+  every: 'regularly',
+  inTurn: 'in turn',
+};
+
+interface BorrowSentenceProps {
+  readonly effect: BorrowEffect;
+  readonly project: Project;
+  readonly taken: readonly EffectTarget[];
+  readonly onChange: (effect: BorrowEffect, key?: string) => void;
+  readonly onTarget: (target: EffectTarget) => void;
+  readonly onCommit: () => void;
+}
+
+/**
+ * "Every 1/16, on every step: Borrow now and then — 50 % of the time, play the
+ * hit from F1 instead. Where F1 has nothing, keep its own hit." Loops are toggled as chips.
+ */
+export function BorrowSentence({ effect, project, taken, onChange, onTarget, onCommit }: BorrowSentenceProps) {
+  const change = (patch: Partial<BorrowEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
+  const { pick } = effect;
+  const loops = Object.values(project.loops);
+  const chosen = effect.sources.map((id) => project.loops[id]?.name ?? '?');
+  const names = chosen.length === 0 ? 'the loops you pick' : chosen.join(' or ');
+  const toggle = (id: string) =>
+    change({ sources: effect.sources.includes(id) ? effect.sources.filter((s) => s !== id) : [...effect.sources, id] });
+  const setPick = (kind: BorrowPick['kind']) =>
+    change({ pick: kind === 'random' ? { kind, chance: 50 } : kind === 'every' ? { kind, n: 2 } : { kind } });
+  return (
+    <div className="stack-tight">
+      <p className="sentence">
+        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />, on{' '}
+        <Choice label="Scope" value={scopeKey(effect.scope)} options={scopeOptions(project)} onChange={(key) => change({ scope: scopeFrom(key) })} />:{' '}
+        <Choice<EffectTarget> label="Target" value="sourceLoop" options={targetOptions('sourceLoop', taken)} onChange={onTarget} />{' '}
+        <Choice
+          label="Pick"
+          value={pick.kind}
+          options={(Object.keys(PICK_WORDS) as BorrowPick['kind'][]).map((k) => ({ value: k, label: PICK_WORDS[k] }))}
+          onChange={setPick}
+        />
+        {pick.kind === 'random' && (
+          <>
+            {' '}
+            — <Amount label="Chance" value={pick.chance} min={0} max={100} step={1} suffix="%" onChange={(v) => change({ pick: { ...pick, chance: v } }, 'chance')} onCommit={onCommit} /> of
+            the time, play the hit from {names} instead.
+          </>
+        )}
+        {pick.kind === 'every' && (
+          <>
+            {' '}
+            — every{' '}
+            <Choice
+              label="Every"
+              value={String(pick.n)}
+              options={ORDINALS.map((o, i) => ({ value: String(i + 2), label: o }))}
+              onChange={(v) => change({ pick: { kind: 'every', n: Number(v) } })}
+            />{' '}
+            time, play the hit from {names} instead{chosen.length > 1 ? ', taking them in turn' : ''}.
+          </>
+        )}
+        {pick.kind === 'inTurn' && <> — go round its own loop and {names}, one after the other.</>}{' '}
+        Where {chosen.length === 1 ? chosen[0] : 'a loop'} has nothing on the step,{' '}
+        <Choice
+          label="Empty steps"
+          value={effect.skipEmpty ? 'skip' : 'silent'}
+          options={[
+            { value: 'skip', label: 'keep its own hit' },
+            { value: 'silent', label: 'go silent' },
+          ]}
+          onChange={(v) => change({ skipEmpty: v === 'skip' })}
+        />
+        .
+      </p>
+      <div className="row wrap" role="group" aria-label="Borrow from">
+        <span className="muted small">Borrow from:</span>
+        {loops.map((loop) => (
+          <button
+            key={loop.id}
+            type="button"
+            className={`chip mono loop-name ${loop.kind}`}
+            aria-pressed={effect.sources.includes(loop.id)}
+            onClick={() => toggle(loop.id)}
+          >
+            {loop.name}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

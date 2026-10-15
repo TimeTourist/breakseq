@@ -1,6 +1,6 @@
 import type { Tape } from '../engine';
-import { effectPreview, tapePasses, tapeSpeed, wobbles } from '../engine';
-import type { Project, StepEffect, TapeEffect } from '../model';
+import { borrowPreview, effectPreview, tapePasses, tapeSpeed, wobbles } from '../engine';
+import type { BorrowEffect, Project, StepEffect, TapeEffect } from '../model';
 import { STEPS_PER_BAR } from '../model';
 import { formatValues } from './modText';
 
@@ -18,7 +18,7 @@ const seeded = (seed: number) => {
  * What a step effect does over one bar: a bar per step. Random draws one
  * example roll, from `seed`; each take rolls its own.
  */
-export function StepGraph({ effect, project, seed }: { effect: StepEffect; project: Project; seed: number }) {
+export function StepGraph({ effect, seed }: { effect: StepEffect; seed: number }) {
   const points = effectPreview(effect, STEPS_PER_BAR, seeded(seed));
   const numbers = points.filter((p): p is number => p !== null);
   // Random's whole range sets the scale, so rolling again does not rescale it.
@@ -31,7 +31,7 @@ export function StepGraph({ effect, project, seed }: { effect: StepEffect; proje
   // Write a value where it changes, the way it is typed.
   // Values are rounded to a tenth here, so a random pitch does not print three decimals.
   const label = (p: number | null, i: number) =>
-    p === null || (i > 0 && points[i - 1] === p) ? null : formatValues(effect, [Math.round(p * 10) / 10], project);
+    p === null || (i > 0 && points[i - 1] === p) ? null : formatValues(effect, [Math.round(p * 10) / 10]);
   return (
     <svg className="mod-graph" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="What the effect does over one bar">
       {Array.from({ length: STEPS_PER_BAR }, (_, i) => (
@@ -53,6 +53,28 @@ export function StepGraph({ effect, project, seed }: { effect: StepEffect; proje
           </g>
         );
       })}
+    </svg>
+  );
+}
+
+/**
+ * Which loop Borrow plays from on each step of one bar: the step's own loop
+ * (`own`, the loop it is tried on) or a borrowed one, named in its box.
+ */
+export function BorrowGraph({ effect, project, own, seed }: { effect: BorrowEffect; project: Project; own: string; seed: number }) {
+  const layers = borrowPreview(effect, STEPS_PER_BAR, seeded(seed));
+  const w = WIDTH / STEPS_PER_BAR;
+  const name = (layer: number) => (layer < 0 ? own : (project.loops[effect.sources[layer] ?? '']?.name ?? '?'));
+  return (
+    <svg className="mod-graph borrow" viewBox={`0 0 ${WIDTH} ${HEIGHT / 2}`} role="img" aria-label="Which loop each step plays from">
+      {layers.map((layer, i) => (
+        <g key={i} className={layer < 0 ? 'layer own' : `layer borrowed n${layer % 4}`}>
+          <rect x={i * w + 2} width={w - 4} y={8} height={HEIGHT / 2 - 16} rx={3} />
+          <text x={i * w + w / 2} y={HEIGHT / 4 + 4} textAnchor="middle">
+            {name(layer)}
+          </text>
+        </g>
+      ))}
     </svg>
   );
 }

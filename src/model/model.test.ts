@@ -623,7 +623,7 @@ describe('clips', () => {
   /** A song of 4 bars with a one-bar loop L and a mod D. */
   function song() {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod('D', [{ sources: [], target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
+    const project = run(createProject(ctx), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod('D', [{ target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
     return { ctx, project, loop: only(project.loops).id, mod: only(project.mods).id };
   }
   const spans = (project: Project, row = 'main') =>
@@ -685,7 +685,7 @@ describe('clips', () => {
 
   it('a song saved with rows becomes clips that play the same', () => {
     const ctx = sequentialIds();
-    const base = run(createProject(ctx), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod('D', [{ sources: [], target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
+    const base = run(createProject(ctx), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod('D', [{ target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
     const [m, f] = Object.keys(base.loops) as [string, string];
     const d = Object.keys(base.mods)[0]!;
     const legacy = {
@@ -708,7 +708,7 @@ describe('clips', () => {
 });
 
 describe('mods with effects', () => {
-  const pitch: StepEffect = { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] }, sources: [] };
+  const pitch: StepEffect = { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } };
   const tape: TapeEffect = { target: 'tape', length: 6, direction: 'pingpong', speed: { from: 1, to: 0 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
   it('a mod has at most one effect per target, and may have none', () => {
@@ -751,7 +751,7 @@ describe('mods with effects', () => {
   it('a saved step range becomes every step: the clip in Song now says which steps', () => {
     const ctx = sequentialIds();
     const base = createProject(ctx);
-    const effect = { target: 'pitch', scope: { kind: 'range', from: 4, to: 7 }, rate: 'bar', shape: { kind: 'list', values: [12] }, sources: [] };
+    const effect = { target: 'pitch', scope: { kind: 'range', from: 4, to: 7 }, rate: 'bar', shape: { kind: 'list', values: [12] } };
     const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [effect] }, n: { id: 'n', name: 'Older', ...effect } } } as unknown as Project;
     const upgraded = upgradeProject(legacy);
     expect(upgraded.mods.m!.effects[0]).toMatchObject({ scope: { kind: 'all' } });
@@ -761,9 +761,27 @@ describe('mods with effects', () => {
   it('a saved random shape gets whole numbers for pitch and stays free elsewhere', () => {
     const ctx = sequentialIds();
     const base = createProject(ctx);
-    const random = (target: string) => ({ target, scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'random', min: 0, max: 4, chance: 50 }, sources: [] });
+    const random = (target: string) => ({ target, scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'random', min: 0, max: 4, chance: 50 } });
     const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [random('pitch'), random('volume')] } } } as unknown as Project;
-    expect(upgradeProject(legacy).mods.m!.effects.map((e) => e.target !== 'tape' && e.shape.kind === 'random' && e.shape.whole)).toEqual([true, false]);
+    expect(upgradeProject(legacy).mods.m!.effects.map((e) => 'shape' in e && e.shape.kind === 'random' && e.shape.whole)).toEqual([true, false]);
+  });
+
+  it('a saved Borrow borrows from the same loops half the time, silent where they are empty', () => {
+    const ctx = sequentialIds();
+    const base = createProject(ctx);
+    const old = { id: 'm', name: 'Old', target: 'sourceLoop', scope: { kind: 'all' }, rate: 'beat', shape: { kind: 'list', values: [0, 1] }, sources: ['a', 'b'] };
+    const legacy = { ...base, mods: { m: old } } as unknown as Project;
+    expect(upgradeProject(legacy).mods.m!.effects).toEqual([
+      { target: 'sourceLoop', scope: { kind: 'all' }, rate: 'beat', sources: ['a', 'b'], pick: { kind: 'random', chance: 50 }, skipEmpty: false },
+    ]);
+  });
+
+  it('Borrow checks its chance and its every', () => {
+    const ctx = sequentialIds();
+    const borrow = { target: 'sourceLoop', scope: { kind: 'all' }, rate: 'step', sources: [], skipEmpty: true } as const;
+    expect(createMod('B', [{ ...borrow, pick: { kind: 'random', chance: 120 } }])(createProject(ctx), ctx).ok).toBe(false);
+    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 1 } }])(createProject(ctx), ctx).ok).toBe(false);
+    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 3 } }])(createProject(ctx), ctx).ok).toBe(true);
   });
 
   it('wow, flutter and ramp time are checked', () => {
@@ -780,7 +798,7 @@ describe('mods with effects', () => {
     expect(upgradeProject(legacy).mods.m).toEqual({
       id: 'm',
       name: 'Old',
-      effects: [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] }, sources: [] }],
+      effects: [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }],
     });
   });
 });

@@ -1,6 +1,6 @@
 import type { Clip, Direction, Id, Loop, Project, Region, Rng } from '../model';
 import { STEPS_PER_BAR, clipsByStep, effectiveHit, stepDuration } from '../model';
-import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
+import { applyMods, borrowRolls, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
 import type { Tape } from './tape';
 import { tapeWindows, windowTape } from './tape';
 
@@ -78,6 +78,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
   const layers = songLayers(project);
   const tempo = tempoRuns(runs);
   const values = modValues(rng);
+  const rolls = borrowRolls(rng);
   const triggers: Trigger[] = [];
 
   /**
@@ -89,7 +90,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     const cell = layer?.loop.steps[layer.index];
     if (layer == null || cell === undefined) return;
     const place = { index: layer.index, clock };
-    const state = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values);
+    const state = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values, rolls);
     if (state.hit === undefined) return;
     const hit = effectiveHit(project, state.hit);
     for (let i = 0; i < state.ratchet; i++) {
