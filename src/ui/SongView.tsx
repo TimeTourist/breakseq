@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import type { Id, Loop, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, setSongBars, setSongCell } from '../model';
+import type { DragEvent } from 'react';
+import type { Id, Loop, LoopKind, Project, SongRow } from '../model';
+import { STEPS_PER_BAR, sequence, setSongBars, setSongCell } from '../model';
+import { CELL_MIME, copies, useDropTargets } from './dnd';
 import { useProject, useRun } from './context';
 import { TARGET_LABELS } from './modText';
 
@@ -83,6 +85,37 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
 
   const place = (kind: LoopKind, bar: number, loopId: Id | null) => setError(run(setSongCell(kind, bar, loopId)));
   const placeMod = (row: 'modA' | 'modB', bar: number, modId: Id | null) => setError(run(setSongCell(row, bar, modId)));
+  const drops = useDropTargets();
+
+  /** What a song cell accepts: a loop or mod from the library, or a placed cell from the same lane. */
+  const dropOn = (row: SongRow, bar: number) =>
+    drops.bind(`${row}:${bar}`, [row === 'modA' || row === 'modB' ? MOD_MIME : LOOP_MIME, CELL_MIME], (e: DragEvent, type: string) => {
+      if (type !== CELL_MIME) {
+        setError(run(setSongCell(row, bar, e.dataTransfer.getData(type))));
+        return;
+      }
+      const from = JSON.parse(e.dataTransfer.getData(CELL_MIME)) as { row: SongRow; bar: number; id: Id };
+      if (from.row !== row) {
+        setError('Drag it within its own lane');
+        return;
+      }
+      if (from.bar === bar) return;
+      // A drag moves the cell; with Alt it copies.
+      setError(run(copies(e) ? setSongCell(row, bar, from.id) : sequence(setSongCell(row, from.bar, null), setSongCell(row, bar, from.id))));
+    });
+
+  /** A placed cell can be dragged to another bar of its lane. */
+  const dragCell = (row: SongRow, bar: number, id: Id | null) =>
+    id === null
+      ? {}
+      : {
+          draggable: true,
+          onDragStart: (e: DragEvent) => {
+            e.dataTransfer.setData(CELL_MIME, JSON.stringify({ row, bar, id }));
+            e.dataTransfer.effectAllowed = 'copyMove';
+          },
+          onDragEnd: drops.clear,
+        };
 
   /** A mod lane: a mod acts in the bars it is placed in; the same mod in adjacent bars is one run. */
   const modLane = (row: 'modA' | 'modB') => (
@@ -98,7 +131,9 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
           <button
             key={bar}
             type="button"
-            className={`cell mod${mod !== undefined ? (continues ? ' running' : ' start') : ''}${bar === playheadBar ? ' now' : ''}`}
+            className={`cell mod${mod !== undefined ? (continues ? ' running' : ' start') : ''}${bar === playheadBar ? ' now' : ''}${drops.isOver(`${row}:${bar}`) ? ' drop-over' : ''}`}
+            {...dragCell(row, bar, id)}
+            {...dropOn(row, bar)}
             aria-label={`${row === 'modA' ? 'Mod A' : 'Mod B'} bar ${bar + 1}: ${mod === undefined ? 'empty' : mod.name}`}
             title={mod?.name}
             onClick={() => {
@@ -108,16 +143,6 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
               if ((e.key === 'Delete' || e.key === 'Backspace') && id !== null) {
                 e.preventDefault();
                 placeMod(row, bar, null);
-              }
-            }}
-            onDragOver={(e) => {
-              if (e.dataTransfer.types.includes(MOD_MIME)) e.preventDefault();
-            }}
-            onDrop={(e) => {
-              const dropped = e.dataTransfer.getData(MOD_MIME);
-              if (dropped !== '') {
-                e.preventDefault();
-                placeMod(row, bar, dropped);
               }
             }}
           >
@@ -172,7 +197,9 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
             <button
               key={bar}
               type="button"
-              className={`cell ${kind}${state}${hidden ? ' hidden' : ''}${partial ? ' partial' : ''}${silent ? ' silent' : ''}${bar === playheadBar ? ' now' : ''}`}
+              className={`cell ${kind}${state}${hidden ? ' hidden' : ''}${partial ? ' partial' : ''}${silent ? ' silent' : ''}${bar === playheadBar ? ' now' : ''}${drops.isOver(`${kind}:${bar}`) ? ' drop-over' : ''}`}
+              {...dragCell(kind, bar, cell.loopId)}
+              {...dropOn(kind, bar)}
               style={partial ? spanStyle(kind, cell.fillSteps!) : undefined}
               aria-label={`${kind === 'main' ? 'Bar' : 'Fill bar'} ${bar + 1}: ${
                 cell.plays === null ? 'empty' : `${cell.plays.name} bar ${cell.plays.bar}${detail}`
@@ -184,16 +211,6 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
                 if ((e.key === 'Delete' || e.key === 'Backspace') && cell.loopId !== null) {
                   e.preventDefault();
                   place(kind, bar, null);
-                }
-              }}
-              onDragOver={(e) => {
-                if (e.dataTransfer.types.includes(LOOP_MIME)) e.preventDefault();
-              }}
-              onDrop={(e) => {
-                const id = e.dataTransfer.getData(LOOP_MIME);
-                if (id !== '') {
-                  e.preventDefault();
-                  place(kind, bar, id);
                 }
               }}
             >

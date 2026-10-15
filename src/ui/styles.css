@@ -1433,3 +1433,49 @@ input[type='search'] {
   background: #381a27;
   border-color: #e5689a;
 }
+
+/* Tag, phase 5 */
+
+.badge.auto {
+  background: var(--sunken);
+  color: var(--muted);
+  border: 1px dashed #4a4f55;
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-remove {
+  min-height: 0;
+  height: 18px;
+  width: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.add-tag input {
+  width: 140px;
+  min-height: 32px;
+}
+
+.sensitivity input[type='range'] {
+  width: 120px;
+}
+
+/* Drag and drop */
+
+.drop-over,
+.dropzone.dragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+[draggable='true'] {
+  cursor: grab;
+}

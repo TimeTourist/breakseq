@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, remove, renameLoop, setLoopBars, setStep } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, remove, renameLoop, sequence, setLoopBars, setStep } from '../model';
+import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, loopUsage, padColor, padGroups, padLabel } from './labels';
 import type { Selection } from './store';
@@ -29,6 +30,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const selection = useSelect((s) => s.selection);
   const [shelfPad, setShelfPad] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const drops = useDropTargets();
   const loopId = currentLoopId(project, selection);
   const loop = loopId === null ? undefined : project.loops[loopId];
   const [barsDraft, setBarsDraft] = useState(String(loop?.bars ?? 1));
@@ -91,6 +93,20 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const usedInSong = loopUsage(project, loop.id);
 
   const place = (index: number, padId: Id | null) => setError(run(setStep(loop.id, index, { padId })));
+  /** A pad from the shelf, or another step: moved, or copied with Alt. */
+  const dropOnStep = (index: number) =>
+    drops.bind(`step:${index}`, [PAD_MIME, STEP_MIME], (e, type) => {
+      if (type === PAD_MIME) {
+        place(index, e.dataTransfer.getData(PAD_MIME));
+      } else {
+        const from = Number(e.dataTransfer.getData(STEP_MIME));
+        const source = loop.steps[from];
+        if (source === undefined || from === index) return;
+        const copy = setStep(loop.id, index, { padId: source.padId, memberId: source.memberId, ignoreMods: source.ignoreMods });
+        setError(run(copies(e) ? copy : sequence(copy, setStep(loop.id, from, { padId: null, memberId: null, ignoreMods: false }))));
+      }
+      open({ step: index }, 'loops');
+    });
   const clickStep = (index: number) => {
     if (shelfPad !== null) place(index, shelfPad);
     open({ step: index }, 'loops');
@@ -183,7 +199,14 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     <button
                       key={s}
                       type="button"
-                      className={`step${pad !== undefined ? ' filled' : ''}${index === selectedStep ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${through ? ' through' : ''}`}
+                      className={`step${pad !== undefined ? ' filled' : ''}${index === selectedStep ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${through ? ' through' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
+                      draggable={pad !== undefined}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(STEP_MIME, String(index));
+                        e.dataTransfer.effectAllowed = 'copyMove';
+                      }}
+                      onDragEnd={drops.clear}
+                      {...dropOnStep(index)}
                       style={color === undefined ? undefined : { color, boxShadow: `inset 0 -4px 0 ${color}` }}
                       aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}${through ? ', main shows through' : ''}`}
                       onClick={() => clickStep(index)}
@@ -191,17 +214,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                         if ((e.key === 'Delete' || e.key === 'Backspace') && pad !== undefined) {
                           e.preventDefault();
                           place(index, null);
-                        }
-                      }}
-                      onDragOver={(e) => {
-                        if (e.dataTransfer.types.includes(PAD_MIME)) e.preventDefault();
-                      }}
-                      onDrop={(e) => {
-                        const id = e.dataTransfer.getData(PAD_MIME);
-                        if (id !== '') {
-                          e.preventDefault();
-                          place(index, id);
-                          open({ step: index }, 'loops');
                         }
                       }}
                     >

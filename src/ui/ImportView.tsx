@@ -1,7 +1,7 @@
 import { Fragment, useRef, useState } from 'react';
 import type { Project, Sample } from '../model';
 import { addSample, replaceProject, setBreak } from '../model';
-import { decodeAudioFile, readProjectFile, writeProjectFile } from '../engine';
+import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun } from './context';
 import { timestamp } from './services';
 import { TrimEditor } from './TrimEditor';
@@ -52,8 +52,10 @@ export function ImportView() {
     const failed: string[] = [];
     for (const file of files) {
       try {
-        const audio = decodeAudioFile(await file.arrayBuffer());
-        const error = run(addSample({ name: file.name, audio }));
+        const bytes = await file.arrayBuffer();
+        const audio = decodeAudioFile(bytes);
+        // A WAV with cue markers becomes a break sliced at them.
+        const error = run(addSample({ name: file.name, audio, cues: readCues(bytes) }));
         if (error !== null) failed.push(`${file.name}: ${error}`);
       } catch (e) {
         failed.push(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
@@ -91,6 +93,7 @@ export function ImportView() {
           <path d="M18 24V6M11 13l7-7 7 7M6 24v6h24v-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <div className="dropzone-title">Drop WAV or AIFF files here</div>
+        <div className="small">WAV files with cue markers keep their slices</div>
         <button type="button" onClick={() => input.current?.click()}>
           Browse files
         </button>
