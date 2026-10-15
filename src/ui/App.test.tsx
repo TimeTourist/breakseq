@@ -21,6 +21,7 @@ function fakeServices(): Services {
     isPlaying: () => false,
     currentBar: () => null,
     audition: vi.fn(),
+    stopAudition: vi.fn(),
   };
   return {
     storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() },
@@ -104,5 +105,42 @@ describe('Song', () => {
 
     fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
     expect(bar(1).getAttribute('aria-label')).toBe('Bar 1: M1 bar 1');
+  });
+});
+
+describe('Slice', () => {
+  /** A project with an unsliced one-bar break. */
+  function withBreak(): Project {
+    const ctx = sequentialIds();
+    const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(createProject(ctx), ctx);
+    if (!added.ok) throw new Error('addSample failed');
+    const id = Object.keys(added.project.samples)[0]!;
+    const asBreak = setBreak(id, 1)(added.project, ctx);
+    if (!asBreak.ok) throw new Error('setBreak failed');
+    return asBreak.project;
+  }
+
+  it('plays the whole break, and the button stops it while it plays', async () => {
+    const services = fakeServices();
+    const project = withBreak();
+    render(<App store={createStore({ ...initialState(project), view: 'slice' })} services={services} />);
+    await act(async () => {});
+    const sample = Object.values(project.samples)[0]!;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play break' }));
+
+    expect(services.player.audition).toHaveBeenCalledWith(
+      project.audio[sample.audioId],
+      sample.offset,
+      sample.duration,
+      expect.any(Function),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Stop break' }));
+    expect(services.player.stopAudition).toHaveBeenCalled();
+
+    // The player reports the end; the button goes back to Play.
+    const onEnded = vi.mocked(services.player.audition).mock.calls[0]![3]!;
+    act(() => onEnded());
+    expect(screen.getByRole('button', { name: 'Play break' })).toBeTruthy();
   });
 });
