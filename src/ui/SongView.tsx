@@ -3,7 +3,7 @@ import type { DragEvent } from 'react';
 import type { Id, Loop, LoopKind, Project, SongRow } from '../model';
 import { STEPS_PER_BAR, sequence, setSongBars, setSongCell } from '../model';
 import { CELL_MIME, copies, useDropTargets } from './dnd';
-import { useProject, useRun } from './context';
+import { useOpen, useProject, useRun } from './context';
 import { TARGET_LABELS } from './modText';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
@@ -12,7 +12,7 @@ export const MOD_MIME = 'application/x-breakseq-mod';
 interface LaneCell {
   readonly loopId: Id | null;
   /** The loop that covers this bar, and which of its bars. */
-  readonly plays: { readonly name: string; readonly bar: number } | null;
+  readonly plays: { readonly id: Id; readonly name: string; readonly bar: number } | null;
   /**
    * The steps of this bar a fill plays, start inclusive and end exclusive (0–16).
    * In the Main lane: the steps a fill covers over it. Null when no fill is there.
@@ -43,7 +43,7 @@ export function laneCells(project: Project, kind: LoopKind): LaneCell[] {
     }
     return {
       loopId: loop === undefined ? null : loop.id,
-      plays: !covers || running === null ? null : { name: running.loop.name, bar: loopBar + 1 },
+      plays: !covers || running === null ? null : { id: running.loop.id, name: running.loop.name, bar: loopBar + 1 },
       fillSteps,
     };
   });
@@ -78,6 +78,7 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
   const run = useRun();
   const [selected, setSelected] = useState<Id | null>(null);
   const [selectedMod, setSelectedMod] = useState<Id | null>(null);
+  const open = useOpen();
   const [error, setError] = useState<string | null>(null);
   const { bars } = project.song;
   const columns = { gridTemplateColumns: `130px repeat(${bars}, minmax(44px, 1fr))` };
@@ -135,9 +136,12 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
             {...dragCell(row, bar, id)}
             {...dropOn(row, bar)}
             aria-label={`${row === 'modA' ? 'Mod A' : 'Mod B'} bar ${bar + 1}: ${mod === undefined ? 'empty' : mod.name}`}
-            title={mod?.name}
+            title={mod === undefined ? undefined : `${mod.name} · double-click to edit`}
             onClick={() => {
               if (selectedMod !== null) placeMod(row, bar, selectedMod);
+            }}
+            onDoubleClick={() => {
+              if (mod !== undefined) open({ mod: mod.id }, 'mods');
             }}
             onKeyDown={(e) => {
               if ((e.key === 'Delete' || e.key === 'Backspace') && id !== null) {
@@ -204,8 +208,12 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
               aria-label={`${kind === 'main' ? 'Bar' : 'Fill bar'} ${bar + 1}: ${
                 cell.plays === null ? 'empty' : `${cell.plays.name} bar ${cell.plays.bar}${detail}`
               }`}
+              title={cell.plays === null ? undefined : `${cell.plays.name} · double-click to edit`}
               onClick={() => {
                 if (selected !== null) place(kind, bar, selected);
+              }}
+              onDoubleClick={() => {
+                if (cell.plays !== null) open({ loop: cell.plays.id, step: null }, 'loops');
               }}
               onKeyDown={(e) => {
                 if ((e.key === 'Delete' || e.key === 'Backspace') && cell.loopId !== null) {
@@ -294,6 +302,8 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
                     type="button"
                     draggable
                     className={`chip mono loop-name ${kind}`}
+                    title="Drag onto a lane · double-click to edit"
+                    onDoubleClick={() => open({ loop: loop.id, step: null }, 'loops')}
                     aria-pressed={selected === loop.id}
                     onClick={() => {
                       setSelected(selected === loop.id ? null : loop.id);
@@ -319,6 +329,8 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
               type="button"
               draggable
               className="chip mod-chip"
+              title="Drag onto Mod A or B · double-click to edit"
+              onDoubleClick={() => open({ mod: mod.id }, 'mods')}
               aria-pressed={selectedMod === mod.id}
               onClick={() => {
                 setSelectedMod(selectedMod === mod.id ? null : mod.id);

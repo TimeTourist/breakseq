@@ -173,7 +173,17 @@ export function ImportView() {
                   const sliced = sample.break?.sliced === true;
                   return (
                     <Fragment key={sample.id}>
-                    <tr>
+                    <tr
+                      title={sample.break === null ? 'Double-click to edit the hit' : 'Double-click to slice'}
+                      onDoubleClick={(e) => {
+                        if ((e.target as HTMLElement).closest('button, input') !== null) return;
+                        if (sample.break !== null) goSlice(sample.id);
+                        else {
+                          const hit = Object.values(project.hits).find((h) => h.sampleId === sample.id && h.variantOf === null);
+                          if (hit !== undefined) store.dispatch({ type: 'select', selection: { hit: hit.id }, view: 'hits' });
+                        }
+                      }}
+                    >
                       <td>
                         <div className="row nowrap">
                           <span className="mono grow ellipsis">{sample.name}</span>

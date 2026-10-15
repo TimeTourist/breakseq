@@ -154,6 +154,8 @@ export function PadsView() {
                   <li
                     key={hitId}
                     className={`member${i === 0 ? ' first' : ''}`}
+                    title="Double-click to edit the hit"
+                    onDoubleClick={() => open({ hit: hitId }, 'hits')}
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData(MEMBER_MIME, hitId)}
                     onDragOver={(e) => {
