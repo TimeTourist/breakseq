@@ -97,7 +97,7 @@ En mod har ett namn och en eller flera effekter, högst en per mål. En stegeffe
 
 Tape spelar in en bit av det som hörs och spelar upp den som ett band, så länge mod-klippet ligger i Song.
 
-- **Segment:** de första Repeat-stegen (1/16 till 4 takter) från klippets början. Ett klipp med Tape är minst så långt som segmentet.
+- **Segment:** de första Repeat-stegen (1/16 till 4 takter) från där klippet börjar på tidslinjen, även när början är trimmad. Det man ser är det som spelas in. Ett klipp med Tape är minst så långt som segmentet.
 - **Inspelning:** det som hörs i segmentet, alltså Main eller Fill med stegeffekterna från A och B, men utan Tape.
 - **Riktning:** Framåt, Baklänges eller Pendel (framåt, baklänges, framåt, …). Pendel är förvald.
 - **Hastighet:** går linjärt från ett värde till ett annat (0×–4×) över klippets längd, förvalt 1× → 0,25×. Hastigheten ändrar tonhöjd och längd som ett band, och varje varv tar så lång tid som hastigheten ger. Under 1× blir ljudet också tystare i takt med hastigheten, som ett band som bromsas, så 0× är tyst. Låtens tempo ändras aldrig.
