@@ -20,6 +20,8 @@ export interface Tag {
 export interface BreakInfo {
   readonly bars: number;
   readonly bpm: number;
+  /** A break is sliced once. */
+  readonly sliced: boolean;
 }
 
 /** Audio: a slice of a break or an imported file, as a window into an AudioData. */
@@ -33,8 +35,10 @@ export interface Sample {
   readonly duration: number;
   readonly mainTag: Id | null;
   readonly extraTags: readonly Id[];
-  /** Set when the sample has been sliced as a break. */
+  /** Set when the sample is a break; null for a one-shot. */
   readonly break: BreakInfo | null;
+  /** The break this sample was sliced from, or null for an imported file. */
+  readonly sliceOf: Id | null;
 }
 
 export type Direction = 'forward' | 'reverse';

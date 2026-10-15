@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 const noMathRandom = {
@@ -16,6 +17,11 @@ export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'coverage'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ['src/ui/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: { 'react-hooks/rules-of-hooks': 'error', 'react-hooks/exhaustive-deps': 'error' },
+  },
   {
     // Tests destructure into a mix of new and existing variables: [project, loop] = addLoop(…).
     rules: { 'prefer-const': ['error', { destructuring: 'all' }] },
