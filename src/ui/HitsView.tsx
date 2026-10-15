@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Hit } from '../model';
-import { baseName, duplicateHit, remove, updateHit } from '../model';
+import { baseName, duplicateHit, parentHit, remove, updateHit } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, hitGroups, hitUsages } from './labels';
 import { Slider } from './Slider';
@@ -39,6 +39,11 @@ export function HitsView() {
   const edit = (patch: Partial<Omit<Hit, 'id' | 'sampleId'>>, field: string) =>
     setError(run(updateHit(hit.id, patch), `hit:${hit.id}:${field}`));
   const duration = sample?.duration ?? 0;
+  const parent = parentHit(project, hit);
+  const children = Object.values(project.hits).filter((h) => parentHit(project, h)?.id === hit.id).length;
+  /** A slice's own value, and what it plays at with its parent's added. */
+  const withParent = (own: number, inherited: number | undefined, unit: string) =>
+    inherited === undefined || inherited === 0 ? signed(own, unit) : `${signed(own, unit)} · plays ${signed(own + inherited, unit)}`;
 
   return (
     <div className="split">
@@ -56,6 +61,7 @@ export function HitsView() {
               >
                 <span className="dot" style={{ background: hitColor(project, h.id) }} />
                 <span className="mono grow ellipsis">{baseName(h.name)}</span>
+                {project.samples[h.sampleId]?.break?.sliced === true && h.variantOf === null && <span className="badge">parent</span>}
                 {h.direction === 'reverse' && <span className="muted small">rev</span>}
                 {h.pitch !== 0 && <span className="muted small">{signed(h.pitch, 'st')}</span>}
               </button>
@@ -79,6 +85,8 @@ export function HitsView() {
             />
             <p className="muted">
               {source === undefined ? `From ${sample?.name ?? 'a missing sample'}` : `Variant of ${source.name}`}
+              {children > 0 && ` · parent: its pitch and volume apply to all ${children} slices`}
+              {parent !== undefined && ` · slice of ${baseName(parent.name)}, which adds its pitch and volume`}
             </p>
           </div>
           <div className="row push">
@@ -171,8 +179,8 @@ export function HitsView() {
               </button>
             </div>
           </div>
-          <Slider label="Pitch" value={hit.pitch} min={-24} max={24} step={1} format={(v) => signed(v, 'st')} onChange={(v) => edit({ pitch: v }, 'pitch')} onCommit={seal} />
-          <Slider label="Volume" value={hit.volume} min={-24} max={6} step={0.5} format={(v) => signed(v, 'dB')} onChange={(v) => edit({ volume: v }, 'volume')} onCommit={seal} />
+          <Slider label="Pitch" value={hit.pitch} min={-24} max={24} step={1} format={(v) => withParent(v, parent?.pitch, 'st')} onChange={(v) => edit({ pitch: v }, 'pitch')} onCommit={seal} />
+          <Slider label="Volume" value={hit.volume} min={-24} max={6} step={0.5} format={(v) => withParent(v, parent?.volume, 'dB')} onChange={(v) => edit({ volume: v }, 'volume')} onCommit={seal} />
           <Slider label="Fade out" value={hit.fadeOut} min={0} max={200} step={1} format={(v) => `${v} ms`} onChange={(v) => edit({ fadeOut: v }, 'fade')} onCommit={seal} />
         </div>
 

@@ -114,3 +114,19 @@ export function stepDuration(bpm: number): number {
 export function songDuration(song: Song): number {
   return song.bars * STEPS_PER_BAR * stepDuration(song.bpm);
 }
+
+/**
+ * The parent of a slice's hit: the break's own hit (its whole, trimmed sample).
+ * Its pitch and volume apply to every hit from the break's slices.
+ */
+export function parentHit(project: Project, hit: Hit): Hit | undefined {
+  const breakId = project.samples[hit.sampleId]?.sliceOf;
+  if (breakId == null) return undefined;
+  return Object.values(project.hits).find((h) => h.sampleId === breakId && h.variantOf === null);
+}
+
+/** A hit as it plays: its own pitch and volume plus its parent's. */
+export function effectiveHit(project: Project, hit: Hit): Hit {
+  const parent = parentHit(project, hit);
+  return parent === undefined ? hit : { ...hit, pitch: hit.pitch + parent.pitch, volume: hit.volume + parent.volume };
+}
