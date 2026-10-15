@@ -70,16 +70,21 @@ const present = (store: Store) => store.getState().history.present;
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 describe('Mods', () => {
-  it('a new mod with typed values, placed in Mod A, changes the triggers', async () => {
+  const pick = (name: string, value: string) => fireEvent.change(screen.getByRole('combobox', { name }), { target: { value } });
+
+  it('a new mod, set up in its sentence and placed in Mod A, changes the triggers', async () => {
     const store = await setup(snareLoopProject(), 'mods');
 
     fireEvent.click(button('+ New mod'));
-    fireEvent.click(within(screen.getByRole('group', { name: 'Target' })).getByRole('button', { name: 'Pitch' }));
-    fireEvent.click(within(screen.getByRole('group', { name: 'Shape' })).getByRole('button', { name: 'List' }));
-    fireEvent.click(within(screen.getByRole('group', { name: 'Rate' })).getByRole('button', { name: 'beat' }));
+    pick('Target', 'pitch');
+    pick('Shape', 'list');
+    pick('Rate', 'beat');
     fireEvent.change(screen.getByRole('textbox', { name: 'Values' }), { target: { value: '0 3 5 7' } });
     const mod = Object.values(present(store).mods)[0]!;
     expect(mod.effects).toMatchObject([{ target: 'pitch', rate: 'beat', shape: { kind: 'list', values: [0, 3, 5, 7] } }]);
+    // The graph draws a bar per step with a value, and writes each new value.
+    expect(screen.getByRole('img', { name: 'What the effect does over one bar' }).querySelectorAll('.step-value')).toHaveLength(16);
+    expect([...screen.getByRole('img', { name: 'What the effect does over one bar' }).querySelectorAll('text')].map((t) => t.textContent)).toEqual(['0', '+3', '+5', '+7']);
 
     fireEvent.keyDown(window, { key: '8' });
     fireEvent.click(button(mod.name));
@@ -87,27 +92,40 @@ describe('Mods', () => {
 
     expect(generateTriggers(present(store), () => 0).map((t) => t.pitch)).toEqual([0, 3, 5, 7]);
   });
+
+  it('a preset makes a ready mod and opens it', async () => {
+    const store = await setup(snareLoopProject(), 'mods');
+    fireEvent.click(within(screen.getByRole('group', { name: 'Start from' })).getByRole('button', { name: 'Pitch stair' }));
+    const mod = Object.values(present(store).mods)[0]!;
+    expect(mod).toMatchObject({ name: 'Pitch stair', effects: [{ target: 'pitch', rate: 'beat', shape: { kind: 'list', values: [0, 3, 5, 7] } }] });
+    expect(screen.getByLabelText('Mod name')).toHaveProperty('value', 'Pitch stair');
+  });
 });
 
 describe('Effects', () => {
-  it('a mod gets a second effect and a Tape, which can be set up and taken out again', async () => {
+  const pick = (name: string, value: string) => fireEvent.change(screen.getByRole('combobox', { name }), { target: { value } });
+
+  it('a mod gets a second effect and a Tape, which is set up in its sentence and taken out again', async () => {
     const store = await setup(snareLoopProject(), 'mods');
     fireEvent.click(button('+ New mod'));
     const effects = () => Object.values(present(store).mods)[0]!.effects;
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'pitch' } });
+    pick('Add effect', 'pitch');
     expect(effects().map((e) => e.target)).toEqual(['ratchet', 'pitch']);
     // Ratchet is taken by this mod, so the pitch effect cannot become one.
-    expect(within(screen.getByRole('group', { name: 'Target' })).getByRole('button', { name: 'Ratchet' })).toHaveProperty('disabled', true);
+    expect(within(screen.getByRole('combobox', { name: 'Target' })).queryByRole('option', { name: 'Ratchet' })).toBeNull();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'tape' } });
+    pick('Add effect', 'tape');
     expect(effects().at(-1)).toEqual({ target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 });
 
-    const repeat = screen.getByRole('group', { name: 'Repeat' });
-    fireEvent.change(within(repeat).getByLabelText('Beats'), { target: { value: '1' } });
-    fireEvent.click(within(screen.getByRole('group', { name: 'Tape direction' })).getByRole('button', { name: 'Reverse' }));
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '0.5' } });
-    expect(effects().at(-1)).toEqual({ target: 'tape', length: 6, direction: 'reverse', speed: { from: 1, to: 0.5 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 });
+    pick('Repeat', '6');
+    pick('Tape direction', 'reverse');
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'To' }), { target: { value: '0.5' } });
+    pick('Ramp over', '4');
+    pick('Curve', 'softEnd');
+    fireEvent.change(screen.getByRole('slider', { name: /Wow/ }), { target: { value: '0.3' } });
+    expect(effects().at(-1)).toEqual({ target: 'tape', length: 6, direction: 'reverse', speed: { from: 1, to: 0.5 }, rampOver: 4, curve: 'softEnd', wow: 0.3, flutter: 0 });
+    expect(screen.getByRole('img', { name: 'Tape speed over the clip' }).querySelectorAll('.pass').length).toBeGreaterThan(1);
 
     fireEvent.click(button('Remove Tape'));
     fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Pitch' }));
@@ -116,7 +134,7 @@ describe('Effects', () => {
     expect(button('Remove Ratchet')).toHaveProperty('disabled', true);
   });
 
-  it("the Pad scope does not list a break's own pad", async () => {
+  it("the scope does not list a break's own pad", async () => {
     let project = snareLoopProject();
     const ctx2 = sequentialIds();
     const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(project, ctx2);
@@ -127,11 +145,10 @@ describe('Effects', () => {
     project = sliced.project;
     await setup(project, 'mods');
     fireEvent.click(button('+ New mod'));
-    fireEvent.click(within(screen.getByRole('group', { name: 'Scope' })).getByRole('button', { name: 'Pad' }));
-    const options = within(screen.getByRole('combobox', { name: 'Scope pad' })).getAllByRole('option').map((o) => o.textContent);
+    const options = within(screen.getByRole('combobox', { name: 'Scope' })).getAllByRole('option').map((o) => o.textContent);
     const parent = Object.values(project.pads).find((p) => isParentPad(project, p))!;
-    expect(options).not.toContain(parent.name);
-    expect(options).toContain(Object.values(project.pads).find((p) => p.name !== parent.name)!.name);
+    expect(options).not.toContain(`pad ${parent.name}`);
+    expect(options).toContain(`pad ${Object.values(project.pads).find((p) => p.name !== parent.name)!.name}`);
   });
 });
 

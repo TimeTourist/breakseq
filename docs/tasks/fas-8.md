@@ -47,12 +47,12 @@ Tape får wow och flutter, och man kan välja hur lång tid rampen tar och med v
 
 ## Tester som krävs
 
-- [ ] Ramp over 4 steg från 1 till 0,25 ger hastigheten 0,25 från steg 4 och sedan konstant. Soft start ligger under Linear mitt i rampen, och Soft end ligger över.
-- [ ] Wow 0 och flutter 0 ger exakt samma varv som förut, vid linjär hastighet över hela klippet.
-- [ ] Med wow svajar hastigheten runt rampen inom ±25 %. Samma rng ger samma kurva.
-- [ ] Den numeriska integrationen ger varvgränser som stämmer med den exakta lösningen vid linjär hastighet (inom 1 ms).
-- [ ] Render: med flutter skiljer sig ljudet från utan, men varvet börjar på samma ställe.
-- [ ] En äldre tape uppgraderas med förval.
-- [ ] Ett sparat stegintervall blir alla steg, och tester som använde intervall använder klipp i stället.
-- [ ] UI: meningen ändrar rate, mål och värden; Tape-meningen ändrar Ramp over och kurva; en startpunkt skapar rätt mod.
-- [ ] Grafen visar en stapel per steg för en List-pitch, och en kurva för Tape.
+- [x] Ramp over 4 steg från 1 till 0,25 ger hastigheten 0,25 från steg 4 och sedan konstant. Soft start ligger under Linear mitt i rampen, och Soft end ligger över.
+- [x] Wow 0 och flutter 0 ger exakt samma varv som förut, vid linjär hastighet över hela klippet.
+- [x] Med wow svajar hastigheten runt rampen inom ±25 %. Samma rng ger samma kurva.
+- [x] Den numeriska integrationen ger varvgränser som stämmer med den exakta lösningen vid linjär hastighet (inom 1 ms).
+- [x] Render: med flutter skiljer sig ljudet från utan, men varvet börjar på samma ställe.
+- [x] En äldre tape uppgraderas med förval.
+- [x] Ett sparat stegintervall blir alla steg, och tester som använde intervall använder klipp i stället.
+- [x] UI: meningen ändrar rate, mål och värden; Tape-meningen ändrar Ramp over och kurva; en startpunkt skapar rätt mod.
+- [x] Grafen visar en stapel per steg för en List-pitch, och en kurva för Tape.
