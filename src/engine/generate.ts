@@ -1,5 +1,5 @@
 import type { Direction, Id, Loop, Project, Region, Rng } from '../model';
-import { STEPS_PER_BAR, stepDuration } from '../model';
+import { STEPS_PER_BAR, effectiveHit, stepDuration } from '../model';
 import { applyMods, modRuns, modValues, stepState, tempoRuns } from './mods';
 
 export interface Trigger {
@@ -92,8 +92,8 @@ export function generateTriggers(project: Project, rng: Rng): Trigger[] {
     const clockBar = Math.floor(clock / STEPS_PER_BAR);
     const place = { index: playing.index, bar: clockBar, step: clock % STEPS_PER_BAR };
     const state = applyMods(stepState(project, cell), { A: runs.A[clockBar] ?? null, B: runs.B[clockBar] ?? null }, place, project, values);
-    const { hit } = state;
-    if (hit === undefined) return;
+    if (state.hit === undefined) return;
+    const hit = effectiveHit(project, state.hit);
     for (let i = 0; i < state.ratchet; i++) {
       triggers.push({
         time: time + (i * length) / state.ratchet,

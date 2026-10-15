@@ -1,5 +1,5 @@
 import type { AudioData, Direction, Hit, Project, Sample } from '../model';
-import { songDuration } from '../model';
+import { effectiveHit, songDuration } from '../model';
 import type { Trigger } from './generate';
 
 /** Seconds a choked voice takes to fade out when the next trigger starts. */
@@ -27,9 +27,10 @@ export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'direction' |
 /** Sample buffers made on one context, per sample and direction. */
 export type BufferCache = Map<string, AudioBuffer>;
 
-/** A hit played as it is, with no mods. */
-export function hitPlay(hit: Hit): HitPlay {
-  return { hitId: hit.id, pitch: hit.pitch, volume: hit.volume, direction: hit.direction, region: hit.region };
+/** A hit played as it is, with no mods: its own settings plus its parent's. */
+export function hitPlay(project: Project, hit: Hit): HitPlay {
+  const own = effectiveHit(project, hit);
+  return { hitId: own.id, pitch: own.pitch, volume: own.volume, direction: own.direction, region: own.region };
 }
 
 /**

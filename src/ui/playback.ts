@@ -162,7 +162,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       const hit = project.hits[hitId];
       if (hit === undefined) return;
       if (hitCache?.project.audio !== project.audio) hitCache = { project, cache: new Map() };
-      auditioning = scheduleHit(c, hitCache.cache, project, hitPlay(hit), c.currentTime);
+      auditioning = scheduleHit(c, hitCache.cache, project, hitPlay(project, hit), c.currentTime);
     },
     audition: (audio, offset, duration, onEnded, loop = false) => {
       stopAudition();

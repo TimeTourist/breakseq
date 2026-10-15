@@ -10,6 +10,7 @@ import {
   setSongBars,
   setSongCell,
   setStep,
+  sliceBreak,
   stepDuration,
   updateHit,
   updateSample,
@@ -190,5 +191,28 @@ describe('fas 4: mods', () => {
     project = withMod(project, { target: 'padMember', scope: { kind: 'tag', tagId: tag('S') }, rate: 'step', shape: { kind: 'list', values: [3] } }, 'modB');
 
     expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S3]);
+  });
+});
+
+describe('parent hit', () => {
+  it("a break's own hit adds its pitch and volume to every slice, on top of the slice's own", () => {
+    let project = run(createProject(ctx), setBpm(120), addSample({ name: 'amen.wav', audio: constantAudio(1) }));
+    const breakId = Object.keys(project.samples)[0]!;
+    const parent = Object.values(project.hits)[0]!;
+    project = run(project, sliceBreak(breakId, 1, 4));
+    const m1 = Object.values(project.loops)[0]!;
+    const sliceHit = (i: number) => project.pads[m1.steps[i * 4]!.padId!]!.members[0]!;
+    project = run(
+      project,
+      setSongBars(1),
+      setSongCell('main', 0, m1.id),
+      updateHit(parent.id, { pitch: 1, volume: -3 }),
+      updateHit(sliceHit(1), { pitch: 1 }),
+    );
+
+    const triggers = generateTriggers(project, () => 0);
+
+    expect(triggers.map((t) => t.pitch)).toEqual([1, 2, 1, 1]);
+    expect(triggers.map((t) => t.volume)).toEqual([-3, -3, -3, -3]);
   });
 });
