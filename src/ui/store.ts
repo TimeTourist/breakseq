@@ -12,6 +12,9 @@ export interface Selection {
   readonly loop: Id | null;
   /** Step index within the selected loop. */
   readonly step: number | null;
+  readonly mod: Id | null;
+  /** The loop a mod is tried on in Mods. */
+  readonly previewLoop: Id | null;
 }
 
 export interface AppState {
@@ -38,7 +41,7 @@ export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
   view: 'import',
   sliceTarget: null,
-  selection: { hit: null, pad: null, loop: null, step: null },
+  selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },
 });
 
 /** Pure state transition. A failed command leaves the state unchanged and reports its error. */

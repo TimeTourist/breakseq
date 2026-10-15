@@ -730,16 +730,30 @@ p {
   max-width: none;
 }
 
+/* Sidebars stay beside the view; the view shrinks and its grids scroll sideways. */
 .split {
   display: flex;
-  flex-wrap: wrap;
   align-items: stretch;
   min-height: calc(100vh - 69px);
 }
 
 .split > .view {
-  flex: 999 1 560px;
+  flex: 1 1 0;
   min-width: 0;
+}
+
+.split > .sidebar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .split {
+    flex-wrap: wrap;
+  }
+
+  .split > .view {
+    flex-basis: 100%;
+  }
 }
 
 .sidebar {
@@ -1351,4 +1365,71 @@ input[type='search'] {
 .cell.fill.start.partial,
 .cell.fill.running.partial {
   background-color: #16181b;
+}
+
+/* Mods */
+
+.mod-name {
+  color: #e5689a;
+}
+
+.mod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 6px;
+}
+
+.choice-grid button {
+  min-height: 40px;
+  font-size: 13px;
+}
+
+.choice-grid button[aria-pressed='true'] {
+  background: #381a27;
+  border-color: #e5689a;
+  color: #e5689a;
+}
+
+.shape-editor {
+  grid-column: 1 / -1;
+}
+
+.field.wide {
+  flex: 1 1 320px;
+}
+
+.field.wide input {
+  width: 100%;
+}
+
+.lane-key.mod {
+  color: #e5689a;
+}
+
+.cell.mod.start,
+.cell.mod.running {
+  background: #381a27;
+  border-color: #e5689a;
+  color: #e5689a;
+  overflow: hidden;
+}
+
+.cell.mod.running {
+  border-color: #5c2a3f;
+}
+
+.mod-chip {
+  font-weight: 500;
+  color: #e5689a;
+}
+
+.mod-chip[aria-pressed='true'] {
+  background: #381a27;
+  border-color: #e5689a;
 }

@@ -2,8 +2,10 @@ import { useState } from 'react';
 import type { Id, Loop, LoopKind, Project } from '../model';
 import { STEPS_PER_BAR, setSongBars, setSongCell } from '../model';
 import { useProject, useRun } from './context';
+import { TARGET_LABELS } from './modText';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
+export const MOD_MIME = 'application/x-breakseq-mod';
 
 interface LaneCell {
   readonly loopId: Id | null;
@@ -62,10 +64,6 @@ function spanStyle(kind: LoopKind, steps: { from: number; to: number }) {
   return { backgroundImage: `linear-gradient(to right, transparent ${a}%, ${color} ${a}%, ${color} ${b}%, transparent ${b}%)` };
 }
 
-const DISABLED_LANES = [
-  { key: 'A', name: 'Mod A', phase: 4 },
-  { key: 'B', name: 'Mod B', phase: 4 },
-] as const;
 
 interface SongViewProps {
   readonly playheadBar: number | null;
@@ -77,12 +75,59 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
   const project = useProject();
   const run = useRun();
   const [selected, setSelected] = useState<Id | null>(null);
+  const [selectedMod, setSelectedMod] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { bars } = project.song;
   const columns = { gridTemplateColumns: `130px repeat(${bars}, minmax(44px, 1fr))` };
   const loops = Object.values(project.loops);
 
   const place = (kind: LoopKind, bar: number, loopId: Id | null) => setError(run(setSongCell(kind, bar, loopId)));
+  const placeMod = (row: 'modA' | 'modB', bar: number, modId: Id | null) => setError(run(setSongCell(row, bar, modId)));
+
+  /** A mod lane: a mod acts in the bars it is placed in; the same mod in adjacent bars is one run. */
+  const modLane = (row: 'modA' | 'modB') => (
+    <div className="lane" style={columns}>
+      <div className="lane-name">
+        <span className="lane-key mod mono">{row === 'modA' ? 'A' : 'B'}</span>
+        <span className="muted">{row === 'modA' ? 'Mod A' : 'Mod B'}</span>
+      </div>
+      {project.song.rows[row].map((id, bar) => {
+        const mod = id === null ? undefined : project.mods[id];
+        const continues = id !== null && project.song.rows[row][bar - 1] === id;
+        return (
+          <button
+            key={bar}
+            type="button"
+            className={`cell mod${mod !== undefined ? (continues ? ' running' : ' start') : ''}${bar === playheadBar ? ' now' : ''}`}
+            aria-label={`${row === 'modA' ? 'Mod A' : 'Mod B'} bar ${bar + 1}: ${mod === undefined ? 'empty' : mod.name}`}
+            title={mod?.name}
+            onClick={() => {
+              if (selectedMod !== null) placeMod(row, bar, selectedMod);
+            }}
+            onKeyDown={(e) => {
+              if ((e.key === 'Delete' || e.key === 'Backspace') && id !== null) {
+                e.preventDefault();
+                placeMod(row, bar, null);
+              }
+            }}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes(MOD_MIME)) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              const dropped = e.dataTransfer.getData(MOD_MIME);
+              if (dropped !== '') {
+                e.preventDefault();
+                placeMod(row, bar, dropped);
+              }
+            }}
+          >
+            <span className="cell-label ellipsis">{mod === undefined ? '' : continues ? '·' : mod.name}</span>
+            <span className="cell-sub">{mod === undefined ? '' : TARGET_LABELS[mod.target].split(' ')[0]!.toLowerCase()}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const lane = (kind: LoopKind) => {
     const cells = laneCells(project, kind);
@@ -205,19 +250,8 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
           </div>
           {lane('main')}
           {lane('fill')}
-          {DISABLED_LANES.map((l) => (
-            <div key={l.key} className="lane disabled" style={columns} aria-disabled="true">
-              <div className="lane-name">
-                <span className="lane-key mono">{l.key}</span>
-                <span className="muted">
-                  {l.name} · phase {l.phase}
-                </span>
-              </div>
-              {Array.from({ length: bars }, (_, bar) => (
-                <span key={bar} className="cell empty" />
-              ))}
-            </div>
-          ))}
+          {modLane('modA')}
+          {modLane('modB')}
         </div>
       </div>
 
@@ -244,7 +278,10 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
                     draggable
                     className={`chip mono loop-name ${kind}`}
                     aria-pressed={selected === loop.id}
-                    onClick={() => setSelected(selected === loop.id ? null : loop.id)}
+                    onClick={() => {
+                      setSelected(selected === loop.id ? null : loop.id);
+                      setSelectedMod(null);
+                    }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData(LOOP_MIME, loop.id);
                       e.dataTransfer.effectAllowed = 'copy';
@@ -256,8 +293,33 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
             </div>
           ))
         )}
+        <div className="row">
+          <span className="muted small library-label">Mods</span>
+          {Object.values(project.mods).length === 0 && <span className="muted small">None yet: make them in Mods.</span>}
+          {Object.values(project.mods).map((mod) => (
+            <button
+              key={mod.id}
+              type="button"
+              draggable
+              className="chip mod-chip"
+              aria-pressed={selectedMod === mod.id}
+              onClick={() => {
+                setSelectedMod(selectedMod === mod.id ? null : mod.id);
+                setSelected(null);
+              }}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(MOD_MIME, mod.id);
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+            >
+              {mod.name}
+            </button>
+          ))}
+        </div>
         <span className="muted small">
-          {selected === null ? 'Or select a loop, then click bars in its lane.' : 'Click bars to place. Delete clears a focused bar.'}
+          {selected === null && selectedMod === null
+            ? 'Or select a loop or mod, then click bars in its lane.'
+            : 'Click bars to place. Delete clears a focused bar.'}
         </span>
       </section>
     </main>

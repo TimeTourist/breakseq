@@ -144,3 +144,10 @@ export function loopSong(project: Project, loopId: Id): Project {
   main[0] = loop === undefined ? null : loopId;
   return { ...project, song: { bpm: project.song.bpm, bars, rows: { main, fill: empty(), modA: empty(), modB: empty() } } };
 }
+
+/** One loop, once, with a mod in row A over all of it: to try a mod out. */
+export function modPreviewSong(project: Project, modId: Id, loopId: Id): Project {
+  const alone = loopSong(project, loopId);
+  const modA = alone.song.rows.modA.map(() => (project.mods[modId] === undefined ? null : modId));
+  return { ...alone, song: { ...alone.song, rows: { ...alone.song.rows, modA } } };
+}
