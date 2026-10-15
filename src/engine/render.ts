@@ -9,8 +9,9 @@ const dbToGain = (db: number) => 10 ** (db / 20);
 
 /** The sample's own audio as a buffer, reversed for 'reverse'. */
 function sampleBuffer(context: BaseAudioContext, sample: Sample, audio: AudioData, direction: Direction): AudioBuffer {
+  // Both ends are rounded, so neighbouring slices share their boundary frame exactly.
   const from = Math.round(sample.offset * audio.sampleRate);
-  const length = Math.max(1, Math.round(sample.duration * audio.sampleRate));
+  const length = Math.max(1, Math.round((sample.offset + sample.duration) * audio.sampleRate) - from);
   const buffer = context.createBuffer(audio.channels.length, length, audio.sampleRate);
   audio.channels.forEach((channel, i) => {
     const data = channel.slice(from, from + length);
@@ -29,6 +30,9 @@ export async function renderTriggers(triggers: readonly Trigger[], project: Proj
   const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
   const buffers = new Map<string, AudioBuffer>();
   const sorted = [...triggers].sort((a, b) => a.time - b.time);
+  // Starts are placed on whole sample frames. Between frames Web Audio interpolates,
+  // which dulls a slice by a varying amount; on a frame a slice plays back bit for bit.
+  const onFrame = (time: number) => Math.round(time * sampleRate) / sampleRate;
 
   sorted.forEach((trigger, i) => {
     const hit = project.hits[trigger.hitId];
@@ -50,9 +54,10 @@ export async function renderTriggers(triggers: readonly Trigger[], project: Proj
         ? trigger.region
         : { start: sample.duration - trigger.region.end, end: sample.duration - trigger.region.start };
     const rate = 2 ** (trigger.pitch / 12);
-    const start = trigger.time;
+    const start = onFrame(trigger.time);
     const naturalEnd = start + Math.max(0, region.end - region.start) / rate;
-    const next = sorted[i + 1]?.time ?? Infinity;
+    const following = sorted[i + 1];
+    const next = following === undefined ? Infinity : onFrame(following.time);
     const choked = next < naturalEnd;
 
     const level = dbToGain(trigger.volume);
