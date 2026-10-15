@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { setBpm } from '../model';
-import { useProject, useRun, useSelect } from './context';
+import { useApp, useProject, useRun, useSelect } from './context';
+import { describeChange } from './describeChange';
 import type { View } from './store';
 import { VIEWS } from './store';
 
@@ -27,6 +28,12 @@ interface HeaderProps {
 
 export function Header({ onView, playing, canPlay, onPlay, onStop, onExport, status }: HeaderProps) {
   const view = useSelect((s) => s.view);
+  const { store } = useApp();
+  const history = useSelect((s) => s.history);
+  const previous = history.past.at(-1);
+  const next = history.future[0];
+  const undoText = previous === undefined ? 'Nothing to undo' : `Undo: ${describeChange(previous, history.present)} (Ctrl+Z)`;
+  const redoText = next === undefined ? 'Nothing to redo' : `Redo: ${describeChange(history.present, next)} (Ctrl+Shift+Z)`;
   const bpm = useProject().song.bpm;
   const run = useRun();
   const [draft, setDraft] = useState(String(bpm));
@@ -56,6 +63,30 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, onExport, sta
       </nav>
       <div className="transport">
         {status !== null && <span className="status">{status}</span>}
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={undoText}
+          title={undoText}
+          disabled={previous === undefined}
+          onClick={() => store.dispatch({ type: 'undo' })}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M5 4L2 7l3 3M2.5 7H10a3.5 3.5 0 0 1 0 7H7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={redoText}
+          title={redoText}
+          disabled={next === undefined}
+          onClick={() => store.dispatch({ type: 'redo' })}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M11 4l3 3-3 3M13.5 7H6a3.5 3.5 0 0 0 0 7h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <button type="button" className="icon-button" aria-label="Play" aria-pressed={playing} disabled={!canPlay} onClick={onPlay}>
           <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M4 2.5v11l9-5.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />

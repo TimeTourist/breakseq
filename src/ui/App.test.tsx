@@ -149,3 +149,20 @@ describe('Slice', () => {
     expect(screen.getByRole('button', { name: 'Play break' })).toBeTruthy();
   });
 });
+
+describe('Undo and redo buttons', () => {
+  it('say what they undo, are off when there is nothing to undo, and work', async () => {
+    const store = await setup(createProject(), 'song');
+    const undo = () => screen.getByRole('button', { name: /^(Undo|Nothing to undo)/ });
+    expect(undo()).toHaveProperty('disabled', true);
+
+    fireEvent.change(screen.getByLabelText('Tempo in BPM'), { target: { value: '150' } });
+    fireEvent.blur(screen.getByLabelText('Tempo in BPM'));
+    expect(undo().getAttribute('aria-label')).toBe('Undo: change the tempo (Ctrl+Z)');
+
+    fireEvent.click(undo());
+    expect(store.getState().history.present.song.bpm).toBe(170);
+    fireEvent.click(screen.getByRole('button', { name: /^Redo:/ }));
+    expect(store.getState().history.present.song.bpm).toBe(150);
+  });
+});
