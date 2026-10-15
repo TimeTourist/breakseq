@@ -35,13 +35,13 @@ Hela flödet är kört i Chromium med ett syntetiskt break (4 takter, 136 BPM, 1
 
 Inga fel i konsolen.
 
-## TODO(spec)
+## Beslut efter fas 2
 
-1. Specen säger "normaliserad" utan nivå. Toppen sätts till 0 dBFS (`src/engine/codec.ts`).
+1. Exporten normaliseras till −0,3 dBFS.
+2. Play och Export spelar och exporterar låten i vyer utan egen uppspelning (Import, Slice).
 
 ## Tolkningar att granska
 
-- **Play och Export i alla vyer:** spelar och exporterar låten. Specen säger bara vad Loops och Song spelar. När Loops-vyn kommer i fas 3 spelar den sin loop.
 - **Import:** filer avkodas med egen kod istället för `decodeAudioData`, eftersom Chrome och Firefox inte avkodar AIFF.
 - **Tom cell:** töms med Delete eller Backspace på en fokuserad cell. Det finns ingen högerklicksmeny.
 - **Takter i Import:** varje ändring av antal takter blir ett eget ångra-steg.
