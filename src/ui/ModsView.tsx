@@ -55,6 +55,7 @@ export function ModsView() {
   const mod = modId === null ? undefined : project.mods[modId];
   const previewId = previewLoopId(project, selection);
   const [selectedTarget, setSelectedTarget] = useState<EffectTarget | null>(null);
+  const [exampleSeed, setExampleSeed] = useState(1);
 
   /** A new mod, plain or from a preset, opened straight away. */
   const newMod = (name: string | null, effects: readonly ModEffect[]) => {
@@ -239,11 +240,19 @@ export function ModsView() {
                 }}
                 onCommit={seal}
               />
-              <StepGraph effect={effect} project={project} />
-              <p className="muted small">
-                Over one bar of its clip.{effect.shape.kind === 'random' ? ' Shaded: where it may jump; darker is more likely.' : ''}
-                {effect.shape.kind === 'cycle' ? ' Drawn as if it hit a step in every interval.' : ''}
-              </p>
+              <StepGraph effect={effect} project={project} seed={exampleSeed} />
+              <div className="row">
+                <p className="muted small">
+                  Over one bar of its clip.
+                  {effect.shape.kind === 'random' ? ' One example of what it might do: every take rolls its own.' : ''}
+                  {effect.shape.kind === 'cycle' ? ' Drawn as if it hit a step in every interval.' : ''}
+                </p>
+                {effect.shape.kind === 'random' && (
+                  <button type="button" className="push" onClick={() => setExampleSeed((s) => s + 1)}>
+                    Another example
+                  </button>
+                )}
+              </div>
             </>
           )}
         </section>

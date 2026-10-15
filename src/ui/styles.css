@@ -1773,10 +1773,6 @@ input[type='search'] {
   opacity: 0.85;
 }
 
-.mod-graph .band {
-  fill: #e5689a;
-}
-
 .mod-graph text {
   fill: #f2a3c3;
   font-size: 11px;

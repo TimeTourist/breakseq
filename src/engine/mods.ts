@@ -211,27 +211,18 @@ export function tempoRuns(runs: { readonly A: readonly (ModRun | null)[]; readon
   });
 }
 
-/** What a step effect does on one step, for drawing it: a value, a random range with its chance, or nothing. */
-export type PreviewPoint =
-  | { readonly kind: 'value'; readonly value: number }
-  | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number }
-  | null;
-
 /** Whether a target takes whole numbers. */
 export const isDiscrete = (target: ModTarget): boolean => handlers.find(([t]) => t === target)?.[1].discrete ?? false;
 
 /**
- * What a step effect does over the first `steps` steps of a clip, without
- * randomness: Random shows its range and chance. Cycle is drawn as if every
- * interval hit a step.
+ * What a step effect does over the first `steps` steps of a clip: its value on
+ * each step, or null where it does nothing. Random rolls with `rng`, so it is
+ * one example of what a take might do. Cycle is drawn as if every interval hit
+ * a step.
  */
-export function effectPreview(effect: StepEffect, steps: number): PreviewPoint[] {
+export function effectPreview(effect: StepEffect, steps: number, rng: Rng): (number | null)[] {
   const size = RATE_STEPS[effect.rate];
   const intervals = Math.max(1, Math.ceil(steps / size));
-  const { shape } = effect;
-  return Array.from({ length: steps }, (_, t): PreviewPoint => {
-    if (shape.kind === 'random') return { kind: 'random', min: shape.min, max: shape.max, chance: shape.chance };
-    const value = shapeValue(shape, Math.floor(t / size), intervals, isDiscrete(effect.target), () => 0);
-    return value === null ? null : { kind: 'value', value };
-  });
+  const values = Array.from({ length: intervals }, (_, i) => shapeValue(effect.shape, i, intervals, isDiscrete(effect.target), rng));
+  return Array.from({ length: steps }, (_, t) => values[Math.floor(t / size)] ?? null);
 }
