@@ -96,8 +96,9 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
         return;
       }
       const from = JSON.parse(e.dataTransfer.getData(CELL_MIME)) as { row: SongRow; bar: number; id: Id };
+      // Loops move between Main and Fill, mods between A and B.
       const isLoopRow = (r: SongRow) => r === 'main' || r === 'fill';
-      if (from.row !== row && !(isLoopRow(from.row) && isLoopRow(row))) {
+      if (isLoopRow(from.row) !== isLoopRow(row)) {
         setError('Mods go in Mod A or Mod B, loops in Main or Fill');
         return;
       }

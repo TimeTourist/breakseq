@@ -193,3 +193,27 @@ describe('Double-clicking a mod in Song', () => {
     expect(store.getState().selection.previewLoop).toBe(fill!.id);
   });
 });
+
+describe('Dragging mods between rows', () => {
+  it('a mod moves from Mod A to Mod B, but not into a loop row', async () => {
+    let project = apply(createProject(ctx), createMod({ name: 'Roll', target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }));
+    const mod = Object.values(project.mods)[0]!;
+    project = apply(project, setSongCell('modA', 0, mod.id));
+    const store = await setup(project, 'song');
+    const drop = (target: RegExp) => {
+      const element = button(target);
+      const event = createEvent.drop(element, {
+        dataTransfer: { types: [CELL_MIME], getData: (t: string) => (t === CELL_MIME ? JSON.stringify({ row: 'modA', bar: 0, id: mod.id }) : '') },
+      });
+      Object.defineProperty(event, 'altKey', { value: false });
+      fireEvent(element, event);
+    };
+
+    drop(/^Mod B bar 3:/);
+    expect(present(store).song.rows.modA[0]).toBeNull();
+    expect(present(store).song.rows.modB[2]).toBe(mod.id);
+
+    drop(/^Bar 5:/);
+    expect(present(store).song.rows.main[4]).toBeNull();
+  });
+});
