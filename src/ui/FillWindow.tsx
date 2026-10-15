@@ -24,10 +24,7 @@ export function FillWindow({ loop, onError }: FillWindowProps) {
     { label: 'Last 1/4', from: lastBar + 12, to: total },
   ];
   return (
-    <section className="panel row spread" aria-label="Fill window">
-      <h2 className="label">
-        Fill plays {stepName(start)} – {stepName(end - 1)} · the main shows through the rest
-      </h2>
+    <section className="row" aria-label="Fill window">
       <div className="row">
         {presets.map((p) => (
           <button
