@@ -100,7 +100,7 @@ export const removePadMember =
     const pad = project.pads[padId];
     if (pad === undefined) return notFound(padId);
     if (!pad.members.includes(hitId)) return notFound(hitId);
-    // TODO(spec): the spec does not say whether a pad may become empty. It is allowed; an empty pad plays nothing.
+    // The last member may be removed; an empty pad stays and plays nothing.
     const loops = Object.fromEntries(
       Object.entries(project.loops).map(([id, loop]): [Id, Loop] => [
         id,
