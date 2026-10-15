@@ -113,15 +113,15 @@ export function tapeWindows(runs: { readonly A: readonly (ModRun | null)[]; read
 }
 
 /**
- * Turns a window into a tape over what was heard. The segment starts where the
- * clip's content starts (its start less its trimmed offset), and the speed
- * ramps over the clip's whole content, so a trimmed clip starts part way.
+ * Turns a window into a tape over what was heard. What you see is what you
+ * hear: the segment starts where the clip starts on the timeline, even when its
+ * start was trimmed, and the speed ramps over the clip as it stands.
  */
 export function windowTape(project: Project, window: TapeWindow, heard: readonly Trigger[]): Tape {
   const stepTime = stepDuration(project.song.bpm);
   const { clip, tape } = window;
-  const contentStart = Math.max(0, clip.start - clip.offset) * stepTime;
-  const contentLength = (clip.offset + clip.length) * stepTime;
+  const contentStart = clip.start * stepTime;
+  const contentLength = clip.length * stepTime;
   const length = tape.length * stepTime;
   const speedAt = (time: number) => tape.speed.from + ((tape.speed.to - tape.speed.from) * (time - contentStart)) / contentLength;
   const time = window.start * stepTime;
