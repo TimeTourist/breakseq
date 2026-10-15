@@ -1,7 +1,8 @@
-import type { Id, Mod, ModShape, ModTarget, Project } from '../model';
+import type { EffectTarget, Id, ModScope, ModShape, ModTarget, Project, StepEffect } from '../model';
 import { MOD_TARGETS } from '../model';
 
-export const TARGET_LABELS: Record<ModTarget, string> = {
+export const TARGET_LABELS: Record<EffectTarget, string> = {
+  tape: 'Tape',
   sourceLoop: 'Borrow',
   padMember: 'Pad member',
   ratchet: 'Ratchet',
@@ -83,7 +84,7 @@ const formatNumber = (target: ModTarget, value: number): string => {
 };
 
 /** Values written back the way they are typed. */
-export function formatValues(mod: Pick<Mod, 'target' | 'sources'>, values: readonly number[], project: Project): string {
+export function formatValues(mod: Pick<StepEffect, 'target' | 'sources'>, values: readonly number[], project: Project): string {
   return values
     .map((v) => {
       if (mod.target === 'sourceLoop') return project.loops[mod.sources[v] ?? '']?.name ?? '?';
@@ -99,19 +100,21 @@ const several = (rng: () => number, count: [number, number], make: () => number)
   Array.from({ length: between(rng, count[0], count[1]) }, make);
 
 /**
- * Everything about a mod but its name, picked at random within ranges that
- * sound like something: a starting point to tweak, not a random number soup.
+ * A step effect picked at random within ranges that sound like something: a
+ * starting point to tweak, not a random number soup. Targets in `taken` are
+ * left out, unless that leaves none.
  */
-export function randomMod(project: Project, rng: () => number = Math.random): Omit<Mod, 'id' | 'name'> {
+export function randomMod(project: Project, rng: () => number = Math.random, taken: readonly EffectTarget[] = []): StepEffect {
   const loops = Object.keys(project.loops);
-  const targets = MOD_TARGETS.filter((t) => t !== 'sourceLoop' || loops.length > 0);
-  const target = pick(rng, targets);
+  const usable = MOD_TARGETS.filter((t) => t !== 'sourceLoop' || loops.length > 0);
+  const free = usable.filter((t) => !taken.includes(t));
+  const target = pick(rng, free.length > 0 ? free : usable);
 
   const tags = Object.values(project.tags);
   const pads = Object.values(project.pads).filter((p) => !p.auto || p.members.length > 1);
   const scopeRoll = rng();
   const from = between(rng, 0, 15);
-  const scope: Mod['scope'] =
+  const scope: ModScope =
     scopeRoll < 0.4 || target === 'tempo'
       ? { kind: 'all' }
       : scopeRoll < 0.7 && tags.length > 0

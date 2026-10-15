@@ -123,9 +123,8 @@ export type ModShape =
   /** Chance in percent (0–100) that an interval gets a value at all. */
   | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number };
 
-export interface Mod {
-  readonly id: Id;
-  readonly name: string;
+/** An effect that changes steps as they play. */
+export interface StepEffect {
   readonly target: ModTarget;
   readonly scope: ModScope;
   readonly rate: ModRate;
@@ -133,6 +132,39 @@ export interface Mod {
   /** Borrow (sourceLoop): the loops to borrow from. The shape's values are indexes into it. */
   readonly sources: readonly Id[];
 }
+
+export type TapeDirection = 'forward' | 'reverse' | 'pingpong';
+
+/** The longest tape segment: 4 bars. */
+export const MAX_TAPE_STEPS = 4 * STEPS_PER_BAR;
+export const MAX_TAPE_SPEED = 4;
+
+/**
+ * Records the first `length` steps heard from the clip's start and plays them
+ * like tape for as long as the clip lasts, at a speed going from `from` to `to`.
+ */
+export interface TapeEffect {
+  readonly target: 'tape';
+  /** Steps of 1/16, 1 to MAX_TAPE_STEPS. */
+  readonly length: number;
+  readonly direction: TapeDirection;
+  /** Playback speed, 0 to MAX_TAPE_SPEED: 1 is as recorded, 0 is stopped. */
+  readonly speed: { readonly from: number; readonly to: number };
+}
+
+export type ModEffect = StepEffect | TapeEffect;
+export type EffectTarget = ModEffect['target'];
+
+/** A mod does one or more things: at least one effect, at most one per target. */
+export interface Mod {
+  readonly id: Id;
+  readonly name: string;
+  readonly effects: readonly ModEffect[];
+}
+
+export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape';
+export const tapeOf = (mod: Mod | undefined): TapeEffect | undefined =>
+  mod?.effects.find((e): e is TapeEffect => e.target === 'tape');
 
 export type SongRow = 'main' | 'fill' | 'modA' | 'modB';
 

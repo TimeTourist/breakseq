@@ -1,11 +1,11 @@
-import type { Command } from './command';
+import type { Command, CommandResult } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
 import { addClip, fitClips } from './clips';
 import { DEFAULT_TAG_NAMES, breakSequence, emptyStep, emptySteps, isParentHit, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
-import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
-import { MAX_TAGS, STEPS_PER_BAR } from './types';
+import type { EffectTarget, Hit, Id, Loop, LoopKind, Mod, ModEffect, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
+import { MAX_TAGS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, STEPS_PER_BAR } from './types';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
 
@@ -225,6 +225,27 @@ export const renameLoop =
   };
 
 /** Changes one step. Setting a new pad clears the chosen member unless one is given. */
+/**
+ * Moves steps `from` to `from + count − 1` so they start at `to`, or copies
+ * them with `copy`. Steps that would land outside the loop are left out; the
+ * steps they came from are emptied all the same when moving.
+ */
+export const moveSteps =
+  (loopId: Id, from: number, count: number, to: number, copy: boolean): Command =>
+  (project) => {
+    const loop = project.loops[loopId];
+    if (loop === undefined) return notFound(loopId);
+    if (!Number.isInteger(from) || !Number.isInteger(count) || !Number.isInteger(to) || count < 1 || from < 0 || from + count > loop.steps.length) {
+      return invalid('Those steps are not in the loop');
+    }
+    const moving = loop.steps.slice(from, from + count);
+    const steps = loop.steps.map((s, i) => (!copy && i >= from && i < from + count ? emptyStep : s));
+    moving.forEach((s, i) => {
+      if (to + i >= 0 && to + i < steps.length) steps[to + i] = s;
+    });
+    return ok({ ...project, loops: { ...project.loops, [loopId]: { ...loop, steps } } });
+  };
+
 export const setStep =
   (loopId: Id, index: number, patch: Patch<Step>): Command =>
   (project) => {
@@ -273,19 +294,65 @@ export const placeBreak =
 
 // Mods
 
-/** A new mod. `sources` only matters for Borrow and defaults to none. */
-export const createMod =
-  (fields: Omit<Mod, 'id' | 'sources'> & { readonly sources?: readonly Id[] }): Command =>
-  (project, ctx) => {
-    const mod: Mod = { id: ctx.newId(), ...fields, sources: fields.sources ?? [] };
-    return ok({ ...project, mods: { ...project.mods, [mod.id]: mod } });
-  };
+/** What is wrong with an effect, or null. */
+function effectProblem(effect: ModEffect): string | null {
+  if (effect.target !== 'tape') return null;
+  if (!Number.isInteger(effect.length) || effect.length < 1 || effect.length > MAX_TAPE_STEPS) return 'Repeat is 1/16 to 4 bars';
+  const { from, to } = effect.speed;
+  if (![from, to].every((v) => Number.isFinite(v) && v >= 0 && v <= MAX_TAPE_SPEED)) return `Speed is 0× to ${MAX_TAPE_SPEED}×`;
+  return null;
+}
 
-export const updateMod =
-  (id: Id, patch: Patch<Mod>): Command =>
+/** Checks a mod's effects: at least one, at most one per target, each valid. */
+function effectsProblem(effects: readonly ModEffect[]): string | null {
+  if (effects.length === 0) return 'A mod needs at least one effect';
+  if (new Set(effects.map((e) => e.target)).size !== effects.length) return 'A mod has one effect per target';
+  return effects.map(effectProblem).find((p) => p !== null) ?? null;
+}
+
+const setMod = (project: Project, mod: Mod): CommandResult => {
+  const problem = effectsProblem(mod.effects);
+  return problem !== null ? invalid(problem) : ok({ ...project, mods: { ...project.mods, [mod.id]: mod } });
+};
+
+/** A new mod with its effects. */
+export const createMod =
+  (name: string, effects: readonly ModEffect[]): Command =>
+  (project, ctx) =>
+    setMod(project, { id: ctx.newId(), name, effects });
+
+export const renameMod =
+  (id: Id, name: string): Command =>
   (project) => {
     const mod = project.mods[id];
-    return mod === undefined ? notFound(id) : ok({ ...project, mods: { ...project.mods, [id]: { ...mod, ...patch } } });
+    return mod === undefined ? notFound(id) : ok({ ...project, mods: { ...project.mods, [id]: { ...mod, name } } });
+  };
+
+/** Adds an effect for a target the mod does not have yet. */
+export const addEffect =
+  (id: Id, effect: ModEffect): Command =>
+  (project) => {
+    const mod = project.mods[id];
+    return mod === undefined ? notFound(id) : setMod(project, { ...mod, effects: [...mod.effects, effect] });
+  };
+
+/** Puts `effect` where the effect for `target` is; it may have another target. */
+export const replaceEffect =
+  (id: Id, target: EffectTarget, effect: ModEffect): Command =>
+  (project) => {
+    const mod = project.mods[id];
+    if (mod === undefined) return notFound(id);
+    if (!mod.effects.some((e) => e.target === target)) return notFound(`${id}:${target}`);
+    return setMod(project, { ...mod, effects: mod.effects.map((e) => (e.target === target ? effect : e)) });
+  };
+
+/** Takes an effect out of a mod; the last one stays. */
+export const removeEffect =
+  (id: Id, target: EffectTarget): Command =>
+  (project) => {
+    const mod = project.mods[id];
+    if (mod === undefined) return notFound(id);
+    return setMod(project, { ...mod, effects: mod.effects.filter((e) => e.target !== target) });
   };
 
 // Song

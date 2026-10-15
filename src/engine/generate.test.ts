@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Command, Id, LoopKind, Mod, Project } from '../model';
+import type { Command, Id, LoopKind, StepEffect, Project } from '../model';
 import {
   addSample,
   createLoop,
@@ -55,8 +55,8 @@ function addLoop(project: Project, name: string, kind: LoopKind, bars: number): 
   return [next, added(project, next, 'loops')];
 }
 
-function addMod(project: Project, fields: Omit<Mod, 'id' | 'name' | 'sources'> & { sources?: readonly Id[] }): [Project, Id] {
-  const next = run(project, createMod({ name: 'mod', ...fields }));
+function addMod(project: Project, fields: Omit<StepEffect, 'sources'> & { sources?: readonly Id[] }): [Project, Id] {
+  const next = run(project, createMod('mod', [{ sources: [], ...fields }]));
   return [next, added(project, next, 'mods')];
 }
 
@@ -341,7 +341,7 @@ describe('randomness', () => {
     project = run(
       project,
       ...Array.from({ length: 64 }, (_, i) => setStep(loop, i, { padId: pad.K! })),
-      createMod({ name: 'roll', target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50 } }),
+      createMod('roll', [{ sources: [], target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50 } }]),
     );
     const mod = added(before, project, 'mods');
     project = run(project, setSongBars(4), setSongCell('main', 0, loop), ...row('modA', '1111', { '1': mod }));

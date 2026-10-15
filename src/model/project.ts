@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
+import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, StepEffect, Tag } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -93,13 +93,21 @@ export function upgradeProject(project: Project): Project {
   );
   const legacy = project.song as Song & { rows?: LegacyRows };
   const song: Song = legacy.rows === undefined ? legacy : { bpm: legacy.bpm, bars: legacy.bars, clips: clipsFromRows(legacy.rows, legacy.bars, legacyLoops) };
+  // A mod used to be one step effect: it becomes a mod with that effect.
   const mods = Object.fromEntries(
-    Object.entries(project.mods).map(([id, mod]): [Id, Mod] => [id, mod.sources === undefined ? { ...mod, sources: [] } : mod]),
+    Object.entries(project.mods as Readonly<Record<Id, Mod | LegacyMod>>).map(([id, mod]): [Id, Mod] => {
+      if ('effects' in mod) return [id, mod as Mod];
+      const { target, scope, rate, shape, sources } = mod;
+      return [id, { id, name: mod.name, effects: [{ target, scope, rate, shape, sources: sources ?? [] }] }];
+    }),
   );
   return { ...project, samples, hits, pads, loops, mods, song };
 }
 
 /** Songs saved before clips: one cell per bar and row. */
+/** A mod as saved before effects: one step effect, maybe without sources. */
+type LegacyMod = Omit<StepEffect, 'sources'> & { readonly id: Id; readonly name: string; readonly sources?: readonly Id[] };
+
 type LegacyRows = { readonly [R in SongRow]: readonly (Id | null)[] };
 /** Fill windows saved before clips, in steps of the loop. */
 type LegacyWindow = { readonly start: number; readonly end: number };

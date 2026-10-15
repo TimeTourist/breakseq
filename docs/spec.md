@@ -66,7 +66,7 @@ Samples behåller stereo. Tempo ställs per låt i BPM. En ny låt börjar på 1
 
 ## Mods
 
-En mod är ett mål, ett omfång, en rate och en form. Slump är bara en av formerna. Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
+En mod har ett namn och en eller flera effekter, högst en per mål. En stegeffekt är ett mål, ett omfång, en rate och en form; slump är bara en av formerna. Tape är en effekt som arbetar på ljud (se Tape). Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
 
 | Fält | Val i v1 |
 | --- | --- |
@@ -92,6 +92,18 @@ En mod är ett mål, ett omfång, en rate och en form. Slump är bara en av form
 **Längd.** En mod gäller sitt klipp i Song, på 1/16 när. Varje klipp är en sammanhängande modulation: intervallen räknas från klippets början, och Ramp sträcker sig över klippets längd.
 
 **Ratchet** n delar stegets längd i n lika delar och triggar hitten i varje del.
+
+## Tape
+
+Tape spelar in en bit av det som hörs och spelar upp den som ett band, så länge mod-klippet ligger i Song.
+
+- **Segment:** de första Repeat-stegen (1/16 till 4 takter) från klippets början. Ett klipp med Tape är minst så långt som segmentet.
+- **Inspelning:** det som hörs i segmentet, alltså Main eller Fill med stegeffekterna från A och B, men utan Tape.
+- **Riktning:** Framåt, Baklänges eller Pendel (framåt, baklänges, framåt, …). Pendel är förvald.
+- **Hastighet:** går linjärt från ett värde till ett annat (0×–4×) över klippets längd, förvalt 1× → 0×. Hastigheten ändrar tonhöjd och längd som ett band, och varje varv tar så lång tid som hastigheten ger. Under 1× blir ljudet också tystare i takt med hastigheten, som ett band som bromsas, så 0× är tyst. Låtens tempo ändras aldrig.
+- **Under klippet** hörs bara tapen. Vid 0× är det tyst. Tapen klipper rösten före sig.
+- **Efter klippet** fortsätter det som syns där, på huvudklockan, som efter slip.
+- **A och B:** har båda raderna Tape samtidigt vinner B. Tape går före slip-tempo i sitt spann.
 
 ## Slip-tempo
 
@@ -155,6 +167,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 4. Mods | Formerna List, Cycle, Ramp, Random. Mål i ordning: medlem, pitch, volym, riktning, ratchet, tempo (slip), Borrow | Ett break med stutter-rullar, pitchtrappa och 1/3-tempo låter som avsett |
 | 5. Förfining | Transientdetektering, autotaggning, egna taggar, WAV-import med cue-markörer, smidigare drag and drop | – |
 | 6. Klipp i Song | Song som tidslinje med klipp på 1/16, trimning med offset; fill-fönstret ersätts av korta klipp | M1 kan spelas i 6/16 och börja om, en fill kan ligga på sista 1/4 |
+| 7. Mods med flera mål och Tape | Flera effekter per mod; Tape: inspelat segment med riktning och hastighetsramp | En mod kan spela två 1/16 i pendel allt långsammare till tystnad, och låten fortsätter i takt |
 
 ## Utanför v1
 

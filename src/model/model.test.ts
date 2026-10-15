@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { constantAudio, sequentialIds } from '../test/fixtures';
-import type { Command, CommandContext, Project } from './index';
+import type { Command, CommandContext, Project, StepEffect, TapeEffect } from './index';
 import {
   addPadMember,
   addSample,
@@ -36,6 +36,10 @@ import {
   removePadMember,
   setBreak,
   addClip,
+  moveSteps,
+  addEffect,
+  removeEffect,
+  replaceEffect,
   copyClip,
   moveClip,
   removeClip,
@@ -619,7 +623,7 @@ describe('clips', () => {
   /** A song of 4 bars with a one-bar loop L and a mod D. */
   function song() {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod({ name: 'D', target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }));
+    const project = run(createProject(ctx), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod('D', [{ sources: [], target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
     return { ctx, project, loop: only(project.loops).id, mod: only(project.mods).id };
   }
   const spans = (project: Project, row = 'main') =>
@@ -681,7 +685,7 @@ describe('clips', () => {
 
   it('a song saved with rows becomes clips that play the same', () => {
     const ctx = sequentialIds();
-    const base = run(createProject(ctx), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod({ name: 'D', target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }));
+    const base = run(createProject(ctx), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod('D', [{ sources: [], target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
     const [m, f] = Object.keys(base.loops) as [string, string];
     const d = Object.keys(base.mods)[0]!;
     const legacy = {
@@ -700,5 +704,67 @@ describe('clips', () => {
       ['modA', d, 48, 16, 0],
     ]);
     expect('window' in upgradeProject(legacy).loops[f]!).toBe(false);
+  });
+});
+
+describe('mods with effects', () => {
+  const pitch: StepEffect = { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] }, sources: [] };
+  const tape: TapeEffect = { target: 'tape', length: 6, direction: 'pingpong', speed: { from: 1, to: 0 } };
+
+  it('a mod has at least one effect and at most one per target', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, createMod('M', [pitch]));
+    const id = only(project.mods).id;
+    expect(createMod('X', [])(project, ctx).ok).toBe(false);
+    expect(addEffect(id, { ...pitch, rate: 'step' })(project, ctx).ok).toBe(false);
+    const both = run(project, ctx, addEffect(id, tape));
+    expect(only(both.mods).effects.map((e) => e.target)).toEqual(['pitch', 'tape']);
+    expect(removeEffect(id, 'pitch')(run(both, ctx, removeEffect(id, 'tape')), ctx).ok).toBe(false);
+    expect(replaceEffect(id, 'pitch', { ...pitch, target: 'ratchet' })(both, ctx).ok).toBe(true);
+    expect(addEffect(id, { ...tape, length: 0 })(project, ctx).ok).toBe(false);
+    expect(addEffect(id, { ...tape, speed: { from: 1, to: 5 } })(project, ctx).ok).toBe(false);
+  });
+
+  it('a clip of a mod with Tape is at least as long as its segment', () => {
+    const ctx = sequentialIds();
+    const project = run(createProject(ctx), ctx, setSongBars(4), createMod('T', [{ ...tape, length: 20 }]));
+    const id = only(project.mods).id;
+    const placed = run(project, ctx, addClip('modA', id, 0));
+    // One bar is too short for 20 steps, so it gets 20.
+    expect(placed.song.clips[0]).toMatchObject({ start: 0, length: 20 });
+    const clip = placed.song.clips[0]!.id;
+    expect(run(placed, ctx, resizeClip(clip, 'end', 4)).song.clips[0]!.length).toBe(20);
+    expect(run(placed, ctx, resizeClip(clip, 'start', 16)).song.clips[0]).toMatchObject({ start: 0, length: 20 });
+    expect(addClip('modA', id, 50)(project, ctx).ok).toBe(false);
+    expect(addClip('modA', id, 0, 8)(project, ctx).ok).toBe(true);
+    expect(run(project, ctx, addClip('modA', id, 0, 8)).song.clips[0]!.length).toBe(20);
+  });
+
+  it('a mod saved before effects becomes a mod with that one effect', () => {
+    const ctx = sequentialIds();
+    const base = createProject(ctx);
+    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } } } } as unknown as Project;
+    expect(upgradeProject(legacy).mods.m).toEqual({
+      id: 'm',
+      name: 'Old',
+      effects: [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] }, sources: [] }],
+    });
+  });
+});
+
+describe('moving steps', () => {
+  it('moves a block of steps, copies it, and leaves out what falls outside the loop', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createLoop(null, 'main', 1));
+    const pad = only(project.pads).id;
+    const loop = only(project.loops).id;
+    project = run(project, ctx, setStep(loop, 5, { padId: pad }), setStep(loop, 7, { padId: pad }));
+    const filled = (p: Project) => p.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]));
+
+    expect(filled(run(project, ctx, moveSteps(loop, 5, 3, 9, false)))).toEqual([9, 11]);
+    expect(filled(run(project, ctx, moveSteps(loop, 5, 3, 6, false)))).toEqual([6, 8]);
+    expect(filled(run(project, ctx, moveSteps(loop, 5, 3, 9, true)))).toEqual([5, 7, 9, 11]);
+    expect(filled(run(project, ctx, moveSteps(loop, 5, 3, 14, false)))).toEqual([14]);
+    expect(moveSteps(loop, 15, 3, 0, false)(project, ctx).ok).toBe(false);
   });
 });

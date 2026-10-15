@@ -1,4 +1,4 @@
-import type { Clip, Hit, Mod, ModRate, ModShape, ModTarget, Pad, Project, Rng, Step } from '../model';
+import type { Clip, Hit, Mod, ModRate, ModShape, ModTarget, Pad, Project, Rng, Step, StepEffect } from '../model';
 import { STEPS_PER_BAR, clipsByStep } from '../model';
 
 /** What a step will play after mods. Handlers return a changed copy. */
@@ -42,7 +42,7 @@ interface TargetHandler {
   readonly discrete: boolean;
   /** How values from A and B on the same target combine: 'add' for amounts, 'b-wins' for modes. */
   readonly combine: 'add' | 'b-wins';
-  readonly apply: (state: StepState, value: number, mod: Mod, place: StepPlace, project: Project) => StepState;
+  readonly apply: (state: StepState, value: number, effect: StepEffect, place: StepPlace, project: Project) => StepState;
 }
 
 const wrap = (n: number, size: number) => ((n % size) + size) % size;
@@ -55,9 +55,9 @@ const handlers: readonly (readonly [ModTarget, TargetHandler])[] = [
       discrete: true,
       combine: 'b-wins',
       // The same step in the chosen loop, with its pad, member and locks.
-      apply: (state, value, mod, place, project) => {
-        if (mod.sources.length === 0) return state;
-        const source = project.loops[mod.sources[wrap(Math.round(value), mod.sources.length)]!];
+      apply: (state, value, effect, place, project) => {
+        if (effect.sources.length === 0) return state;
+        const source = project.loops[effect.sources[wrap(Math.round(value), effect.sources.length)]!];
         const cell = source === undefined ? undefined : source.steps[place.index % source.steps.length];
         return cell === undefined ? state : { ...state, cell, ...resolve(project, cell) };
       },
@@ -102,8 +102,12 @@ export function modRuns(project: Project): { A: (ModRun | null)[]; B: (ModRun | 
   return { A: runsFor('A'), B: runsFor('B') };
 }
 
-/** The value a mod has at song step `t`, or null when it has none there. */
-export type ModValues = (run: ModRun, t: number, discrete: boolean) => number | null;
+/** The value one of a mod's effects has at song step `t`, or null when it has none there. */
+export type ModValues = (run: ModRun, effect: StepEffect, t: number, discrete: boolean) => number | null;
+
+/** A mod's effect for a step target, if it has one. */
+export const effectFor = (mod: Mod, target: ModTarget): StepEffect | undefined =>
+  mod.effects.find((e): e is StepEffect => e.target === target);
 
 /**
  * A value is worked out once per interval of a clip and held for every step and
@@ -114,19 +118,20 @@ export type ModValues = (run: ModRun, t: number, discrete: boolean) => number | 
 export function modValues(rng: Rng): ModValues {
   const cache = new Map<string, number | null>();
   const cycles = new Map<string, number>();
-  return (run, t, discrete) => {
-    const { clip, mod } = run;
-    const size = RATE_STEPS[mod.rate];
+  return (run, effect, t, discrete) => {
+    const { clip } = run;
+    const size = RATE_STEPS[effect.rate];
     const interval = Math.floor((t - clip.start + clip.offset) / size);
-    const key = `${run.row}:${clip.id}:${interval}`;
+    const key = `${run.row}:${clip.id}:${effect.target}:${interval}`;
     if (!cache.has(key)) {
       const intervals = Math.max(1, Math.ceil((clip.offset + clip.length) / size));
       let index = interval;
-      if (mod.shape.kind === 'cycle') {
-        index = cycles.get(clip.id) ?? 0;
-        cycles.set(clip.id, index + 1);
+      if (effect.shape.kind === 'cycle') {
+        const counter = `${clip.id}:${effect.target}`;
+        index = cycles.get(counter) ?? 0;
+        cycles.set(counter, index + 1);
       }
-      cache.set(key, shapeValue(mod.shape, index, intervals, discrete, rng));
+      cache.set(key, shapeValue(effect.shape, index, intervals, discrete, rng));
     }
     return cache.get(key) ?? null;
   };
@@ -154,8 +159,8 @@ function shapeValue(shape: ModShape, index: number, intervals: number, discrete:
   }
 }
 
-function inScope(mod: Mod, state: StepState, place: StepPlace, project: Project): boolean {
-  const { scope } = mod;
+function inScope(effect: StepEffect, state: StepState, place: StepPlace, project: Project): boolean {
+  const { scope } = effect;
   switch (scope.kind) {
     case 'all':
       return true;
@@ -184,16 +189,18 @@ export function applyMods(
   let current = state;
   for (const [target, handler] of handlers) {
     if (current.cell.ignoreMods) break;
-    const fromRow = (run: ModRun | null) =>
-      run !== null && run.mod.target === target && inScope(run.mod, current, place, project)
-        ? values(run, place.clock, handler.discrete)
+    const fromRow = (run: ModRun | null) => {
+      const effect = run === null ? undefined : effectFor(run.mod, target);
+      return run !== null && effect !== undefined && inScope(effect, current, place, project)
+        ? { effect, value: values(run, effect, place.clock, handler.discrete) }
         : null;
+    };
     const a = fromRow(runs.A);
     const b = fromRow(runs.B);
-    if (a === null && b === null) continue;
-    const mod = (b !== null ? runs.B : runs.A)!.mod;
-    const value = handler.combine === 'add' ? (a ?? 0) + (b ?? 0) : (b ?? a ?? 0);
-    current = handler.apply(current, value, mod, place, project);
+    const winner = b?.value != null ? b : a?.value != null ? a : null;
+    if (winner === null) continue;
+    const value = handler.combine === 'add' ? (a?.value ?? 0) + (b?.value ?? 0) : winner.value!;
+    current = handler.apply(current, value, winner.effect, place, project);
   }
   return current;
 }
@@ -202,6 +209,6 @@ export function applyMods(
 export function tempoRuns(runs: { readonly A: readonly (ModRun | null)[]; readonly B: readonly (ModRun | null)[] }): (ModRun | null)[] {
   return runs.A.map((a, t) => {
     const b = runs.B[t] ?? null;
-    return b?.mod.target === 'tempo' ? b : a?.mod.target === 'tempo' ? a : null;
+    return b !== null && effectFor(b.mod, 'tempo') !== undefined ? b : a !== null && effectFor(a.mod, 'tempo') !== undefined ? a : null;
   });
 }

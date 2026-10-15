@@ -1,7 +1,7 @@
 import type { Command, CommandContext } from './command';
 import { invalid, notFound, ok } from './command';
 import type { Clip, Id, Project, SongRow } from './types';
-import { STEPS_PER_BAR } from './types';
+import { STEPS_PER_BAR, tapeOf } from './types';
 
 export const LOOP_ROWS: readonly SongRow[] = ['main', 'fill'];
 export const MOD_ROWS: readonly SongRow[] = ['modA', 'modB'];
@@ -10,10 +10,17 @@ export const isLoopRow = (row: SongRow): boolean => row === 'main' || row === 'f
 /** The song's length in steps. */
 export const songSteps = (project: Project): number => project.song.bars * STEPS_PER_BAR;
 
-/** A clip's natural length: a loop's own length, or one bar for a mod. */
-export function defaultLength(project: Project, row: SongRow, ref: Id): number {
-  return isLoopRow(row) ? (project.loops[ref]?.steps.length ?? STEPS_PER_BAR) : STEPS_PER_BAR;
+/** The shortest a clip can be: a mod with Tape is at least as long as its segment. */
+export function minLength(project: Project, row: SongRow, ref: Id): number {
+  return isLoopRow(row) ? 1 : (tapeOf(project.mods[ref])?.length ?? 1);
 }
+
+/** A clip's natural length: a loop's own length, or one bar for a mod (longer if its tape needs it). */
+export function defaultLength(project: Project, row: SongRow, ref: Id): number {
+  return isLoopRow(row) ? (project.loops[ref]?.steps.length ?? STEPS_PER_BAR) : Math.max(STEPS_PER_BAR, minLength(project, row, ref));
+}
+
+const tooShort = (min: number) => invalid(`Its tape needs at least ${min} steps here`);
 
 /** An offset brought into a loop's length; mods keep theirs as it is. */
 function wrapOffset(project: Project, clip: Pick<Clip, 'row' | 'ref'>, offset: number): number {
@@ -62,7 +69,9 @@ export const addClip =
     if (problem !== null) return invalid(problem);
     const total = songSteps(project);
     const from = Math.max(0, Math.min(total - 1, Math.round(start)));
-    const span = Math.max(1, Math.min(total - from, length ?? defaultLength(project, row, ref)));
+    const min = minLength(project, row, ref);
+    const span = Math.min(total - from, Math.max(min, length ?? defaultLength(project, row, ref)));
+    if (span < min) return tooShort(min);
     const clip: Clip = { id: ctx.newId(), row, ref, start: from, length: span, offset: 0 };
     return ok(withClips(project, placeClip(project, clip, ctx)));
   };
@@ -77,6 +86,8 @@ export const moveClip =
     const total = songSteps(project);
     const from = Math.max(0, Math.min(total - 1, Math.round(start)));
     const moved: Clip = { ...clip, row, start: from, length: Math.min(clip.length, total - from) };
+    const min = minLength(project, row, clip.ref);
+    if (moved.length < min) return tooShort(min);
     return ok(withClips(project, placeClip(project, moved, ctx)));
   };
 
@@ -90,6 +101,8 @@ export const copyClip =
     const total = songSteps(project);
     const from = Math.max(0, Math.min(total - 1, Math.round(start)));
     const copy: Clip = { ...clip, id: ctx.newId(), row, start: from, length: Math.min(clip.length, total - from) };
+    const min = minLength(project, row, clip.ref);
+    if (copy.length < min) return tooShort(min);
     return ok(withClips(project, placeClip(project, copy, ctx)));
   };
 
@@ -104,12 +117,13 @@ export const resizeClip =
     const clip = project.song.clips.find((c) => c.id === id);
     if (clip === undefined) return notFound(id);
     const end = clip.start + clip.length;
+    const min = Math.min(minLength(project, clip.row, clip.ref), Math.max(1, clip.length));
     let resized: Clip;
     if (edge === 'end') {
-      const to = Math.max(clip.start + 1, Math.min(songSteps(project), Math.round(position)));
+      const to = Math.max(clip.start + min, Math.min(songSteps(project), Math.round(position)));
       resized = { ...clip, length: to - clip.start };
     } else {
-      const from = Math.max(0, Math.min(end - 1, Math.round(position)));
+      const from = Math.max(0, Math.min(end - min, Math.round(position)));
       resized = { ...clip, start: from, length: end - from, offset: wrapOffset(project, clip, clip.offset + (from - clip.start)) };
     }
     return ok(withClips(project, placeClip(project, resized, ctx)));
