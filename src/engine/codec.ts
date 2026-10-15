@@ -133,8 +133,8 @@ export function decodeAudioFile(bytes: ArrayBuffer | Uint8Array): AudioData {
 export const EXPORT_SAMPLE_RATE = 44100;
 export const EXPORT_BITS = 24;
 
-// TODO(spec): the spec says "normaliserad" without a level. The peak is set to 0 dBFS.
-export const NORMALIZE_PEAK = 1;
+/** Exports are normalized so the peak is at −0.3 dBFS. */
+export const NORMALIZE_PEAK = 10 ** (-0.3 / 20);
 
 /** Encodes stereo 24-bit PCM WAV, normalized so the peak is NORMALIZE_PEAK. Silence stays silent. */
 export function encodeWav(audio: AudioData): Uint8Array {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AudioFileError, decodeAudioFile, encodeWav } from './codec';
+import { AudioFileError, NORMALIZE_PEAK, decodeAudioFile, encodeWav } from './codec';
 
 /** Builds a file from chunks: [id, bytes]. RIFF is little-endian, IFF (AIFF) big-endian. */
 function container(kind: 'RIFF' | 'FORM', type: string, parts: readonly [string, Uint8Array][]): Uint8Array {
@@ -146,10 +146,11 @@ describe('encodeWav', () => {
 
     const back = decodeAudioFile(file);
     expect(back.sampleRate).toBe(44100);
-    // Peak -0.5 becomes full scale; everything scales by 2.
-    expect(channel(back, 0)[2]).toBeCloseTo(-1, 5);
-    expect(channel(back, 0)[1]).toBeCloseTo(0.5, 5);
-    expect(channel(back, 1)[0]).toBeCloseTo(0.2, 5);
+    // Peak -0.5 becomes −0.3 dBFS; everything scales with it.
+    expect(NORMALIZE_PEAK).toBeCloseTo(0.966, 3);
+    expect(channel(back, 0)[2]).toBeCloseTo(-NORMALIZE_PEAK, 5);
+    expect(channel(back, 0)[1]).toBeCloseTo(NORMALIZE_PEAK / 2, 5);
+    expect(channel(back, 1)[0]).toBeCloseTo(NORMALIZE_PEAK / 5, 5);
   });
 
   it('writes mono as two equal channels and leaves silence silent', () => {

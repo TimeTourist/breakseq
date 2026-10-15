@@ -115,10 +115,12 @@ Allt som spelar mer än ett ljud renderas först; uppspelningen spelar den färd
 | Loops | Den valda loopen, renderad och loopad |
 | Song | Hela låten, renderad och loopad |
 
+I vyer utan egen uppspelning (Import, Slice) spelar och exporterar Play och Export låten.
+
 - **När det renderas:** automatiskt kort efter varje ändring (debounce), plus en knapp för ny slumptagning utan att något ändrats.
 - **Byte under uppspelning:** en ny rendering startar exakt där den gamla loopen tar slut, utan avbrott.
 - **Spelhuvud:** renderaren lämnar en triggerlista (tid, takt, steg). GUI:t tänder det steg vars trigger senast passerats. Ingen annan feedback, och mods ändrar inte hur steg ser ut.
-- **Export:** det som spelas i aktuell vy (loopen i Loops, låten i Song) sparas som WAV, 44,1 kHz / 24 bit, normaliserad. Det som exporteras är exakt det man hör.
+- **Export:** det som spelas i aktuell vy (loopen i Loops, låten i Song) sparas som WAV, 44,1 kHz / 24 bit, normaliserad till −0,3 dBFS. Det som exporteras är exakt det man hör.
 
 ## Data, undo och lagring
 
