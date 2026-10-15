@@ -307,7 +307,6 @@ function effectProblem(effect: ModEffect): string | null {
 
 /** Checks a mod's effects: at least one, at most one per target, each valid. */
 function effectsProblem(effects: readonly ModEffect[]): string | null {
-  if (effects.length === 0) return 'A mod needs at least one effect';
   if (new Set(effects.map((e) => e.target)).size !== effects.length) return 'A mod has one effect per target';
   return effects.map(effectProblem).find((p) => p !== null) ?? null;
 }

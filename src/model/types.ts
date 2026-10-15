@@ -166,7 +166,7 @@ export interface TapeEffect {
 export type ModEffect = StepEffect | TapeEffect;
 export type EffectTarget = ModEffect['target'];
 
-/** A mod does one or more things: at least one effect, at most one per target. */
+/** A mod does things through its effects: at most one per target. A new mod has none, and does nothing until it gets one. */
 export interface Mod {
   readonly id: Id;
   readonly name: string;

@@ -29,7 +29,7 @@ export const position = (step: number) =>
 
 /** A mod's effects in a clip: "pitch + ratchet", "tape 2/16". */
 const effectsText = (mod: Mod) =>
-  mod.effects.map((e) => `${TARGET_LABELS[e.target].toLowerCase()}${e.target === 'tape' ? ` ${lengthText(e.length)}` : ''}`).join(' + ');
+  mod.effects.length === 0 ? 'no effect' : mod.effects.map((e) => `${TARGET_LABELS[e.target].toLowerCase()}${e.target === 'tape' ? ` ${lengthText(e.length)}` : ''}`).join(' + ');
 
 const clipName = (project: Project, clip: Clip) =>
   (isLoopRow(clip.row) ? project.loops[clip.ref]?.name : project.mods[clip.ref]?.name) ?? '?';
