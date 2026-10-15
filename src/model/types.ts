@@ -108,11 +108,9 @@ export interface StepWindow {
   readonly end: number;
 }
 
-/**
- * Targets implemented so far. Phase 4 adds padMember, volume, direction,
- * tempo and sourceLoop; each needs an entry here and a handler in the engine.
- */
-export type ModTarget = 'pitch' | 'ratchet';
+/** What a mod changes. Applied in this order, whatever row the mod is in. */
+export const MOD_TARGETS = ['sourceLoop', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'tempo'] as const;
+export type ModTarget = (typeof MOD_TARGETS)[number];
 
 export type ModScope =
   | { readonly kind: 'all' }
@@ -123,9 +121,13 @@ export type ModScope =
 
 export type ModRate = 'step' | 'beat' | 'bar';
 
-/** Phase 4 adds cycle and ramp. */
 export type ModShape =
+  /** Values in turn, one per interval, then from the start again. */
   | { readonly kind: 'list'; readonly values: readonly number[] }
+  /** One value further for each interval the mod hits a step in; with no values, a pad's members in turn. */
+  | { readonly kind: 'cycle'; readonly values: readonly number[] }
+  /** From the first interval of the run to its last. */
+  | { readonly kind: 'ramp'; readonly from: number; readonly to: number }
   /** Chance in percent (0–100) that an interval gets a value at all. */
   | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number };
 
@@ -136,6 +138,8 @@ export interface Mod {
   readonly scope: ModScope;
   readonly rate: ModRate;
   readonly shape: ModShape;
+  /** Borrow (sourceLoop): the loops to borrow from. The shape's values are indexes into it. */
+  readonly sources: readonly Id[];
 }
 
 export type SongRow = 'main' | 'fill' | 'modA' | 'modB';

@@ -1,7 +1,6 @@
 import type { Direction, Id, Loop, Project, Region, Rng } from '../model';
 import { STEPS_PER_BAR, stepDuration } from '../model';
-import type { StepState } from './mods';
-import { applyMods, modRuns, modValues } from './mods';
+import { applyMods, modRuns, modValues, stepState, tempoRuns } from './mods';
 
 export interface Trigger {
   /** Seconds from the start of the song. */
@@ -72,42 +71,67 @@ export function stepLayer(layers: BarLayers, step: number): { readonly loop: Loo
 /** Works out every trigger in the song. Pure: no DOM, no audio, randomness only from `rng`. */
 export function generateTriggers(project: Project, rng: Rng): Trigger[] {
   const stepTime = stepDuration(project.song.bpm);
+  const totalSteps = project.song.bars * STEPS_PER_BAR;
   const layers = barLayers(project);
   const runs = modRuns(project.song, project.mods);
+  const tempo = tempoRuns(runs);
   const values = modValues(rng);
   const triggers: Trigger[] = [];
 
-  layers.forEach((layer, bar) => {
-    for (let step = 0; step < STEPS_PER_BAR; step++) {
-      const playing = stepLayer(layer, step);
-      const cell = playing?.loop.steps[playing.index];
-      if (cell === undefined || cell.padId === null) continue;
-      const pad = project.pads[cell.padId];
-      if (pad === undefined) continue;
-      const memberId = cell.memberId !== null && pad.members.includes(cell.memberId) ? cell.memberId : pad.members[0];
-      const hit = memberId === undefined ? undefined : project.hits[memberId];
-      if (hit === undefined) continue;
-
-      const base: StepState = { padId: pad.id, hit, ratchet: 1, pitch: 0 };
-      const state = cell.ignoreMods
-        ? base
-        : applyMods(base, { A: runs.A[bar] ?? null, B: runs.B[bar] ?? null }, bar, step, project, values);
-
-      const start = (bar * STEPS_PER_BAR + step) * stepTime;
-      for (let i = 0; i < state.ratchet; i++) {
-        triggers.push({
-          time: start + (i * stepTime) / state.ratchet,
-          bar,
-          step,
-          hitId: state.hit.id,
-          pitch: state.hit.pitch + state.pitch,
-          volume: state.hit.volume,
-          direction: state.hit.direction,
-          region: state.hit.region,
-        });
-      }
+  /**
+   * Plays content step `content` (in song steps) at `time` for `length` seconds.
+   * Mods are those of the main clock's step `clock`, where the sound is heard.
+   */
+  const play = (content: number, clock: number, time: number, length: number) => {
+    const bar = Math.floor(content / STEPS_PER_BAR);
+    const step = content % STEPS_PER_BAR;
+    const layer = layers[bar];
+    const playing = layer === undefined ? null : stepLayer(layer, step);
+    const cell = playing?.loop.steps[playing.index];
+    if (playing === null || cell === undefined) return;
+    const clockBar = Math.floor(clock / STEPS_PER_BAR);
+    const place = { index: playing.index, bar: clockBar, step: clock % STEPS_PER_BAR };
+    const state = applyMods(stepState(project, cell), { A: runs.A[clockBar] ?? null, B: runs.B[clockBar] ?? null }, place, project, values);
+    const { hit } = state;
+    if (hit === undefined) return;
+    for (let i = 0; i < state.ratchet; i++) {
+      triggers.push({
+        time: time + (i * length) / state.ratchet,
+        bar,
+        step,
+        hitId: hit.id,
+        pitch: hit.pitch + state.pitch,
+        volume: hit.volume + state.volume,
+        direction: state.reverse === null ? hit.direction : state.reverse ? 'reverse' : 'forward',
+        region: hit.region,
+      });
     }
-  });
+  };
+
+  let clock = 0;
+  while (clock < totalSteps) {
+    const run = tempo[Math.floor(clock / STEPS_PER_BAR)] ?? null;
+    if (run === null) {
+      play(clock, clock, clock * stepTime, stepTime);
+      clock++;
+      continue;
+    }
+    // Slip: a local playhead starts where the main clock is and runs at the run's tempo
+    // until the run ends; then everything carries on where the main clock is.
+    const end = (run.startBar + run.bars) * STEPS_PER_BAR;
+    const endTime = end * stepTime;
+    let content = clock;
+    let time = clock * stepTime;
+    while (time < endTime - 1e-9 && content < totalSteps) {
+      const at = Math.min(end - 1, Math.floor(time / stepTime + 1e-9));
+      const factor = values(run, Math.floor(at / STEPS_PER_BAR), at % STEPS_PER_BAR, false);
+      const length = stepTime / (factor !== null && factor > 0 ? factor : 1);
+      play(content, at, time, Math.min(length, endTime - time));
+      content++;
+      time += length;
+    }
+    clock = end;
+  }
   return triggers;
 }
 

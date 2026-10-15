@@ -195,10 +195,11 @@ export const setStep =
 
 // Mods
 
+/** A new mod. `sources` only matters for Borrow and defaults to none. */
 export const createMod =
-  (fields: Omit<Mod, 'id'>): Command =>
+  (fields: Omit<Mod, 'id' | 'sources'> & { readonly sources?: readonly Id[] }): Command =>
   (project, ctx) => {
-    const mod: Mod = { id: ctx.newId(), ...fields };
+    const mod: Mod = { id: ctx.newId(), ...fields, sources: fields.sources ?? [] };
     return ok({ ...project, mods: { ...project.mods, [mod.id]: mod } });
   };
 

@@ -30,7 +30,7 @@ Alla mod-mål och mod-former enligt specen, Mods-vyn, och raderna Mod A och Mod 
 **Former:**
 - **List:** värdena i tur och ordning, ett per intervall, och sedan om från början.
 - **Cycle:** går ett värde framåt för varje intervall där moden faktiskt träffar ett steg. Med rate "step" blir det round robin per slag. Utan värden går Pad member runt alla padens medlemmar.
-- **Ramp:** från–till över körningens längd. Värdet hålls inom intervallet, och diskreta mål avrundas.
+- **Ramp:** från–till över körningens längd. Första intervallet får från-värdet och sista intervallet till-värdet. Värdet hålls inom intervallet, och diskreta mål avrundas.
 - **Random:** finns redan, men gäller nu alla mål.
 
 **Kombination av A och B på samma mål:**
@@ -50,7 +50,7 @@ Alla mod-mål och mod-former enligt specen, Mods-vyn, och raderna Mod A och Mod 
 ## Tester som krävs
 
 - [ ] **Stutter:** Ratchet 4 på snares (tagg S) ger fyra jämna triggers per snare-steg, och bara där.
-- [ ] **Pitchtrappa:** Ramp 0 → 12 per beat över en takt ger 0, 3, 6, 9 och håller värdet inom varje slag.
+- [ ] **Pitchtrappa:** Ramp 0 → 12 per beat över en takt ger 0, 4, 8, 12 och håller värdet inom varje slag.
 - [ ] **1/3-tempo:** en takt med slip 1/3 spelar innehållets steg 0–5 på 0, 3, 6, 9, 12 och 15 steg på huvudklockan. Nästa takt börjar på takt 2, steg 0, i rätt tid.
 - [ ] **Slip över flera takter** är en körning, där spelhuvudet inte startar om.
 - [ ] **Borrow** byter steget mot samma steg i källoopen, med pad, medlem och locks.
