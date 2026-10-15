@@ -12,36 +12,6 @@ interface FillWindowProps {
   readonly onError: (error: string | null) => void;
 }
 
-/** The window as text, with quick settings for common fills. */
-export function FillWindow({ loop, onError }: FillWindowProps) {
-  const run = useRun();
-  const total = loop.steps.length;
-  const { start, end } = loop.window;
-  const lastBar = total - STEPS_PER_BAR;
-  const presets = [
-    { label: 'Whole', from: 0, to: total },
-    { label: 'Last 1/2', from: lastBar + 8, to: total },
-    { label: 'Last 1/4', from: lastBar + 12, to: total },
-  ];
-  return (
-    <section className="row" aria-label="Fill window">
-      <div className="row">
-        {presets.map((p) => (
-          <button
-            key={p.label}
-            type="button"
-            className="small-button"
-            aria-pressed={start === p.from && end === p.to}
-            onClick={() => onError(run(setFillWindow(loop.id, p.from, p.to)))}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 /**
  * Where a fill takes over, as a row above one bar of its steps: drag the start
  * and end, as when trimming a sample. Outside the window the main shows through.

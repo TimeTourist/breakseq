@@ -6,7 +6,7 @@ import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, loopUsage, padColor, padGroups, padLabel } from './labels';
 import type { Selection } from './store';
-import { FillWindow, FillWindowStrip } from './FillWindow';
+import { FillWindowStrip } from './FillWindow';
 
 export const PAD_MIME = 'application/x-breakseq-pad';
 
@@ -169,8 +169,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             {error}
           </p>
         )}
-
-        {loop.kind === 'fill' && <FillWindow loop={loop} onError={setError} />}
 
         <div className="table-scroll steps-box">
           <div className="steps">
