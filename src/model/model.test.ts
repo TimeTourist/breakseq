@@ -30,6 +30,7 @@ import {
   removePadMember,
   setBreak,
   setFillWindow,
+  setLoopKind,
   updateSample,
   setSongCell,
   updateHit,
@@ -470,13 +471,14 @@ describe('fas 3b: trimming, markers and re-slicing', () => {
 });
 
 describe('fill window (model)', () => {
-  it('defaults to the whole loop and can only be set on a fill, within its steps', () => {
+  it('defaults to the whole loop and can be set within its steps', () => {
     const ctx = sequentialIds();
     const project = run(createProject(ctx), ctx, createLoop(null, 'fill', 1), createLoop(null, 'main', 1));
     const [fill, main] = Object.values(project.loops);
     expect(fill!.window).toEqual({ start: 0, end: 16 });
     expect(run(project, ctx, setFillWindow(fill!.id, 8, 16)).loops[fill!.id]!.window).toEqual({ start: 8, end: 16 });
-    expect(setFillWindow(main!.id, 8, 16)(project, ctx).ok).toBe(false);
+    // Any loop can play in the Fill row, so any loop has a window.
+    expect(setFillWindow(main!.id, 8, 16)(project, ctx).ok).toBe(true);
     expect(setFillWindow(fill!.id, 8, 8)(project, ctx).ok).toBe(false);
     expect(setFillWindow(fill!.id, 0, 17)(project, ctx).ok).toBe(false);
   });
@@ -546,5 +548,19 @@ describe('fas 5: tags and kept markers', () => {
 
     project = run(project, ctx, removeTag(p));
     expect(Object.values(project.tags).map((t) => t.name)).toEqual(['K', 'S', 'H', 'R', 'G']);
+  });
+});
+
+describe('loop kind is a tag', () => {
+  it('any loop can go in the Main or the Fill row, and setLoopKind retags it', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(ctx), ctx, createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
+    const [main, fill] = Object.values(project.loops);
+    project = run(project, ctx, setSongCell('fill', 0, main!.id), setSongCell('main', 1, fill!.id));
+    expect(project.song.rows.fill[0]).toBe(main!.id);
+    expect(project.song.rows.main[1]).toBe(fill!.id);
+
+    project = run(project, ctx, setLoopKind(main!.id, 'fill'));
+    expect(project.loops[main!.id]).toMatchObject({ kind: 'fill', name: 'M1' });
   });
 });

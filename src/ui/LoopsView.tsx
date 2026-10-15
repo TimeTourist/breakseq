@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, remove, renameLoop, sequence, setLoopBars, setStep } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, remove, renameLoop, sequence, setLoopBars, setLoopKind, setStep } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, loopUsage, padColor, padGroups, padLabel } from './labels';
@@ -47,29 +47,26 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const loops = Object.values(project.loops);
   const sidebar = (
     <aside className="sidebar narrow" aria-label="Loops">
-      {(['main', 'fill'] as const).map((kind) => (
-        <section key={kind} className="stack-tight">
-          <h2 className="label">{kind === 'main' ? 'Mains' : 'Fills'}</h2>
-          {loops
-            .filter((l) => l.kind === kind)
-            .map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                className="list-item"
-                aria-current={l.id === loopId ? 'true' : undefined}
-                onClick={() => open({ loop: l.id, step: null }, 'loops')}
-              >
-                <span className={`mono loop-name ${kind}`}>{l.name}</span>
-                <span className="grow" />
-                <span className="mono muted small">{l.bars} bar{l.bars === 1 ? '' : 's'}</span>
-              </button>
-            ))}
-          <button type="button" className="dashed" onClick={() => newLoop(kind)}>
-            + New {kind}
+      <section className="stack-tight">
+        <h2 className="label">Loops</h2>
+        {loops.map((l) => (
+          <button
+            key={l.id}
+            type="button"
+            className="list-item"
+            aria-current={l.id === loopId ? 'true' : undefined}
+            onClick={() => open({ loop: l.id, step: null }, 'loops')}
+          >
+            <span className={`mono loop-name ${l.kind}`}>{l.name}</span>
+            <span className="grow" />
+            <span className="muted small">{l.kind}</span>
+            <span className="mono muted small">{l.bars} bar{l.bars === 1 ? '' : 's'}</span>
           </button>
-        </section>
-      ))}
+        ))}
+        <button type="button" className="dashed" onClick={() => newLoop('main')}>
+          + New loop
+        </button>
+      </section>
     </aside>
   );
 
@@ -127,7 +124,13 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             onChange={(e) => setError(run(renameLoop(loop.id, e.target.value), `loop:${loop.id}:name`))}
             onBlur={seal}
           />
-          <span className="mono muted">{loop.kind === 'main' ? 'Main' : 'Fill'} · 1/16</span>
+          <div className="segmented" role="group" aria-label="Tag as">
+            {(['main', 'fill'] as const).map((k) => (
+              <button key={k} type="button" aria-pressed={loop.kind === k} onClick={() => setError(run(setLoopKind(loop.id, k)))}>
+                {k === 'main' ? 'Main' : 'Fill'}
+              </button>
+            ))}
+          </div>
           <label className="field">
             Bars
             <input
