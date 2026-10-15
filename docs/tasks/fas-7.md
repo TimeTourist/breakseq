@@ -10,7 +10,7 @@ En mod kan göra flera saker samtidigt. Den nya effekten Tape spelar in en bit a
 
 1. **En mod har flera effekter**, högst en per mål. Din kombination blir en mod med Tape-effekten.
 2. **Segmentet spelas in som en sampling** och spelas upp som ljud. Riktningen är en inställning: Framåt, Baklänges eller Pendel, där Pendel är förvald.
-3. **Hastigheten går från ett värde till ett annat** över klippet, och kan både sakta in och snabba upp. Förvalt är 1× → 0×. Hastigheten ändrar både tonhöjd och längd, som ett band. Låtens tempo ändras aldrig.
+3. **Hastigheten går från ett värde till ett annat** över klippet, och kan både sakta in och snabba upp. Förvalt är 1× → 0,25× (ändrat från 0× efter lyssning). Hastigheten ändrar både tonhöjd och längd, som ett band. Låtens tempo ändras aldrig.
 4. **Inspelningen är det som hörs**: Main eller Fill med stegeffekterna från A och B, men utan Tape.
 5. **Tape pågår så länge klippet är "inritat".** Vid 0× är det tyst tills klippet tar slut. Därefter fortsätter det som syns där, på huvudklockan.
 6. **Segmentet börjar där klippet börjar**, och ett klipp med Tape är minst lika långt som segmentet.

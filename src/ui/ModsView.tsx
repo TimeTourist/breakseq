@@ -33,8 +33,8 @@ const DEFAULTS: Record<ModTarget, { rate: ModRate; shape: ModShape }> = {
 /** A new step effect for a target, acting on all steps. */
 const stepEffect = (target: ModTarget): StepEffect => ({ target, scope: { kind: 'all' }, ...DEFAULTS[target], sources: [] });
 
-/** Repeat the first 2/16, back and forth, slowing to a stop: tape being braked. */
-export const DEFAULT_TAPE: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } };
+/** Repeat the first 2/16, back and forth, slowing to a quarter speed: tape being braked. */
+export const DEFAULT_TAPE: TapeEffect = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 } };
 
 const newEffect = (target: EffectTarget): ModEffect => (target === 'tape' ? DEFAULT_TAPE : stepEffect(target));
 

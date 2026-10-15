@@ -101,7 +101,7 @@ describe('Effects', () => {
     expect(within(screen.getByRole('group', { name: 'Target' })).getByRole('button', { name: 'Ratchet' })).toHaveProperty('disabled', true);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'tape' } });
-    expect(effects().at(-1)).toEqual({ target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } });
+    expect(effects().at(-1)).toEqual({ target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0.25 } });
 
     const repeat = screen.getByRole('group', { name: 'Repeat' });
     fireEvent.change(within(repeat).getByLabelText('Beats'), { target: { value: '1' } });

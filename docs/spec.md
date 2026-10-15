@@ -100,7 +100,7 @@ Tape spelar in en bit av det som hörs och spelar upp den som ett band, så län
 - **Segment:** de första Repeat-stegen (1/16 till 4 takter) från klippets början. Ett klipp med Tape är minst så långt som segmentet.
 - **Inspelning:** det som hörs i segmentet, alltså Main eller Fill med stegeffekterna från A och B, men utan Tape.
 - **Riktning:** Framåt, Baklänges eller Pendel (framåt, baklänges, framåt, …). Pendel är förvald.
-- **Hastighet:** går linjärt från ett värde till ett annat (0×–4×) över klippets längd, förvalt 1× → 0×. Hastigheten ändrar tonhöjd och längd som ett band, och varje varv tar så lång tid som hastigheten ger. Under 1× blir ljudet också tystare i takt med hastigheten, som ett band som bromsas, så 0× är tyst. Låtens tempo ändras aldrig.
+- **Hastighet:** går linjärt från ett värde till ett annat (0×–4×) över klippets längd, förvalt 1× → 0,25×. Hastigheten ändrar tonhöjd och längd som ett band, och varje varv tar så lång tid som hastigheten ger. Under 1× blir ljudet också tystare i takt med hastigheten, som ett band som bromsas, så 0× är tyst. Låtens tempo ändras aldrig.
 - **Under klippet** hörs bara tapen. Vid 0× är det tyst. Tapen klipper rösten före sig.
 - **Efter klippet** fortsätter det som syns där, på huvudklockan, som efter slip.
 - **A och B:** har båda raderna Tape samtidigt vinner B. Tape går före slip-tempo i sitt spann.
