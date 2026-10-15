@@ -107,7 +107,7 @@ export function ModsView() {
   }
 
   const update = (patch: Partial<Omit<Mod, 'id'>>, key?: string) => setError(run(updateMod(mod.id, patch), key));
-  const usedIn = [...project.song.rows.modA, ...project.song.rows.modB].filter((id) => id === mod.id).length;
+  const usedIn = project.song.clips.filter((c) => c.ref === mod.id && (c.row === 'modA' || c.row === 'modB')).length;
 
   return (
     <div className="split">
@@ -201,7 +201,7 @@ export function ModsView() {
 
         <section className="panel row">
           <span className="label">Used in</span>
-          <span className="muted small">{usedIn === 0 ? 'Not in the song. Drag it onto Mod A or Mod B in Song.' : `${usedIn} song bar${usedIn === 1 ? '' : 's'}`}</span>
+          <span className="muted small">{usedIn === 0 ? 'Not in the song. Drag it onto Mod A or Mod B in Song.' : `${usedIn} clip${usedIn === 1 ? '' : 's'} in the song`}</span>
         </section>
       </main>
     </div>

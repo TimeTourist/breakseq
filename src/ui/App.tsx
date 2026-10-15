@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Trigger } from '../engine';
 import { loopSong, modPreviewSong } from '../engine';
+import { stepDuration } from '../model';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
 import { HitsView } from './HitsView';
@@ -104,22 +105,22 @@ function useAutosave() {
   return { error };
 }
 
-/** The trigger under the playhead, polled each frame while playing. */
-function usePlayhead(playing: boolean): Trigger | null {
+/** The trigger under the playhead and the seconds into the take, polled each frame while playing. */
+function usePlayhead(playing: boolean): { trigger: Trigger | null; seconds: number | null } {
   const { services } = useApp();
-  const [trigger, setTrigger] = useState<Trigger | null>(null);
+  const [state, setState] = useState<{ trigger: Trigger | null; seconds: number | null }>({ trigger: null, seconds: null });
   useEffect(() => {
     if (!playing) {
-      setTrigger(null);
+      setState({ trigger: null, seconds: null });
       return;
     }
     let frame = requestAnimationFrame(function tick() {
-      setTrigger(services.player.currentTrigger());
+      setState({ trigger: services.player.currentTrigger(), seconds: services.player.currentPosition() });
       frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
   }, [playing, services]);
-  return trigger;
+  return state;
 }
 
 function Shell() {
@@ -129,6 +130,7 @@ function Shell() {
   const { error: saveError } = useAutosave();
   const [playing, setPlaying] = useState(false);
   const playhead = usePlayhead(playing);
+  const bpm = useSelect((s) => s.history.present.song.bpm);
 
   const setView = useCallback((v: View) => store.dispatch({ type: 'view', view: v }), [store]);
 
@@ -176,9 +178,11 @@ function Shell() {
       {view === 'tag' && <TagView />}
       {view === 'hits' && <HitsView />}
       {view === 'pads' && <PadsView />}
-      {view === 'loops' && <LoopsView playhead={playhead} />}
+      {view === 'loops' && <LoopsView playhead={playhead.trigger} />}
       {view === 'mods' && <ModsView />}
-      {view === 'song' && <SongView playheadBar={playhead?.bar ?? null} rendering={rendering} onNewTake={newTake} />}
+      {view === 'song' && (
+        <SongView playheadSeconds={playhead.seconds} stepSeconds={stepDuration(bpm)} rendering={rendering} onNewTake={newTake} />
+      )}
     </div>
   );
 }

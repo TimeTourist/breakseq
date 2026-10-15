@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioData, Command, Project } from '../model';
 import { addSample, createLoop, createMod, createProject, setBreak, setSongCell, setStep } from '../model';
 import { sequentialIds } from '../test/fixtures';
 import { App } from './App';
-import { CELL_MIME } from './dnd';
+import { CLIP_MIME } from './SongView';
+import { clip, dropOn } from '../test/timeline';
 import type { Player, Take } from './playback';
 import type { Services } from './services';
 import type { Store, View } from './store';
@@ -22,6 +23,7 @@ function services(): Services {
     stop: vi.fn(),
     isPlaying: () => false,
     currentTrigger: () => null,
+    currentPosition: () => null,
     audition: vi.fn(),
     setAuditionRegion: vi.fn(),
     auditionPosition: () => null,
@@ -82,40 +84,32 @@ describe('Dragging in Song', () => {
   function placed() {
     const project = apply(createProject(ctx), createLoop(null, 'main', 1));
     const loop = Object.values(project.loops)[0]!;
-    return { project: apply(project, setSongCell('main', 1, loop.id)), loop };
+    const withClip = apply(project, setSongCell('main', 1, loop.id));
+    return { project: withClip, id: withClip.song.clips[0]!.id };
   }
-  /** Drops a dragged cell; happy-dom leaves altKey off drag events, so it is set on the event itself. */
-  const drag = (from: number, to: number, altKey: boolean, loopId: string) => {
-    const target = button(new RegExp(`^Bar ${to}:`));
-    const event = createEvent.drop(target, {
-      dataTransfer: {
-        types: [CELL_MIME],
-        getData: (t: string) => (t === CELL_MIME ? JSON.stringify({ row: 'main', bar: from - 1, id: loopId }) : ''),
-      },
-    });
-    Object.defineProperty(event, 'altKey', { value: altKey });
-    fireEvent(target, event);
-  };
+  const starts = (store: Store) => present(store).song.clips.map((c) => [c.row, c.start]);
 
-  it('dragging a placed loop moves it; one undo puts it back', async () => {
-    const { project, loop } = placed();
+  it('dragging a clip moves it; one undo puts it back', async () => {
+    const { project, id } = placed();
     const store = await setup(project, 'song');
 
-    drag(2, 5, false, loop.id);
+    dropOn('Main', 64, CLIP_MIME, JSON.stringify({ id, grab: 0 }));
 
-    expect(present(store).song.rows.main.slice(0, 6)).toEqual([null, null, null, null, loop.id, null]);
+    expect(starts(store)).toEqual([['main', 64]]);
     fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
-    expect(present(store).song.rows.main[1]).toBe(loop.id);
+    expect(starts(store)).toEqual([['main', 16]]);
   });
 
-  it('with Alt it copies', async () => {
-    const { project, loop } = placed();
+  it('with Alt it copies, and the grabbed step stays under the pointer', async () => {
+    const { project, id } = placed();
     const store = await setup(project, 'song');
 
-    drag(2, 5, true, loop.id);
+    dropOn('Main', 70, CLIP_MIME, JSON.stringify({ id, grab: 6 }), true);
 
-    expect(present(store).song.rows.main[1]).toBe(loop.id);
-    expect(present(store).song.rows.main[4]).toBe(loop.id);
+    expect(starts(store)).toEqual([
+      ['main', 16],
+      ['main', 64],
+    ]);
   });
 });
 
@@ -151,8 +145,7 @@ describe('Double-click opens the editor', () => {
     const store = await setup(apply(project, setSongCell('modA', 0, mod.id)), 'song');
     const state = () => store.getState();
 
-    // A running bar of the loop opens it too.
-    fireEvent.doubleClick(button(/^Bar 2:/));
+    fireEvent.doubleClick(clip(/^M1, /));
     expect(state().view).toBe('loops');
     expect(state().selection.loop).toBe(loop.id);
 
@@ -165,7 +158,7 @@ describe('Double-click opens the editor', () => {
     expect(state().selection.hit).toBe(hit.id);
 
     fireEvent.keyDown(window, { key: '8' });
-    fireEvent.doubleClick(button(/^Mod A bar 1:/));
+    fireEvent.doubleClick(clip(/^Roll, /));
     expect(state().view).toBe('mods');
     expect(state().selection.mod).toBe(mod.id);
   });
@@ -184,36 +177,29 @@ describe('Double-clicking a mod in Song', () => {
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(apply(project, setSongCell('modA', 1, mod.id), setSongCell('modA', 3, mod.id)), 'song');
 
-    fireEvent.doubleClick(button(/^Mod A bar 2:/));
+    fireEvent.doubleClick(clip(/^Roll, 2\.1\.1/));
     expect(store.getState().selection).toMatchObject({ mod: mod.id, previewLoop: main!.id });
     expect(store.getState().view).toBe('mods');
 
     fireEvent.keyDown(window, { key: '8' });
-    fireEvent.doubleClick(button(/^Mod A bar 4:/));
+    fireEvent.doubleClick(clip(/^Roll, 4\.1\.1/));
     expect(store.getState().selection.previewLoop).toBe(fill!.id);
   });
 });
 
 describe('Dragging mods between rows', () => {
-  it('a mod moves from Mod A to Mod B, but not into a loop row', async () => {
+  it('a mod clip moves from Mod A to Mod B, but not into a loop row', async () => {
     let project = apply(createProject(ctx), createMod({ name: 'Roll', target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }));
     const mod = Object.values(project.mods)[0]!;
     project = apply(project, setSongCell('modA', 0, mod.id));
+    const id = project.song.clips[0]!.id;
     const store = await setup(project, 'song');
-    const drop = (target: RegExp) => {
-      const element = button(target);
-      const event = createEvent.drop(element, {
-        dataTransfer: { types: [CELL_MIME], getData: (t: string) => (t === CELL_MIME ? JSON.stringify({ row: 'modA', bar: 0, id: mod.id }) : '') },
-      });
-      Object.defineProperty(event, 'altKey', { value: false });
-      fireEvent(element, event);
-    };
 
-    drop(/^Mod B bar 3:/);
-    expect(present(store).song.rows.modA[0]).toBeNull();
-    expect(present(store).song.rows.modB[2]).toBe(mod.id);
+    dropOn('Mod B', 32, CLIP_MIME, JSON.stringify({ id, grab: 0 }));
+    expect(present(store).song.clips.map((c) => [c.row, c.start])).toEqual([['modB', 32]]);
 
-    drop(/^Bar 5:/);
-    expect(present(store).song.rows.main[4]).toBeNull();
+    dropOn('Main', 0, CLIP_MIME, JSON.stringify({ id, grab: 0 }));
+    expect(present(store).song.clips.map((c) => [c.row, c.start])).toEqual([['modB', 32]]);
+    expect(screen.getByRole('alert').textContent).toBe('Mods go in Mod A or Mod B');
   });
 });

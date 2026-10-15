@@ -1,6 +1,7 @@
 import type { Command } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
-import { DEFAULT_TAG_NAMES, breakSequence, emptySteps, fullWindow, isParentHit, nextLoopName } from './project';
+import { addClip, fitClips } from './clips';
+import { DEFAULT_TAG_NAMES, breakSequence, emptySteps, isParentHit, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
@@ -191,7 +192,6 @@ export const createLoop =
       kind,
       bars,
       steps: emptySteps(bars),
-      window: fullWindow(bars),
     };
     return ok({ ...project, loops: { ...project.loops, [loop.id]: loop } });
   };
@@ -205,26 +205,10 @@ export const setLoopBars =
     if (!Number.isInteger(bars) || bars < 1) return invalid('A loop is a whole number of bars');
     const length = bars * STEPS_PER_BAR;
     const steps = [...loop.steps.slice(0, length), ...emptySteps(bars)].slice(0, length);
-    // A window over the whole loop keeps covering it; any other is cut to the new length.
-    const whole = loop.window.start === 0 && loop.window.end === loop.steps.length;
-    const start = Math.min(loop.window.start, length - 1);
-    const window = whole ? fullWindow(bars) : { start, end: Math.max(start + 1, Math.min(loop.window.end, length)) };
-    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, bars, steps, window } } });
+    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, bars, steps } } });
   };
 
-/** Sets the steps a loop plays when it is in the Fill row; the main shows through the rest. End is exclusive. */
-export const setFillWindow =
-  (id: Id, start: number, end: number): Command =>
-  (project) => {
-    const loop = project.loops[id];
-    if (loop === undefined) return notFound(id);
-    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > loop.steps.length || end <= start) {
-      return invalid('The window must cover at least one step of the loop');
-    }
-    return ok({ ...project, loops: { ...project.loops, [id]: { ...loop, window: { start, end } } } });
-  };
-
-/** Tags a loop as a main or a fill. It only groups loops and shows the fill window; the Song row decides how it plays. */
+/** Tags a loop as a main or a fill. It only groups and names loops; the Song row decides how it plays. */
 export const setLoopKind =
   (id: Id, kind: LoopKind): Command =>
   (project) => {
@@ -312,37 +296,27 @@ export const setBpm =
   (project) =>
     bpm > 0 ? ok(setSong(project, { ...project.song, bpm })) : invalid('BPM must be positive');
 
-/** Changes the song length. Cells past the new end are dropped. */
+/** Changes the song length. Clips past the new end go; clips across it are shortened. */
 export const setSongBars =
   (bars: number): Command =>
   (project) => {
     if (!Number.isInteger(bars) || bars < 1) return invalid('A song is a whole number of bars');
-    const resize = (row: readonly (Id | null)[]) => Array.from({ length: bars }, (_, i) => row[i] ?? null);
-    const { rows } = project.song;
-    return ok(
-      setSong(project, {
-        ...project.song,
-        bars,
-        rows: { main: resize(rows.main), fill: resize(rows.fill), modA: resize(rows.modA), modB: resize(rows.modB) },
-      }),
-    );
+    return ok(setSong(project, { ...project.song, bars, clips: fitClips(project.song.clips, bars * STEPS_PER_BAR) }));
   };
 
-/** Places a loop or mod at the start of a bar, or clears the cell with null. */
+/**
+ * Lays a loop or mod out from the start of a bar with its natural length, or
+ * with null removes the clip that starts there. A shorthand for addClip.
+ */
 export const setSongCell =
   (row: SongRow, bar: number, id: Id | null): Command =>
-  (project) => {
+  (project, ctx) => {
     if (!Number.isInteger(bar) || bar < 0 || bar >= project.song.bars) return invalid(`Bar ${bar} is outside the song`);
-    if (id !== null) {
-      if (row === 'main' || row === 'fill') {
-        // Any loop can go in either row: the row decides how it plays.
-        if (project.loops[id] === undefined) return notFound(id);
-      } else if (project.mods[id] === undefined) {
-        return notFound(id);
-      }
+    const start = bar * STEPS_PER_BAR;
+    if (id === null) {
+      return ok(setSong(project, { ...project.song, clips: project.song.clips.filter((c) => !(c.row === row && c.start === start)) }));
     }
-    const cells = project.song.rows[row].map((c, i) => (i === bar ? id : c));
-    return ok(setSong(project, { ...project.song, rows: { ...project.song.rows, [row]: cells } }));
+    return addClip(row, id, start)(project, ctx);
   };
 
 // Removal

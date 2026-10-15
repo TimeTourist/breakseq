@@ -99,16 +99,6 @@ export interface Loop {
   readonly bars: number;
   /** bars × STEPS_PER_BAR steps. */
   readonly steps: readonly Step[];
-  /**
-   * The steps the loop plays when it is in the Fill row, start inclusive and end
-   * exclusive. Outside it the main shows through. Defaults to the whole loop.
-   */
-  readonly window: StepWindow;
-}
-
-export interface StepWindow {
-  readonly start: number;
-  readonly end: number;
 }
 
 /** What a mod changes. Applied in this order, whatever row the mod is in. */
@@ -147,11 +137,26 @@ export interface Mod {
 
 export type SongRow = 'main' | 'fill' | 'modA' | 'modB';
 
-/** Each row has one cell per bar. A cell holds the id of a loop or mod that starts there. */
+/**
+ * A loop or mod laid out in a Song row. Times are in steps of 1/16 from the
+ * start of the song. Clips in the same row never overlap.
+ */
+export interface Clip {
+  readonly id: Id;
+  readonly row: SongRow;
+  /** The loop (Main, Fill) or mod (Mod A, Mod B) it plays. */
+  readonly ref: Id;
+  readonly start: number;
+  /** At least one step. */
+  readonly length: number;
+  /** Where in its content the clip starts: trimming its start moves it. A loop wraps round. */
+  readonly offset: number;
+}
+
 export interface Song {
   readonly bpm: number;
   readonly bars: number;
-  readonly rows: { readonly [R in SongRow]: readonly (Id | null)[] };
+  readonly clips: readonly Clip[];
 }
 
 export interface Project {

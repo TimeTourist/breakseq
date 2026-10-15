@@ -7,8 +7,9 @@ import {
   createPad,
   createProject,
   removePadMember,
+  addClip,
+  resizeClip,
   setBpm,
-  setFillWindow,
   setSongBars,
   setSongCell,
   setStep,
@@ -110,13 +111,21 @@ describe('layers', () => {
     expect(firstHitPerBar(song)).toEqual(['M1.1', 'M1.2', 'M1.3', 'F1.1', 'M1.1', 'M1.2', 'M1.3', 'M1.4']);
   });
 
-  it('a main of 4 bars followed by four empty main cells and then M2: M1 loops until M2 starts', () => {
+  it('a clip plays only its length: a long clip loops its loop round, and where no main clip is there is silence', () => {
     const { project, ids } = loopsSetup([
       { name: 'M1', kind: 'main', bars: 4 },
       { name: 'M2', kind: 'main', bars: 1 },
     ]);
-    const song = run(project, setSongBars(9), ...row('main', '1--- ---- 2', { '1': ids.M1!, '2': ids.M2! }));
-    expect(firstHitPerBar(song)).toEqual(['M1.1', 'M1.2', 'M1.3', 'M1.4', 'M1.1', 'M1.2', 'M1.3', 'M1.4', 'M2.1']);
+    const song = run(project, setSongBars(10), addClip('main', ids.M1!, 0, 6 * 16), setSongCell('main', 7, ids.M2!));
+    expect(firstHitPerBar(song)).toEqual(['M1.1', 'M1.2', 'M1.3', 'M1.4', 'M1.1', 'M1.2', undefined, 'M2.1', undefined, undefined]);
+  });
+
+  it('M1 in a clip of 6/16, then M1 again, plays steps 0–5 and starts over', () => {
+    const { project, ids } = loopsSetup([{ name: 'M1', kind: 'main', bars: 1 }]);
+    const every = run(project, ...Array.from({ length: 16 }, (_, i) => setStep(ids.M1!, i, { padId: Object.values(project.pads)[0]!.id })));
+    const song = run(every, setSongBars(1), addClip('main', ids.M1!, 0, 6), addClip('main', ids.M1!, 6, 10));
+    const triggers = generateTriggers(song, () => 0);
+    expect(triggers.map((t) => t.step)).toEqual(Array.from({ length: 16 }, (_, i) => i));
   });
 
   it('a fill of 2 bars covers two bars, and the main keeps counting under it', () => {
@@ -145,7 +154,7 @@ describe('timing', () => {
     let { project, pad } = withPads(['K']);
     let loop: Id;
     [project, loop] = addLoop(project, 'M1', 'main', 1);
-    project = run(project, setStep(loop, 5, { padId: pad.K! }), setSongBars(2), setSongCell('main', 0, loop));
+    project = run(project, setStep(loop, 5, { padId: pad.K! }), setSongBars(2), addClip('main', loop, 0, 32));
 
     const triggers = generateTriggers(project, () => 0);
 
@@ -302,16 +311,24 @@ describe('mods', () => {
     expect(new Set(generateTriggers(project, () => 0).map((t) => t.pitch))).toEqual(new Set([1]));
   });
 
-  it('the same mod in adjacent bars is one continuous modulation', () => {
+  it('a mod clip is one modulation over its length; another clip starts over', () => {
     let { project } = everyStep(1);
-    project = run(project, setSongBars(4), setSongCell('main', 0, Object.keys(project.loops)[0]!));
+    project = run(project, setSongBars(4), addClip('main', Object.keys(project.loops)[0]!, 0, 64));
     let pitch: Id;
     [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1, 2, 3] } });
-    project = run(project, ...row('modA', '11-1', { '1': pitch }));
+    project = run(project, addClip('modA', pitch, 0, 32), addClip('modA', pitch, 48, 16));
 
     const perBar = (bar: number) => generateTriggers(project, () => 0).find((t) => t.bar === bar)?.pitch;
-    // Bars 1–2 are one run (1, 2); bar 4 starts a new run (1).
+    // Bars 1–2 are one clip (1, 2); bar 4 is a new clip (1).
     expect([0, 1, 2, 3].map(perBar)).toEqual([1, 2, 0, 1]);
+  });
+
+  it('a mod clip of 4/16 changes only those steps', () => {
+    let { project } = everyStep(1);
+    let pitch: Id;
+    [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'ramp', from: 1, to: 4 } });
+    project = run(project, addClip('modA', pitch, 6, 4));
+    expect(generateTriggers(project, () => 0).map((t) => t.pitch)).toEqual([0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0]);
   });
 });
 
@@ -334,8 +351,8 @@ describe('randomness', () => {
   });
 });
 
-describe('fill window', () => {
-  /** Main M1 has pad M on every step; fill F1 has pad F on every step. */
+describe('fill clips', () => {
+  /** Main M1 has pad M on every step; fill F1 has pad F on every step and sits on bar 2. */
   function mainAndFill(fillBars: number) {
     let { project, pad, hit } = withPads(['M', 'F']);
     let m1: Id, f1: Id;
@@ -346,10 +363,11 @@ describe('fill window', () => {
       ...Array.from({ length: 16 }, (_, i) => setStep(m1, i, { padId: pad.M! })),
       ...Array.from({ length: fillBars * 16 }, (_, i) => setStep(f1, i, { padId: pad.F! })),
       setSongBars(4),
-      setSongCell('main', 0, m1),
+      addClip('main', m1, 0, 64),
       setSongCell('fill', 1, f1),
     );
-    return { project, f1, hit };
+    const clip = project.song.clips.find((c) => c.row === 'fill')!;
+    return { project, f1, clip, hit };
   }
 
   /** Which pad plays each step of a bar: 'M' or 'F'. */
@@ -359,28 +377,29 @@ describe('fill window', () => {
       .map((t) => (t.hitId === hit.F ? 'F' : 'M'))
       .join('');
 
-  it('a fill plays the whole bar by default', () => {
+  it('a fill clip plays the whole bar by default', () => {
     const { project, hit } = mainAndFill(1);
     expect(layerOf(project, hit, 1)).toBe('F'.repeat(16));
   });
 
-  it('the main shows through outside the window: the last half of a bar', () => {
-    const { project: base, f1, hit } = mainAndFill(1);
-    const project = run(base, setFillWindow(f1, 8, 16));
-    expect(layerOf(project, hit, 1)).toBe('M'.repeat(8) + 'F'.repeat(8));
+  it('trimmed to the last 1/4 from the left, it plays its own steps 12–15 and the main keeps time', () => {
+    const { project: base, clip, hit } = mainAndFill(1);
+    const project = run(base, resizeClip(clip.id, 'start', 16 + 12));
+    expect(project.song.clips.find((c) => c.id === clip.id)).toMatchObject({ start: 28, length: 4, offset: 12 });
+    expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(4));
     expect(layerOf(project, hit, 2)).toBe('M'.repeat(16));
   });
 
-  it('silent steps inside the window stay silent', () => {
-    const { project: base, f1, hit } = mainAndFill(1);
-    const project = run(base, setFillWindow(f1, 12, 16), setStep(f1, 13, { padId: null }));
+  it('silent steps in a fill clip stay silent', () => {
+    const { project: base, f1, clip, hit } = mainAndFill(1);
+    const project = run(base, resizeClip(clip.id, 'start', 16 + 12), setStep(f1, 13, { padId: null }));
     expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(3));
     expect(generateTriggers(project, () => 0).some((t) => t.bar === 1 && t.step === 13)).toBe(false);
   });
 
-  it('a window can span the bars of a longer fill', () => {
-    const { project: base, f1, hit } = mainAndFill(2);
-    const project = run(base, setFillWindow(f1, 12, 20));
+  it('a fill clip can span bars of a longer fill', () => {
+    const { project: base, clip, hit } = mainAndFill(2);
+    const project = run(base, resizeClip(clip.id, 'start', 16 + 12), resizeClip(clip.id, 'end', 32 + 4));
     expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(4));
     expect(layerOf(project, hit, 2)).toBe('F'.repeat(4) + 'M'.repeat(12));
   });

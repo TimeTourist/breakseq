@@ -101,6 +101,6 @@ export const padUsages = (project: Project, padId: Id) =>
     .map((loop) => ({ loop, steps: loop.steps.filter((s) => s.padId === padId).length }))
     .filter((u) => u.steps > 0);
 
-/** How many song bars start a loop. */
+/** How many song clips play a loop. */
 export const loopUsage = (project: Project, loopId: Id): number =>
-  [...project.song.rows.main, ...project.song.rows.fill].filter((id) => id === loopId).length;
+  project.song.clips.filter((c) => c.ref === loopId && (c.row === 'main' || c.row === 'fill')).length;

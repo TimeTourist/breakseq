@@ -1,241 +1,178 @@
-import { useState } from 'react';
-import type { DragEvent } from 'react';
-import type { Id, Loop, LoopKind, Project, SongRow } from '../model';
-import { STEPS_PER_BAR, sequence, setSongBars, setSongCell } from '../model';
-import { CELL_MIME, copies, useDropTargets } from './dnd';
-import { useOpen, useProject, useRun } from './context';
+import type { DragEvent, PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState } from 'react';
+import type { Clip, Id, Project, SongRow } from '../model';
+import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, removeClip, resizeClip, setSongBars } from '../model';
+import { useOpen, useProject, useRun, useSeal } from './context';
+import { copies } from './dnd';
+import { hitColor } from './labels';
 import { TARGET_LABELS } from './modText';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
 export const MOD_MIME = 'application/x-breakseq-mod';
+/** A clip being dragged: its id and the step within it that was grabbed. */
+export const CLIP_MIME = 'application/x-breakseq-clip';
 
-interface LaneCell {
-  readonly loopId: Id | null;
-  /** The loop that covers this bar, and which of its bars. */
-  readonly plays: { readonly id: Id; readonly name: string; readonly bar: number } | null;
-  /**
-   * The steps of this bar a fill plays, start inclusive and end exclusive (0–16).
-   * In the Main lane: the steps a fill covers over it. Null when no fill is there.
-   */
-  readonly fillSteps: { readonly from: number; readonly to: number } | null;
+/** Width of one 1/16 step on the timeline. */
+export const STEP_PX = 10;
+
+const ROWS: readonly { row: SongRow; key: string; name: string }[] = [
+  { row: 'main', key: 'M', name: 'Main' },
+  { row: 'fill', key: 'F', name: 'Fill' },
+  { row: 'modA', key: 'A', name: 'Mod A' },
+  { row: 'modB', key: 'B', name: 'Mod B' },
+];
+
+/** A step as bar.beat.sixteenth, 1-based. */
+export const position = (step: number) =>
+  `${Math.floor(step / STEPS_PER_BAR) + 1}.${Math.floor((step % STEPS_PER_BAR) / 4) + 1}.${(step % 4) + 1}`;
+
+/** A length in steps, as bars and sixteenths: "1 bar", "6/16", "2 bars 4/16". */
+export function lengthText(steps: number): string {
+  const bars = Math.floor(steps / STEPS_PER_BAR);
+  const rest = steps % STEPS_PER_BAR;
+  const barText = bars === 0 ? '' : `${bars} bar${bars === 1 ? '' : 's'}`;
+  return [barText, rest === 0 ? '' : `${rest}/16`].filter((s) => s !== '').join(' ');
 }
 
-/**
- * What a lane shows. Main: a loop runs until the next one starts. Fill: a loop
- * covers as many bars as it is long, and plays the steps in its window.
- */
-export function laneCells(project: Project, kind: LoopKind): LaneCell[] {
-  const fills = kind === 'main' ? laneCells(project, 'fill') : null;
-  let running: { loop: Loop; start: number } | null = null;
-  return project.song.rows[kind].map((id, bar) => {
-    const loop = id === null ? undefined : project.loops[id];
-    if (loop !== undefined) running = { loop, start: bar };
-    const covers = running !== null && (kind === 'main' || bar - running.start < running.loop.bars);
-    const loopBar = running === null ? 0 : (bar - running.start) % running.loop.bars;
-    let fillSteps: LaneCell['fillSteps'] = null;
-    if (kind === 'fill' && covers && running !== null) {
-      const offset = loopBar * STEPS_PER_BAR;
-      const from = Math.max(0, Math.min(STEPS_PER_BAR, running.loop.window.start - offset));
-      const to = Math.max(from, Math.min(STEPS_PER_BAR, running.loop.window.end - offset));
-      fillSteps = { from, to };
-    } else if (kind === 'main') {
-      fillSteps = fills?.[bar]?.fillSteps ?? null;
-    }
-    return {
-      loopId: loop === undefined ? null : loop.id,
-      plays: !covers || running === null ? null : { id: running.loop.id, name: running.loop.name, bar: loopBar + 1 },
-      fillSteps,
-    };
-  });
-}
-
-/** The Main row, as before fills existed. */
-export const mainCells = (project: Project) => laneCells(project, 'main');
-
-type Coverage = 'none' | 'part' | 'all';
-const coverage = (steps: LaneCell['fillSteps']): Coverage =>
-  steps === null || steps.to <= steps.from ? 'none' : steps.from === 0 && steps.to === STEPS_PER_BAR ? 'all' : 'part';
-
-/** Steps as 1-based numbers: "9–16". */
-const stepRange = (steps: { from: number; to: number }) => `${steps.from + 1}–${steps.to}`;
-
-/** A partly covered cell is shaded over the steps the fill plays. */
-function spanStyle(kind: LoopKind, steps: { from: number; to: number }) {
-  const color = kind === 'fill' ? 'rgb(95 168 238 / 0.32)' : 'rgb(12 13 15 / 0.7)';
-  const [a, b] = [(steps.from / STEPS_PER_BAR) * 100, (steps.to / STEPS_PER_BAR) * 100];
-  return { backgroundImage: `linear-gradient(to right, transparent ${a}%, ${color} ${a}%, ${color} ${b}%, transparent ${b}%)` };
-}
-
+const clipName = (project: Project, clip: Clip) =>
+  (isLoopRow(clip.row) ? project.loops[clip.ref]?.name : project.mods[clip.ref]?.name) ?? '?';
 
 interface SongViewProps {
-  readonly playheadBar: number | null;
+  /** Seconds into the take while playing. */
+  readonly playheadSeconds: number | null;
+  readonly stepSeconds: number;
   readonly rendering: boolean;
   readonly onNewTake: () => void;
 }
 
-export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
+export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake }: SongViewProps) {
   const project = useProject();
   const run = useRun();
-  const [selected, setSelected] = useState<Id | null>(null);
-  const [selectedMod, setSelectedMod] = useState<Id | null>(null);
+  const seal = useSeal();
   const open = useOpen();
+  const [chip, setChip] = useState<{ ref: Id; loop: boolean } | null>(null);
+  const [selected, setSelected] = useState<Id | null>(null);
+  const [hover, setHover] = useState<{ row: SongRow; step: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const resizing = useRef(false);
   const { bars } = project.song;
-  const columns = { gridTemplateColumns: `130px repeat(${bars}, minmax(44px, 1fr))` };
+  const total = bars * STEPS_PER_BAR;
+  const width = total * STEP_PX;
   const loops = Object.values(project.loops);
+  const mods = Object.values(project.mods);
+  const playheadStep = playheadSeconds === null ? null : playheadSeconds / stepSeconds;
 
-  const place = (kind: LoopKind, bar: number, loopId: Id | null) => setError(run(setSongCell(kind, bar, loopId)));
-  const placeMod = (row: 'modA' | 'modB', bar: number, modId: Id | null) => setError(run(setSongCell(row, bar, modId)));
-  const drops = useDropTargets();
+  const stepAt = (e: { clientX: number }, lane: HTMLElement) =>
+    Math.max(0, Math.min(total - 1, Math.floor((e.clientX - lane.getBoundingClientRect().left) / STEP_PX)));
 
-  /** What a song cell accepts: a loop or mod from the library, or a placed cell from the same lane. */
-  const dropOn = (row: SongRow, bar: number) =>
-    drops.bind(`${row}:${bar}`, [row === 'modA' || row === 'modB' ? MOD_MIME : LOOP_MIME, CELL_MIME], (e: DragEvent, type: string) => {
-      if (type !== CELL_MIME) {
-        setError(run(setSongCell(row, bar, e.dataTransfer.getData(type))));
-        return;
-      }
-      const from = JSON.parse(e.dataTransfer.getData(CELL_MIME)) as { row: SongRow; bar: number; id: Id };
-      // Loops move between Main and Fill, mods between A and B.
-      const isLoopRow = (r: SongRow) => r === 'main' || r === 'fill';
-      if (isLoopRow(from.row) !== isLoopRow(row)) {
-        setError('Mods go in Mod A or Mod B, loops in Main or Fill');
-        return;
-      }
-      if (from.row === row && from.bar === bar) return;
-      // A drag moves the cell; with Alt it copies.
-      setError(run(copies(e) ? setSongCell(row, bar, from.id) : sequence(setSongCell(from.row, from.bar, null), setSongCell(row, bar, from.id))));
-    });
+  /** What a lane accepts: library chips of its kind, and clips. */
+  const accepts = (row: SongRow, e: DragEvent) =>
+    e.dataTransfer.types.includes(CLIP_MIME) || e.dataTransfer.types.includes(isLoopRow(row) ? LOOP_MIME : MOD_MIME);
 
-  /** A placed cell can be dragged to another bar of its lane. */
-  const dragCell = (row: SongRow, bar: number, id: Id | null) =>
-    id === null
-      ? {}
-      : {
-          draggable: true,
-          onDragStart: (e: DragEvent) => {
-            e.dataTransfer.setData(CELL_MIME, JSON.stringify({ row, bar, id }));
-            e.dataTransfer.effectAllowed = 'copyMove';
-          },
-          onDragEnd: drops.clear,
-        };
-
-  /** The loop a mod in this bar acts on: a fill playing in the bar, otherwise the main. */
-  const heardIn = (bar: number): Id | null => {
-    const fill = laneCells(project, 'fill')[bar];
-    if (fill?.plays != null && fill.fillSteps !== null && fill.fillSteps.to > fill.fillSteps.from) return fill.plays.id;
-    return laneCells(project, 'main')[bar]?.plays?.id ?? null;
+  const onDrop = (row: SongRow, e: DragEvent<HTMLDivElement>) => {
+    setHover(null);
+    if (!accepts(row, e)) return;
+    e.preventDefault();
+    const step = stepAt(e, e.currentTarget);
+    if (e.dataTransfer.types.includes(CLIP_MIME)) {
+      const { id, grab } = JSON.parse(e.dataTransfer.getData(CLIP_MIME)) as { id: Id; grab: number };
+      const start = Math.max(0, step - grab);
+      // A drag moves the clip; with Alt it copies.
+      setError(run(copies(e) ? copyClip(id, row, start) : moveClip(id, row, start)));
+      return;
+    }
+    setError(run(addClip(row, e.dataTransfer.getData(isLoopRow(row) ? LOOP_MIME : MOD_MIME), step)));
   };
 
-  /** A mod lane: a mod acts in the bars it is placed in; the same mod in adjacent bars is one run. */
-  const modLane = (row: 'modA' | 'modB') => (
-    <div className="lane" style={columns}>
-      <div className="lane-name">
-        <span className="lane-key mod mono">{row === 'modA' ? 'A' : 'B'}</span>
-        <span className="muted">{row === 'modA' ? 'Mod A' : 'Mod B'}</span>
-      </div>
-      {project.song.rows[row].map((id, bar) => {
-        const mod = id === null ? undefined : project.mods[id];
-        const continues = id !== null && project.song.rows[row][bar - 1] === id;
-        return (
-          <button
-            key={bar}
-            type="button"
-            className={`cell mod${mod !== undefined ? (continues ? ' running' : ' start') : ''}${bar === playheadBar ? ' now' : ''}${drops.isOver(`${row}:${bar}`) ? ' drop-over' : ''}`}
-            {...dragCell(row, bar, id)}
-            {...dropOn(row, bar)}
-            aria-label={`${row === 'modA' ? 'Mod A' : 'Mod B'} bar ${bar + 1}: ${mod === undefined ? 'empty' : mod.name}`}
-            title={mod === undefined ? undefined : `${mod.name} · double-click to edit`}
-            onClick={() => {
-              if (selectedMod !== null) placeMod(row, bar, selectedMod);
-            }}
-            onDoubleClick={() => {
-              if (mod !== undefined) open({ mod: mod.id, previewLoop: heardIn(bar) }, 'mods');
-            }}
-            onKeyDown={(e) => {
-              if ((e.key === 'Delete' || e.key === 'Backspace') && id !== null) {
-                e.preventDefault();
-                placeMod(row, bar, null);
-              }
-            }}
-          >
-            <span className="cell-label ellipsis">{mod === undefined ? '' : continues ? '·' : mod.name}</span>
-            <span className="cell-sub">{mod === undefined ? '' : TARGET_LABELS[mod.target].split(' ')[0]!.toLowerCase()}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+  /** Drags one edge of a clip, snapping to steps; the whole drag is one undo step. */
+  const edge = (clip: Clip, which: 'start' | 'end') => ({
+    onPointerDown: (e: ReactPointerEvent<HTMLSpanElement>) => {
+      e.stopPropagation();
+      resizing.current = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    onPointerMove: (e: ReactPointerEvent<HTMLSpanElement>) => {
+      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+      const lane = e.currentTarget.closest('.timeline-lane') as HTMLElement | null;
+      if (lane === null) return;
+      const boundary = Math.round((e.clientX - lane.getBoundingClientRect().left) / STEP_PX);
+      setError(run(resizeClip(clip.id, which, boundary), `clip:${clip.id}:${which}`));
+    },
+    onPointerUp: () => {
+      resizing.current = false;
+      seal();
+    },
+  });
 
-  const lane = (kind: LoopKind) => {
-    const cells = laneCells(project, kind);
+  const clipView = (clip: Clip) => {
+    const loop = isLoopRow(clip.row) ? project.loops[clip.ref] : undefined;
+    const mod = isLoopRow(clip.row) ? undefined : project.mods[clip.ref];
+    const name = clipName(project, clip);
+    const label = `${name}, ${position(clip.start)}, ${lengthText(clip.length)}${clip.offset > 0 && loop !== undefined ? `, from ${position(clip.offset)}` : ''}`;
     return (
-      <div className="lane" style={columns}>
-        <div className="lane-name">
-          <span className={`lane-key ${kind} mono`}>{kind === 'main' ? 'M' : 'F'}</span>
-          <span className="muted">{kind === 'main' ? 'Main' : 'Fill'}</span>
-        </div>
-        {cells.map((cell, bar) => {
-          const loop = cell.loopId === null ? undefined : project.loops[cell.loopId];
-          const label = loop?.name ?? (cell.plays === null ? '' : '·');
-          const covered = coverage(cell.fillSteps);
-          const hidden = kind === 'main' && covered === 'all';
-          const partial = covered === 'part';
-          const silent = kind === 'fill' && cell.plays !== null && covered === 'none';
-          const sub =
-            cell.plays === null
-              ? ''
-              : hidden
-                ? 'hidden'
-                : partial
-                  ? kind === 'fill'
-                    ? `steps ${stepRange(cell.fillSteps!)}`
-                    : `bar ${cell.plays.bar} · partly`
-                  : silent
-                    ? 'main plays'
-                    : kind === 'fill' && loop !== undefined
-                      ? 'replaces'
-                      : `bar ${cell.plays.bar}`;
-          const state = loop !== undefined ? ' start' : cell.plays !== null ? ' running' : '';
-          const detail = partial
-            ? kind === 'main'
-              ? `, fill over steps ${stepRange(cell.fillSteps!)}`
-              : `, plays steps ${stepRange(cell.fillSteps!)}`
-            : silent
-              ? ', main plays'
-              : hidden
-                ? ', hidden by fill'
-                : '';
-          return (
-            <button
-              key={bar}
-              type="button"
-              className={`cell ${kind}${state}${hidden ? ' hidden' : ''}${partial ? ' partial' : ''}${silent ? ' silent' : ''}${bar === playheadBar ? ' now' : ''}${drops.isOver(`${kind}:${bar}`) ? ' drop-over' : ''}`}
-              {...dragCell(kind, bar, cell.loopId)}
-              {...dropOn(kind, bar)}
-              style={partial ? spanStyle(kind, cell.fillSteps!) : undefined}
-              aria-label={`${kind === 'main' ? 'Bar' : 'Fill bar'} ${bar + 1}: ${
-                cell.plays === null ? 'empty' : `${cell.plays.name} bar ${cell.plays.bar}${detail}`
-              }`}
-              title={cell.plays === null ? undefined : `${cell.plays.name} · double-click to edit`}
-              onClick={() => {
-                if (selected !== null) place(kind, bar, selected);
-              }}
-              onDoubleClick={() => {
-                if (cell.plays !== null) open({ loop: cell.plays.id, step: null }, 'loops');
-              }}
-              onKeyDown={(e) => {
-                if ((e.key === 'Delete' || e.key === 'Backspace') && cell.loopId !== null) {
-                  e.preventDefault();
-                  place(kind, bar, null);
-                }
-              }}
-            >
-              <span className="cell-label">{label}</span>
-              <span className="cell-sub">{sub}</span>
-            </button>
-          );
-        })}
+      <div
+        key={clip.id}
+        role="button"
+        tabIndex={0}
+        className={`clip ${clip.row}${loop?.kind === 'fill' ? ' tag-fill' : ''}${selected === clip.id ? ' selected' : ''}${clip.offset > 0 ? ' trimmed' : ''}`}
+        style={{ left: clip.start * STEP_PX, width: clip.length * STEP_PX }}
+        aria-label={label}
+        title={`${label} · drag to move (Alt: copy), drag an edge to resize, double-click to edit`}
+        draggable
+        onDragStart={(e) => {
+          if (resizing.current) {
+            e.preventDefault();
+            return;
+          }
+          const grab = Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / STEP_PX);
+          e.dataTransfer.setData(CLIP_MIME, JSON.stringify({ id: clip.id, grab: Number.isFinite(grab) ? Math.max(0, grab) : 0 }));
+          e.dataTransfer.effectAllowed = 'copyMove';
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelected(clip.id);
+        }}
+        onDoubleClick={() => {
+          if (loop !== undefined) open({ loop: loop.id, step: null }, 'loops');
+          // Try on the loop the mod acts on where it starts: a fill there, otherwise the main.
+          else if (mod !== undefined) open({ mod: mod.id, previewLoop: (clipAt(project, 'fill', clip.start) ?? clipAt(project, 'main', clip.start))?.ref ?? null }, 'mods');
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            setSelected(null);
+            setError(run(removeClip(clip.id)));
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            const by = (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 4 : 1);
+            setError(run(moveClip(clip.id, clip.row, clip.start + by), `clip:${clip.id}:move`));
+          }
+        }}
+        onKeyUp={seal}
+      >
+        {loop !== undefined && (
+          <span className="clip-pattern" aria-hidden="true">
+            {Array.from({ length: clip.length }, (_, i) => {
+              const index = (clip.offset + i) % loop.steps.length;
+              const cell = loop.steps[index];
+              const pad = cell?.padId == null ? undefined : project.pads[cell.padId];
+              const restart = index === 0 && i > 0;
+              if (pad === undefined && !restart) return null;
+              return (
+                <span key={i} className={`clip-step${restart ? ' restart' : ''}`} style={{ left: i * STEP_PX }}>
+                  {pad !== undefined && <span className="clip-tick" style={{ background: hitColor(project, cell?.memberId ?? pad.members[0]) }} />}
+                </span>
+              );
+            })}
+          </span>
+        )}
+        <span className="clip-label">
+          {name}
+          {clip.offset > 0 && loop !== undefined && <span className="clip-from"> from {position(clip.offset)}</span>}
+          {mod !== undefined && <span className="clip-from"> {TARGET_LABELS[mod.target].toLowerCase()}</span>}
+        </span>
+        <span className="clip-edge start" aria-hidden="true" {...edge(clip, 'start')} />
+        <span className="clip-edge end" aria-hidden="true" {...edge(clip, 'end')} />
       </div>
     );
   };
@@ -246,7 +183,8 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
         <div className="stack-tight">
           <h1>Song</h1>
           <p className="muted">
-            A main loops until the next one starts. A fill replaces it for its length.{rendering ? ' Rendering…' : ''}
+            Drop loops and mods on a lane; drag clips to move them (Alt: copy) and their edges to resize. A fill takes over
+            the main for its length.{rendering ? ' Rendering…' : ''}
           </p>
         </div>
         <div className="row push">
@@ -261,31 +199,60 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
                 const value = Math.round(Number(e.target.value));
                 if (value >= 1 && value <= 256) run(setSongBars(value), 'song:bars');
               }}
+              onBlur={seal}
             />
           </label>
           <button type="button" onClick={onNewTake}>
             New take
           </button>
           <span className="readout mono" aria-live="off">
-            Bar {playheadBar === null ? '–' : playheadBar + 1} / {bars}
+            {playheadStep === null ? '–' : position(Math.floor(playheadStep))} / {bars}
           </span>
         </div>
       </div>
 
-      <div className="table-scroll lanes-box">
-        <div className="lanes" style={{ minWidth: 130 + bars * 52 }}>
-          <div className="lane ruler mono" style={columns}>
-            <span className="muted">Bar</span>
-            {Array.from({ length: bars }, (_, bar) => (
-              <span key={bar} className={`ruler-cell${bar === playheadBar ? ' now' : ''}${bar % 4 === 0 ? ' downbeat' : ''}`}>
-                {bar + 1}
-              </span>
-            ))}
+      <div className="table-scroll timeline-box" onClick={() => setSelected(null)}>
+        <div className="timeline" style={{ width: width + 130 }}>
+          <div className="timeline-row">
+            <span className="muted mono small lane-head">Bar</span>
+            <div className="timeline-ruler" style={{ width }}>
+              {Array.from({ length: bars }, (_, bar) => (
+                <span key={bar} className="ruler-bar mono" style={{ left: bar * STEPS_PER_BAR * STEP_PX }}>
+                  {bar + 1}
+                </span>
+              ))}
+            </div>
           </div>
-          {lane('main')}
-          {lane('fill')}
-          {modLane('modA')}
-          {modLane('modB')}
+          {ROWS.map(({ row, key, name }) => (
+            <div key={row} className="timeline-row">
+              <div className="lane-name lane-head">
+                <span className={`lane-key mono ${row === 'main' ? 'main' : row === 'fill' ? 'fill' : 'mod'}`}>{key}</span>
+                <span className="muted">{name}</span>
+              </div>
+              <div
+                className={`timeline-lane ${row}`}
+                style={{ width }}
+                aria-label={`${name} lane`}
+                onDragOver={(e) => {
+                  if (!accepts(row, e)) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'copy' ? 'copy' : e.altKey ? 'copy' : 'move';
+                  const step = stepAt(e, e.currentTarget);
+                  if (hover?.row !== row || hover.step !== step) setHover({ row, step });
+                }}
+                onDragLeave={() => setHover(null)}
+                onDrop={(e) => onDrop(row, e)}
+                onClick={(e) => {
+                  if (chip === null || chip.loop !== isLoopRow(row)) return;
+                  setError(run(addClip(row, chip.ref, stepAt(e, e.currentTarget))));
+                }}
+              >
+                {hover?.row === row && <span className="drop-marker" style={{ left: hover.step * STEP_PX }} />}
+                {project.song.clips.filter((c) => c.row === row).map(clipView)}
+              </div>
+            </div>
+          ))}
+          {playheadStep !== null && <span className="timeline-playhead" style={{ left: 130 + playheadStep * STEP_PX }} />}
         </div>
       </div>
 
@@ -296,51 +263,42 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
       )}
 
       <section className="panel stack">
-        <h2 className="label">Drag onto a lane</h2>
-        {loops.length === 0 ? (
-          <p className="muted">No loops yet. Slice a break to get M1.</p>
-        ) : (
-          <div className="row">
-              <span className="muted small library-label">Loops</span>
-              {loops.map((loop) => (
-                  <button
-                    key={loop.id}
-                    type="button"
-                    draggable
-                    className={`chip mono loop-name ${loop.kind}`}
-                    title="Drag onto a lane · double-click to edit"
-                    onDoubleClick={() => open({ loop: loop.id, step: null }, 'loops')}
-                    aria-pressed={selected === loop.id}
-                    onClick={() => {
-                      setSelected(selected === loop.id ? null : loop.id);
-                      setSelectedMod(null);
-                    }}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData(LOOP_MIME, loop.id);
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }}
-                  >
-                    {loop.name}
-                  </button>
-                ))}
-          </div>
-        )}
+        <h2 className="label">Drag onto a lane, or select and click a lane</h2>
+        <div className="row">
+          <span className="muted small library-label">Loops</span>
+          {loops.length === 0 && <span className="muted small">No loops yet. Slice a break to get M1.</span>}
+          {loops.map((loop) => (
+            <button
+              key={loop.id}
+              type="button"
+              draggable
+              className={`chip mono loop-name ${loop.kind}`}
+              title="Drag onto Main or Fill · double-click to edit"
+              aria-pressed={chip?.ref === loop.id}
+              onClick={() => setChip(chip?.ref === loop.id ? null : { ref: loop.id, loop: true })}
+              onDoubleClick={() => open({ loop: loop.id, step: null }, 'loops')}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(LOOP_MIME, loop.id);
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+            >
+              {loop.name}
+            </button>
+          ))}
+        </div>
         <div className="row">
           <span className="muted small library-label">Mods</span>
-          {Object.values(project.mods).length === 0 && <span className="muted small">None yet: make them in Mods.</span>}
-          {Object.values(project.mods).map((mod) => (
+          {mods.length === 0 && <span className="muted small">None yet: make them in Mods.</span>}
+          {mods.map((mod) => (
             <button
               key={mod.id}
               type="button"
               draggable
               className="chip mod-chip"
-              title="Drag onto Mod A or B · double-click to edit"
+              title="Drag onto Mod A or Mod B · double-click to edit"
+              aria-pressed={chip?.ref === mod.id}
+              onClick={() => setChip(chip?.ref === mod.id ? null : { ref: mod.id, loop: false })}
               onDoubleClick={() => open({ mod: mod.id }, 'mods')}
-              aria-pressed={selectedMod === mod.id}
-              onClick={() => {
-                setSelectedMod(selectedMod === mod.id ? null : mod.id);
-                setSelected(null);
-              }}
               onDragStart={(e) => {
                 e.dataTransfer.setData(MOD_MIME, mod.id);
                 e.dataTransfer.effectAllowed = 'copy';
@@ -350,11 +308,7 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
             </button>
           ))}
         </div>
-        <span className="muted small">
-          {selected === null && selectedMod === null
-            ? 'Or select a loop or mod, then click bars in its lane.'
-            : 'Click bars to place. Delete clears a focused bar.'}
-        </span>
+        <span className="muted small">Click a clip to select it: Delete removes it, ←/→ moves it a step (Shift: a beat).</span>
       </section>
     </main>
   );

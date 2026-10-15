@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, Step, StepWindow, Tag } from './types';
+import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, SongRow, Step, Tag } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -16,8 +16,7 @@ export function emptySteps(bars: number): Step[] {
 }
 
 export function emptySong(bars = DEFAULT_SONG_BARS, bpm = DEFAULT_BPM): Song {
-  const row = () => Array.from({ length: bars }, (): Id | null => null);
-  return { bpm, bars, rows: { main: row(), fill: row(), modA: row(), modB: row() } };
+  return { bpm, bars, clips: [] };
 }
 
 export function createProject(ctx: CommandContext = defaultContext): Project {
@@ -28,9 +27,6 @@ export function createProject(ctx: CommandContext = defaultContext): Project {
   }
   return { audio: {}, tags, samples: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
-
-/** A window over every step of a loop of `bars` bars. */
-export const fullWindow = (bars: number): StepWindow => ({ start: 0, end: bars * STEPS_PER_BAR });
 
 /** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
 export type SliceGrid = 4 | 8 | 16;
@@ -85,13 +81,62 @@ export function upgradeProject(project: Project): Project {
           },
     ]),
   );
+  const legacyLoops = project.loops as Readonly<Record<Id, Loop & { window?: LegacyWindow }>>;
+  // Fill windows became clips: drop them from the loops.
   const loops = Object.fromEntries(
-    Object.entries(project.loops).map(([id, loop]): [Id, Loop] => [id, loop.window === undefined ? { ...loop, window: fullWindow(loop.bars) } : loop]),
+    Object.entries(legacyLoops).map(([id, loop]): [Id, Loop] => {
+      if (loop.window === undefined) return [id, loop];
+      const copy: Loop & { window?: LegacyWindow } = { ...loop };
+      delete copy.window;
+      return [id, copy];
+    }),
   );
+  const legacy = project.song as Song & { rows?: LegacyRows };
+  const song: Song = legacy.rows === undefined ? legacy : { bpm: legacy.bpm, bars: legacy.bars, clips: clipsFromRows(legacy.rows, legacy.bars, legacyLoops) };
   const mods = Object.fromEntries(
     Object.entries(project.mods).map(([id, mod]): [Id, Mod] => [id, mod.sources === undefined ? { ...mod, sources: [] } : mod]),
   );
-  return { ...project, samples, hits, pads, loops, mods };
+  return { ...project, samples, hits, pads, loops, mods, song };
+}
+
+/** Songs saved before clips: one cell per bar and row. */
+type LegacyRows = { readonly [R in SongRow]: readonly (Id | null)[] };
+/** Fill windows saved before clips, in steps of the loop. */
+type LegacyWindow = { readonly start: number; readonly end: number };
+
+/**
+ * Clips that play what the old rows did. A main ran until the next main or the
+ * song's end; a fill covered its length, within its window; adjacent cells of
+ * the same mod were one run.
+ */
+function clipsFromRows(rows: LegacyRows, bars: number, loops: Readonly<Record<Id, Loop & { window?: LegacyWindow }>>): Clip[] {
+  const total = bars * STEPS_PER_BAR;
+  const clips: Clip[] = [];
+  const mainStarts = rows.main.flatMap((id, bar) => (id === null ? [] : [{ id, bar }]));
+  mainStarts.forEach(({ id, bar }, i) => {
+    const end = (mainStarts[i + 1]?.bar ?? bars) * STEPS_PER_BAR;
+    clips.push({ id: `main-${bar}`, row: 'main', ref: id, start: bar * STEPS_PER_BAR, length: end - bar * STEPS_PER_BAR, offset: 0 });
+  });
+  const fills = rows.fill.flatMap((id, bar) => (id === null || loops[id] === undefined ? [] : [{ id, bar, loop: loops[id] }]));
+  fills.forEach(({ id, bar, loop }, i) => {
+    const window = loop.window ?? { start: 0, end: loop.steps.length };
+    const start = bar * STEPS_PER_BAR + window.start;
+    // A later fill took over from an earlier one.
+    const end = Math.min(bar * STEPS_PER_BAR + window.end, total, (fills[i + 1]?.bar ?? bars) * STEPS_PER_BAR);
+    if (end > start) clips.push({ id: `fill-${bar}`, row: 'fill', ref: id, start, length: end - start, offset: window.start });
+  });
+  for (const row of ['modA', 'modB'] as const) {
+    rows[row].forEach((id, bar) => {
+      if (id === null) return;
+      const last = clips.at(-1);
+      if (last !== undefined && last.row === row && last.ref === id && last.start + last.length === bar * STEPS_PER_BAR) {
+        clips[clips.length - 1] = { ...last, length: last.length + STEPS_PER_BAR };
+      } else {
+        clips.push({ id: `${row}-${bar}`, row, ref: id, start: bar * STEPS_PER_BAR, length: STEPS_PER_BAR, offset: 0 });
+      }
+    });
+  }
+  return clips;
 }
 
 /** For breaks sliced before the loop was recorded: the first loop that only plays the break's slices. */

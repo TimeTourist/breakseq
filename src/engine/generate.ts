@@ -1,5 +1,5 @@
-import type { Direction, Id, Loop, Project, Region, Rng } from '../model';
-import { STEPS_PER_BAR, effectiveHit, stepDuration } from '../model';
+import type { Clip, Direction, Id, Loop, Project, Region, Rng } from '../model';
+import { STEPS_PER_BAR, clipsByStep, effectiveHit, stepDuration } from '../model';
 import { applyMods, modRuns, modValues, stepState, tempoRuns } from './mods';
 
 export interface Trigger {
@@ -18,87 +18,55 @@ export interface Trigger {
   readonly region: Region;
 }
 
-/** The loop heard in a bar and which of its bars plays. */
-export interface ActiveLayer {
+/** The loop heard at a song step, and the index of the step in it. */
+export interface Layer {
   readonly loop: Loop;
-  readonly loopBar: number;
-}
-
-/** The main and the fill in a bar, each with the loop bar it is on. */
-export interface BarLayers {
-  readonly main: ActiveLayer | null;
-  readonly fill: ActiveLayer | null;
+  readonly index: number;
 }
 
 /**
- * The loops in each bar. A main loops until the next main starts; a fill covers
- * as many bars as it is long. A main keeps counting its bars while a fill plays over it.
+ * For each song step, the layer heard: a Fill clip's loop where there is one,
+ * otherwise a Main clip's, otherwise silence. A clip plays its loop from its
+ * offset and wraps round; the main keeps time under a fill.
  */
-export function barLayers(project: Project): BarLayers[] {
-  const { song, loops } = project;
-  let main: { loop: Loop; startBar: number } | null = null;
-  let fill: { loop: Loop; startBar: number } | null = null;
-  const layers: BarLayers[] = [];
-
-  for (let bar = 0; bar < song.bars; bar++) {
-    const mainId = song.rows.main[bar];
-    const fillId = song.rows.fill[bar];
-    const mainLoop = mainId == null ? undefined : loops[mainId];
-    const fillLoop = fillId == null ? undefined : loops[fillId];
-    if (mainLoop !== undefined) main = { loop: mainLoop, startBar: bar };
-    if (fillLoop !== undefined) fill = { loop: fillLoop, startBar: bar };
-    layers.push({
-      main: main === null ? null : { loop: main.loop, loopBar: (bar - main.startBar) % main.loop.bars },
-      fill: fill !== null && bar - fill.startBar < fill.loop.bars ? { loop: fill.loop, loopBar: bar - fill.startBar } : null,
-    });
-  }
-  return layers;
-}
-
-/**
- * Exactly one layer per step: the fill inside its window, otherwise the main.
- * Returns the layer and the index of the step in its loop.
- */
-export function stepLayer(layers: BarLayers, step: number): { readonly loop: Loop; readonly index: number } | null {
-  const { fill, main } = layers;
-  if (fill !== null) {
-    const index = fill.loopBar * STEPS_PER_BAR + step;
-    if (index >= fill.loop.window.start && index < fill.loop.window.end) return { loop: fill.loop, index };
-  }
-  return main === null ? null : { loop: main.loop, index: main.loopBar * STEPS_PER_BAR + step };
+export function songLayers(project: Project): (Layer | null)[] {
+  const main = clipsByStep(project, 'main');
+  const fill = clipsByStep(project, 'fill');
+  return main.map((m, t) => {
+    const clip = fill[t] ?? m;
+    const loop = clip === null ? undefined : project.loops[clip.ref];
+    if (clip === null || loop === undefined || loop.steps.length === 0) return null;
+    return { loop, index: (t - clip.start + clip.offset) % loop.steps.length };
+  });
 }
 
 /** Works out every trigger in the song. Pure: no DOM, no audio, randomness only from `rng`. */
 export function generateTriggers(project: Project, rng: Rng): Trigger[] {
   const stepTime = stepDuration(project.song.bpm);
   const totalSteps = project.song.bars * STEPS_PER_BAR;
-  const layers = barLayers(project);
-  const runs = modRuns(project.song, project.mods);
+  const layers = songLayers(project);
+  const runs = modRuns(project);
   const tempo = tempoRuns(runs);
   const values = modValues(rng);
   const triggers: Trigger[] = [];
 
   /**
    * Plays content step `content` (in song steps) at `time` for `length` seconds.
-   * Mods are those of the main clock's step `clock`, where the sound is heard.
+   * Mods are those at the main clock's step `clock`, where the sound is heard.
    */
   const play = (content: number, clock: number, time: number, length: number) => {
-    const bar = Math.floor(content / STEPS_PER_BAR);
-    const step = content % STEPS_PER_BAR;
-    const layer = layers[bar];
-    const playing = layer === undefined ? null : stepLayer(layer, step);
-    const cell = playing?.loop.steps[playing.index];
-    if (playing === null || cell === undefined) return;
-    const clockBar = Math.floor(clock / STEPS_PER_BAR);
-    const place = { index: playing.index, bar: clockBar, step: clock % STEPS_PER_BAR };
-    const state = applyMods(stepState(project, cell), { A: runs.A[clockBar] ?? null, B: runs.B[clockBar] ?? null }, place, project, values);
+    const layer = layers[content];
+    const cell = layer?.loop.steps[layer.index];
+    if (layer == null || cell === undefined) return;
+    const place = { index: layer.index, clock };
+    const state = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values);
     if (state.hit === undefined) return;
     const hit = effectiveHit(project, state.hit);
     for (let i = 0; i < state.ratchet; i++) {
       triggers.push({
         time: time + (i * length) / state.ratchet,
-        bar,
-        step,
+        bar: Math.floor(content / STEPS_PER_BAR),
+        step: content % STEPS_PER_BAR,
         hitId: hit.id,
         pitch: hit.pitch + state.pitch,
         volume: hit.volume + state.volume,
@@ -110,21 +78,21 @@ export function generateTriggers(project: Project, rng: Rng): Trigger[] {
 
   let clock = 0;
   while (clock < totalSteps) {
-    const run = tempo[Math.floor(clock / STEPS_PER_BAR)] ?? null;
+    const run = tempo[clock] ?? null;
     if (run === null) {
       play(clock, clock, clock * stepTime, stepTime);
       clock++;
       continue;
     }
-    // Slip: a local playhead starts where the main clock is and runs at the run's tempo
-    // until the run ends; then everything carries on where the main clock is.
-    const end = (run.startBar + run.bars) * STEPS_PER_BAR;
+    // Slip: a local playhead starts where the main clock is and runs at the clip's tempo
+    // until the clip ends; then everything carries on where the main clock is.
+    const end = Math.min(totalSteps, run.clip.start + run.clip.length);
     const endTime = end * stepTime;
     let content = clock;
     let time = clock * stepTime;
     while (time < endTime - 1e-9 && content < totalSteps) {
       const at = Math.min(end - 1, Math.floor(time / stepTime + 1e-9));
-      const factor = values(run, Math.floor(at / STEPS_PER_BAR), at % STEPS_PER_BAR, false);
+      const factor = values(run, at, false);
       const length = stepTime / (factor !== null && factor > 0 ? factor : 1);
       play(content, at, time, Math.min(length, endTime - time));
       content++;
@@ -135,19 +103,19 @@ export function generateTriggers(project: Project, rng: Rng): Trigger[] {
   return triggers;
 }
 
-/** The project with a song that only plays one loop, once, from its first bar. */
+/** The project with a song that only plays one loop, once, from its start. */
 export function loopSong(project: Project, loopId: Id): Project {
   const loop = project.loops[loopId];
   const bars = loop?.bars ?? 1;
-  const empty = () => Array.from({ length: bars }, (): Id | null => null);
-  const main = empty();
-  main[0] = loop === undefined ? null : loopId;
-  return { ...project, song: { bpm: project.song.bpm, bars, rows: { main, fill: empty(), modA: empty(), modB: empty() } } };
+  const clips: Clip[] = loop === undefined ? [] : [{ id: 'preview-loop', row: 'main', ref: loopId, start: 0, length: loop.steps.length, offset: 0 }];
+  return { ...project, song: { bpm: project.song.bpm, bars, clips } };
 }
 
 /** One loop, once, with a mod in row A over all of it: to try a mod out. */
 export function modPreviewSong(project: Project, modId: Id, loopId: Id): Project {
   const alone = loopSong(project, loopId);
-  const modA = alone.song.rows.modA.map(() => (project.mods[modId] === undefined ? null : modId));
-  return { ...alone, song: { ...alone.song, rows: { ...alone.song.rows, modA } } };
+  if (project.mods[modId] === undefined) return alone;
+  const length = alone.song.bars * STEPS_PER_BAR;
+  const mod: Clip = { id: 'preview-mod', row: 'modA', ref: modId, start: 0, length, offset: 0 };
+  return { ...alone, song: { ...alone.song, clips: [...alone.song.clips, mod] } };
 }
