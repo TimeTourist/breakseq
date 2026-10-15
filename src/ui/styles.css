@@ -434,30 +434,101 @@ p {
   width: 100%;
 }
 
-.slice-grid {
-  position: absolute;
-  inset: 12px;
-  display: grid;
+.slice-area {
+  position: relative;
+  padding-top: 20px;
+  touch-action: none;
 }
 
-.slice {
+.slice-segment {
+  position: absolute;
+  top: 20px;
+  bottom: 0;
   min-height: 0;
-  height: 100%;
-  padding: 4px 0 0 4px;
+  padding: 4px 0 0 5px;
   border: none;
-  border-left: 2px solid var(--border-strong);
   border-radius: 0;
   background: transparent;
   display: flex;
   align-items: flex-start;
   font-size: 11px;
   color: var(--muted);
+  overflow: hidden;
 }
 
-.slice:hover:not(:disabled) {
+.slice-segment:hover:not(:disabled) {
   background: rgb(236 233 226 / 0.06);
-  border-color: var(--accent);
+  color: var(--text);
+}
+
+.slice-segment.selected {
+  background: rgb(232 176 74 / 0.1);
   color: var(--accent);
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  min-height: 0;
+  margin-left: -7px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.marker::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 0;
+  left: 6px;
+  width: 2px;
+  background: var(--border-strong);
+}
+
+.marker::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border: 5px solid transparent;
+  border-top: 8px solid #8c8a84;
+}
+
+.marker.selected::before {
+  background: var(--accent);
+}
+
+.marker.selected::after {
+  border-top-color: var(--accent);
+}
+
+.marker.fixed {
+  cursor: default;
+}
+
+.marker:hover:not(:disabled),
+.marker:focus-visible {
+  background: rgb(232 176 74 / 0.12);
+}
+
+.marker:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #22262b;
+  font-size: 14px;
 }
 
 .chain {
@@ -1144,4 +1215,72 @@ input[type='search'] {
   .shelf-group {
     grid-template-columns: 1fr;
   }
+}
+
+/* Trim */
+
+.small-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.small-button[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sources td.trim-cell {
+  background: var(--sunken);
+  padding: 16px;
+}
+
+.trim-wave {
+  position: relative;
+  touch-action: none;
+}
+
+.trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  min-height: 0;
+  margin-left: -8px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.trim-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 7px;
+  width: 2px;
+  background: var(--accent);
+}
+
+.trim-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.trim-handle:hover:not(:disabled),
+.trim-handle:focus-visible {
+  background: rgb(232 176 74 / 0.15);
+}
+
+.trim-handle:disabled::before,
+.trim-handle:disabled::after {
+  background: var(--faint);
 }

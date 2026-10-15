@@ -9,8 +9,10 @@ import { renderTriggers } from './render';
 
 const SAMPLE_RATE = 44100;
 
+// One id counter per file, so ids never repeat between calls.
+const ctx = sequentialIds();
+
 function run(project: Project, ...commands: Command[]): Project {
-  const ctx = sequentialIds();
   return commands.reduce((p, command) => {
     const result = command(p, ctx);
     if (!result.ok) throw new Error(JSON.stringify(result.error));

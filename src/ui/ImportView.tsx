@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import type { Project, Sample } from '../model';
 import { addSample, replaceProject, setBreak } from '../model';
 import { decodeAudioFile, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun } from './context';
 import { timestamp } from './services';
+import { TrimEditor } from './TrimEditor';
 
 const DEFAULT_BREAK_BARS = 4;
 
@@ -45,6 +46,7 @@ export function ImportView() {
   };
   const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [trimming, setTrimming] = useState<string | null>(null);
 
   const importFiles = async (files: readonly File[]) => {
     const failed: string[] = [];
@@ -167,8 +169,22 @@ export function ImportView() {
                 {sources(project).map((sample) => {
                   const sliced = sample.break?.sliced === true;
                   return (
-                    <tr key={sample.id}>
-                      <td className="mono">{sample.name}</td>
+                    <Fragment key={sample.id}>
+                    <tr>
+                      <td>
+                        <div className="row nowrap">
+                          <span className="mono grow ellipsis">{sample.name}</span>
+                          <button
+                            type="button"
+                            className="small-button"
+                            aria-expanded={trimming === sample.id}
+                            aria-label={`Trim ${sample.name}`}
+                            onClick={() => setTrimming(trimming === sample.id ? null : sample.id)}
+                          >
+                            Trim
+                          </button>
+                        </div>
+                      </td>
                       <td>
                         <div className="segmented" role="group" aria-label={`Type of ${sample.name}`}>
                           <button
@@ -227,6 +243,14 @@ export function ImportView() {
                         )}
                       </td>
                     </tr>
+                    {trimming === sample.id && (
+                      <tr>
+                        <td colSpan={5} className="trim-cell">
+                          <TrimEditor sample={sample} />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>

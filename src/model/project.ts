@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Hit, Id, LoopKind, Pad, Project, Song, Step, Tag } from './types';
+import type { Hit, Id, LoopKind, Pad, Project, Sample, Song, Step, Tag } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -29,6 +29,15 @@ export function createProject(ctx: CommandContext = defaultContext): Project {
   return { audio: {}, tags, samples: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
 
+/** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
+export type SliceGrid = 4 | 8 | 16;
+
+/** Slice starts on an equal grid, in seconds from the start of the break. */
+export function gridMarkers(duration: number, bars: number, grid: SliceGrid = 16): number[] {
+  const count = bars * grid;
+  return Array.from({ length: count }, (_, i) => (i * duration) / count);
+}
+
 /** The next free loop name: M1, M2, … for mains and F1, F2, … for fills. */
 export function nextLoopName(project: Project, kind: LoopKind): string {
   const prefix = kind === 'main' ? 'M' : 'F';
@@ -49,7 +58,34 @@ export function upgradeProject(project: Project): Project {
   const pads = Object.fromEntries(
     Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true }]),
   );
-  return { ...project, hits, pads };
+  const samples = Object.fromEntries(
+    Object.entries(project.samples).map(([id, sample]): [Id, Sample] => [
+      id,
+      sample.break === null || (sample.break.markers !== undefined && sample.break.loop !== undefined)
+        ? sample
+        : {
+            ...sample,
+            break: {
+              ...sample.break,
+              markers: sample.break.markers ?? gridMarkers(sample.duration, sample.break.bars),
+              loop: sample.break.loop ?? (sample.break.sliced ? sliceLoop(project, id) : null),
+            },
+          },
+    ]),
+  );
+  return { ...project, samples, hits, pads };
+}
+
+/** For breaks sliced before the loop was recorded: the first loop that only plays the break's slices. */
+function sliceLoop(project: Project, breakId: Id): Id | null {
+  const isSlicePad = (padId: Id) => {
+    const hit = project.hits[project.pads[padId]?.members[0] ?? ''];
+    return hit !== undefined && project.samples[hit.sampleId]?.sliceOf === breakId;
+  };
+  const loop = Object.values(project.loops).find(
+    (l) => l.steps.some((s) => s.padId !== null) && l.steps.every((s) => s.padId === null || isSlicePad(s.padId)),
+  );
+  return loop?.id ?? null;
 }
 
 /** Seconds per step (a 1/16 note). */
