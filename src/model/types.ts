@@ -20,8 +20,12 @@ export interface Tag {
 export interface BreakInfo {
   readonly bars: number;
   readonly bpm: number;
-  /** A break is sliced once. */
+  /** Sliced breaks are locked until unsliced. */
   readonly sliced: boolean;
+  /** Where slices start, in seconds from the break's start: sorted, the first at 0. */
+  readonly markers: readonly number[];
+  /** The loop the slicing made, while the break is sliced. */
+  readonly loop: Id | null;
 }
 
 /** Audio: a slice of a break or an imported file, as a window into an AudioData. */

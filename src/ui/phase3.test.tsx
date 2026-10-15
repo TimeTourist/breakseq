@@ -39,8 +39,10 @@ function fakeServices(): Services & { rendered: Project[] } {
   };
 }
 
+// One id counter for the file, so projects built in steps never reuse an id.
+const ctx = sequentialIds();
+
 function build(...commands: Command[]): Project {
-  const ctx = sequentialIds();
   return commands.reduce((p, c) => {
     const r = c(p, ctx);
     if (!r.ok) throw new Error(JSON.stringify(r.error));
@@ -166,7 +168,6 @@ describe('Song', () => {
 });
 
 function applyAll(project: Project, ...commands: Command[]): Project {
-  const ctx = sequentialIds();
   return commands.reduce((p, c) => {
     const r = c(p, ctx);
     if (!r.ok) throw new Error(JSON.stringify(r.error));

@@ -5,8 +5,10 @@ import { addSample, createLoop, createProject, setBreak, setSongCell, sliceBreak
 import { seededRng, sequentialIds } from '../test/fixtures';
 import { ProjectFileError, readProjectFile, writeProjectFile } from './project-file';
 
+// One id counter per file, so ids never repeat between calls.
+const ctx = sequentialIds();
+
 function run(project: Project, ...commands: Command[]): Project {
-  const ctx = sequentialIds();
   return commands.reduce((p, c) => {
     const r = c(p, ctx);
     if (!r.ok) throw new Error(JSON.stringify(r.error));
