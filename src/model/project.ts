@@ -1,6 +1,6 @@
 import type { CommandContext } from './command';
 import { defaultContext } from './command';
-import type { Hit, Id, Loop, LoopKind, Pad, Project, Sample, Song, Step, StepWindow, Tag } from './types';
+import type { Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, Song, Step, StepWindow, Tag } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
@@ -79,7 +79,10 @@ export function upgradeProject(project: Project): Project {
   const loops = Object.fromEntries(
     Object.entries(project.loops).map(([id, loop]): [Id, Loop] => [id, loop.window === undefined ? { ...loop, window: fullWindow(loop.bars) } : loop]),
   );
-  return { ...project, samples, hits, pads, loops };
+  const mods = Object.fromEntries(
+    Object.entries(project.mods).map(([id, mod]): [Id, Mod] => [id, mod.sources === undefined ? { ...mod, sources: [] } : mod]),
+  );
+  return { ...project, samples, hits, pads, loops, mods };
 }
 
 /** For breaks sliced before the loop was recorded: the first loop that only plays the break's slices. */

@@ -54,7 +54,7 @@ function addLoop(project: Project, name: string, kind: LoopKind, bars: number): 
   return [next, added(project, next, 'loops')];
 }
 
-function addMod(project: Project, fields: Omit<Mod, 'id' | 'name'>): [Project, Id] {
+function addMod(project: Project, fields: Omit<Mod, 'id' | 'name' | 'sources'> & { sources?: readonly Id[] }): [Project, Id] {
   const next = run(project, createMod({ name: 'mod', ...fields }));
   return [next, added(project, next, 'mods')];
 }
