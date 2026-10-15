@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, setMarkers, sliceAtMarkers, unsliceBreak } from '../model';
+import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, guessTags, setMarkers, sliceAtMarkers, unsliceBreak } from '../model';
+import { classifyHit, detectTransients, peakLevel } from '../engine';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { sources } from './ImportView';
 import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
@@ -29,6 +30,8 @@ export function SliceView() {
   const [selected, setSelected] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [playingBreak, setPlayingBreak] = useState(false);
+  const [sensitivity, setSensitivity] = useState(60);
+  const [transients, setTransients] = useState(false);
   const [loopBreak, setLoopBreak] = useState(true);
   const playhead = useAuditionPlayhead(playingBreak);
   const box = useRef<HTMLDivElement>(null);
@@ -75,6 +78,35 @@ export function SliceView() {
     if (run(setMarkers(sample.id, next)) === null) setSelected(next.indexOf(time));
   };
   const grid = GRIDS.find((g) => sameMarkers(markers, gridMarkers(duration, info.bars, g))) ?? null;
+
+  /** Markers on the hits found at this sensitivity. Moving a marker by hand makes them your own. */
+  const detect = (value: number, mergeKey?: string) => {
+    if (audio === undefined) return;
+    setSensitivity(value);
+    setTransients(true);
+    setSelected(0);
+    setError(run(setMarkers(sample.id, detectTransients(audio, sample.offset, duration, value)), mergeKey));
+  };
+
+  /** Slices, then guesses a tag for each new slice, as one undo step. */
+  const apply = () => {
+    const failed = run(sliceAtMarkers(sample.id), `apply:${sample.id}`);
+    if (failed !== null || audio === undefined) {
+      setError(failed);
+      return;
+    }
+    const loudest = peakLevel(audio, sample.offset, duration);
+    const slices = Object.values(store.getState().history.present.samples).filter((s) => s.sliceOf === sample.id);
+    run(
+      guessTags(
+        slices.map((s) => s.id),
+        (s) => classifyHit(audio, s.offset, s.duration, loudest),
+      ),
+      `apply:${sample.id}`,
+    );
+    seal();
+    setError(null);
+  };
 
   return (
     <main className="view">
@@ -131,17 +163,36 @@ export function SliceView() {
               <button
                 key={g}
                 type="button"
-                aria-pressed={grid === g}
+                aria-pressed={!transients && grid === g}
                 disabled={sliced}
                 onClick={() => {
                   setSelected(0);
+                  setTransients(false);
                   setError(run(setMarkers(sample.id, gridMarkers(duration, info.bars, g))));
                 }}
               >
                 1/{g}
               </button>
             ))}
+            <button type="button" aria-pressed={transients} disabled={sliced || audio === undefined} onClick={() => detect(sensitivity)}>
+              Transients
+            </button>
           </div>
+          {transients && !sliced && (
+            <label className="field sensitivity">
+              Sensitivity
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={sensitivity}
+                onChange={(e) => detect(Number(e.target.value), `transients:${sample.id}`)}
+                onPointerUp={seal}
+                onKeyUp={seal}
+              />
+              <span className="mono">{sensitivity}</span>
+            </label>
+          )}
         </div>
       </div>
 
@@ -275,7 +326,7 @@ export function SliceView() {
                 <span className="accent">a main loop</span>
               </div>
               <p className="muted">Each slice goes on its nearest 1/16 in the loop. After that it is a normal loop.</p>
-              <button type="button" className="primary self-start" onClick={() => setError(run(sliceAtMarkers(sample.id)))}>
+              <button type="button" className="primary self-start" onClick={apply}>
                 Apply slices
               </button>
             </>

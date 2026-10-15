@@ -1,21 +1,49 @@
 import { useState } from 'react';
 import type { Id, Sample } from '../model';
-import { baseName, updateSample } from '../model';
+import { DEFAULT_TAG_NAMES, MAX_TAGS, addTag, baseName, confirmTags, guessTags, removeTag, updateSample } from '../model';
+import { classifyHit, peakLevel } from '../engine';
 import { useApp, useProject, useRun } from './context';
 import { TAG_NAMES, tagColor } from './labels';
 import { Waveform } from './Waveform';
 
-type Filter = 'all' | 'untagged';
+type Filter = 'all' | 'untagged' | 'auto';
 
 export function TagView() {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
   const [filter, setFilter] = useState<Filter>('all');
+  const [newTag, setNewTag] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const tags = Object.values(project.tags);
   const samples = Object.values(project.samples);
   const untagged = samples.filter((s) => s.mainTag === null);
-  const shown = filter === 'all' ? samples : untagged;
+  const guessed = samples.filter((s) => s.tagGuessed);
+  const shown = filter === 'all' ? samples : filter === 'untagged' ? untagged : guessed;
+
+  /** Guesses for untagged samples; a slice is compared with the loudest hit of its break. */
+  const guess = () => {
+    const loudest = new Map<string, number>();
+    const level = (sample: Sample) => {
+      const source = (sample.sliceOf === null ? undefined : project.samples[sample.sliceOf]) ?? sample;
+      if (!loudest.has(source.id)) {
+        const audio = project.audio[source.audioId];
+        loudest.set(source.id, audio === undefined ? 0 : peakLevel(audio, source.offset, source.duration));
+      }
+      return loudest.get(source.id)!;
+    };
+    setError(
+      run(
+        guessTags(
+          untagged.map((s) => s.id),
+          (s) => {
+            const audio = project.audio[s.audioId];
+            return audio === undefined ? null : classifyHit(audio, s.offset, s.duration, level(s));
+          },
+        ),
+      ),
+    );
+  };
 
   /** Plays the sample's own default hit: the first hit made from it. */
   const play = (sample: Sample) => {
@@ -47,12 +75,23 @@ export function TagView() {
           <h1>Tag</h1>
           <p className="muted">Give each sample a main tag. Mods use it; extra tags are only notes.</p>
         </div>
-        <div className="segmented push" role="group" aria-label="Show">
-          <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-            All {samples.length}
+        <div className="row push">
+          <div className="segmented" role="group" aria-label="Show">
+            <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+              All {samples.length}
+            </button>
+            <button type="button" aria-pressed={filter === 'untagged'} onClick={() => setFilter('untagged')}>
+              Untagged {untagged.length}
+            </button>
+            <button type="button" aria-pressed={filter === 'auto'} onClick={() => setFilter('auto')}>
+              Auto {guessed.length}
+            </button>
+          </div>
+          <button type="button" disabled={untagged.length === 0} onClick={guess}>
+            Guess tags
           </button>
-          <button type="button" aria-pressed={filter === 'untagged'} onClick={() => setFilter('untagged')}>
-            Untagged {untagged.length}
+          <button type="button" disabled={guessed.length === 0} onClick={() => setError(run(confirmTags(guessed.map((s) => s.id))))}>
+            Confirm all auto
           </button>
         </div>
       </div>
@@ -61,9 +100,37 @@ export function TagView() {
         {tags.map((t) => (
           <span key={t.id} className="legend mono" style={{ color: tagColor(project, t.id) }}>
             {t.name} {TAG_NAMES[t.name] ?? ''}
+            {!(DEFAULT_TAG_NAMES as readonly string[]).includes(t.name) && (
+              <button type="button" className="legend-remove" aria-label={`Remove tag ${t.name}`} onClick={() => setError(run(removeTag(t.id)))}>
+                ×
+              </button>
+            )}
           </span>
         ))}
+        {tags.length < MAX_TAGS && (
+          <form
+            className="row add-tag"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = newTag.trim();
+              if (name === '') return;
+              const failed = run(addTag(name));
+              setError(failed);
+              if (failed === null) setNewTag('');
+            }}
+          >
+            <input aria-label="New tag" placeholder="New tag, e.g. P" maxLength={6} value={newTag} onChange={(e) => setNewTag(e.target.value)} />
+            <button type="submit" className="small-button">
+              + Add tag
+            </button>
+          </form>
+        )}
       </div>
+      {error !== null && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       {shown.length === 0 ? (
         <p className="muted">{samples.length === 0 ? 'Nothing imported yet.' : 'Every sample has a tag.'}</p>
@@ -82,8 +149,8 @@ export function TagView() {
                   <span className="mono grow ellipsis" title={sample.name}>
                     {name}
                   </span>
-                  <span className={`badge${sample.mainTag === null ? ' warn' : ''}`}>
-                    {sample.mainTag === null ? 'untagged' : 'tagged'}
+                  <span className={`badge${sample.mainTag === null ? ' warn' : sample.tagGuessed ? ' auto' : ''}`}>
+                    {sample.mainTag === null ? 'untagged' : sample.tagGuessed ? 'auto' : 'tagged'}
                   </span>
                 </div>
                 {audio !== undefined && (
