@@ -1,4 +1,5 @@
-import type { Id, Mod, ModTarget, Project } from '../model';
+import type { Id, Mod, ModShape, ModTarget, Project } from '../model';
+import { MOD_TARGETS } from '../model';
 
 export const TARGET_LABELS: Record<ModTarget, string> = {
   sourceLoop: 'Borrow',
@@ -90,4 +91,65 @@ export function formatValues(mod: Pick<Mod, 'target' | 'sources'>, values: reado
       return formatNumber(mod.target, v);
     })
     .join(' ');
+}
+
+const pick = <T>(rng: () => number, items: readonly T[]): T => items[Math.floor(rng() * items.length)]!;
+const between = (rng: () => number, min: number, max: number) => min + Math.floor(rng() * (max - min + 1));
+const several = (rng: () => number, count: [number, number], make: () => number) =>
+  Array.from({ length: between(rng, count[0], count[1]) }, make);
+
+/**
+ * Everything about a mod but its name, picked at random within ranges that
+ * sound like something: a starting point to tweak, not a random number soup.
+ */
+export function randomMod(project: Project, rng: () => number = Math.random): Omit<Mod, 'id' | 'name'> {
+  const loops = Object.keys(project.loops);
+  const targets = MOD_TARGETS.filter((t) => t !== 'sourceLoop' || loops.length > 0);
+  const target = pick(rng, targets);
+
+  const tags = Object.values(project.tags);
+  const pads = Object.values(project.pads).filter((p) => !p.auto || p.members.length > 1);
+  const scopeRoll = rng();
+  const from = between(rng, 0, 15);
+  const scope: Mod['scope'] =
+    scopeRoll < 0.4 || target === 'tempo'
+      ? { kind: 'all' }
+      : scopeRoll < 0.7 && tags.length > 0
+        ? { kind: 'tag', tagId: pick(rng, tags).id }
+        : scopeRoll < 0.8 && pads.length > 0
+          ? { kind: 'pad', padId: pick(rng, pads).id }
+          : { kind: 'range', from, to: between(rng, from, 15) };
+
+  const rate = pick(rng, ['step', 'beat', 'bar'] as const);
+  const sources = target === 'sourceLoop' ? [...new Set(several(rng, [1, 3], () => between(rng, 0, loops.length - 1)))].map((i) => loops[i]!) : [];
+  const value: Record<ModTarget, () => number> = {
+    sourceLoop: () => between(rng, 0, Math.max(0, sources.length - 1)),
+    padMember: () => between(rng, 1, 4),
+    ratchet: () => pick(rng, [2, 2, 3, 4, 4, 6, 8]),
+    pitch: () => pick(rng, [-12, -7, -5, -3, 0, 3, 5, 7, 12]),
+    volume: () => pick(rng, [-12, -6, -3, 0]),
+    direction: () => between(rng, 0, 1),
+    tempo: () => pick(rng, [1 / 3, 1 / 2, 2 / 3, 3 / 2, 2]),
+  };
+  const kinds: ModShape['kind'][] =
+    target === 'sourceLoop' || target === 'direction' ? ['list', 'cycle', 'random'] : target === 'tempo' ? ['list', 'list', 'ramp'] : ['list', 'cycle', 'ramp', 'random'];
+  const kind = pick(rng, kinds);
+  const random = (): ModShape => {
+    const [min, max] =
+      target === 'sourceLoop' ? [0, Math.max(0, sources.length - 1)]
+      : target === 'direction' ? [0, 1]
+      : target === 'ratchet' ? [between(rng, 1, 2), between(rng, 3, 6)]
+      : target === 'padMember' ? [1, 4]
+      : target === 'volume' ? [-12, 0]
+      : target === 'tempo' ? [1 / 3, 1]
+      : [-between(rng, 2, 12), between(rng, 2, 12)];
+    return { kind: 'random', min, max, chance: pick(rng, [15, 25, 33, 50, 75]) };
+  };
+  const shape: ModShape =
+    kind === 'random'
+      ? random()
+      : kind === 'ramp'
+        ? { kind: 'ramp', from: value[target](), to: value[target]() }
+        : { kind, values: target === 'padMember' && kind === 'cycle' && rng() < 0.5 ? [] : several(rng, [1, 4], value[target]) };
+  return { target, scope, rate, shape, sources };
 }
