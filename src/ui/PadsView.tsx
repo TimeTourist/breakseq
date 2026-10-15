@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Id } from '../model';
-import { addPadMember, baseName, createPad, movePadMember, remove, removePadMember, renamePad } from '../model';
+import { addPadMember, baseName, createPad, isParentHit, movePadMember, remove, removePadMember, renamePad } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { hitColor, padColor, padGroups, padLabel, padUsages } from './labels';
 import { PlayIcon } from './TagView';
@@ -86,7 +86,7 @@ export function PadsView() {
   const usages = padUsages(project, pad.id);
   const query = search.trim().toLowerCase();
   const available = Object.values(project.hits).filter(
-    (h) => !pad.members.includes(h.id) && (query === '' || h.name.toLowerCase().includes(query)),
+    (h) => !pad.members.includes(h.id) && !isParentHit(project, h) && (query === '' || h.name.toLowerCase().includes(query)),
   );
   const move = (hitId: Id, to: number) => setError(run(movePadMember(pad.id, hitId, to)));
 

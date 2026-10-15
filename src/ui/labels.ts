@@ -1,5 +1,5 @@
 import type { Hit, Id, Pad, Project, Sample } from '../model';
-import { baseName } from '../model';
+import { baseName, isParentPad } from '../model';
 
 const TAG_COLORS: Record<string, string> = {
   K: '#F0883E',
@@ -47,6 +47,8 @@ export const sourceOf = (project: Project, sample: Sample): Sample =>
 export interface Group<T> {
   readonly name: string;
   readonly items: readonly T[];
+  /** For a group of a sliced break's pads: the break, whose parent lays all of them out. */
+  readonly breakId?: Id;
 }
 
 /** Hits as Variants first, then one group per imported file. */
@@ -68,18 +70,22 @@ export function hitGroups(project: Project): Group<Hit>[] {
 }
 
 /** Built pads first, then the chain's pads grouped by imported file. */
+/** Built pads first, then the chain's pads grouped by imported file. A parent's own pad is never shown. */
 export function padGroups(project: Project, filter: (pad: Pad) => boolean = () => true): Group<Pad>[] {
-  const pads = Object.values(project.pads).filter(filter);
+  const pads = Object.values(project.pads).filter((p) => filter(p) && !isParentPad(project, p));
   const built = pads.filter((p) => !p.auto);
-  const bySource = new Map<string, Pad[]>();
+  const bySource = new Map<Id, Pad[]>();
   for (const pad of pads.filter((p) => p.auto)) {
     const sample = sampleOfHit(project, pad.members[0]);
-    const name = sample === undefined ? 'Other' : sourceOf(project, sample).name;
-    bySource.set(name, [...(bySource.get(name) ?? []), pad]);
+    const id = sample === undefined ? '' : sourceOf(project, sample).id;
+    bySource.set(id, [...(bySource.get(id) ?? []), pad]);
   }
   return [
     ...(built.length > 0 ? [{ name: 'Built', items: built }] : []),
-    ...[...bySource].map(([name, items]) => ({ name, items })),
+    ...[...bySource].map(([id, items]) => {
+      const source = project.samples[id];
+      return { name: source?.name ?? 'Other', items, ...(source?.break?.sliced === true ? { breakId: id } : {}) };
+    }),
   ];
 }
 
