@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Id, Sample } from '../model';
 import { DEFAULT_TAG_NAMES, MAX_TAGS, addTag, baseName, confirmTags, guessTags, removeTag, updateSample } from '../model';
 import { classifyHit, peakLevel } from '../engine';
-import { useApp, useProject, useRun } from './context';
+import { useApp, useOpen, useProject, useRun } from './context';
 import { TAG_NAMES, tagColor } from './labels';
 import { Waveform } from './Waveform';
 
@@ -13,6 +13,7 @@ export function TagView() {
   const { services } = useApp();
   const run = useRun();
   const [filter, setFilter] = useState<Filter>('all');
+  const open = useOpen();
   const [newTag, setNewTag] = useState('');
   const [error, setError] = useState<string | null>(null);
   const tags = Object.values(project.tags);
@@ -141,7 +142,17 @@ export function TagView() {
             const audio = project.audio[sample.audioId];
             const color = tagColor(project, sample.mainTag);
             return (
-              <div key={sample.id} className={`card${sample.mainTag === null ? ' attention' : ''}`}>
+              <div
+                key={sample.id}
+                className={`card${sample.mainTag === null ? ' attention' : ''}`}
+                title="Double-click to edit the hit"
+                onDoubleClick={(e) => {
+                  // Buttons in the card keep their own clicks.
+                  if ((e.target as HTMLElement).closest('button') !== null) return;
+                  const hit = Object.values(project.hits).find((h) => h.sampleId === sample.id && h.variantOf === null);
+                  if (hit !== undefined) open({ hit: hit.id }, 'hits');
+                }}
+              >
                 <div className="row nowrap">
                   <button type="button" className="icon-button small" aria-label={`Play ${name}`} onClick={() => play(sample)}>
                     <PlayIcon />

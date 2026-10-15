@@ -210,6 +210,9 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       style={color === undefined ? undefined : { color, boxShadow: `inset 0 -4px 0 ${color}` }}
                       aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}${through ? ', main shows through' : ''}`}
                       onClick={() => clickStep(index)}
+                      onDoubleClick={() => {
+                        if (pad !== undefined) open({ pad: pad.id }, 'pads');
+                      }}
                       onKeyDown={(e) => {
                         if ((e.key === 'Delete' || e.key === 'Backspace') && pad !== undefined) {
                           e.preventDefault();
@@ -249,6 +252,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     type="button"
                     draggable
                     className="chip mono"
+                    onDoubleClick={() => open({ pad: p.id }, 'pads')}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
                     title={p.name}

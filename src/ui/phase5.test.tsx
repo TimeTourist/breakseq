@@ -2,7 +2,7 @@
 import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioData, Command, Project } from '../model';
-import { addSample, createLoop, createProject, setBreak, setSongCell } from '../model';
+import { addSample, createLoop, createMod, createProject, setBreak, setSongCell, setStep } from '../model';
 import { sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import { CELL_MIME } from './dnd';
@@ -132,5 +132,41 @@ describe('Tag guesses', () => {
 
     fireEvent.click(button('Confirm all auto'));
     expect(Object.values(present(store).samples)[0]!.tagGuessed).toBe(false);
+  });
+});
+
+describe('Double-click opens the editor', () => {
+  it('a loop in Song opens Loops, a mod opens Mods, a step opens its pad, a member opens its hit', async () => {
+    let project = apply(createProject(ctx), addSample({ name: 'snare.wav', audio: hits() }), createLoop(null, 'main', 2));
+    const pad = Object.values(project.pads)[0]!;
+    const hit = Object.values(project.hits)[0]!;
+    const loop = Object.values(project.loops)[0]!;
+    project = apply(
+      project,
+      setStep(loop.id, 4, { padId: pad.id }),
+      setSongCell('main', 0, loop.id),
+      createMod({ name: 'Roll', target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }),
+    );
+    const mod = Object.values(project.mods)[0]!;
+    const store = await setup(apply(project, setSongCell('modA', 0, mod.id)), 'song');
+    const state = () => store.getState();
+
+    // A running bar of the loop opens it too.
+    fireEvent.doubleClick(button(/^Bar 2:/));
+    expect(state().view).toBe('loops');
+    expect(state().selection.loop).toBe(loop.id);
+
+    fireEvent.doubleClick(button(/^Bar 1, step 5:/));
+    expect(state().view).toBe('pads');
+    expect(state().selection.pad).toBe(pad.id);
+
+    fireEvent.doubleClick(screen.getByTitle('Double-click to edit the hit'));
+    expect(state().view).toBe('hits');
+    expect(state().selection.hit).toBe(hit.id);
+
+    fireEvent.keyDown(window, { key: '8' });
+    fireEvent.doubleClick(button(/^Mod A bar 1:/));
+    expect(state().view).toBe('mods');
+    expect(state().selection.mod).toBe(mod.id);
   });
 });
