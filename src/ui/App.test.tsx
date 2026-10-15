@@ -46,7 +46,7 @@ function withM1(): Project {
     if (!result.ok) throw new Error(JSON.stringify(result.error));
     return result.project;
   };
-  let project = run(createProject(ctx), addSample({ name: 'amen.wav', audio: constantAudio(0.5) }));
+  let project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(0.5) }));
   const id = Object.keys(project.samples)[0]!;
   project = run(project, setBreak(id, 1));
   return run(project, sliceBreak(id, 1, 4));
@@ -63,20 +63,20 @@ async function setup(project: Project = createProject(), view: View = 'import') 
 const heading = () => screen.getByRole('heading', { level: 1 }).textContent;
 
 describe('App', () => {
-  it('switches views with the keys 1–8', async () => {
+  it('switches views with the keys 1–6', async () => {
     await setup();
     expect(heading()).toBe('Import');
-    fireEvent.keyDown(window, { key: '8' });
+    fireEvent.keyDown(window, { key: '6' });
     expect(heading()).toBe('Song');
     fireEvent.keyDown(window, { key: '2' });
     expect(heading()).toMatch(/^Slice/);
     fireEvent.keyDown(window, { key: '3' });
-    expect(heading()).toBe('Tag');
+    expect(heading()).toBe('Hits');
   });
 
   it('ignores the number keys while typing in a field', async () => {
     await setup();
-    fireEvent.keyDown(screen.getByLabelText('Tempo in BPM'), { key: '8' });
+    fireEvent.keyDown(screen.getByLabelText('Tempo in BPM'), { key: '6' });
     expect(heading()).toBe('Import');
   });
 });
@@ -123,7 +123,7 @@ describe('Slice', () => {
   /** A project with an unsliced one-bar break. */
   function withBreak(): Project {
     const ctx = sequentialIds();
-    const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(createProject(ctx), ctx);
+    const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(createProject(), ctx);
     if (!added.ok) throw new Error('addSample failed');
     const id = Object.keys(added.project.samples)[0]!;
     const asBreak = setBreak(id, 1)(added.project, ctx);

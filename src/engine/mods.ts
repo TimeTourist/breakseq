@@ -1,4 +1,4 @@
-import type { BorrowEffect, Clip, Hit, Mod, ModRate, ModScope, ModShape, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
+import type { BorrowEffect, Clip, Hit, Mod, ModRate, ModShape, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
 import { STEPS_PER_BAR, borrowOf, clipsByStep } from '../model';
 
 /** What a step will play after mods. Handlers return a changed copy. */
@@ -148,17 +148,6 @@ function shapeValue(shape: ModShape, index: number, intervals: number, discrete:
   }
 }
 
-function inScope({ scope }: { scope: ModScope }, state: StepState, project: Project): boolean {
-  switch (scope.kind) {
-    case 'all':
-      return true;
-    case 'tag':
-      return state.hit !== undefined && project.samples[state.hit.sampleId]?.mainTag === scope.tagId;
-    case 'pad':
-      return state.cell.padId === scope.padId;
-  }
-}
-
 /** Borrow's dice for one interval: whether it borrows at all, and which loop. Rolled once per interval. */
 export interface BorrowRoll {
   readonly take: boolean;
@@ -206,10 +195,10 @@ export function borrowLayer(effect: BorrowEffect, interval: number, roll: Borrow
   return choice >= 0 && usable.includes(choice) ? choice : -1;
 }
 
-/** Borrow from one row, if it has it and the step is in scope: the step it plays instead, or null. */
-function borrowed(run: ModRun | null, state: StepState, place: StepPlace, project: Project, rolls: BorrowRolls): Step | null {
+/** Borrow from one row, if it has it: the step it plays instead, or null. */
+function borrowed(run: ModRun | null, place: StepPlace, project: Project, rolls: BorrowRolls): Step | null {
   const effect = borrowOf(run?.mod);
-  if (run === null || effect === undefined || !inScope(effect, state, project)) return null;
+  if (run === null || effect === undefined) return null;
   const cells = effect.sources.map((id) => {
     const loop = project.loops[id];
     return loop === undefined || loop.steps.length === 0 ? undefined : loop.steps[place.index % loop.steps.length];
@@ -221,9 +210,8 @@ function borrowed(run: ModRun | null, state: StepState, place: StepPlace, projec
 
 /**
  * Applies the mods from rows A and B to one step: Borrow first, then target by
- * target in the fixed order. Scope is tested against the step as earlier
- * targets left it, so a tag scope sees a hit that Borrow or a member mod
- * swapped in. A borrowed step that ignores mods stops the rest.
+ * target in the fixed order. A mod acts on every step under its clip. A
+ * borrowed step that ignores mods stops the rest.
  */
 export function applyMods(
   state: StepState,
@@ -236,13 +224,15 @@ export function applyMods(
   let current = state;
   if (current.cell.ignoreMods) return current;
   // B's Borrow wins where it borrows; elsewhere A's may.
-  const cell = borrowed(runs.B, current, place, project, rolls) ?? borrowed(runs.A, current, place, project, rolls);
+  const cell = borrowed(runs.B, place, project, rolls) ?? borrowed(runs.A, place, project, rolls);
   if (cell !== null) current = { ...current, cell, ...resolve(project, cell) };
+  // Effects act on hits: an empty step has nothing to change, and Cycle does not count it.
+  if (current.hit === undefined) return current;
   for (const [target, handler] of handlers) {
     if (current.cell.ignoreMods) break;
     const fromRow = (run: ModRun | null) => {
       const effect = run === null ? undefined : effectFor(run.mod, target);
-      return run !== null && effect !== undefined && inScope(effect, current, project)
+      return run !== null && effect !== undefined
         ? { effect, value: values(run, effect, place.clock, handler.discrete) }
         : null;
     };

@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createMod, createProject, isParentPad, setSongCell, setStep, sliceBreak } from '../model';
+import { addSample, createLoop, createMod, createProject, setSongCell, setStep } from '../model';
 import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import { parseValues, randomMod } from './modText';
@@ -49,7 +49,7 @@ function apply(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-const build = (...commands: Command[]) => apply(createProject(ctx), ...commands);
+const build = (...commands: Command[]) => apply(createProject(), ...commands);
 
 /** A snare on every beat of a one-bar main loop, placed in the song. */
 function snareLoopProject(): Project {
@@ -86,7 +86,7 @@ describe('Mods', () => {
     expect(screen.getByRole('img', { name: 'What the effect does over one bar' }).querySelectorAll('.step-value')).toHaveLength(16);
     expect([...screen.getByRole('img', { name: 'What the effect does over one bar' }).querySelectorAll('text')].map((t) => t.textContent)).toEqual(['0', '+3', '+5', '+7']);
 
-    fireEvent.keyDown(window, { key: '8' });
+    fireEvent.keyDown(window, { key: '6' });
     fireEvent.click(button(mod.name));
     clickLane('Mod A', 0);
 
@@ -175,7 +175,7 @@ describe('Effects', () => {
     const borrow = () => Object.values(present(store).mods)[0]!.effects[0]!;
     const fill = Object.values(present(store).loops).find((l) => l.kind === 'fill')!;
     // It starts borrowing from the first fill, half the time, keeping the own hit where the fill is empty.
-    expect(borrow()).toEqual({ target: 'sourceLoop', scope: { kind: 'all' }, rate: 'step', sources: [fill.id], pick: { kind: 'random', chance: 50 }, skipEmpty: true });
+    expect(borrow()).toEqual({ target: 'sourceLoop', rate: 'step', sources: [fill.id], pick: { kind: 'random', chance: 50 }, skipEmpty: true });
 
     pick('Pick', 'every');
     pick('Every', '3');
@@ -201,22 +201,12 @@ describe('Effects', () => {
     expect(effects()).toEqual(['pitch']);
   });
 
-  it("the scope does not list a break's own pad", async () => {
-    let project = snareLoopProject();
-    const ctx2 = sequentialIds();
-    const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(project, ctx2);
-    if (!added.ok) throw new Error('addSample failed');
-    const id = Object.keys(added.project.samples).find((k) => !(k in project.samples))!;
-    const sliced = sliceBreak(id, 1, 4)(added.project, ctx2);
-    if (!sliced.ok) throw new Error('sliceBreak failed');
-    project = sliced.project;
-    await setup(project, 'mods');
+  it('a sentence has no "acts on": a mod acts on everything under its clip', async () => {
+    await setup(snareLoopProject(), 'mods');
     fireEvent.click(button('+ New mod'));
     pick('Add effect', 'pitch');
-    const options = within(screen.getByRole('combobox', { name: 'Scope' })).getAllByRole('option').map((o) => o.textContent);
-    const parent = Object.values(project.pads).find((p) => isParentPad(project, p))!;
-    expect(options).not.toContain(`pad ${parent.name}`);
-    expect(options).toContain(`pad ${Object.values(project.pads).find((p) => p.name !== parent.name)!.name}`);
+    expect(screen.queryByRole('combobox', { name: 'Scope' })).toBeNull();
+    expect(document.querySelector('.sentence')!.textContent).toMatch(/^Every .*: /);
   });
 });
 
@@ -240,7 +230,7 @@ describe('randomMod', () => {
     const project = build(addSample({ name: 's.wav', audio: constantAudio(0.1) }), createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
     const loops = Object.keys(project.loops);
     for (let seed = 1; seed <= 300; seed++) {
-      const mod = randomMod(project, seededRng(seed));
+      const mod = randomMod(seededRng(seed));
       const { shape, target } = mod;
       const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : shape.kind === 'ramp' ? [shape.from, shape.to] : [shape.min, shape.max];
       if (target === 'ratchet') expect(values.every((v) => v >= 1 && v <= 8)).toBe(true);

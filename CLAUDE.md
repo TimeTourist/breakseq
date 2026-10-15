@@ -45,4 +45,4 @@ npm run lint
 - Projektet byggs i faser (se `docs/spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** 9 – Breaks, pads och hits; taggar och omfång bort (`docs/tasks/fas-9.md`), väntar på granskning innan start
+**Aktuell fas:** 9 – Breaks, pads och hits; taggar och omfång bort (`docs/tasks/fas-9.md`), klar och väntar på granskning

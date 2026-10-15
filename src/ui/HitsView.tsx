@@ -1,91 +1,318 @@
 import { useState } from 'react';
-import type { Hit } from '../model';
-import { addVariant, baseName, parentHit, remove, updateHit } from '../model';
+import type { Hit, Id, Pad, Project } from '../model';
+import {
+  addPadMember,
+  addVariant,
+  baseName,
+  createPad,
+  isParentHit,
+  isParentPad,
+  movePadMember,
+  parentHit,
+  remove,
+  removePadMember,
+  renamePad,
+  updateHit,
+} from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { hitColor, hitGroups, hitUsages } from './labels';
+import { PlayIcon } from './icons';
+import { HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
 import { Slider } from './Slider';
-import { PlayIcon } from './TagView';
 import { Waveform } from './Waveform';
+
+/** A hit being dragged: from the list on the left, or within a pad. */
+export const HIT_MIME = 'application/x-breakseq-hit';
 
 const ms = (seconds: number) => Math.round(seconds * 1000);
 const signed = (v: number, unit: string) => `${v > 0 ? '+' : ''}${v} ${unit}`;
 
+/** The pad open in Hits: the selected one, else one the selected hit is in, else the first. */
+function currentPad(project: Project, padId: Id | null, hitId: Id | null): Pad | undefined {
+  const selected = padId === null ? undefined : project.pads[padId];
+  if (selected !== undefined && !isParentPad(project, selected)) return selected;
+  const pads = Object.values(project.pads).filter((p) => !isParentPad(project, p));
+  return (hitId === null ? undefined : pads.find((p) => p.members.includes(hitId))) ?? padGroups(project)[0]?.items[0];
+}
+
+/**
+ * Breaks, their pads and the hits in each, in one place. On the left each break
+ * with its parent as heading and its pads in order, then one-shots and pads
+ * built by hand. On the right the open pad's hits, and the hit being edited.
+ */
 export function HitsView() {
   const project = useProject();
   const { services, store } = useApp();
   const run = useRun();
   const seal = useSeal();
   const open = useOpen();
-  const selected = useSelect((s) => s.selection.hit);
+  const selection = useSelect((s) => s.selection);
+  const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const groups = hitGroups(project);
-  const hit = (selected === null ? undefined : project.hits[selected]) ?? groups[0]?.items[0];
 
-  if (hit === undefined) {
+  const selectedHit = selection.hit === null ? undefined : project.hits[selection.hit];
+  // A break's parent is edited on its own: it has no pad of its own to show.
+  const parentOpen = selectedHit !== undefined && isParentHit(project, selectedHit);
+  const pad = parentOpen ? undefined : currentPad(project, selection.pad, selection.hit);
+  const hit = parentOpen ? selectedHit : selectedHit !== undefined && pad?.members.includes(selectedHit.id) ? selectedHit : project.hits[pad?.members[0] ?? ''];
+  const groups = padGroups(project);
+
+  const newPad = () => {
+    const before = store.getState().history.present.pads;
+    const name = `Pad ${Object.values(project.pads).filter((p) => !p.auto).length + 1}`;
+    if (run(createPad(name)) === null) {
+      const id = Object.keys(store.getState().history.present.pads).find((k) => !(k in before));
+      if (id !== undefined) open({ pad: id, hit: null }, 'hits');
+    }
+  };
+
+  const sidebar = (
+    <aside className="sidebar" aria-label="Breaks and pads">
+      {groups.map((group) => {
+        const parent = group.breakId === undefined ? undefined : Object.values(project.hits).find((h) => h.sampleId === group.breakId && isParentHit(project, h));
+        return (
+          <section key={group.name} className="stack-tight">
+            {parent !== undefined ? (
+              <button
+                type="button"
+                className="list-item break-head"
+                aria-current={hit?.id === parent.id ? 'true' : undefined}
+                title="The break's own hit: its pitch, volume and direction apply to every slice"
+                onClick={() => open({ hit: parent.id, pad: null }, 'hits')}
+              >
+                <span className="label grow ellipsis">{group.name}</span>
+                <span className="badge">parent</span>
+              </button>
+            ) : (
+              <h2 className="label">{group.name}</h2>
+            )}
+            {group.items.map((p) => (
+              <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}`}>
+                <button type="button" className="pad-row-name mono" aria-label={`Pad ${p.name}`} onClick={() => open({ pad: p.id, hit: p.members[0] ?? null }, 'hits')}>
+                  {padLabel(p)}
+                </button>
+                {p.members.map((m, i) => {
+                  const h = project.hits[m];
+                  return h === undefined ? null : (
+                    <button
+                      key={m}
+                      type="button"
+                      className={`hit-chip mono${i === 0 ? ' first' : ''}${p.id === pad?.id && m === hit?.id ? ' current' : ''}`}
+                      title={`${h.name}${i === 0 ? ' · plays by default' : ''} · drag onto a pad to add it there`}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(HIT_MIME, m);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      onClick={() => open({ pad: p.id, hit: m }, 'hits')}
+                    >
+                      {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
+                      {h.direction === 'reverse' ? ' ◂' : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </section>
+        );
+      })}
+      <button type="button" className="dashed" onClick={newPad}>
+        + New pad
+      </button>
+    </aside>
+  );
+
+  if (hit === undefined && pad === undefined) {
     return (
-      <main className="view">
-        <div className="view-head">
-          <h1>Hits</h1>
-          <p className="muted">No hits yet. Every imported sample gets one.</p>
-        </div>
-      </main>
+      <div className="split">
+        {sidebar}
+        <main className="view">
+          <div className="view-head">
+            <h1>Hits</h1>
+            <p className="muted">No hits yet. Every imported sample gets one, in a pad of its own.</p>
+          </div>
+        </main>
+      </div>
     );
   }
 
-  const sample = project.samples[hit.sampleId];
-  const audio = sample === undefined ? undefined : project.audio[sample.audioId];
-  const usages = hitUsages(project, hit.id);
-  const source = hit.variantOf === null ? undefined : project.hits[hit.variantOf];
-  const edit = (patch: Partial<Omit<Hit, 'id' | 'sampleId'>>, field: string) =>
-    setError(run(updateHit(hit.id, patch), `hit:${hit.id}:${field}`));
-  const duration = sample?.duration ?? 0;
-  const parent = parentHit(project, hit);
-  const children = Object.values(project.hits).filter((h) => parentHit(project, h)?.id === hit.id).length;
-  /** A slice's own value, and what it plays at with its parent's added. */
-  const withParent = (own: number, inherited: number | undefined, unit: string) =>
-    inherited === undefined || inherited === 0 ? signed(own, unit) : `${signed(own, unit)} · plays ${signed(own + inherited, unit)}`;
-
   return (
     <div className="split">
-      <aside className="sidebar" aria-label="Hits">
-        {groups.map((group) => (
-          <section key={group.name} className="stack-tight">
-            <h2 className="label">{group.name}</h2>
-            {group.items.map((h) => (
-              <button
-                key={h.id}
-                type="button"
-                className="list-item"
-                aria-current={h.id === hit.id ? 'true' : undefined}
-                onClick={() => open({ hit: h.id }, 'hits')}
-              >
-                <span className="dot" style={{ background: hitColor(project, h.id) }} />
-                <span className="mono grow ellipsis">{baseName(h.name)}</span>
-                {project.samples[h.sampleId]?.break?.sliced === true && h.variantOf === null && <span className="badge">parent</span>}
-                {h.direction === 'reverse' && <span className="muted small">rev</span>}
-                {h.pitch !== 0 && <span className="muted small">{signed(h.pitch, 'st')}</span>}
-              </button>
-            ))}
-          </section>
-        ))}
-      </aside>
-
+      {sidebar}
       <main className="view">
+        {error !== null && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {pad !== undefined && padPanel(pad, hit?.id ?? null)}
+        {hit !== undefined && hitEditor(hit)}
+        {hit === undefined && pad !== undefined && <p className="muted">This pad has no hits yet. Add one above.</p>}
+      </main>
+    </div>
+  );
+
+  /**
+   * The open pad: its name, its hits in order (the first plays by default), and
+   * adding more. A plain function, not a component, so its inputs keep focus.
+   */
+  function padPanel(pad: Pad, hitId: Id | null) {
+    const onError = setError;
+    const usages = padUsages(project, pad.id);
+    const query = search.trim().toLowerCase();
+    const available = Object.values(project.hits).filter(
+      (h) => !pad.members.includes(h.id) && !isParentHit(project, h) && (query === '' || h.name.toLowerCase().includes(query)),
+    );
+    const move = (id: Id, to: number) => onError(run(movePadMember(pad.id, id, to)));
+    const add = (id: Id) => onError(run(addPadMember(pad.id, id)));
+    return (
+      <section className="panel stack" aria-label="Pad">
+        <div className="row">
+          <label className="sr-only" htmlFor="pad-name">
+            Pad name
+          </label>
+          <input
+            id="pad-name"
+            className="title-input mono"
+            value={pad.name}
+            onChange={(e) => onError(run(renamePad(pad.id, e.target.value), `pad:${pad.id}:name`))}
+            onBlur={seal}
+          />
+          <span className="muted small">The first hit plays by default; a step or a mod can choose another.</span>
+          <div className="row push">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Preview pad"
+              disabled={pad.members.length === 0}
+              onClick={() => pad.members[0] !== undefined && services.player.playHit(project, pad.members[0])}
+            >
+              <PlayIcon />
+            </button>
+            <button
+              type="button"
+              disabled={usages.length > 0}
+              title={usages.length > 0 ? 'In use: take it out of its loops first' : undefined}
+              onClick={() => {
+                const failed = run(remove('pad', pad.id));
+                if (failed === null) open({ pad: null, hit: null }, 'hits');
+                else onError(failed);
+              }}
+            >
+              Delete pad
+            </button>
+          </div>
+        </div>
+
+        <ol
+          className="members"
+          aria-label="Hits in this pad"
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes(HIT_MIME)) e.preventDefault();
+          }}
+          onDrop={(e) => {
+            const dragged = e.dataTransfer.getData(HIT_MIME);
+            if (dragged === '') return;
+            e.preventDefault();
+            if (pad.members.includes(dragged)) return;
+            add(dragged);
+          }}
+        >
+          {pad.members.map((id, i) => {
+            const h = project.hits[id];
+            if (h === undefined) return null;
+            return (
+              <li
+                key={id}
+                className={`member${i === 0 ? ' first' : ''}${id === hitId ? ' current' : ''}`}
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData(HIT_MIME, id)}
+                onDrop={(e) => {
+                  const dragged = e.dataTransfer.getData(HIT_MIME);
+                  if (dragged === '' || !pad.members.includes(dragged)) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  move(dragged, i);
+                }}
+              >
+                <span className="member-num mono">{i + 1}</span>
+                <button type="button" className="link-text mono grow ellipsis" aria-current={id === hitId ? 'true' : undefined} onClick={() => open({ pad: pad.id, hit: id }, 'hits')}>
+                  {baseName(h.name)}
+                </button>
+                <span className="muted small">{i === 0 ? 'default' : ''}</span>
+                <button type="button" className="icon-button small" aria-label={`Play ${h.name}`} onClick={() => services.player.playHit(project, id)}>
+                  <PlayIcon />
+                </button>
+                <button type="button" className="icon-button small" aria-label={`Move ${h.name} up`} disabled={i === 0} onClick={() => move(id, i - 1)}>
+                  ↑
+                </button>
+                <button type="button" className="icon-button small" aria-label={`Move ${h.name} down`} disabled={i === pad.members.length - 1} onClick={() => move(id, i + 1)}>
+                  ↓
+                </button>
+                <button type="button" className="icon-button small" aria-label={`Remove ${h.name} from pad`} onClick={() => onError(run(removePadMember(pad.id, id)))}>
+                  ×
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+
+        <details className="add-hits">
+          <summary>+ Hit · or drag one from the left onto the list</summary>
+          <input type="search" placeholder="Search hits" aria-label="Search hits" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="add-list">
+            {available.slice(0, 200).map((h) => (
+              <div key={h.id} className="add-row">
+                <span className="mono grow ellipsis">{baseName(h.name)}</span>
+                <button type="button" aria-label={`Add ${h.name} to pad`} onClick={() => add(h.id)}>
+                  Add
+                </button>
+              </div>
+            ))}
+            {available.length === 0 && <p className="muted small">No hits to add.</p>}
+          </div>
+        </details>
+
+        <div className="row">
+          <span className="label">Used in</span>
+          {usages.length === 0 ? (
+            <span className="muted small">No loops</span>
+          ) : (
+            usages.map(({ loop, steps }) => (
+              <button key={loop.id} type="button" className="link-chip mono" onClick={() => open({ loop: loop.id, step: null }, 'loops')}>
+                {loop.name} · {steps} {steps === 1 ? 'step' : 'steps'}
+              </button>
+            ))
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  /** How the selected hit plays: region, direction, pitch, volume and fade. */
+  function hitEditor(hit: Hit) {
+    const onError = setError;
+    const sample = project.samples[hit.sampleId];
+    const audio = sample === undefined ? undefined : project.audio[sample.audioId];
+    const usages = hitUsages(project, hit.id);
+    const source = hit.variantOf === null ? undefined : project.hits[hit.variantOf];
+    const edit = (patch: Partial<Omit<Hit, 'id' | 'sampleId'>>, field: string) => onError(run(updateHit(hit.id, patch), `hit:${hit.id}:${field}`));
+    const duration = sample?.duration ?? 0;
+    const parent = parentHit(project, hit);
+    const children = Object.values(project.hits).filter((h) => parentHit(project, h)?.id === hit.id).length;
+    /** A slice's own value, and what it plays at with its parent's added. */
+    const withParent = (own: number, inherited: number | undefined, unit: string) =>
+      inherited === undefined || inherited === 0 ? signed(own, unit) : `${signed(own, unit)} · plays ${signed(own + inherited, unit)}`;
+    return (
+      <section className="stack" aria-label="Hit">
         <div className="view-head row">
           <div className="stack-tight grow">
             <label className="sr-only" htmlFor="hit-name">
               Hit name
             </label>
-            <input
-              id="hit-name"
-              className="title-input mono"
-              value={hit.name}
-              onChange={(e) => edit({ name: e.target.value }, 'name')}
-              onBlur={seal}
-            />
+            <input id="hit-name" className="title-input mono" value={hit.name} onChange={(e) => edit({ name: e.target.value }, 'name')} onBlur={seal} />
             <p className="muted">
               {source === undefined ? `From ${sample?.name ?? 'a missing sample'}` : `Variant of ${source.name}`}
-              {children > 0 && ` · parent: its pitch and volume apply to all ${children} slices`}
+              {children > 0 && ` · parent: its pitch, volume and direction apply to all ${children} slices`}
               {parent !== undefined && ` · slice of ${baseName(parent.name)}, which adds its pitch and volume`}
             </p>
           </div>
@@ -93,18 +320,21 @@ export function HitsView() {
             <button type="button" className="icon-button" aria-label="Preview hit" onClick={() => services.player.playHit(project, hit.id)}>
               <PlayIcon />
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const before = store.getState().history.present.hits;
-                if (run(addVariant(hit.id, `${hit.name} var`)) === null) {
-                  const copy = Object.keys(store.getState().history.present.hits).find((id) => !(id in before));
-                  if (copy !== undefined) open({ hit: copy }, 'hits');
-                }
-              }}
-            >
-              Duplicate as variant
-            </button>
+            {children === 0 && (
+              <button
+                type="button"
+                title="A copy of this hit in the same pad, to change: reversed, pitched, shorter"
+                onClick={() => {
+                  const before = store.getState().history.present.hits;
+                  if (run(addVariant(hit.id, `${hit.name} var`)) === null) {
+                    const copy = Object.keys(store.getState().history.present.hits).find((id) => !(id in before));
+                    if (copy !== undefined) open({ hit: copy }, 'hits');
+                  }
+                }}
+              >
+                Variant
+              </button>
+            )}
             <button
               type="button"
               disabled={usages.length > 0}
@@ -112,10 +342,10 @@ export function HitsView() {
               onClick={() => {
                 const failed = run(remove('hit', hit.id));
                 if (failed === null) open({ hit: null }, 'hits');
-                else setError(failed);
+                else onError(failed);
               }}
             >
-              Delete
+              Delete hit
             </button>
           </div>
         </div>
@@ -126,23 +356,14 @@ export function HitsView() {
               <span>
                 Region {ms(hit.region.start)}–{ms(hit.region.end)} ms of {ms(duration)} ms
               </span>
-              {hit.direction === 'reverse' && <span style={{ color: hitColor(project, hit.id) }}>plays reversed</span>}
+              {hit.direction === 'reverse' && <span>plays reversed</span>}
             </div>
             <div className="wave-region">
-              <Waveform audio={audio} offset={sample.offset} duration={sample.duration} height={180} color={hitColor(project, hit.id)} />
+              <Waveform audio={audio} offset={sample.offset} duration={sample.duration} height={180} color={HIT_COLOR} />
               <div className="region-shade" style={{ left: 0, width: `${(hit.region.start / duration) * 100}%` }} />
-              <div
-                className="region-shade"
-                style={{ left: `${(hit.region.end / duration) * 100}%`, right: 0 }}
-              />
+              <div className="region-shade" style={{ left: `${(hit.region.end / duration) * 100}%`, right: 0 }} />
             </div>
           </div>
-        )}
-
-        {error !== null && (
-          <p className="error" role="alert">
-            {error}
-          </p>
         )}
 
         <div className="slider-grid">
@@ -163,9 +384,7 @@ export function HitsView() {
             max={ms(duration)}
             step={1}
             format={(v) => `${v} ms`}
-            onChange={(v) =>
-              edit({ region: { start: hit.region.start, end: Math.max(v / 1000, hit.region.start + 0.001) } }, 'end')
-            }
+            onChange={(v) => edit({ region: { start: hit.region.start, end: Math.max(v / 1000, hit.region.start + 0.001) } }, 'end')}
             onCommit={seal}
           />
           <div className="panel stack-tight">
@@ -183,20 +402,7 @@ export function HitsView() {
           <Slider label="Volume" value={hit.volume} min={-24} max={6} step={0.5} format={(v) => withParent(v, parent?.volume, 'dB')} onChange={(v) => edit({ volume: v }, 'volume')} onCommit={seal} />
           <Slider label="Fade out" value={hit.fadeOut} min={0} max={200} step={1} format={(v) => `${v} ms`} onChange={(v) => edit({ fadeOut: v }, 'fade')} onCommit={seal} />
         </div>
-
-        <section className="panel row">
-          <span className="label">Used in</span>
-          {usages.length === 0 ? (
-            <span className="muted small">No pads</span>
-          ) : (
-            usages.map(({ pad, member }) => (
-              <button key={pad.id} type="button" className="link-chip mono" onClick={() => open({ pad: pad.id }, 'pads')}>
-                {pad.name} · member {member}
-              </button>
-            ))
-          )}
-        </section>
-      </main>
-    </div>
-  );
+      </section>
+    );
+  }
 }

@@ -1,37 +1,14 @@
-import type { Hit, Id, Pad, Project, Sample } from '../model';
+import type { Id, Pad, Project, Sample } from '../model';
 import { STEPS_PER_BAR, baseName, isParentPad } from '../model';
 
-const TAG_COLORS: Record<string, string> = {
-  K: '#F0883E',
-  S: '#9CCBF7',
-  H: '#F2DE7A',
-  R: '#A68CF0',
-  G: '#9AA0A6',
-};
-const CUSTOM_COLORS = ['#4FC4B0', '#E5689A', '#7FD17F'];
-export const UNTAGGED_COLOR = '#8C8A84';
+/** Hits have no colour of their own for now: every hit is drawn in this one. */
+export const HIT_COLOR = '#C9C4B8';
 
-export const TAG_NAMES: Record<string, string> = { K: 'Kick', S: 'Snare', H: 'Hat', R: 'Ride', G: 'Ghost' };
-
-export function tagColor(project: Project, tagId: Id | null): string {
-  if (tagId === null) return UNTAGGED_COLOR;
-  const tag = project.tags[tagId];
-  if (tag === undefined) return UNTAGGED_COLOR;
-  const custom = Object.values(project.tags).filter((t) => TAG_COLORS[t.name] === undefined);
-  return TAG_COLORS[tag.name] ?? CUSTOM_COLORS[custom.indexOf(tag) % CUSTOM_COLORS.length] ?? UNTAGGED_COLOR;
-}
 
 export const sampleOfHit = (project: Project, hitId: Id | null | undefined): Sample | undefined => {
   const hit = hitId == null ? undefined : project.hits[hitId];
   return hit === undefined ? undefined : project.samples[hit.sampleId];
 };
-
-/** The colour of the main tag a hit's sample has. */
-export const hitColor = (project: Project, hitId: Id | null | undefined): string =>
-  tagColor(project, sampleOfHit(project, hitId)?.mainTag ?? null);
-
-/** A pad is coloured by its member 1. */
-export const padColor = (project: Project, pad: Pad): string => hitColor(project, pad.members[0]);
 
 /** A short label for a pad chip: a slice's number ("amen 07" → "07"), otherwise the start of its name. */
 export function padLabel(pad: Pad): string {
@@ -51,41 +28,33 @@ export interface Group<T> {
   readonly breakId?: Id;
 }
 
-/** Hits as Variants first, then one group per imported file. */
-export function hitGroups(project: Project): Group<Hit>[] {
-  const hits = Object.values(project.hits);
-  const variants = hits.filter((h) => h.variantOf !== null);
-  const bySource = new Map<Id, Hit[]>();
-  for (const hit of hits) {
-    if (hit.variantOf !== null) continue;
-    const sample = project.samples[hit.sampleId];
-    if (sample === undefined) continue;
-    const source = sourceOf(project, sample);
-    bySource.set(source.id, [...(bySource.get(source.id) ?? []), hit]);
-  }
-  return [
-    ...(variants.length > 0 ? [{ name: 'Variants', items: variants }] : []),
-    ...[...bySource].map(([id, items]) => ({ name: project.samples[id]?.name ?? 'Other', items })),
-  ];
-}
-
-/** Built pads first, then the chain's pads grouped by imported file. */
-/** Built pads first, then the chain's pads grouped by imported file. A parent's own pad is never shown. */
+/**
+ * Pads grouped the way they belong together: each sliced break's pads in order,
+ * named after the break; then one-shots, each a pad with its own hit; then pads
+ * built by hand. A break's parent never shows as a pad.
+ */
 export function padGroups(project: Project, filter: (pad: Pad) => boolean = () => true): Group<Pad>[] {
   const pads = Object.values(project.pads).filter((p) => filter(p) && !isParentPad(project, p));
   const built = pads.filter((p) => !p.auto);
-  const bySource = new Map<Id, Pad[]>();
+  const byBreak = new Map<Id, { pad: Pad; offset: number }[]>();
+  const oneShots: Pad[] = [];
   for (const pad of pads.filter((p) => p.auto)) {
     const sample = sampleOfHit(project, pad.members[0]);
-    const id = sample === undefined ? '' : sourceOf(project, sample).id;
-    bySource.set(id, [...(bySource.get(id) ?? []), pad]);
+    const source = sample === undefined ? undefined : sourceOf(project, sample);
+    if (sample !== undefined && source !== undefined && source.break?.sliced === true && sample.sliceOf === source.id) {
+      byBreak.set(source.id, [...(byBreak.get(source.id) ?? []), { pad, offset: sample.offset }]);
+    } else {
+      oneShots.push(pad);
+    }
   }
   return [
+    ...[...byBreak].map(([id, items]) => ({
+      name: project.samples[id]?.name ?? 'Break',
+      items: [...items].sort((a, b) => a.offset - b.offset).map((i) => i.pad),
+      breakId: id,
+    })),
+    ...(oneShots.length > 0 ? [{ name: 'One-shots', items: oneShots }] : []),
     ...(built.length > 0 ? [{ name: 'Built', items: built }] : []),
-    ...[...bySource].map(([id, items]) => {
-      const source = project.samples[id];
-      return { name: source?.name ?? 'Other', items, ...(source?.break?.sliced === true ? { breakId: id } : {}) };
-    }),
   ];
 }
 

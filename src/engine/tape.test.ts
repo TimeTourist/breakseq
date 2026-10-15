@@ -137,7 +137,7 @@ describe('tapeSpeed', () => {
 describe('generateTake', () => {
   /** A 4-bar song at 120 BPM with a one-bar main playing on every step, and a mod with `effects`. */
   function song(effects: readonly ModEffect[]) {
-    let project = run(createProject(ctx), setBpm(120), setSongBars(4), addSample({ name: 'k', audio: constantAudio(0.05) }), createLoop(null, 'main', 1));
+    let project = run(createProject(), setBpm(120), setSongBars(4), addSample({ name: 'k', audio: constantAudio(0.05) }), createLoop(null, 'main', 1));
     const pad = Object.values(project.pads)[0]!.id;
     const loop = Object.values(project.loops)[0]!.id;
     project = run(project, ...Array.from({ length: 16 }, (_, i) => setStep(loop, i, { padId: pad })), addClip('main', loop, 0, 64), createMod('T', effects));
@@ -168,7 +168,7 @@ describe('generateTake', () => {
   });
 
   it('records what is heard, with the step effects of the same mod', () => {
-    const { project: base, mod } = song([{ target: 'pitch', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [5] } }, brake]);
+    const { project: base, mod } = song([{ target: 'pitch', rate: 'step', shape: { kind: 'list', values: [5] } }, brake]);
     const project = run(base, addClip('modA', mod, 0, 16));
     expect(generateTake(project, () => 0).tapes[0]!.source.map((t) => t.pitch)).toEqual([5, 5]);
   });

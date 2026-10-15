@@ -20,15 +20,6 @@ function highPass(x: Float32Array, sampleRate: number, cutoff: number): Float32A
   return y;
 }
 
-/** One-pole low-pass filter at `cutoff` Hz. */
-function lowPass(x: Float32Array, sampleRate: number, cutoff: number): Float32Array {
-  const dt = 1 / sampleRate;
-  const a = dt / (1 / (2 * Math.PI * cutoff) + dt);
-  const y = new Float32Array(x.length);
-  for (let i = 1; i < x.length; i++) y[i] = y[i - 1]! + a * (x[i]! - y[i - 1]!);
-  return y;
-}
-
 const db = (ratio: number) => 20 * Math.log10(Math.max(ratio, 1e-12));
 
 /** Seconds a marker is put before the attack it found, so the attack is never cut. */
@@ -79,49 +70,4 @@ export function detectTransients(audio: AudioData, offset: number, duration: num
     k = top;
   }
   return onsets;
-}
-
-export type GuessedTag = 'K' | 'S' | 'H' | 'R' | 'G';
-
-/** The loudest absolute sample in a window: what classifyHit compares ghosts with. */
-export function peakLevel(audio: AudioData, offset: number, duration: number): number {
-  let peak = 0;
-  for (const v of mono(audio, offset, duration)) peak = Math.max(peak, Math.abs(v));
-  return peak;
-}
-
-/**
- * Guesses what a hit is from its first 120 ms: the share of energy below 150 Hz
- * and above 5 kHz, how long it rings, and how loud it is against `loudest`.
- * A guess: it can be wrong, and is shown as one.
- */
-export function classifyHit(audio: AudioData, offset: number, duration: number, loudest: number): GuessedTag {
-  const { sampleRate } = audio;
-  const x = mono(audio, offset, Math.min(duration, 0.12));
-  let peak = 0;
-  let total = 0;
-  for (const v of x) {
-    peak = Math.max(peak, Math.abs(v));
-    total += v * v;
-  }
-  if (loudest > 0 && db(peak / loudest) < -15) return 'G';
-  if (total === 0) return 'G';
-
-  const energy = (y: Float32Array) => y.reduce((sum, v) => sum + v * v, 0);
-  const low = energy(lowPass(x, sampleRate, 150)) / total;
-  const high = energy(highPass(x, sampleRate, 5000)) / total;
-
-  // How long until the level stays 20 dB under its peak, in 5 ms frames.
-  const frame = Math.max(1, Math.round(0.005 * sampleRate));
-  let ring = 0;
-  for (let k = 0; k * frame < x.length; k++) {
-    let m = 0;
-    for (let i = k * frame; i < Math.min(x.length, (k + 1) * frame); i++) m = Math.max(m, Math.abs(x[i]!));
-    if (db(m / peak) > -20) ring = (k + 1) * frame;
-  }
-  const ringSeconds = ring / sampleRate;
-
-  if (low > 0.45) return 'K';
-  if (high > 0.3) return ringSeconds > 0.09 ? 'R' : 'H';
-  return 'S';
 }

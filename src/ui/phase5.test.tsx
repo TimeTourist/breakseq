@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioData, Command, Project } from '../model';
 import { addSample, createLoop, createMod, createProject, setBreak, setSongCell, setStep } from '../model';
@@ -70,7 +70,7 @@ function hits(): AudioData {
 
 describe('Transients in Slice', () => {
   it('puts markers on the hits', async () => {
-    const project = apply(createProject(ctx), addSample({ name: 'break.wav', audio: hits() }));
+    const project = apply(createProject(), addSample({ name: 'break.wav', audio: hits() }));
     const store = await setup(apply(project, setBreak(Object.keys(project.samples)[0]!, 1)), 'slice');
 
     fireEvent.click(button('Transients'));
@@ -82,7 +82,7 @@ describe('Transients in Slice', () => {
 
 describe('Dragging in Song', () => {
   function placed() {
-    const project = apply(createProject(ctx), createLoop(null, 'main', 1));
+    const project = apply(createProject(), createLoop(null, 'main', 1));
     const loop = Object.values(project.loops)[0]!;
     const withClip = apply(project, setSongCell('main', 1, loop.id));
     return { project: withClip, id: withClip.song.clips[0]!.id };
@@ -113,25 +113,9 @@ describe('Dragging in Song', () => {
   });
 });
 
-describe('Tag guesses', () => {
-  it('Guess tags marks guesses auto, and Confirm all auto confirms them', async () => {
-    const project = apply(createProject(ctx), addSample({ name: 'hit.wav', audio: hits() }));
-    const store = await setup(project, 'tag');
-
-    fireEvent.click(button('Guess tags'));
-    const sample = Object.values(present(store).samples)[0]!;
-    expect(sample.mainTag).not.toBeNull();
-    expect(sample.tagGuessed).toBe(true);
-    expect(screen.getByText('auto')).toBeTruthy();
-
-    fireEvent.click(button('Confirm all auto'));
-    expect(Object.values(present(store).samples)[0]!.tagGuessed).toBe(false);
-  });
-});
-
 describe('Double-click opens the editor', () => {
-  it('a loop in Song opens Loops, a mod opens Mods, a step opens its pad, a member opens its hit', async () => {
-    let project = apply(createProject(ctx), addSample({ name: 'snare.wav', audio: hits() }), createLoop(null, 'main', 2));
+  it('a loop in Song opens Loops, a mod opens Mods, a step opens its pad in Hits', async () => {
+    let project = apply(createProject(), addSample({ name: 'snare.wav', audio: hits() }), createLoop(null, 'main', 2));
     const pad = Object.values(project.pads)[0]!;
     const hit = Object.values(project.hits)[0]!;
     const loop = Object.values(project.loops)[0]!;
@@ -139,7 +123,7 @@ describe('Double-click opens the editor', () => {
       project,
       setStep(loop.id, 4, { padId: pad.id }),
       setSongCell('main', 0, loop.id),
-      createMod('Roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]),
+      createMod('Roll', [{ target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [2] } }]),
     );
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(apply(project, setSongCell('modA', 0, mod.id)), 'song');
@@ -150,14 +134,15 @@ describe('Double-click opens the editor', () => {
     expect(state().selection.loop).toBe(loop.id);
 
     fireEvent.doubleClick(button(/^Bar 1, step 5:/));
-    expect(state().view).toBe('pads');
+    expect(state().view).toBe('hits');
     expect(state().selection.pad).toBe(pad.id);
 
-    fireEvent.doubleClick(screen.getByTitle('Double-click to edit the hit'));
-    expect(state().view).toBe('hits');
+    // In Hits, a hit of the pad opens it for editing.
+    fireEvent.click(within(screen.getByRole('list', { name: 'Hits in this pad' })).getByRole('button', { name: 'snare' }));
     expect(state().selection.hit).toBe(hit.id);
+    expect(screen.getByLabelText('Hit name')).toHaveProperty('value', hit.name);
 
-    fireEvent.keyDown(window, { key: '8' });
+    fireEvent.keyDown(window, { key: '6' });
     fireEvent.doubleClick(clip(/^Roll, /));
     expect(state().view).toBe('mods');
     expect(state().selection.mod).toBe(mod.id);
@@ -166,13 +151,13 @@ describe('Double-click opens the editor', () => {
 
 describe('Double-clicking a mod in Song', () => {
   it('picks the loop playing in that bar for Try on: the fill there, else the main', async () => {
-    let project = apply(createProject(ctx), createLoop(null, 'main', 4), createLoop(null, 'fill', 1));
+    let project = apply(createProject(), createLoop(null, 'main', 4), createLoop(null, 'fill', 1));
     const [main, fill] = Object.values(project.loops);
     project = apply(
       project,
       setSongCell('main', 0, main!.id),
       setSongCell('fill', 3, fill!.id),
-      createMod('Roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]),
+      createMod('Roll', [{ target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [2] } }]),
     );
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(apply(project, setSongCell('modA', 1, mod.id), setSongCell('modA', 3, mod.id)), 'song');
@@ -181,7 +166,7 @@ describe('Double-clicking a mod in Song', () => {
     expect(store.getState().selection).toMatchObject({ mod: mod.id, previewLoop: main!.id });
     expect(store.getState().view).toBe('mods');
 
-    fireEvent.keyDown(window, { key: '8' });
+    fireEvent.keyDown(window, { key: '6' });
     fireEvent.doubleClick(clip(/^Roll, 4\.1\.1/));
     expect(store.getState().selection.previewLoop).toBe(fill!.id);
   });
@@ -189,7 +174,7 @@ describe('Double-clicking a mod in Song', () => {
 
 describe('Dragging mods between rows', () => {
   it('a mod clip moves from Mod A to Mod B, but not into a loop row', async () => {
-    let project = apply(createProject(ctx), createMod('Roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }]));
+    let project = apply(createProject(), createMod('Roll', [{ target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [2] } }]));
     const mod = Object.values(project.mods)[0]!;
     project = apply(project, setSongCell('modA', 0, mod.id));
     const id = project.song.clips[0]!.id;

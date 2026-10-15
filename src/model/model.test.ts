@@ -9,11 +9,8 @@ import {
   guessBars,
   setBreakBars,
   unlikelyBpm,
-  confirmTags,
   duplicateHit,
   gridMarkers,
-  guessTags,
-  removeTag,
   seal,
   setMarkers,
   sliceAtMarkers,
@@ -23,7 +20,6 @@ import {
   setLoopLength,
   setSongBars,
   upgradeProject,
-  addTag,
   apply,
   breakBpm,
   createHistory,
@@ -45,7 +41,6 @@ import {
   removeClip,
   resizeClip,
   setLoopKind,
-  updateSample,
   setSongCell,
   updateHit,
   setStep,
@@ -70,7 +65,7 @@ const only = <T>(record: Readonly<Record<string, T>>): T => {
 describe('automatic chain', () => {
   it('addSample creates a sample, a default hit and a pad with that hit as its only member', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, addSample({ name: 'Kick', audio: constantAudio(0.5) }));
+    const project = run(createProject(), ctx, addSample({ name: 'Kick', audio: constantAudio(0.5) }));
 
     const sample = only(project.samples);
     const hit = only(project.hits);
@@ -89,7 +84,7 @@ describe('automatic chain', () => {
 
   it('sliceBreak with 4 bars and 1/16 gives 64 samples, hits and pads, and M1 playing the pads in order', () => {
     const ctx = sequentialIds();
-    const imported = run(createProject(ctx), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
+    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
     const amen = only(imported.samples);
     const sliced = run(imported, ctx, sliceBreak(amen.id, 4, 16));
 
@@ -115,7 +110,7 @@ describe('automatic chain', () => {
 
   it('a coarser grid leaves gaps between slices in M1', () => {
     const ctx = sequentialIds();
-    const imported = run(createProject(ctx), ctx, addSample({ name: 'Amen', audio: constantAudio(1) }));
+    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(1) }));
     const sliced = run(imported, ctx, sliceBreak(only(imported.samples).id, 1, 4));
     const m1 = only(sliced.loops);
     expect(m1.steps.map((s) => s.padId !== null)).toEqual(
@@ -127,7 +122,7 @@ describe('automatic chain', () => {
     expect(breakBpm(4 * 1.75, 4)).toBeCloseTo(137.142857);
 
     const ctx = sequentialIds();
-    const imported = run(createProject(ctx), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
+    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
     const id = only(imported.samples).id;
     const sliced = run(imported, ctx, sliceBreak(id, 4));
     expect(sliced.samples[id]!.break?.bpm).toBeCloseTo(137.142857);
@@ -138,7 +133,7 @@ describe('automatic chain', () => {
 describe('breaks', () => {
   it('setBreak works out the BPM, and null makes the sample a one-shot again', () => {
     const ctx = sequentialIds();
-    const imported = run(createProject(ctx), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
+    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
     const id = only(imported.samples).id;
 
     const asBreak = run(imported, ctx, setBreak(id, 4));
@@ -150,7 +145,7 @@ describe('breaks', () => {
 
   it('sliceBreak marks the slices and the break, and refuses to slice it twice', () => {
     const ctx = sequentialIds();
-    const imported = run(createProject(ctx), ctx, addSample({ name: 'Amen', audio: constantAudio(1) }));
+    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(1) }));
     const id = only(imported.samples).id;
     const sliced = run(imported, ctx, setBreak(id, 1), sliceBreak(id, 1, 16));
 
@@ -168,7 +163,7 @@ describe('breaks', () => {
 describe('removal', () => {
   it('fails to remove a hit used in a pad and lists the pad', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
+    const project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
     const hit = only(project.hits);
     const pad = only(project.pads);
 
@@ -182,7 +177,7 @@ describe('removal', () => {
 
   it('removes an unused object', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
+    let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
     const pad = only(project.pads);
     project = run(project, ctx, remove('pad', pad.id), remove('hit', pad.members[0]!));
     expect(project.pads).toEqual({});
@@ -191,7 +186,7 @@ describe('removal', () => {
 
   it('lists every kind of usage', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
+    let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
     const pad = only(project.pads);
     project = run(project, ctx, createLoop('Beat', 'main', 1));
     const loop = only(project.loops);
@@ -214,7 +209,7 @@ describe('pad members', () => {
   it('steps that chose a removed member fall back to member 1', () => {
     const ctx = sequentialIds();
     let project = run(
-      createProject(ctx),
+      createProject(),
       ctx,
       addSample({ name: 'S1', audio: constantAudio(0.1) }),
       addSample({ name: 'S2', audio: constantAudio(0.1) }),
@@ -234,7 +229,7 @@ describe('pad members', () => {
 
   it('a hit can be a member of several pads', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
+    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
     const hit = only(project.hits);
     project = run(project, ctx, createPad('Mine'));
     const mine = Object.values(project.pads).find((p) => p.name === 'Mine')!;
@@ -243,20 +238,27 @@ describe('pad members', () => {
   });
 });
 
-describe('tags', () => {
-  it('starts with K, S, H, R, G and allows at most 8 tags', () => {
+describe('no tags', () => {
+  it('a new project has no tags, and an old one loses its tags and the samples\' tag fields', () => {
+    expect('tags' in createProject()).toBe(false);
     const ctx = sequentialIds();
-    const project = createProject(ctx);
-    expect(Object.values(project.tags).map((t) => t.name)).toEqual(['K', 'S', 'H', 'R', 'G']);
-    const full = run(project, ctx, addTag('A'), addTag('B'), addTag('C'));
-    expect(addTag('D')(full, ctx).ok).toBe(false);
+    const base = run(createProject(), ctx, addSample({ name: 'a', audio: constantAudio(0.1) }));
+    const id = only(base.samples).id;
+    const legacy = {
+      ...base,
+      tags: { k: { id: 'k', name: 'K' } },
+      samples: { [id]: { ...base.samples[id]!, mainTag: 'k', extraTags: [], tagGuessed: true } },
+    } as unknown as Project;
+    const upgraded = upgradeProject(legacy);
+    expect('tags' in upgraded).toBe(false);
+    expect(upgraded.samples[id]).toEqual(base.samples[id]);
   });
 });
 
 describe('undo', () => {
   it('undo and redo restore exactly the earlier state', () => {
     const ctx = sequentialIds();
-    let history = createHistory(createProject(ctx));
+    let history = createHistory(createProject());
     const states = [history.present];
 
     for (const command of [
@@ -284,7 +286,7 @@ describe('undo', () => {
 
   it('never mutates earlier states', () => {
     const ctx = sequentialIds();
-    const start = createProject(ctx);
+    const start = createProject();
     const snapshot = structuredClone(start);
     const result = apply(createHistory(start), addSample({ name: 'Amen', audio: constantAudio(1) }), ctx);
     expect(result.ok).toBe(true);
@@ -293,7 +295,7 @@ describe('undo', () => {
 
   it('a failed command leaves the history unchanged', () => {
     const ctx = sequentialIds();
-    const history = createHistory(createProject(ctx));
+    const history = createHistory(createProject());
     const result = apply(history, remove('hit', 'missing'), ctx);
     expect(result.ok).toBe(false);
     expect(result.history).toBe(history);
@@ -301,7 +303,7 @@ describe('undo', () => {
 
   it('a new command clears redo', () => {
     const ctx = sequentialIds();
-    let history = createHistory(createProject(ctx));
+    let history = createHistory(createProject());
     history = apply(history, createLoop('A', 'main', 1), ctx).history;
     history = undo(history);
     history = apply(history, createLoop('B', 'main', 1), ctx).history;
@@ -312,7 +314,7 @@ describe('undo', () => {
 describe('fas 3 model', () => {
   it('duplicateHit marks the variant; chain pads are auto and built pads are not', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
+    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
     const hit = only(project.hits);
     expect(hit.variantOf).toBeNull();
     expect(only(project.pads).auto).toBe(true);
@@ -325,7 +327,7 @@ describe('fas 3 model', () => {
 
   it('setLoopLength lengthens with empty steps and shortens, keeping the steps that remain', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createLoop(null, 'main', 2));
+    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createLoop(null, 'main', 2));
     const pad = only(project.pads);
     const loop = only(project.loops);
     project = run(project, ctx, setStep(loop.id, 3, { padId: pad.id }), setStep(loop.id, 20, { padId: pad.id }));
@@ -347,7 +349,7 @@ describe('fas 3 model', () => {
 
   it('an older loop with a bars field loses it: its length is its steps', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, createLoop(null, 'main', 1));
+    const project = run(createProject(), ctx, createLoop(null, 'main', 1));
     const loop = only(project.loops);
     const legacy = { ...project, loops: { [loop.id]: { ...loop, bars: 1 } } } as unknown as Project;
     expect('bars' in upgradeProject(legacy).loops[loop.id]!).toBe(false);
@@ -355,13 +357,13 @@ describe('fas 3 model', () => {
 
   it('createLoop without a name takes the next free M or F number', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, createLoop(null, 'main', 1), createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
+    const project = run(createProject(), ctx, createLoop(null, 'main', 1), createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
     expect(Object.values(project.loops).map((l) => l.name)).toEqual(['M1', 'M2', 'F1']);
   });
 
   it('commands with the same merge key share one undo step until another command or a seal', () => {
     const ctx = sequentialIds();
-    let history = createHistory(createProject(ctx));
+    let history = createHistory(createProject());
     const start = history.present;
     const step = (command: Command, key: string | null = null) => {
       const result = apply(history, command, ctx, key);
@@ -387,7 +389,7 @@ describe('fas 3 model', () => {
 
   it('upgradeProject fills in fields that older saves lack', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
+    const project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
     const old = structuredClone(project) as { hits: Record<string, { variantOf?: unknown }>; pads: Record<string, { auto?: unknown }> };
     Object.values(old.hits).forEach((h) => delete h.variantOf);
     Object.values(old.pads).forEach((p) => delete p.auto);
@@ -399,7 +401,7 @@ describe('fas 3b: trimming, markers and re-slicing', () => {
   /** A 2 s one-shot or break at 44.1 kHz. */
   function imported(seconds = 2) {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, addSample({ name: 'amen.wav', audio: constantAudio(seconds) }));
+    const project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(seconds) }));
     return { ctx, project, id: only(project.samples).id };
   }
 
@@ -495,27 +497,12 @@ describe('fas 3b: trimming, markers and re-slicing', () => {
   });
 });
 
-describe('fas 5: tags and kept markers', () => {
-  const tagId = (project: Project, name: string) => Object.values(project.tags).find((t) => t.name === name)!.id;
-
-  it('guessTags marks guesses on untagged samples only; confirmTags and a tag set by hand clear the mark', () => {
-    const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'a', audio: constantAudio(0.1) }), addSample({ name: 'b', audio: constantAudio(0.1) }));
-    const [a, b] = Object.keys(project.samples) as [string, string];
-    project = run(project, ctx, updateSample(b, { mainTag: tagId(project, 'K') }));
-
-    project = run(project, ctx, guessTags([a, b], () => 'S'));
-    expect(project.samples[a]).toMatchObject({ mainTag: tagId(project, 'S'), tagGuessed: true });
-    expect(project.samples[b]).toMatchObject({ mainTag: tagId(project, 'K'), tagGuessed: false });
-
-    expect(run(project, ctx, confirmTags([a])).samples[a]!.tagGuessed).toBe(false);
-    expect(run(project, ctx, updateSample(a, { mainTag: tagId(project, 'H') })).samples[a]!.tagGuessed).toBe(false);
-  });
+describe('fas 5: kept markers', () => {
 
   it('setBreak and trimSample keep markers placed by hand, but move grid markers to the new grid', () => {
     const ctx = sequentialIds();
     const { project: start, id } = (() => {
-      const p = run(createProject(ctx), ctx, addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+      const p = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(2) }));
       return { project: p, id: only(p.samples).id };
     })();
     let project = run(start, ctx, setBreak(id, 1), setMarkers(id, [0.3, 1.1]));
@@ -535,29 +522,16 @@ describe('fas 5: tags and kept markers', () => {
 
   it('a file with cues imports as a break with markers at the cues', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, addSample({ name: 'cued.wav', audio: constantAudio(2), cues: [0, 0.5, 1.25] }));
+    const project = run(createProject(), ctx, addSample({ name: 'cued.wav', audio: constantAudio(2), cues: [0, 0.5, 1.25] }));
     // Two seconds is one bar at 120 BPM.
     expect(only(project.samples).break).toMatchObject({ bars: 1, markers: [0, 0.5, 1.25], sliced: false });
-  });
-
-  it('removeTag refuses the defaults and tags in use, and removes your own', () => {
-    const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addTag('P'), addSample({ name: 'a', audio: constantAudio(0.1) }));
-    const p = tagId(project, 'P');
-    expect(removeTag(tagId(project, 'K'))(project, ctx)).toMatchObject({ ok: false, error: { kind: 'invalid' } });
-
-    const tagged = run(project, ctx, updateSample(only(project.samples).id, { mainTag: p }));
-    expect(removeTag(p)(tagged, ctx)).toMatchObject({ ok: false, error: { kind: 'in-use' } });
-
-    project = run(project, ctx, removeTag(p));
-    expect(Object.values(project.tags).map((t) => t.name)).toEqual(['K', 'S', 'H', 'R', 'G']);
   });
 });
 
 describe('loop kind is a tag', () => {
   it('any loop can go in the Main or the Fill row, and setLoopKind retags it', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
+    let project = run(createProject(), ctx, createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
     const [main, fill] = Object.values(project.loops);
     project = run(project, ctx, setSongCell('fill', 0, main!.id), setSongCell('main', 1, fill!.id));
     expect(project.song.clips.map((c) => [c.row, c.ref, c.start])).toEqual([
@@ -573,7 +547,7 @@ describe('loop kind is a tag', () => {
 describe('addVariant', () => {
   it("adds the variant last to the original's own pad; a variant of a variant goes there too", () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
+    let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
     const id = only(project.samples).id;
     project = run(project, ctx, sliceBreak(id, 1, 4));
     const slicePad = Object.values(project.pads).find((p) => p.auto && project.samples[project.hits[p.members[0]!]!.sampleId]!.sliceOf === id)!;
@@ -599,13 +573,13 @@ describe('break length', () => {
 
   it('a file with cues gets its bars guessed', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0, 0.4] }));
+    const project = run(createProject(), ctx, addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0, 0.4] }));
     expect(only(project.samples).break?.bars).toBe(1);
   });
 
   it('bars can change after slicing: the BPM and where the slices land follow', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1.75) }));
+    let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1.75) }));
     const id = only(project.samples).id;
     // Sliced as 4 bars by mistake: one bar of 1/4 slices lands 4 times too far apart.
     project = run(project, ctx, setBreak(id, 4), setMarkers(id, [0.4375, 0.875, 1.3125]), sliceAtMarkers(id));
@@ -623,7 +597,7 @@ describe('clips', () => {
   /** A song of 4 bars with a one-bar loop L and a mod D. */
   function song() {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod('D', [{ target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
+    const project = run(createProject(), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod('D', [{ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1] } }]));
     return { ctx, project, loop: only(project.loops).id, mod: only(project.mods).id };
   }
   const spans = (project: Project, row = 'main') =>
@@ -685,7 +659,7 @@ describe('clips', () => {
 
   it('a song saved with rows becomes clips that play the same', () => {
     const ctx = sequentialIds();
-    const base = run(createProject(ctx), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod('D', [{ target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } }]));
+    const base = run(createProject(), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod('D', [{ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1] } }]));
     const [m, f] = Object.keys(base.loops) as [string, string];
     const d = Object.keys(base.mods)[0]!;
     const legacy = {
@@ -708,12 +682,12 @@ describe('clips', () => {
 });
 
 describe('mods with effects', () => {
-  const pitch: StepEffect = { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1] } };
+  const pitch: StepEffect = { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1] } };
   const tape: TapeEffect = { target: 'tape', length: 6, direction: 'pingpong', speed: { from: 1, to: 0 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
   it('a mod has at most one effect per target, and may have none', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, createMod('M', [pitch]));
+    const project = run(createProject(), ctx, createMod('M', [pitch]));
     const id = only(project.mods).id;
     expect(createMod('X', [])(project, ctx).ok).toBe(true);
     expect(addEffect(id, { ...pitch, rate: 'step' })(project, ctx).ok).toBe(false);
@@ -727,7 +701,7 @@ describe('mods with effects', () => {
 
   it('a clip of a mod with Tape is at least as long as its segment', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(ctx), ctx, setSongBars(4), createMod('T', [{ ...tape, length: 20 }]));
+    const project = run(createProject(), ctx, setSongBars(4), createMod('T', [{ ...tape, length: 20 }]));
     const id = only(project.mods).id;
     const placed = run(project, ctx, addClip('modA', id, 0));
     // One bar is too short for 20 steps, so it gets 20.
@@ -741,64 +715,59 @@ describe('mods with effects', () => {
   });
 
   it('a tape saved before ramp time, curve, wow and flutter gets their defaults', () => {
-    const ctx = sequentialIds();
-    const base = createProject(ctx);
+    const base = createProject();
     const old = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } };
     const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [old] } } } as unknown as Project;
     expect(upgradeProject(legacy).mods.m!.effects).toEqual([{ ...old, rampOver: null, curve: 'linear', wow: 0, flutter: 0 }]);
   });
 
-  it('a saved step range becomes every step: the clip in Song now says which steps', () => {
-    const ctx = sequentialIds();
-    const base = createProject(ctx);
+  it('a saved scope goes: a mod acts on everything under its clip in Song', () => {
+    const base = createProject();
     const effect = { target: 'pitch', scope: { kind: 'range', from: 4, to: 7 }, rate: 'bar', shape: { kind: 'list', values: [12] } };
     const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [effect] }, n: { id: 'n', name: 'Older', ...effect } } } as unknown as Project;
     const upgraded = upgradeProject(legacy);
-    expect(upgraded.mods.m!.effects[0]).toMatchObject({ scope: { kind: 'all' } });
-    expect(upgraded.mods.n!.effects[0]).toMatchObject({ scope: { kind: 'all' } });
+    expect(upgraded.mods.m!.effects[0]).toEqual({ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [12] } });
+    expect(upgraded.mods.n!.effects[0]).toEqual({ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [12] } });
   });
 
   it('a saved random shape gets whole numbers for pitch and stays free elsewhere', () => {
-    const ctx = sequentialIds();
-    const base = createProject(ctx);
-    const random = (target: string) => ({ target, scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'random', min: 0, max: 4, chance: 50 } });
+    const base = createProject();
+    const random = (target: string) => ({ target, rate: 'bar', shape: { kind: 'random', min: 0, max: 4, chance: 50 } });
     const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [random('pitch'), random('volume')] } } } as unknown as Project;
     expect(upgradeProject(legacy).mods.m!.effects.map((e) => 'shape' in e && e.shape.kind === 'random' && e.shape.whole)).toEqual([true, false]);
   });
 
   it('a saved Borrow borrows from the same loops half the time, silent where they are empty', () => {
-    const ctx = sequentialIds();
-    const base = createProject(ctx);
-    const old = { id: 'm', name: 'Old', target: 'sourceLoop', scope: { kind: 'all' }, rate: 'beat', shape: { kind: 'list', values: [0, 1] }, sources: ['a', 'b'] };
+    const base = createProject();
+    const old = { id: 'm', name: 'Old', target: 'sourceLoop', rate: 'beat', shape: { kind: 'list', values: [0, 1] }, sources: ['a', 'b'] };
     const legacy = { ...base, mods: { m: old } } as unknown as Project;
     expect(upgradeProject(legacy).mods.m!.effects).toEqual([
-      { target: 'sourceLoop', scope: { kind: 'all' }, rate: 'beat', sources: ['a', 'b'], pick: { kind: 'random', chance: 50 }, skipEmpty: false },
+      { target: 'sourceLoop', rate: 'beat', sources: ['a', 'b'], pick: { kind: 'random', chance: 50 }, skipEmpty: false },
     ]);
   });
 
   it('Borrow checks its chance and its every', () => {
     const ctx = sequentialIds();
-    const borrow = { target: 'sourceLoop', scope: { kind: 'all' }, rate: 'step', sources: [], skipEmpty: true } as const;
-    expect(createMod('B', [{ ...borrow, pick: { kind: 'random', chance: 120 } }])(createProject(ctx), ctx).ok).toBe(false);
-    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 1 } }])(createProject(ctx), ctx).ok).toBe(false);
-    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 3 } }])(createProject(ctx), ctx).ok).toBe(true);
+    const borrow = { target: 'sourceLoop', rate: 'step', sources: [], skipEmpty: true } as const;
+    expect(createMod('B', [{ ...borrow, pick: { kind: 'random', chance: 120 } }])(createProject(), ctx).ok).toBe(false);
+    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 1 } }])(createProject(), ctx).ok).toBe(false);
+    expect(createMod('B', [{ ...borrow, pick: { kind: 'every', n: 3 } }])(createProject(), ctx).ok).toBe(true);
   });
 
   it('wow, flutter and ramp time are checked', () => {
     const ctx = sequentialIds();
-    expect(createMod('T', [{ ...tape, wow: 1.5 }])(createProject(ctx), ctx).ok).toBe(false);
-    expect(createMod('T', [{ ...tape, rampOver: 0 }])(createProject(ctx), ctx).ok).toBe(false);
-    expect(createMod('T', [{ ...tape, rampOver: 4, wow: 0.5, flutter: 1 }])(createProject(ctx), ctx).ok).toBe(true);
+    expect(createMod('T', [{ ...tape, wow: 1.5 }])(createProject(), ctx).ok).toBe(false);
+    expect(createMod('T', [{ ...tape, rampOver: 0 }])(createProject(), ctx).ok).toBe(false);
+    expect(createMod('T', [{ ...tape, rampOver: 4, wow: 0.5, flutter: 1 }])(createProject(), ctx).ok).toBe(true);
   });
 
   it('a mod saved before effects becomes a mod with that one effect', () => {
-    const ctx = sequentialIds();
-    const base = createProject(ctx);
-    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } } } } as unknown as Project;
+    const base = createProject();
+    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [2] } } } } as unknown as Project;
     expect(upgradeProject(legacy).mods.m).toEqual({
       id: 'm',
       name: 'Old',
-      effects: [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }],
+      effects: [{ target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [2] } }],
     });
   });
 });
@@ -806,7 +775,7 @@ describe('mods with effects', () => {
 describe('moving steps', () => {
   it('moves a block of steps, copies it, and leaves out what falls outside the loop', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(ctx), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createLoop(null, 'main', 1));
+    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createLoop(null, 'main', 1));
     const pad = only(project.pads).id;
     const loop = only(project.loops).id;
     project = run(project, ctx, setStep(loop, 5, { padId: pad }), setStep(loop, 7, { padId: pad }));

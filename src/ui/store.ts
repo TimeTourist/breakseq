@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { Command, CommandError, History, Id, Project } from '../model';
 import { apply, createHistory, createProject, redo, seal, undo } from '../model';
 
-export const VIEWS = ['import', 'slice', 'tag', 'hits', 'pads', 'loops', 'mods', 'song'] as const;
+export const VIEWS = ['import', 'slice', 'hits', 'loops', 'mods', 'song'] as const;
 export type View = (typeof VIEWS)[number];
 
 /** What is open in each editing view. */

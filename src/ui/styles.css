@@ -1847,3 +1847,71 @@ input[type='search'] {
 .mod-graph.borrow .layer.borrowed.n1 text {
   fill: #e5689a;
 }
+
+/* Hits: each break's pads in order, a pad's hits beside it. */
+
+.break-head {
+  margin-top: 4px;
+}
+
+.pad-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.pad-row.current {
+  background: var(--accent-bg);
+}
+
+.pad-row-name {
+  min-height: 0;
+  min-width: 3.2em;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  font-size: 12px;
+}
+
+.pad-row.current .pad-row-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.hit-chip {
+  min-height: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: 12px;
+  cursor: grab;
+}
+
+.hit-chip.first {
+  border-color: var(--border-strong);
+}
+
+.hit-chip.current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.member.current {
+  outline: 1px solid var(--accent);
+}
+
+.add-hits summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.add-hits[open] summary {
+  margin-bottom: 8px;
+}

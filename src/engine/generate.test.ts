@@ -38,7 +38,7 @@ function added<K extends 'hits' | 'pads' | 'loops' | 'mods'>(before: Project, af
 
 /** A project with one sample (and its hit and pad) per name. */
 function withPads(names: readonly string[]): { project: Project; pad: Record<string, Id>; hit: Record<string, Id> } {
-  let project = run(createProject(ctx), setBpm(120));
+  let project = run(createProject(), setBpm(120));
   const pad: Record<string, Id> = {};
   const hit: Record<string, Id> = {};
   for (const name of names) {
@@ -229,7 +229,6 @@ describe('mods', () => {
     let mod: Id;
     [project, mod] = addMod(project, {
       target: 'pitch',
-      scope: { kind: 'all' },
       rate: 'beat',
       shape: { kind: 'list', values: [3, 5, 7, 9] },
     });
@@ -244,8 +243,8 @@ describe('mods', () => {
     let { project, hit } = everyStep();
     project = run(project, updateHit(hit.K!, { pitch: 1 }));
     let a: Id, b: Id;
-    [project, a] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [2] } });
-    [project, b] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [5] } });
+    [project, a] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [2] } });
+    [project, b] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [5] } });
     project = run(project, setSongCell('modA', 0, a), setSongCell('modB', 0, b));
 
     expect(new Set(generateTriggers(project, () => 0).map((t) => t.pitch))).toEqual(new Set([8]));
@@ -256,11 +255,10 @@ describe('mods', () => {
     let ratchet: Id, pitch: Id;
     [project, ratchet] = addMod(project, {
       target: 'ratchet',
-      scope: { kind: 'all' },
       rate: 'step',
       shape: { kind: 'random', min: 4, max: 4, chance: 100, whole: true },
     });
-    [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [3] } });
+    [project, pitch] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [3] } });
     // The ratchet's clip covers step 1 only.
     project = run(project, addClip('modA', ratchet, 0, 1), setSongCell('modB', 0, pitch));
 
@@ -274,8 +272,8 @@ describe('mods', () => {
   it('ignoreMods turns off every mod for the step', () => {
     let { project, loop } = everyStep();
     let ratchet: Id, pitch: Id;
-    [project, ratchet] = addMod(project, { target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 2, max: 2, chance: 100, whole: true } });
-    [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [3] } });
+    [project, ratchet] = addMod(project, { target: 'ratchet', rate: 'step', shape: { kind: 'random', min: 2, max: 2, chance: 100, whole: true } });
+    [project, pitch] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [3] } });
     project = run(project, setStep(loop, 1, { ignoreMods: true }), setSongCell('modA', 0, ratchet), setSongCell('modB', 0, pitch));
 
     const triggers = generateTriggers(project, () => 0);
@@ -287,7 +285,7 @@ describe('mods', () => {
   it('a random value is held over its interval and applies only with its chance', () => {
     let { project } = everyStep();
     let ratchet: Id;
-    [project, ratchet] = addMod(project, { target: 'ratchet', scope: { kind: 'all' }, rate: 'beat', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } });
+    [project, ratchet] = addMod(project, { target: 'ratchet', rate: 'beat', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } });
     project = run(project, setSongCell('modA', 0, ratchet));
 
     // Beat 1: chance roll 0.1 hits, value roll 0.99 → 8. Beat 2: chance roll 0.9 misses.
@@ -297,26 +295,22 @@ describe('mods', () => {
     expect(perStep).toEqual([8, 8, 8, 8, 1, 1, 1, 1, 1, 1, 1, 1, 5, 5, 5, 5]);
   });
 
-  it('only touches steps in scope and under its clip', () => {
-    let { project, pad: kPad } = everyStep();
+  it('only touches the steps under its clip', () => {
+    let { project } = everyStep();
     let pitch: Id;
-    [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [12] } });
+    [project, pitch] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [12] } });
     project = run(project, addClip('modA', pitch, 4, 4));
     expect(generateTriggers(project, () => 0).map((t) => t.pitch)).toEqual([
       0, 0, 0, 0, 12, 12, 12, 12, 0, 0, 0, 0, 0, 0, 0, 0,
     ]);
 
-    let other: Id;
-    [project, other] = addMod(project, { target: 'pitch', scope: { kind: 'pad', padId: kPad.K! }, rate: 'bar', shape: { kind: 'list', values: [1] } });
-    project = run(project, setSongCell('modA', 0, other));
-    expect(new Set(generateTriggers(project, () => 0).map((t) => t.pitch))).toEqual(new Set([1]));
   });
 
   it('a mod clip is one modulation over its length; another clip starts over', () => {
     let { project } = everyStep(1);
     project = run(project, setSongBars(4), addClip('main', Object.keys(project.loops)[0]!, 0, 64));
     let pitch: Id;
-    [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'bar', shape: { kind: 'list', values: [1, 2, 3] } });
+    [project, pitch] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1, 2, 3] } });
     project = run(project, addClip('modA', pitch, 0, 32), addClip('modA', pitch, 48, 16));
 
     const perBar = (bar: number) => generateTriggers(project, () => 0).find((t) => t.bar === bar)?.pitch;
@@ -327,7 +321,7 @@ describe('mods', () => {
   it('a mod clip of 4/16 changes only those steps', () => {
     let { project } = everyStep(1);
     let pitch: Id;
-    [project, pitch] = addMod(project, { target: 'pitch', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'ramp', from: 1, to: 4 } });
+    [project, pitch] = addMod(project, { target: 'pitch', rate: 'step', shape: { kind: 'ramp', from: 1, to: 4 } });
     project = run(project, addClip('modA', pitch, 6, 4));
     expect(generateTriggers(project, () => 0).map((t) => t.pitch)).toEqual([0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0]);
   });
@@ -342,7 +336,7 @@ describe('randomness', () => {
     project = run(
       project,
       ...Array.from({ length: 64 }, (_, i) => setStep(loop, i, { padId: pad.K! })),
-      createMod('roll', [{ target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } }]),
+      createMod('roll', [{ target: 'ratchet', rate: 'step', shape: { kind: 'random', min: 1, max: 8, chance: 50, whole: true } }]),
     );
     const mod = added(before, project, 'mods');
     project = run(project, setSongBars(4), setSongCell('main', 0, loop), ...row('modA', '1111', { '1': mod }));

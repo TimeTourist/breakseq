@@ -1,9 +1,5 @@
-import type { CommandContext } from './command';
-import { defaultContext } from './command';
-import type { Clip, Hit, Id, Loop, LoopKind, Mod, Pad, Project, Sample, ModEffect, ModRate, ModScope, ModShape, Song, SongRow, Step, StepTarget, BorrowEffect, Tag, TapeEffect } from './types';
+import type { BorrowEffect, Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, Pad, Project, Sample, Song, SongRow, Step, StepTarget, TapeEffect } from './types';
 import { STEPS_PER_BAR } from './types';
-
-export const DEFAULT_TAG_NAMES = ['K', 'S', 'H', 'R', 'G'] as const;
 
 // A new song starts at 170 BPM and 8 bars.
 export const DEFAULT_BPM = 170;
@@ -19,13 +15,8 @@ export function emptySong(bars = DEFAULT_SONG_BARS, bpm = DEFAULT_BPM): Song {
   return { bpm, bars, clips: [] };
 }
 
-export function createProject(ctx: CommandContext = defaultContext): Project {
-  const tags: Record<Id, Tag> = {};
-  for (const name of DEFAULT_TAG_NAMES) {
-    const id = ctx.newId();
-    tags[id] = { id, name };
-  }
-  return { audio: {}, tags, samples: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
+export function createProject(): Project {
+  return { audio: {}, samples: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
 
 /** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
@@ -65,14 +56,21 @@ export function upgradeProject(project: Project): Project {
   const pads = Object.fromEntries(
     Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true }]),
   );
+  // Tags went: a sample keeps everything but its tag fields.
+  const untagged = (sample: Sample): Sample => {
+    const copy: Sample & { mainTag?: unknown; extraTags?: unknown; tagGuessed?: unknown } = { ...sample };
+    delete copy.mainTag;
+    delete copy.extraTags;
+    delete copy.tagGuessed;
+    return copy;
+  };
   const samples = Object.fromEntries(
     Object.entries(project.samples).map(([id, sample]): [Id, Sample] => [
       id,
       sample.break === null || (sample.break.markers !== undefined && sample.break.loop !== undefined)
-        ? { ...sample, tagGuessed: sample.tagGuessed ?? false }
+        ? untagged(sample)
         : {
-            ...sample,
-            tagGuessed: sample.tagGuessed ?? false,
+            ...untagged(sample),
             break: {
               ...sample.break,
               markers: sample.break.markers ?? gridMarkers(sample.duration, sample.break.bars),
@@ -100,7 +98,10 @@ export function upgradeProject(project: Project): Project {
       return [id, { id, name: mod.name, effects: effects.map(upgradeEffect) }];
     }),
   );
-  return { ...project, samples, hits, pads, loops, mods, song };
+  // Tags went with the samples' tag fields.
+  const upgraded: Project & { tags?: unknown } = { ...project, samples, hits, pads, loops, mods, song };
+  delete upgraded.tags;
+  return upgraded;
 }
 
 /** An effect as an older version may have saved it. */
@@ -113,20 +114,20 @@ function upgradeEffect(saved: SavedEffect): ModEffect {
   if (saved.target === 'tape') {
     return { rampOver: null, curve: 'linear', wow: 0, flutter: 0, ...(saved as unknown as Partial<TapeEffect>) } as TapeEffect;
   }
-  // Step ranges went: a clip in Song now covers exactly the steps a mod acts on.
-  const savedScope = saved.scope as ModScope | { kind: 'range' };
-  const scope: ModScope = savedScope.kind === 'range' ? { kind: 'all' } : savedScope;
+  // Scopes went: a mod acts on everything under its clip in Song.
+  const rest: Record<string, unknown> = { ...saved };
+  delete rest.scope;
   const rate = saved.rate as ModRate;
   if (saved.target === 'sourceLoop') {
-    if ('pick' in saved) return { ...(saved as unknown as BorrowEffect), scope };
+    if ('pick' in saved) return rest as unknown as BorrowEffect;
     // Borrow used to pick its loop by value; it now borrows from the same loops half the time, silent where they are.
-    return { target: 'sourceLoop', scope, rate, sources: (saved.sources as readonly Id[] | undefined) ?? [], pick: { kind: 'random', chance: 50 }, skipEmpty: false };
+    return { target: 'sourceLoop', rate, sources: (saved.sources as readonly Id[] | undefined) ?? [], pick: { kind: 'random', chance: 50 }, skipEmpty: false };
   }
   // Random got a choice of whole numbers; pitch rolls semitones unless set otherwise.
   const savedShape = saved.shape as ModShape;
   const shape: ModShape =
     savedShape.kind === 'random' && (savedShape as { whole?: boolean }).whole === undefined ? { ...savedShape, whole: saved.target === 'pitch' } : savedShape;
-  return { target: saved.target as StepTarget, scope, rate, shape };
+  return { target: saved.target as StepTarget, rate, shape };
 }
 
 /** Songs saved before clips: one cell per bar and row. */

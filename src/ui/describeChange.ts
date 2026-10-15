@@ -7,7 +7,6 @@ const COLLECTIONS = [
   ['pads', 'pad'],
   ['loops', 'loop'],
   ['mods', 'mod'],
-  ['tags', 'tag'],
 ] as const;
 
 /**

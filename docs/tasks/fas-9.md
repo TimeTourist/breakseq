@@ -47,10 +47,10 @@ Ordlistan blir tydlig och vyerna följer den: **Sample → Hit → Pad → Break
 
 ## Tester som krävs
 
-- [ ] Ett gammalt projekt med taggar och omfång öppnas, och fälten är borta.
-- [ ] En mod som hade omfånget "S steps" gäller alla steg under klippet.
-- [ ] Hits-vyn visar ett break med föräldern och pads i ordning, och one-shots för sig.
-- [ ] Att lägga en one-shot i en pad i ett break gör den till alternativ 2, och Pad member 2 spelar den.
-- [ ] En variant hamnar i samma pad som originalet, som förut.
-- [ ] Det finns ingen Tag-flik, och tangent 3 öppnar Hits.
-- [ ] Mod-meningen saknar omfång.
+- [x] Ett gammalt projekt med taggar och omfång öppnas, och fälten är borta.
+- [x] En mod som hade omfånget "S steps" gäller alla steg under klippet.
+- [x] Hits-vyn visar ett break med föräldern och pads i ordning, och one-shots för sig.
+- [x] Att lägga en one-shot i en pad i ett break gör den till alternativ 2, och Pad member 2 spelar den.
+- [x] En variant hamnar i samma pad som originalet, som förut.
+- [x] Det finns ingen Tag-flik, och tangent 3 öppnar Hits.
+- [x] Mod-meningen saknar omfång.

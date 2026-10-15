@@ -4,7 +4,7 @@ import type { Id, LoopKind, Project } from '../model';
 import { STEPS_PER_BAR, baseName, createLoop, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { hitColor, lengthText, loopUsage, padColor, padGroups, padLabel } from './labels';
+import { HIT_COLOR, lengthText, loopUsage, padGroups, padLabel } from './labels';
 import { LoopLength } from './LoopLength';
 import type { Selection } from './store';
 
@@ -208,7 +208,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   const cell = loop.steps[index];
                   const pad = cell?.padId == null ? undefined : project.pads[cell.padId];
                   const memberIndex = pad === undefined || cell?.memberId == null ? 0 : Math.max(0, pad.members.indexOf(cell.memberId));
-                  const color = pad === undefined ? undefined : hitColor(project, pad.members[memberIndex]);
+                  const color = pad === undefined ? undefined : HIT_COLOR;
                   const now = playhead !== null && playhead.bar === bar && playhead.step === s;
                   return (
                     <button
@@ -227,7 +227,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}`}
                       onClick={(e) => clickStep(index, e.shiftKey)}
                       onDoubleClick={() => {
-                        if (pad !== undefined) open({ pad: pad.id }, 'pads');
+                        if (pad !== undefined) open({ pad: pad.id, hit: null }, 'hits');
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -253,7 +253,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
         <section className="panel stack-tight">
           <div className="row spread">
             <h2 className="label">Pads · drag onto a step, or select one and click steps</h2>
-            <button type="button" className="link-text small" onClick={() => open({}, 'pads')}>
+            <button type="button" className="link-text small" onClick={() => open({}, 'hits')}>
               Build pads in Pads →
             </button>
           </div>
@@ -290,11 +290,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     type="button"
                     draggable
                     className="chip mono"
-                    onDoubleClick={() => open({ pad: p.id }, 'pads')}
+                    onDoubleClick={() => open({ pad: p.id, hit: null }, 'hits')}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
                     title={p.name}
-                    style={{ color: padColor(project, p), boxShadow: `inset 0 -3px 0 ${padColor(project, p)}` }}
+                    style={{ color: HIT_COLOR, boxShadow: `inset 0 -3px 0 ${HIT_COLOR}` }}
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);
                       setShelfBreak(null);
@@ -328,10 +328,10 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                 <p className="muted small">Empty. Drag a pad here, or select one below and click the step.</p>
               ) : (
                 <div className="panel row spread">
-                  <span className="mono" style={{ color: padColor(project, stepPad) }}>
+                  <span className="mono" style={{ color: HIT_COLOR }}>
                     {stepPad.name}
                   </span>
-                  <button type="button" className="link-text small" onClick={() => open({ pad: stepPad.id }, 'pads')}>
+                  <button type="button" className="link-text small" onClick={() => open({ pad: stepPad.id, hit: null }, 'hits')}>
                     Edit in Pads →
                   </button>
                 </div>

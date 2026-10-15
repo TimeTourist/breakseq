@@ -1,4 +1,4 @@
-import type { EffectTarget, ModScope, ModShape, Project, StepEffect, StepTarget } from '../model';
+import type { EffectTarget, ModShape, StepEffect, StepTarget } from '../model';
 import { STEP_TARGETS } from '../model';
 
 export const TARGET_LABELS: Record<EffectTarget, string> = {
@@ -93,21 +93,9 @@ const several = (rng: () => number, count: [number, number], make: () => number)
  * starting point to tweak, not a random number soup. Targets in `taken` are
  * left out, unless that leaves none.
  */
-export function randomMod(project: Project, rng: () => number = Math.random, taken: readonly EffectTarget[] = []): StepEffect {
+export function randomMod(rng: () => number = Math.random, taken: readonly EffectTarget[] = []): StepEffect {
   const free = STEP_TARGETS.filter((t) => !taken.includes(t));
   const target = pick(rng, free.length > 0 ? free : STEP_TARGETS);
-
-  const tags = Object.values(project.tags);
-  const pads = Object.values(project.pads).filter((p) => !p.auto || p.members.length > 1);
-  const scopeRoll = rng();
-  const scope: ModScope =
-    scopeRoll < 0.5 || target === 'tempo'
-      ? { kind: 'all' }
-      : scopeRoll < 0.8 && tags.length > 0
-        ? { kind: 'tag', tagId: pick(rng, tags).id }
-        : pads.length > 0
-          ? { kind: 'pad', padId: pick(rng, pads).id }
-          : { kind: 'all' };
 
   const rate = pick(rng, ['step', 'beat', 'bar'] as const);
   const value: Record<StepTarget, () => number> = {
@@ -137,5 +125,5 @@ export function randomMod(project: Project, rng: () => number = Math.random, tak
       : kind === 'ramp'
         ? { kind: 'ramp', from: value[target](), to: value[target]() }
         : { kind, values: target === 'padMember' && kind === 'cycle' && rng() < 0.5 ? [] : several(rng, [1, 4], value[target]) };
-  return { target, scope, rate, shape };
+  return { target, rate, shape };
 }

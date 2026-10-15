@@ -229,8 +229,8 @@ export function ImportView() {
                       <td>{creates(project, sample)}</td>
                       <td className="next">
                         {sample.break === null ? (
-                          <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'tag' })}>
-                            Tag →
+                          <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'hits' })}>
+                            Hits →
                           </button>
                         ) : sliced ? (
                           <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'song' })}>

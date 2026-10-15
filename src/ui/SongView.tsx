@@ -4,7 +4,7 @@ import type { Clip, Id, Mod, Project, SongRow } from '../model';
 import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, removeClip, resizeClip, setSongBars } from '../model';
 import { useOpen, useProject, useRun, useSeal } from './context';
 import { copies } from './dnd';
-import { hitColor, lengthText } from './labels';
+import { HIT_COLOR, lengthText } from './labels';
 import { TARGET_LABELS } from './modText';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
@@ -157,7 +157,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake }:
               if (pad === undefined && !restart) return null;
               return (
                 <span key={i} className={`clip-step${restart ? ' restart' : ''}`} style={{ left: i * STEP_PX }}>
-                  {pad !== undefined && <span className="clip-tick" style={{ background: hitColor(project, cell?.memberId ?? pad.members[0]) }} />}
+                  {pad !== undefined && <span className="clip-tick" style={{ background: HIT_COLOR }} />}
                 </span>
               );
             })}
