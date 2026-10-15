@@ -17,7 +17,7 @@ Fliken **Project** (nummer 7) öppnar och skapar projekt i en mapp på disk och 
 
 ## Verifierat
 
-- Det finns 213 tester, och typecheck och lint är gröna.
+- Det finns 207 tester, och typecheck och lint är gröna.
   - Motorn har 6 tester: tur och retur med ljud, att ljud skrivs en gång, ordningen, namnkrockar och manifestet.
   - UI:t har 6 tester: New och (changed) och Save, ny snapshot och Load med Discard och ny historik, Save first, Open, New i ett befintligt projekt och tangent 7.
 - Kontrollen i Chrome använde en riktig katalog via File System Access. Det var webbläsarens egen (OPFS) eftersom mappväljaren inte kan klickas i automatiserade tester, men det är samma API som för en mapp på disk.
