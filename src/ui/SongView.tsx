@@ -119,6 +119,13 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
           onDragEnd: drops.clear,
         };
 
+  /** The loop a mod in this bar acts on: a fill playing in the bar, otherwise the main. */
+  const heardIn = (bar: number): Id | null => {
+    const fill = laneCells(project, 'fill')[bar];
+    if (fill?.plays != null && fill.fillSteps !== null && fill.fillSteps.to > fill.fillSteps.from) return fill.plays.id;
+    return laneCells(project, 'main')[bar]?.plays?.id ?? null;
+  };
+
   /** A mod lane: a mod acts in the bars it is placed in; the same mod in adjacent bars is one run. */
   const modLane = (row: 'modA' | 'modB') => (
     <div className="lane" style={columns}>
@@ -142,7 +149,7 @@ export function SongView({ playheadBar, rendering, onNewTake }: SongViewProps) {
               if (selectedMod !== null) placeMod(row, bar, selectedMod);
             }}
             onDoubleClick={() => {
-              if (mod !== undefined) open({ mod: mod.id }, 'mods');
+              if (mod !== undefined) open({ mod: mod.id, previewLoop: heardIn(bar) }, 'mods');
             }}
             onKeyDown={(e) => {
               if ((e.key === 'Delete' || e.key === 'Backspace') && id !== null) {

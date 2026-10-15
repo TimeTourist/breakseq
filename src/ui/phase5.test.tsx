@@ -170,3 +170,26 @@ describe('Double-click opens the editor', () => {
     expect(state().selection.mod).toBe(mod.id);
   });
 });
+
+describe('Double-clicking a mod in Song', () => {
+  it('picks the loop playing in that bar for Try on: the fill there, else the main', async () => {
+    let project = apply(createProject(ctx), createLoop(null, 'main', 4), createLoop(null, 'fill', 1));
+    const [main, fill] = Object.values(project.loops);
+    project = apply(
+      project,
+      setSongCell('main', 0, main!.id),
+      setSongCell('fill', 3, fill!.id),
+      createMod({ name: 'Roll', target: 'ratchet', scope: { kind: 'all' }, rate: 'step', shape: { kind: 'list', values: [2] } }),
+    );
+    const mod = Object.values(project.mods)[0]!;
+    const store = await setup(apply(project, setSongCell('modA', 1, mod.id), setSongCell('modA', 3, mod.id)), 'song');
+
+    fireEvent.doubleClick(button(/^Mod A bar 2:/));
+    expect(store.getState().selection).toMatchObject({ mod: mod.id, previewLoop: main!.id });
+    expect(store.getState().view).toBe('mods');
+
+    fireEvent.keyDown(window, { key: '8' });
+    fireEvent.doubleClick(button(/^Mod A bar 4:/));
+    expect(store.getState().selection.previewLoop).toBe(fill!.id);
+  });
+});
