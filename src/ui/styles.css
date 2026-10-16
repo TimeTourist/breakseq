@@ -15,7 +15,7 @@
   --accent-dim: #4a3d1f;
   --error: #f08a7e;
   /* A hit's tail over the steps after it: the hit colour, fainter. */
-  --hit-tail: rgb(201 196 184 / 0.45);
+  --hold: rgb(201 196 184 / 0.55);
   --sans: 'IBM Plex Sans', 'Helvetica Neue', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   color-scheme: dark;
@@ -1254,18 +1254,18 @@ input[type='search'] {
   position: relative;
 }
 
-.step .reach,
-.slice-step .reach {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 4px;
-  background: currentColor;
+/* A hit and the steps it holds up to the next one, as one box over the cells. */
+.hold {
+  align-self: stretch;
+  z-index: 1;
+  border: 1.5px solid var(--hold);
+  border-radius: 6px;
+  background: rgb(201 196 184 / 0.06);
+  pointer-events: none;
 }
 
-.step .reach.tail,
-.slice-step .reach.tail {
-  background: var(--hit-tail);
+.slice-steps .hold {
+  border-radius: 3px;
 }
 
 .step.selected {

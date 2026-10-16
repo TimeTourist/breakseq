@@ -60,26 +60,25 @@ async function setup(project: Project, view: View) {
   await act(async () => {});
 }
 
-/** The width of each cell's reach line, in percent, or 0 without one. */
-const widths = (cells: HTMLElement[]) => cells.map((c) => parseFloat(c.querySelector<HTMLElement>('.reach')?.style.width ?? '0'));
+/** Each hold box in a row as its grid column, e.g. "2 / span 2". */
+const boxes = (row: Element) => [...row.querySelectorAll<HTMLElement>('.hold')].map((b) => b.style.gridColumn);
 
 describe('hit lengths', () => {
-  it('Loops shows each slice of the laid out parent with its tail: 2, 2 and 12 steps', async () => {
+  it('Loops boxes each slice of the laid out parent up to the next: 2, 2 and 12 steps', async () => {
     await setup(split(), 'loops');
     const steps = screen.getAllByRole('button', { name: /^Bar 1, step \d+:/ });
     expect(steps).toHaveLength(16);
-    expect(widths(steps)).toEqual(Array.from({ length: 16 }, () => 100));
-    // Only the steps with a hit have a solid line; the rest are tails.
-    expect(steps.map((s) => s.querySelector('.reach.tail') !== null)).toEqual(steps.map((_, i) => ![0, 2, 4].includes(i)));
+    // Column 1 is the row's T1 label, so step 1 is column 2.
+    expect(boxes(steps[0]!.parentElement!)).toEqual(['2 / span 2', '4 / span 2', '6 / span 12']);
   });
 
-  it('Slice shows where each slice lands on the 1/16 grid, with its length', async () => {
+  it('Slice boxes each slice up to the next on the 1/16 grid', async () => {
     await setup(split(), 'slice');
     const strip = screen.getByLabelText('Where the slices land on the 1/16 grid');
     const cells = within(strip).getAllByLabelText(/^Step /);
     expect(cells).toHaveLength(16);
     expect(cells.map((c) => c.textContent)).toEqual(['01', '', '02', '', '03', ...Array.from({ length: 11 }, () => '')]);
-    expect(widths(cells)).toEqual(Array.from({ length: 16 }, () => 100));
+    expect(boxes(strip)).toEqual(['1 / span 2', '3 / span 2', '5 / span 12']);
   });
 
   it('Slice marks a step where two slices land, since the second is dropped', async () => {

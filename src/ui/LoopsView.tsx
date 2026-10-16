@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, loopBreaks, loopReach, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, holds, holdsIn, loopBreaks, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { CHOICE_LABEL, HIT_COLOR, lengthText, loopUsage, padGroups, padLabel } from './labels';
@@ -39,7 +39,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const loopId = currentLoopId(project, selection);
   const loop = loopId === null ? undefined : project.loops[loopId];
   /** How much of each step the sounds cover: a hit's own step, and its tail over the steps after it. */
-  const covered = loop === undefined ? [] : loopReach(project, loop);
+  // Each hit holds the steps up to the next one, drawn as one box.
+  const held = loop === undefined ? [] : holds(loop.steps.map((s) => s.padId != null));
   /** Slot pads past their break's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
   const swappable = Object.values(project.breaks);
@@ -246,6 +247,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     <button
                       key={s}
                       type="button"
+                      style={{ gridColumn: s + 2, gridRow: 1, ...(color === undefined ? {} : { color }) }}
                       className={`step${pad !== undefined ? ' filled' : ''}${pad !== undefined && silent.has(pad.id) ? ' silent' : ''}${inRange(index) ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
                       draggable={pad !== undefined || (range !== null && inRange(index))}
                       onDragStart={(e) => {
@@ -255,7 +257,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       }}
                       onDragEnd={drops.clear}
                       {...dropOnStep(index)}
-                      style={color === undefined ? undefined : { color }}
                       aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : cell?.memberId == null && pad.choice !== 'top' ? `${pad.name}, ${CHOICE_LABEL[pad.choice].toLowerCase()}` : `${pad.name}, member ${memberIndex + 1}`}`}
                       onClick={(e) => clickStep(index, e.shiftKey)}
                       onDoubleClick={() => {
@@ -270,15 +271,15 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       }}
                     >
                       <span className="cell-label">{pad === undefined ? '' : padLabel(pad)}</span>
-                      {(covered[index] ?? 0) > 0 && (
-                        <span className={`reach${pad === undefined ? ' tail' : ''}`} style={{ width: `${(covered[index] ?? 0) * 100}%` }} aria-hidden="true" />
-                      )}
                       <span className="cell-sub">
                         {pad === undefined ? '' : `${pad.members.length > 1 ? `${memberIndex + 1}/${pad.members.length}` : ''}${cell?.ignoreMods === true ? ' ⊘' : ''}`}
                       </span>
                     </button>
                   );
                 })}
+                {holdsIn(held, bar * STEPS_PER_BAR, (bar + 1) * STEPS_PER_BAR).map((h) => (
+                  <span key={`hold-${h.start}`} className="hold" style={{ gridColumn: `${h.start - bar * STEPS_PER_BAR + 2} / span ${h.length}`, gridRow: 1 }} aria-hidden="true" />
+                ))}
               </div>
               </Fragment>
             ))}

@@ -1,6 +1,5 @@
-import type { Hit, Id, Loop, Project, Step } from './types';
+import type { Hit, Id, Project, Step } from './types';
 import { effectiveHit, hitSound, hitStretch, slotStep } from './breaks';
-import { stepDuration } from './project';
 
 /** How long a hit sounds, in seconds: its region at its pitch and stretch and its parent's, without mods. */
 export function hitSeconds(project: Project, hit: Hit): number {
@@ -17,33 +16,29 @@ export function stepHit(project: Project, step: Step | undefined): Hit | undefin
   return id === undefined ? undefined : project.hits[id];
 }
 
-/**
- * How much of each step a sound covers, 0 to 1, given the length in steps of
- * the hit on each step (null where there is none). A sound reaches over the
- * steps after it until it ends or the next hit cuts it; it does not wrap round
- * from the end to the start.
- */
-export function reach(lengths: readonly (number | null)[]): number[] {
-  let start = -1;
-  let length = 0;
-  return lengths.map((l, i) => {
-    if (l !== null) {
-      start = i;
-      length = l;
-    }
-    return start < 0 ? 0 : Math.max(0, Math.min(1, length - (i - start)));
-  });
+/** A run of steps one hit holds: from its own step up to the next hit, or the end. */
+export interface Hold {
+  readonly start: number;
+  readonly length: number;
 }
 
-/** For each step of a loop, how much of it the sounds cover at the song's tempo. */
-export function loopReach(project: Project, loop: Loop): number[] {
-  const step = stepDuration(project.song.bpm);
-  return reach(
-    loop.steps.map((cell) => {
-      const hit = stepHit(project, cell);
-      return hit === undefined ? null : hitSeconds(project, hit) / step;
-    }),
-  );
+/**
+ * The steps each hit holds, given which steps have one: a hit holds the steps
+ * after it until the next hit or the end, however long its sound rings.
+ * Steps before the first hit are held by none.
+ */
+export function holds(filled: readonly boolean[]): Hold[] {
+  const starts = filled.flatMap((f, i) => (f ? [i] : []));
+  return starts.map((start, i) => ({ start, length: (starts[i + 1] ?? filled.length) - start }));
+}
+
+/** The holds within steps `from` to `to`, cut at both ends: a hold over a row's end goes on in the next row. */
+export function holdsIn(all: readonly Hold[], from: number, to: number): Hold[] {
+  return all.flatMap((h) => {
+    const start = Math.max(h.start, from);
+    const end = Math.min(h.start + h.length, to);
+    return end > start ? [{ start, length: end - start }] : [];
+  });
 }
 
 /** Where a slice lands on a break's 1/16 grid. */
@@ -52,8 +47,6 @@ export interface SlicePlace {
   readonly slice: number | null;
   /** Other slices that land on the step too: they are left out when the break is laid out in a loop. */
   readonly dropped: readonly number[];
-  /** How much of the step the slices' sound covers, 0 to 1, at the break's tempo. */
-  readonly reach: number;
 }
 
 /**
@@ -64,7 +57,6 @@ export interface SlicePlace {
 export function slicePlaces(markers: readonly number[], steps: number): SlicePlace[] {
   const slices: (number | null)[] = Array.from({ length: steps }, () => null);
   const dropped: number[][] = Array.from({ length: steps }, () => []);
-  const lengths: (number | null)[] = Array.from({ length: steps }, () => null);
   markers.forEach((m, i) => {
     const at = slotStep(m, steps);
     if (at >= steps) return;
@@ -73,8 +65,6 @@ export function slicePlaces(markers: readonly number[], steps: number): SlicePla
       return;
     }
     slices[at] = i;
-    lengths[at] = ((markers[i + 1] ?? 1) - m) * steps;
   });
-  const covered = reach(lengths);
-  return slices.map((slice, i) => ({ slice, dropped: dropped[i]!, reach: covered[i]! }));
+  return slices.map((slice, i) => ({ slice, dropped: dropped[i]! }));
 }
