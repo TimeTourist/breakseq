@@ -27,7 +27,14 @@ export function describeChange(before: Project, after: Project): string {
     if (removed.length > 0) return `remove ${name(a, removed)}`;
     if (changed.length > 0) return `change ${name(b, changed)}`;
   }
-  if (before.song !== after.song) return before.song.bpm !== after.song.bpm ? 'change the tempo' : 'change the song';
+  if (before.song !== after.song) {
+    if (before.song.bpm !== after.song.bpm) return 'change the tempo';
+    const { loop: a = null, ...restBefore } = before.song;
+    const { loop: b = null, ...restAfter } = after.song;
+    if (a?.on !== b?.on && a?.start === b?.start && a?.end === b?.end) return b?.on === true ? 'turn the loop on' : 'turn the loop off';
+    if (a !== b && restBefore.bars === restAfter.bars && restBefore.clips === restAfter.clips) return 'change the loop';
+    return 'change the song';
+  }
   if (before.audio !== after.audio) return 'change audio';
   return 'change';
 }

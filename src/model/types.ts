@@ -315,11 +315,21 @@ export interface Clip {
   readonly offset: number;
 }
 
+/** A part of the song that plays over and over, in steps from the start; `on` false keeps it but plays the whole song. */
+export interface SongLoop {
+  readonly start: number;
+  /** After the last step, so the loop is `end - start` steps long. */
+  readonly end: number;
+  readonly on: boolean;
+}
+
 export interface Song {
   readonly bpm: number;
   /** Whole bars, except in a preview of one loop, which is exactly as long as the loop. */
   readonly bars: number;
   readonly clips: readonly Clip[];
+  /** Missing in songs from before there were loops. */
+  readonly loop?: SongLoop | null;
 }
 
 export interface Project {

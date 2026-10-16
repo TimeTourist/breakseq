@@ -111,7 +111,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
     if (from === null || to === null) return;
     setError(run(sequence(...Array.from({ length: to - from + 1 }, (_, i) => setStep(loop.id, from + i, { padId: null })))));
   };
-  /** A pad from the shelf, or another step: moved, or copied with Alt. */
+  /** A pad from the shelf, or another step: moved, or copied with Ctrl (or Alt). */
   const dropOnStep = (index: number) =>
     drops.bind(`step:${index}`, [PAD_MIME, BREAK_MIME, STEP_MIME], (e, type) => {
       if (type === PAD_MIME) {

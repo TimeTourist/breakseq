@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Trigger } from '../engine';
-import { auditionPosition, nextLoopBoundary, playheadTrigger } from './playback';
+import { auditionPosition, fitLoop, nextLoopBoundary, nextRunBoundary, playheadTrigger, runPosition, startOffset } from './playback';
 
 const at = (time: number, bar: number): Trigger => ({
   time,
@@ -57,5 +57,36 @@ describe('auditionPosition', () => {
   it('wraps to the start of the region when looping', () => {
     expect(auditionPosition(12.5, looped)).toBeCloseTo(1);
     expect(auditionPosition(15.25, looped)).toBeCloseTo(1.75);
+  });
+});
+
+describe('a run with a loop', () => {
+  const loop = { start: 4, end: 8 };
+
+  it('plays on from where it starts, then round the loop', () => {
+    const run = { startTime: 10, offset: 1, loop };
+    expect(runPosition(9, run)).toBeNull();
+    expect(runPosition(12, run)).toBe(3);
+    expect(runPosition(17, run)).toBe(4);
+    expect(runPosition(19.5, run)).toBe(6.5);
+  });
+
+  it('swaps takes where it next reaches the loop end', () => {
+    const run = { startTime: 10, offset: 1, loop };
+    expect(nextRunBoundary(12, run)).toBe(17);
+    expect(nextRunBoundary(18, run)).toBe(21);
+    expect(nextRunBoundary(20.99, run)).toBe(25);
+  });
+
+  it('fits the loop to the take, or loops the whole take', () => {
+    expect(fitLoop(null, 16)).toEqual({ start: 0, end: 16 });
+    expect(fitLoop({ start: 4, end: 20 }, 16)).toEqual({ start: 4, end: 16 });
+    expect(fitLoop({ start: 18, end: 20 }, 16)).toEqual({ start: 0, end: 16 });
+  });
+
+  it('starts at the cursor, or at the loop start from past the loop', () => {
+    expect(startOffset(2, loop)).toBe(2);
+    expect(startOffset(6, loop)).toBe(6);
+    expect(startOffset(9, loop)).toBe(4);
   });
 });

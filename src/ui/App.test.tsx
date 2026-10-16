@@ -18,6 +18,8 @@ function fakeServices(): Services {
   const player: Player = {
     play: vi.fn(),
     replace: vi.fn(),
+    seek: vi.fn(),
+    setLoop: vi.fn(),
     stop: vi.fn(),
     isPlaying: () => false,
     currentTrigger: () => null,
