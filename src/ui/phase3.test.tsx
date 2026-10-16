@@ -35,9 +35,10 @@ function fakeServices(): Services & { rendered: Project[] } {
     player,
     renderSong: (project) => {
       rendered.push(project);
-      return Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [] } satisfies Take);
+      return Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] } satisfies Take);
     },
     exportWav: vi.fn(),
+    exportMidi: vi.fn(),
     download: vi.fn(),
     rng: () => () => 0,
   };

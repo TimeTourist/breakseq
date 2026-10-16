@@ -1,4 +1,4 @@
-import type { BufferCache, Trigger, Voice } from '../engine';
+import type { BufferCache, Tape, Trigger, Voice } from '../engine';
 import { hitPlay, scheduleHit } from '../engine';
 import type { AudioData, Id, Project } from '../model';
 
@@ -6,6 +6,8 @@ import type { AudioData, Id, Project } from '../model';
 export interface Take {
   readonly buffer: AudioBuffer;
   readonly triggers: readonly Trigger[];
+  /** Tape segments heard instead of triggers. */
+  readonly tapes: readonly Tape[];
 }
 
 /** Lead time so a scheduled start is never in the past. */

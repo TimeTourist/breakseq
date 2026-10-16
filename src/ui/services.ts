@@ -1,5 +1,5 @@
 import type { Project, Rng } from '../model';
-import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, renderTake } from '../engine';
+import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTake } from '../engine';
 import type { FolderService } from './folders';
 import { browserFolders } from './folders';
 import type { ProjectStorage } from './persist';
@@ -14,6 +14,8 @@ export interface Services {
   readonly renderSong: (project: Project, rng: Rng) => Promise<Take>;
   /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
   readonly exportWav: (take: Take, name?: string) => void;
+  /** Saves the song as a MIDI file and a WAV of its sounds in slots; says how many sounds. */
+  readonly exportMidi: (project: Project, take: Take) => Promise<number>;
   /** Hands the user a file to save. */
   readonly download: (name: string, bytes: Uint8Array, type: string) => void;
   /** Fresh randomness for each take. */
@@ -25,7 +27,7 @@ export interface Services {
 async function renderSong(project: Project, rng: Rng): Promise<Take> {
   const take = generateTake(project, rng);
   const buffer = await renderTake(take, project, EXPORT_SAMPLE_RATE);
-  return { buffer, triggers: take.triggers };
+  return { buffer, triggers: take.triggers, tapes: take.tapes };
 }
 
 function download(name: string, bytes: Uint8Array, type: string): void {
@@ -53,6 +55,14 @@ function exportWav(take: Take, name?: string): void {
   download(`breakseq-${part}${timestamp()}.wav`, encodeWav({ sampleRate: buffer.sampleRate, channels }), 'audio/wav');
 }
 
+async function exportMidi(project: Project, take: Take): Promise<number> {
+  const { midi, wav, pieces } = await midiExport(project, take, EXPORT_SAMPLE_RATE);
+  const stamp = timestamp();
+  download(`breakseq-${stamp}.mid`, midi, 'audio/midi');
+  download(`breakseq-${stamp}-slices.wav`, wav, 'audio/wav');
+  return pieces;
+}
+
 export function browserServices(): Services {
   return {
     storage: indexedDbStorage(),
@@ -60,6 +70,7 @@ export function browserServices(): Services {
     player: createPlayer(),
     renderSong,
     exportWav,
+    exportMidi,
     download,
     rng: () => Math.random,
   };

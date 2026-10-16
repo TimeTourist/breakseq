@@ -1,0 +1,173 @@
+import type { Hit, Project } from '../model';
+import { effectiveHit, hitStretch } from '../model';
+import type { Trigger } from './generate';
+import { playedStretch } from './generate';
+import type { Tape } from './tape';
+
+/**
+ * MIDI export: the song as notes and a WAV of the sounds they play, one per
+ * key from C1 up, for a sampler such as Dr. Octo Rex or Digitakt. A piece is
+ * every distinct sound heard in the song, mods and all, so the notes alone
+ * play the song back as it sounds.
+ */
+
+/** C1, where slice 1 goes in Dr. Octo Rex. */
+export const FIRST_NOTE = 36;
+/** From C1 to G9, the highest MIDI note. */
+export const MAX_PIECES = 128 - FIRST_NOTE;
+/** Grid sizes a sampler can split a file into evenly. */
+export const SLOT_GRIDS = [4, 8, 16, 32, 64] as const;
+export const MIDI_VELOCITY = 100;
+/** Ticks per quarter note. */
+export const MIDI_PPQ = 960;
+
+/** One sound in the WAV: a trigger as heard (its first time in the song), or a tape segment. */
+export type Piece =
+  | { readonly kind: 'hit'; readonly trigger: Trigger; readonly seconds: number }
+  | { readonly kind: 'tape'; readonly tape: Tape; readonly seconds: number };
+
+/** A note: when, how long, and which piece it plays (0 is C1). */
+export interface Note {
+  readonly time: number;
+  readonly length: number;
+  readonly piece: number;
+}
+
+export interface MidiPlan {
+  readonly pieces: readonly Piece[];
+  readonly notes: readonly Note[];
+}
+
+export class MidiExportError extends Error {}
+
+/** How long a trigger sounds if nothing cuts it: its region at its pitch and stretch. */
+export const triggerSeconds = (t: Trigger): number =>
+  ((t.region.end - t.region.start) / 2 ** (t.pitch / 12)) * (t.stretch?.factor ?? 1);
+
+const round = (x: number, places: number) => x.toFixed(places);
+
+/** What makes two triggers the same sound: hit, region, pitch, volume, direction and stretch, to a hundredth. */
+const soundKey = (t: Trigger): string =>
+  [
+    t.hitId,
+    round(t.region.start, 6),
+    round(t.region.end, 6),
+    round(t.pitch, 2),
+    round(t.volume, 2),
+    t.direction,
+    t.stretch === null ? '-' : `${round(t.stretch.factor, 4)}:${round(t.stretch.grain, 2)}:${t.stretch.from}`,
+  ].join('|');
+
+/** Whether a trigger sounds as its hit does on its own: no variant, no mod. */
+function isPlain(project: Project, t: Trigger): boolean {
+  const hit: Hit | undefined = project.hits[t.hitId];
+  if (hit === undefined || hit.variantOf !== null) return false;
+  const own = effectiveHit(project, hit);
+  const stretch = playedStretch(hitStretch(project, hit), null);
+  return (
+    Math.abs(own.pitch - t.pitch) < 0.005 &&
+    Math.abs(own.volume - t.volume) < 0.005 &&
+    own.direction === t.direction &&
+    (stretch === null ? t.stretch === null : t.stretch !== null && Math.abs(stretch.factor - t.stretch.factor) < 1e-4 && stretch.grain === t.stretch.grain && stretch.from === t.stretch.from)
+  );
+}
+
+/**
+ * The pieces and notes of a take. Pieces go by break and slot: first each
+ * break's slices as they are (Amen 01, 02 …), then variants, then one-shots,
+ * then tape segments, each segment a piece of its own. A note lasts as long as
+ * its sound is heard: until it ends, or the next sound cuts it.
+ */
+export function midiPlan(project: Project, take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[] }): MidiPlan {
+  const triggers = [...take.triggers].sort((a, b) => a.time - b.time);
+  const cuts = [...triggers.map((t) => t.time), ...take.tapes.map((t) => t.time)].sort((a, b) => a - b);
+  const breakOrder = Object.keys(project.breaks);
+
+  const firsts = new Map<string, { trigger: Trigger; seconds: number; order: number[] }>();
+  for (const t of triggers) {
+    const key = soundKey(t);
+    if (firsts.has(key)) continue;
+    const hit = project.hits[t.hitId];
+    const brk = hit === undefined ? undefined : project.breaks[hit.breakId];
+    const tier = brk?.bars === null ? 2 : isPlain(project, t) ? 0 : 1;
+    firsts.set(key, { trigger: t, seconds: triggerSeconds(t), order: [tier, breakOrder.indexOf(hit?.breakId ?? ''), hit?.slot ?? -1, t.time] });
+  }
+  const byOrder = (a: readonly number[], b: readonly number[]) => {
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i]! - b[i]!;
+    return 0;
+  };
+  const hits = [...firsts.entries()].sort(([, a], [, b]) => byOrder(a.order, b.order));
+  const pieces: Piece[] = [
+    ...hits.map(([, p]): Piece => ({ kind: 'hit', trigger: p.trigger, seconds: p.seconds })),
+    ...take.tapes.map((tape): Piece => ({ kind: 'tape', tape, seconds: tape.end - tape.time })),
+  ];
+  if (pieces.length > MAX_PIECES) {
+    throw new MidiExportError(`The song has ${pieces.length} different sounds; a MIDI export has room for ${MAX_PIECES}, from C1 up`);
+  }
+
+  const index = new Map(hits.map(([key], i) => [key, i]));
+  const notes: Note[] = [
+    ...triggers.map((t): Note => {
+      const next = cuts.find((c) => c > t.time + 1e-9);
+      return { time: t.time, length: Math.min(triggerSeconds(t), next === undefined ? Infinity : next - t.time), piece: index.get(soundKey(t))! };
+    }),
+    ...take.tapes.map((tape, i): Note => ({ time: tape.time, length: tape.end - tape.time, piece: hits.length + i })),
+  ].sort((a, b) => a.time - b.time);
+  return { pieces, notes };
+}
+
+/** How many equal slots the WAV has for `count` pieces: up to a grid size, or exactly `count` past the largest. */
+export function slotCount(count: number): number {
+  return SLOT_GRIDS.find((g) => g >= count) ?? count;
+}
+
+/** A variable-length quantity, as MIDI writes delta times. */
+function vlq(value: number): number[] {
+  const bytes = [value & 0x7f];
+  for (let v = value >> 7; v > 0; v >>= 7) bytes.unshift((v & 0x7f) | 0x80);
+  return bytes;
+}
+
+/**
+ * A standard MIDI file, format 0, with the song's tempo and the notes on
+ * channel 1. Where a note ends as another starts, the end comes first.
+ */
+export function encodeMidi(bpm: number, notes: readonly Note[]): Uint8Array {
+  const ticks = (seconds: number) => Math.round((seconds * bpm * MIDI_PPQ) / 60);
+  const events = notes.flatMap((n) => {
+    const on = ticks(n.time);
+    const off = Math.max(on + 1, ticks(n.time + n.length));
+    const key = FIRST_NOTE + n.piece;
+    return [
+      { tick: on, order: 1, bytes: [0x90, key, MIDI_VELOCITY] },
+      { tick: off, order: 0, bytes: [0x80, key, 0] },
+    ];
+  });
+  events.sort((a, b) => a.tick - b.tick || a.order - b.order);
+
+  const tempo = Math.round(60_000_000 / bpm);
+  const name = [...'Breakseq'].map((c) => c.charCodeAt(0));
+  const track: number[] = [
+    ...[0, 0xff, 0x03, name.length, ...name],
+    ...[0, 0xff, 0x51, 0x03, (tempo >> 16) & 0xff, (tempo >> 8) & 0xff, tempo & 0xff],
+    ...[0, 0xff, 0x58, 0x04, 4, 2, 24, 8],
+  ];
+  let last = 0;
+  for (const e of events) {
+    track.push(...vlq(e.tick - last), ...e.bytes);
+    last = e.tick;
+  }
+  track.push(0, 0xff, 0x2f, 0);
+
+  const u32 = (n: number) => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+  const text = (s: string) => [...s].map((c) => c.charCodeAt(0));
+  return Uint8Array.from([
+    ...text('MThd'),
+    ...u32(6),
+    0, 0, 0, 1,
+    (MIDI_PPQ >> 8) & 0xff, MIDI_PPQ & 0xff,
+    ...text('MTrk'),
+    ...u32(track.length),
+    ...track,
+  ]);
+}

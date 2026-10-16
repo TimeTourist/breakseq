@@ -6,4 +6,6 @@ export * from './project-file';
 export * from './analysis';
 export { effectPreview, isDiscrete } from './mods';
 export * from './swap';
+export * from './midi';
+export * from './render-slices';
 export * from './project-folder';
