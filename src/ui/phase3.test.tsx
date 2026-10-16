@@ -35,6 +35,7 @@ function fakeServices(): Services & { rendered: Project[] } {
     rendered,
     storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() },
     player,
+    renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }),
     renderSong: (project) => {
       rendered.push(project);
       return Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] } satisfies Take);

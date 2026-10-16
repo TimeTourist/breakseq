@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Trigger } from '../engine';
-import { loopSong, modPreviewSong } from '../engine';
 import type { Project } from '../model';
 import { stepDuration } from '../model';
 import type { BackupInfo } from './backups';
@@ -9,8 +8,9 @@ import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
 import { HitsView } from './HitsView';
 import { ImportView } from './ImportView';
-import { LoopsView, currentLoopId } from './LoopsView';
-import { ModsView, currentModId, previewLoopId } from './ModsView';
+import { LoopsView } from './LoopsView';
+import { ModsView } from './ModsView';
+import { SONG_KEY, subjectOf } from './subject';
 import type { Take } from './playback';
 import type { Services } from './services';
 import { SliceView } from './SliceView';
@@ -34,57 +34,67 @@ const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
+/** A rendered take of what a view plays, with the subject it was rendered from. */
+export interface ShownTake {
+  readonly take: Take;
+  readonly key: string;
+  readonly once: boolean;
+}
+
 /**
- * Renders what the view plays shortly after every change, and on demand for a new
- * random take: the selected loop in Loops, the song everywhere else.
+ * Renders what the view plays (see subjectOf) shortly after every change, and
+ * on demand for a new random take. A new subject renders straight away.
  */
 function useTake() {
-  const { services } = useApp();
+  const { services, store } = useApp();
   const latestFull = useProject();
   // Marking or turning the song's loop on or off is no reason for a new take.
   const stable = useRef(latestFull);
   if (stable.current !== latestFull && !sameRender(stable.current, latestFull)) stable.current = latestFull;
   const full = stable.current;
-  const view = useSelect((s) => s.view);
-  const loopId = useSelect((s) =>
-    s.view === 'loops' ? currentLoopId(s.history.present, s.selection) : s.view === 'mods' ? previewLoopId(s.history.present, s.selection) : null,
-  );
-  const modId = useSelect((s) => (s.view === 'mods' ? currentModId(s.history.present, s.selection) : null));
-  const project = useMemo(() => {
-    if (view === 'loops' && loopId !== null) return loopSong(full, loopId);
-    if (view === 'mods' && loopId !== null && modId !== null) return modPreviewSong(full, modId, loopId);
-    if (view === 'mods' && loopId !== null) return loopSong(full, loopId);
-    return full;
-  }, [full, view, loopId, modId]);
-  const [take, setTake] = useState<Take | null>(null);
+  // Only a change of what plays, not of every selection, renders anew.
+  const key = useSelect((s) => subjectOf(full, s)?.key ?? null);
+  const subject = useMemo(() => (key === null ? null : subjectOf(full, store.getState())), [full, key, store]);
+  const [shown, setShown] = useState<ShownTake | null>(null);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const latest = useRef(0);
+  const lastKey = useRef<string | null>(null);
 
   useEffect(() => {
     const id = ++latest.current;
+    if (subject === null) {
+      setShown(null);
+      setRendering(false);
+      lastKey.current = null;
+      return;
+    }
     setRendering(true);
-    const timer = setTimeout(() => {
-      services
-        .renderSong(project, services.rng())
-        .then((next) => {
-          if (id !== latest.current) return;
-          setTake(next);
-          setError(null);
-          services.player.replace(next);
-        })
-        .catch((e: unknown) => {
-          if (id === latest.current) setError(e instanceof Error ? e.message : String(e));
-        })
-        .finally(() => {
-          if (id === latest.current) setRendering(false);
-        });
-    }, RENDER_DEBOUNCE_MS);
+    const fresh = subject.key !== lastKey.current;
+    lastKey.current = subject.key;
+    const timer = setTimeout(
+      () => {
+        const rng = services.rng();
+        (subject.kind === 'song' ? services.renderSong(subject.project, rng) : services.renderPreview(subject.preview(rng)))
+          .then((take) => {
+            if (id !== latest.current) return;
+            setShown({ take, key: subject.key, once: subject.once });
+            setError(null);
+          })
+          .catch((e: unknown) => {
+            if (id === latest.current) setError(e instanceof Error ? e.message : String(e));
+          })
+          .finally(() => {
+            if (id === latest.current) setRendering(false);
+          });
+      },
+      fresh ? 0 : RENDER_DEBOUNCE_MS,
+    );
     return () => clearTimeout(timer);
-  }, [project, nonce, services]);
+  }, [subject, nonce, services]);
 
-  return { take, rendering, error, isSong: project === full, newTake: useCallback(() => setNonce((n) => n + 1), []) };
+  return { shown, rendering, error, newTake: useCallback(() => setNonce((n) => n + 1), []) };
 }
 
 /**
@@ -162,9 +172,14 @@ function useAutosave() {
   return { error, backups, restore };
 }
 
-/** The trigger under the playhead and the seconds into the take, polled each frame while playing. */
-function usePlayhead(playing: boolean): { trigger: Trigger | null; seconds: number | null } {
+/**
+ * The trigger under the playhead and the seconds into the take, polled each
+ * frame while playing. `onEnded` runs when what played once has played out.
+ */
+function usePlayhead(playing: boolean, onEnded: () => void): { trigger: Trigger | null; seconds: number | null } {
   const { services } = useApp();
+  const ended = useRef(onEnded);
+  ended.current = onEnded;
   const [state, setState] = useState<{ trigger: Trigger | null; seconds: number | null }>({ trigger: null, seconds: null });
   useEffect(() => {
     if (!playing) {
@@ -172,7 +187,13 @@ function usePlayhead(playing: boolean): { trigger: Trigger | null; seconds: numb
       return;
     }
     let frame = requestAnimationFrame(function tick() {
-      setState({ trigger: services.player.currentTrigger(), seconds: services.player.currentPosition() });
+      if (!services.player.isPlaying()) {
+        ended.current();
+        return;
+      }
+      const trigger = services.player.currentTrigger();
+      const seconds = services.player.currentPosition();
+      setState((last) => (last.trigger === trigger && last.seconds === seconds ? last : { trigger, seconds }));
       frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
@@ -183,34 +204,63 @@ function usePlayhead(playing: boolean): { trigger: Trigger | null; seconds: numb
 function Shell() {
   const { store, services } = useApp();
   const view = useSelect((s) => s.view);
-  const { take, rendering, error: renderError, isSong, newTake } = useTake();
+  const { shown, rendering, error: renderError, newTake } = useTake();
   const { error: saveError, backups, restore } = useAutosave();
   const [playing, setPlaying] = useState(false);
-  // A snapshot played from Project is not the song: the song's loop and start are not its.
-  const [snapshotPlaying, setSnapshotPlaying] = useState(false);
-  const playhead = usePlayhead(playing);
+  // What is playing: a subject's key, or a snapshot played from Project, which is not the song.
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const playhead = usePlayhead(playing, () => {
+    setPlaying(false);
+    setPlayingKey(null);
+  });
   const bpm = useSelect((s) => s.history.present.song.bpm);
   const songLoop = useSelect((s) => s.history.present.song.loop ?? null);
   const step = stepDuration(bpm);
-  const songPlays = isSong && !snapshotPlaying;
+  // Only the song has a cursor and a loop; a snapshot or a preview plays as it is.
+  const songPlays = playingKey === SONG_KEY;
+  const songTake = shown?.key === SONG_KEY ? shown.take : null;
 
   const setView = useCallback((v: View) => store.dispatch({ type: 'view', view: v }), [store]);
 
+  const loopRange = (song: boolean) => (song && songLoop?.on === true ? { start: songLoop.start * step, end: songLoop.end * step } : null);
   useEffect(() => {
-    services.player.setLoop(songPlays && songLoop?.on === true ? { start: songLoop.start * step, end: songLoop.end * step } : null);
+    services.player.setLoop(loopRange(songPlays));
+    // loopRange is made from these.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [services, songPlays, songLoop, step]);
 
-  const play = () => {
-    if (take === null) return;
-    setSnapshotPlaying(false);
-    services.player.play(take, isSong ? store.getState().songCursor * step : 0);
+  const start = (next: ShownTake) => {
+    services.player.setLoop(loopRange(next.key === SONG_KEY));
+    services.player.play(next.take, next.key === SONG_KEY ? store.getState().songCursor * step : 0, next.once);
+    setPlayingKey(next.key);
     setPlaying(true);
+  };
+  const play = () => {
+    if (shown !== null) start(shown);
   };
   const stop = () => {
     services.player.stop();
     setPlaying(false);
-    setSnapshotPlaying(false);
+    setPlayingKey(null);
   };
+
+  // While playing, a new render of the same thing takes over where its loop ends;
+  // something else, as after a change of view, starts straight away.
+  const following = useRef({ playing, playingKey });
+  following.current = { playing, playingKey };
+  useEffect(() => {
+    if (!following.current.playing) return;
+    // A view with nothing to play stops what played, unless it is a snapshot from Project.
+    if (shown === null) {
+      if (following.current.playingKey !== 'snapshot') stop();
+      return;
+    }
+    if (shown.key === following.current.playingKey) services.player.replace(shown.take);
+    else start(shown);
+    // Only a new take decides this; start reads the latest of the rest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, services]);
+
   // The keyboard handler is set up once and reads the latest of these.
   const toggle = useRef(() => {});
   toggle.current = () => (playing ? stop() : play());
@@ -243,7 +293,7 @@ function Shell() {
       <Header
         onView={setView}
         playing={playing}
-        canPlay={take !== null}
+        canPlay={shown !== null}
         onPlay={play}
         onStop={stop}
         status={status}
@@ -255,23 +305,23 @@ function Shell() {
       {view === 'mods' && <ModsView />}
       {view === 'project' && (
         <ProjectView
-          canExport={take !== null}
+          canExport={songTake !== null}
           onExport={() => {
-            if (take !== null) services.exportWav(take);
+            if (songTake !== null) services.exportWav(songTake);
           }}
-          onExportMidi={() => (take === null ? Promise.resolve(0) : services.exportMidi(store.getState().history.present, take))}
+          onExportMidi={() => (songTake === null ? Promise.resolve(0) : services.exportMidi(store.getState().history.present, songTake))}
           backups={services.backups === undefined ? null : backups}
           onRestore={restore}
           onPlayTake={(snapshotTake) => {
             services.player.play(snapshotTake);
-            setSnapshotPlaying(true);
+            setPlayingKey('snapshot');
             setPlaying(true);
           }}
         />
       )}
       {view === 'song' && (
         <SongView
-          playheadSeconds={snapshotPlaying ? null : playhead.seconds}
+          playheadSeconds={songPlays ? playhead.seconds : null}
           stepSeconds={step}
           rendering={rendering}
           onNewTake={newTake}

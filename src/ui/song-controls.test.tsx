@@ -38,6 +38,7 @@ function services() {
   const s: Services = {
     storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() },
     player,
+    renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }),
     renderSong: vi.fn(() => Promise.resolve(take)),
     exportWav: vi.fn(),
     exportMidi: vi.fn(),
@@ -83,7 +84,7 @@ describe('Song transport', () => {
     fireEvent.pointerUp(ruler(), { clientX: 325, pointerId: 1 });
     expect(store.getState().songCursor).toBe(32);
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(player.play).toHaveBeenCalledWith(take, 4);
+    expect(player.play).toHaveBeenCalledWith(take, 4, false);
   });
 
   it('a click while playing jumps there', async () => {
@@ -96,6 +97,8 @@ describe('Song transport', () => {
 
   it('a drag in the ruler marks a loop, which plays over and over until turned off', async () => {
     const { store, player } = await setup(song());
+    // Only the song playing loops it.
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     fireEvent.pointerDown(ruler(), { clientX: 160, pointerId: 1 });
     fireEvent.pointerMove(ruler(), { clientX: 320, pointerId: 1 });
     fireEvent.pointerUp(ruler(), { clientX: 320, pointerId: 1 });

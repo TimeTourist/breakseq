@@ -45,6 +45,7 @@ function services(folders: ReturnType<typeof memoryFolder>[]): Services {
   return {
     storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() },
     player,
+    renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }),
     renderSong: vi.fn(),
     exportWav: vi.fn(),
     exportMidi: vi.fn(),

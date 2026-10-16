@@ -41,6 +41,12 @@ export interface AppState {
   readonly songCursor: number;
   /** A clip copied in Song with Ctrl+C, to paste with Ctrl+V. */
   readonly clipboard: Clip | null;
+  /** Whether Play in Hits loops what is open, or plays it once. */
+  readonly hitsLoop: boolean;
+  /** Breaks whose pads are folded away in the Hits list. */
+  readonly folded: readonly Id[];
+  /** The break whose Trim is open in Import: what Play plays there. */
+  readonly trimming: Id | null;
 }
 
 export type Action =
@@ -57,7 +63,10 @@ export type Action =
   | { readonly type: 'load'; readonly project: Project }
   | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> }
   | { readonly type: 'songCursor'; readonly step: number }
-  | { readonly type: 'clipboard'; readonly clip: Clip | null };
+  | { readonly type: 'clipboard'; readonly clip: Clip | null }
+  | { readonly type: 'hitsLoop'; readonly loop: boolean }
+  | { readonly type: 'fold'; readonly breakId: Id; readonly folded: boolean }
+  | { readonly type: 'trimming'; readonly breakId: Id | null };
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
@@ -68,6 +77,9 @@ export const initialState = (project: Project = createProject()): AppState => ({
   selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },
   songCursor: 0,
   clipboard: null,
+  hitsLoop: false,
+  folded: [],
+  trimming: null,
 });
 
 /** Pure state transition. A failed command leaves the state unchanged and reports its error. */
@@ -102,6 +114,14 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, songCursor: Math.max(0, Math.round(action.step)) }, error: null };
     case 'clipboard':
       return { state: { ...state, clipboard: action.clip }, error: null };
+    case 'hitsLoop':
+      return { state: { ...state, hitsLoop: action.loop }, error: null };
+    case 'fold': {
+      const others = state.folded.filter((id) => id !== action.breakId);
+      return { state: { ...state, folded: action.folded ? [...others, action.breakId] : others }, error: null };
+    }
+    case 'trimming':
+      return { state: { ...state, trimming: action.breakId }, error: null };
   }
 }
 
