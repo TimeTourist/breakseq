@@ -22,7 +22,7 @@ Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit
 | Objekt | Innehåller | Skapas i |
 | --- | --- | --- |
 | Sample | Ljuddata: en importerad fil, trimmad till ett fönster i filen. Bara ljud, utan typ. | Import |
-| Hit | Hur en slice spelas: vilken plats i vilket break, region inom slicen i procent (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms), stretch (Off, Fit to tempo eller Factor) med bitlängd (ms) och var bitarna börjar (Break eller Hit), dist (Off, Drive, Crush eller Decimate, med mängd 0–1) och filter (Off, Low-pass eller High-pass, med brytfrekvens och resonans). Ett breaks egen hit är förälder till dess slices. | Hits |
+| Hit | Hur en slice spelas: vilken plats i vilket break, region inom slicen i procent (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), pan (−100 % vänster till +100 % höger), fade out (ms), stretch (Off, Fit to tempo eller Factor) med bitlängd (ms) och var bitarna börjar (Break eller Hit), dist (Off, Drive, Crush eller Decimate, med mängd 0–1) och filter (Off, Low-pass eller High-pass, med brytfrekvens och resonans). Ett breaks egen hit är förälder till dess slices. | Hits |
 | Pad | Det ett steg spelar: en hit plus alternativ, i ordning. Paden väljer själv medlem: Top (den första), Round robin (nästa varje gång paden spelar, räknat per pad över hela låten i tidsordning), Random eller No repeat (slump, aldrig samma två gånger i rad). En step lock går före en mod, och en mod går före padens val. Varje plats i ett break har en pad, med platsens hit överst. | Hits |
 | Break | En uppklippning av ett sample: takter, markörer och platser 01…N, en pad per plats, och föräldern, som är ett makro för alla slices. En one-shot är ett break med en enda plats och utan markörer. | Import, Slice |
 | Loop | Tagg Main/Fill (bara för gruppering och namn; vilken loop som helst kan ligga i Main- eller Fill-raden), längd i steg om 1/16 (från 1/16 till 16 takter), som väljs i takter, slag och 1/16. Varje steg: pad eller tomt, vald medlem, step locks. | Loops |
@@ -31,7 +31,7 @@ Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit
 
 Step locks i v1: vald pad-medlem, ”Ignore mods” och nudge (finns i modellen, alltid 0 i v1).
 
-En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man byggt själv. Ändras hitten ändras den överallt; vill man ha en annorlunda version duplicerar man den i Hits. Ett stegs val av medlem pekar på hittens id, inte på positionen i paden. Ett breaks egen hit (hela det trimmade samplet) är förälder och fungerar som ett makro för alla hits från breakets slices: pitch och volym läggs ovanpå varje slice-hits egna, baklänges på föräldern vänder varje slice för sig (en baklänges slice spelas då framåt), och förälderns fade gäller slices utan egen fade. Stretch multipliceras: en slice på 2× under en förälder på Fit to tempo blir dubbelt så lång som sina steg. Föräldern spelas aldrig som en pad: att lägga den i en loop lägger ut breakets slices i ordning från steget.
+En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man byggt själv. Ändras hitten ändras den överallt; vill man ha en annorlunda version duplicerar man den i Hits. Ett stegs val av medlem pekar på hittens id, inte på positionen i paden. Ett breaks egen hit (hela det trimmade samplet) är förälder och fungerar som ett makro för alla hits från breakets slices: pitch, volym och pan läggs ovanpå varje slice-hits egna, baklänges på föräldern vänder varje slice för sig (en baklänges slice spelas då framåt), och förälderns fade gäller slices utan egen fade. Stretch multipliceras: en slice på 2× under en förälder på Fit to tempo blir dubbelt så lång som sina steg. Föräldern spelas aldrig som en pad: att lägga den i en loop lägger ut breakets slices i ordning från steget.
 
 ## Pipeline och vyer
 
@@ -39,7 +39,7 @@ Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Va
 
 1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Break gör ett break med markörer på 1/16 och loopen M1; One-shot gör ett break med en plats. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break gissas antal takter (det av 1, 2, 4, 8 och 16 som ger 70–180 BPM) och ändras i Slice, även efter slicing; BPM räknas fram ur den trimmade längden, och ett tempo under 60 eller över 200 BPM ger en varning.
 2. **Slice** – placera markörer i ett break, när som helst. Varje ändring slår igenom direkt i allt som spelar breaket, utan varningar. Här byts också samplet under breaket ("Replace sample…"). Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare. Under vågformen visas en rad med 1/16-steg som i Loops: varje slice står i steget där den hamnar när föräldern läggs i en loop, med sin längd i breakets tempo, och svaga 1/16-linjer ligger över vågformen. Hamnar två slices på samma steg markeras steget rött, eftersom den andra då inte kommer med.
-3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar hur den väljer (Pad plays: Top, Round robin, Random, No repeat) och sina hits; den valda hitten redigeras (region, riktning, pitch, volym, fade, stretch, dist, filter, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort. En hit kan bytas till en annan slice eller one-shot ("Replace…") och behåller då pitch, volym, fade och riktning.
+3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar hur den väljer (Pad plays: Top, Round robin, Random, No repeat) och sina hits; den valda hitten redigeras (region, riktning, pitch, volym, pan, fade, stretch, dist, filter, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort. En hit kan bytas till en annan slice eller one-shot ("Replace…") och behåller då pitch, volym, fade och riktning.
 4. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks. Ett steg låter antingen paden välja ("The pad picks", förvalt) eller låser en medlem, även medlem 1. Ett break i en loop kan bytas mot ett annat ("Break: Amen → Think"): varje steg som spelar plats N i det gamla spelar plats N i det nya. Varje steg visar hur länge dess hit låter: en linje längs stegets underkant som fortsätter över följande steg tills ljudet tar slut eller nästa slag klipper det. Längden räknas i låtens tempo, med hittens och förälderns pitch och stretch men utan mods, och gäller även one-shots. Stegen under linjen är tomma och går att släppa på.
 5. **Mods** – bygg mods.
 6. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Alt kopierar) och ändras i längd från båda kanterna.
@@ -71,18 +71,18 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 
 | Fält | Val i v1 |
 | --- | --- |
-| Mål | Swap (Stack eller Shuffle), Pad member, Pitch (halvtoner), Volume (dB), Direction, Ratchet (1–8), Stretch (faktor, bitlängd i ms, Multiply eller Replace), Dist (läge; värdet är mängden 0–1), Filter (typ och resonans; värdet är brytfrekvensen i Hz), Tempo (slip), Tape |
+| Mål | Swap (Stack eller Shuffle), Pad member, Pitch (halvtoner), Volume (dB), Pan (−100 till +100 %), Direction, Ratchet (1–8), Stretch (faktor, bitlängd i ms, Multiply eller Replace), Dist (läge; värdet är mängden 0–1), Filter (typ och resonans; värdet är brytfrekvensen i Hz), Tempo (slip), Tape |
 | Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
 | Form | (Alla mål utom Swap och Tape.) List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
 
-**Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym), och för lägesvärden (riktning, medlem, ratchet, stretch, dist, filter) vinner B. Mods läggs ovanpå hitten och stegets locks.
+**Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym, pan), och för lägesvärden (riktning, medlem, ratchet, stretch, dist, filter) vinner B. Mods läggs ovanpå hitten och stegets locks.
 
 **Ordning.** Mods tillämpas i fast ordning efter mål, oavsett rad:
 
 1. Swap
 2. Pad member
 3. Ratchet
-4. Pitch, volym, riktning, stretch, dist och filter – gäller varje retrigger i en ratchet
+4. Pitch, volym, pan, riktning, stretch, dist och filter – gäller varje retrigger i en ratchet
 5. Tempo (slip)
 
 **Var en mod verkar.** En mod har inget eget omfång: den verkar på allt under sitt klipp i Song. Vilka steg bestäms alltså av var och hur långt klippet ligger.
@@ -97,6 +97,8 @@ Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 **Längd.** En mod gäller sitt klipp i Song, på 1/16 när. Varje klipp är en sammanhängande modulation: intervallen räknas från klippets början, och Ramp sträcker sig över klippets längd.
 
 **Ratchet** n delar stegets längd i n lika delar och triggar hitten i varje del.
+
+**Pan** placerar ljudet mellan vänster och höger. Hittens, förälderns och modernas pan adderas och begränsas till −100 % och +100 %. Ett stereoljud panoreras som balans: åt höger sänks vänster kanal och tvärtom, så stereobilden flyttas men ligger kvar. Panoreringen håller den upplevda styrkan (lika effekt), så ett ljud i mitten låter inte starkare än ett på sidan.
 
 **Dist och filter** färgar ljudet, i den ordningen: dist först, sedan filter.
 
@@ -199,6 +201,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 16. Export i Project | Export WAV flyttar till Project; varje snapshot kan spelas och exporteras utan att laddas; Save och New snapshot i sidhuvudet | Två snapshots kan jämföras och exporteras utan att man byter mellan dem |
 | 17. MIDI-export | Låten som MIDI och en WAV med bitar i lika långa rutor, C1 = bit 1 | Exporten laddad i Dr. Octo Rex (via Bounce to REX) låter som låten i Breakseq |
 | 18. Dist och filter | Dist (Drive, Crush, Decimate) som håller nivån, och filter (Low-pass, High-pass) med brytfrekvens och resonans; på hitten och som mod | En fill kan krossas allt mer med en Ramp utan att bli starkare, och ett lågpass kan öppnas över en takt |
+| 19. Pan | Pan på hitten (föräldern som makro) och som mod; adderas som volym, balans för stereo, lika effekt | En hi-hat kan studsa mellan vänster och höger med en Random-mod |
 
 ## Utanför v1
 
