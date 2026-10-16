@@ -73,7 +73,11 @@ function useTake() {
   return { take, rendering, error, newTake: useCallback(() => setNonce((n) => n + 1), []) };
 }
 
-/** Loads the saved project once, then saves shortly after every change. */
+/**
+ * Loads the saved project once, then saves shortly after every change. If the
+ * saved project could not be loaded, nothing is saved: saving would write the
+ * empty project over the one that is still there.
+ */
 function useAutosave() {
   const { store, services } = useApp();
   const project = useProject();
@@ -85,9 +89,9 @@ function useAutosave() {
       .load()
       .then((saved) => {
         if (saved !== null) store.dispatch({ type: 'load', project: saved });
+        setLoaded(true);
       })
-      .catch(() => setError('Could not load the saved project'))
-      .finally(() => setLoaded(true));
+      .catch(() => setError('Could not load the saved project. Autosave is off so it is not overwritten; reload the page to try again.'));
   }, [store, services]);
 
   useEffect(() => {
