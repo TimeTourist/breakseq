@@ -22,25 +22,25 @@ Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit
 | Objekt | Innehåller | Skapas i |
 | --- | --- | --- |
 | Sample | Ljuddata: en importerad fil, trimmad till ett fönster i filen. Bara ljud, utan typ. | Import |
-| Hit | Hur en slice spelas: vilken plats i vilket break, region inom slicen i procent (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms). Ett breaks egen hit är förälder till dess slices. | Hits |
+| Hit | Hur en slice spelas: vilken plats i vilket break, region inom slicen i procent (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms), stretch (Off, Fit to tempo eller Factor) med bitlängd (ms) och var bitarna börjar (Break eller Hit). Ett breaks egen hit är förälder till dess slices. | Hits |
 | Pad | Det ett steg spelar: en hit plus alternativ, i ordning. Paden väljer själv medlem: Top (den första), Round robin (nästa varje gång paden spelar, räknat per pad över hela låten i tidsordning), Random eller No repeat (slump, aldrig samma två gånger i rad). En step lock går före en mod, och en mod går före padens val. Varje plats i ett break har en pad, med platsens hit överst. | Hits |
-| Break | En uppklippning av ett sample: takter, markörer och platser 01…N, en pad per plats, och föräldern, som är ett makro för alla slices, samt stretch (Off, Fit to tempo eller Factor) och bitlängd i ms. En one-shot är ett break med en enda plats och utan markörer. | Import, Slice |
+| Break | En uppklippning av ett sample: takter, markörer och platser 01…N, en pad per plats, och föräldern, som är ett makro för alla slices. En one-shot är ett break med en enda plats och utan markörer. | Import, Slice |
 | Loop | Tagg Main/Fill (bara för gruppering och namn; vilken loop som helst kan ligga i Main- eller Fill-raden), längd i steg om 1/16 (från 1/16 till 16 takter), som väljs i takter, slag och 1/16. Varje steg: pad eller tomt, vald medlem, step locks. | Loops |
 | Mod | Namn och effekter, högst en per mål. En effekt verkar på allt under modens klipp i Song. | Mods |
 | Song | Längd i takter och klipp i raderna Main, Fill, Mod A och Mod B. Ett klipp har start, längd och offset i steg om 1/16. | Song |
 
 Step locks i v1: vald pad-medlem, ”Ignore mods” och nudge (finns i modellen, alltid 0 i v1).
 
-En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man byggt själv. Ändras hitten ändras den överallt; vill man ha en annorlunda version duplicerar man den i Hits. Ett stegs val av medlem pekar på hittens id, inte på positionen i paden. Ett breaks egen hit (hela det trimmade samplet) är förälder och fungerar som ett makro för alla hits från breakets slices: pitch och volym läggs ovanpå varje slice-hits egna, baklänges på föräldern vänder varje slice för sig (en baklänges slice spelas då framåt), och förälderns fade gäller slices utan egen fade. Föräldern spelas aldrig som en pad: att lägga den i en loop lägger ut breakets slices i ordning från steget.
+En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man byggt själv. Ändras hitten ändras den överallt; vill man ha en annorlunda version duplicerar man den i Hits. Ett stegs val av medlem pekar på hittens id, inte på positionen i paden. Ett breaks egen hit (hela det trimmade samplet) är förälder och fungerar som ett makro för alla hits från breakets slices: pitch och volym läggs ovanpå varje slice-hits egna, baklänges på föräldern vänder varje slice för sig (en baklänges slice spelas då framåt), och förälderns fade gäller slices utan egen fade. Stretch multipliceras: en slice på 2× under en förälder på Fit to tempo blir dubbelt så lång som sina steg. Föräldern spelas aldrig som en pad: att lägga den i en loop lägger ut breakets slices i ordning från steget.
 
 ## Pipeline och vyer
 
 Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Varje vy har ett ansvar; från andra vyer länkar man dit, men redigerar aldrig där.
 
 1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Break gör ett break med markörer på 1/16 och loopen M1; One-shot gör ett break med en plats. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break gissas antal takter (det av 1, 2, 4, 8 och 16 som ger 70–180 BPM) och ändras i Slice, även efter slicing; BPM räknas fram ur den trimmade längden, och ett tempo under 60 eller över 200 BPM ger en varning.
-2. **Slice** – placera markörer i ett break, när som helst. Varje ändring slår igenom direkt i allt som spelar breaket, utan varningar. Här byts också samplet under breaket ("Replace sample…"). Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare. Under vågformen visas en rad med 1/16-steg som i Loops: varje slice står i steget där den hamnar när föräldern läggs i en loop, med sin längd i breakets tempo, och svaga 1/16-linjer ligger över vågformen. Hamnar två slices på samma steg markeras steget rött, eftersom den andra då inte kommer med. Här ställs också breakets stretch och bitlängd (se Stretch).
-3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar hur den väljer (Pad plays: Top, Round robin, Random, No repeat) och sina hits; den valda hitten redigeras (region, riktning, pitch, volym, fade, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort. En hit kan bytas till en annan slice eller one-shot ("Replace…") och behåller då pitch, volym, fade och riktning.
-4. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks. Ett steg låter antingen paden välja ("The pad picks", förvalt) eller låser en medlem, även medlem 1. Ett break i en loop kan bytas mot ett annat ("Break: Amen → Think"): varje steg som spelar plats N i det gamla spelar plats N i det nya. Varje steg visar hur länge dess hit låter: en linje längs stegets underkant som fortsätter över följande steg tills ljudet tar slut eller nästa slag klipper det. Längden räknas i låtens tempo, med hittens och förälderns pitch och breakets stretch men utan mods, och gäller även one-shots. Stegen under linjen är tomma och går att släppa på.
+2. **Slice** – placera markörer i ett break, när som helst. Varje ändring slår igenom direkt i allt som spelar breaket, utan varningar. Här byts också samplet under breaket ("Replace sample…"). Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare. Under vågformen visas en rad med 1/16-steg som i Loops: varje slice står i steget där den hamnar när föräldern läggs i en loop, med sin längd i breakets tempo, och svaga 1/16-linjer ligger över vågformen. Hamnar två slices på samma steg markeras steget rött, eftersom den andra då inte kommer med.
+3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar hur den väljer (Pad plays: Top, Round robin, Random, No repeat) och sina hits; den valda hitten redigeras (region, riktning, pitch, volym, fade, stretch, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort. En hit kan bytas till en annan slice eller one-shot ("Replace…") och behåller då pitch, volym, fade och riktning.
+4. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks. Ett steg låter antingen paden välja ("The pad picks", förvalt) eller låser en medlem, även medlem 1. Ett break i en loop kan bytas mot ett annat ("Break: Amen → Think"): varje steg som spelar plats N i det gamla spelar plats N i det nya. Varje steg visar hur länge dess hit låter: en linje längs stegets underkant som fortsätter över följande steg tills ljudet tar slut eller nästa slag klipper det. Längden räknas i låtens tempo, med hittens och förälderns pitch och stretch men utan mods, och gäller även one-shots. Stegen under linjen är tomma och går att släppa på.
 5. **Mods** – bygg mods.
 6. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Alt kopierar) och ändras i längd från båda kanterna.
 
@@ -100,8 +100,9 @@ Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 
 **Stretch** ändrar en hits längd utan att ändra tonhöjden, som time stretch på gamla samplers: hitten spelas som korta bitar (bitlängden, förvalt 30 ms) som var och en börjar lite längre fram i slicen och läggs över varandra med korta övertoningar. Faktor 2 gör hitten dubbelt så lång, 0,5 hälften så lång. Kort bitlängd låter metalliskt, lång mjukare och ekande. Pitch ändrar fortfarande både tonhöjd och längd, så stretch och pitch tillsammans flyttar tonhöjden med samma längd (2× och +12 ger en oktav upp i samma längd).
 
-- **På breaket** (i Slice): Off (förvalt), Fit to tempo eller Factor. Fit to tempo stretchar varje slice med breakets tempo delat med låtens, så att den håller sin tonhöjd och blir lika lång som sina steg i låten. En one-shot har inget tempo och har bara Off och Factor.
-- **I en mod:** en faktor och en bitlängd, och ett val av hur den möter breakets stretch: *Multiply* (multipliceras med breakets, så att en mod på 2× gör ett break på Fit to tempo dubbelt så långt som stegen) eller *Replace* (modens stretch gäller i stället för breakets). Ramp och Random kan ändra faktorn över tid.
+- **På hitten** (i Hits, bredvid pitch): Off (förvalt), Fit to tempo eller Factor. Fit to tempo stretchar med breakets tempo delat med låtens, så att slicen håller sin tonhöjd och blir lika lång som sina steg i låten. En one-shot har inget tempo och har bara Off och Factor. På föräldern verkar stretch som makro för alla slices och multipliceras med slicens egen.
+- **Var bitarna börjar**, ett val på hitten: *Break* (förvalt) lägger bitarna i ett rutnät från breakets början i samplet, som när en sampler stretchade hela breaket: spelas slicesen i ordning låter det som ett stretchat break, och en slice behåller sina bitar var den än spelas. *Hit* börjar bitarna vid hittens start, vilket ger rena slag.
+- **I en mod:** en faktor och en bitlängd, och ett val av hur den möter hittens stretch: *Multiply* (multipliceras med hittens, så att en mod på 2× gör ett break på Fit to tempo dubbelt så långt som stegen) eller *Replace* (modens stretch gäller i stället för hittens). Ramp och Random kan ändra faktorn över tid.
 
 ## Tape
 
@@ -139,12 +140,12 @@ Allt som spelar mer än ett ljud renderas först; uppspelningen spelar den färd
 | Loops | Den valda loopen, renderad och loopad |
 | Song | Hela låten, renderad och loopad |
 
-I vyer utan egen uppspelning (Import, Slice) spelar och exporterar Play och Export låten.
+I vyer utan egen uppspelning (Import, Slice, Project) spelar Play låten.
 
 - **När det renderas:** automatiskt kort efter varje ändring (debounce), plus en knapp för ny slumptagning utan att något ändrats.
 - **Byte under uppspelning:** en ny rendering startar exakt där den gamla loopen tar slut, utan avbrott.
 - **Spelhuvud:** renderaren lämnar en triggerlista (tid, takt, steg). GUI:t tänder det steg vars trigger senast passerats. Ingen annan feedback, och mods ändrar inte hur steg ser ut.
-- **Export:** det som spelas i aktuell vy (loopen i Loops, låten i Song) sparas som WAV, 44,1 kHz / 24 bit, normaliserad till −0,3 dBFS. Det som exporteras är exakt det man hör.
+- **Export:** görs i fliken Project. Export WAV sparar låten som den är nu, och varje snapshot har egna knappar för att spela och exportera den utan att ladda den; det laddade projektet rörs inte. WAV-filen är 44,1 kHz / 24 bit, normaliserad till −0,3 dBFS. Det som exporteras är exakt det man hör.
 
 ## Data, undo och lagring
 
@@ -153,7 +154,7 @@ I vyer utan egen uppspelning (Import, Slice) spelar och exporterar Play och Expo
 - **Tom pad:** en pads sista medlem får tas bort. En tom pad finns kvar och spelar inget.
 - **Undo:** alla ändringar går att ångra, i en gemensam historik för hela appen. State är oföränderligt (immutable) från start, så undo blir en historik av tillstånd.
 - **Lagring:** projektet autosparas i webbläsaren (IndexedDB). Det går också att exportera och importera ett projekt som en fil: en zip med projektets JSON och alla ljudfiler.
-- **Projekt och snapshots:** i fliken Project öppnas eller skapas ett projekt som en mapp på disk. En snapshot är en JSON-fil i mappen med allt i projektet, där ljuden refereras med sökväg till filer i mappen. Save skriver över den aktiva snapshoten, och New sparar nuläget som en ny snapshot som blir aktiv, medan den förra ligger kvar orörd. (changed) visar osparade ändringar, och Load med osparade ändringar frågar först. En load börjar en ny ångra-historik.
+- **Projekt och snapshots:** i fliken Project öppnas eller skapas ett projekt som en mapp på disk. En snapshot är en JSON-fil i mappen med allt i projektet, där ljuden refereras med sökväg till filer i mappen. Save och New snapshot finns i sidhuvudet, där Export låg. Save skriver över den aktiva snapshoten, och New sparar nuläget som en ny snapshot som blir aktiv, medan den förra ligger kvar orörd. (changed) visar osparade ändringar, och Load med osparade ändringar frågar först. En load börjar en ny ångra-historik.
 
 ## Teknik och arkitektur
 
@@ -187,7 +188,8 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 12. Hits längd | Svansar i Loops som visar hur länge varje hit låter; i Slice en rad som visar var varje slice hamnar på 1/16-griden | En split +-\|+-\|+--- syns som 2/16, 2/16 och 4/16 både i Slice och när föräldern dras in i en loop |
 | 13. Breaks som egna objekt | Sample är bara ljud; Break klipper upp ett sample i platser. Markörer går alltid att flytta, sample under ett break och slice under en hit går att byta, och ett break i en loop kan bytas mot ett annat | Amen kan bytas mot Think i en loop och tvärtom, och en markör kan flyttas medan M1 ligger i Song |
 | 14. Padens val | En pad väljer medlem: Top, Round robin, Random eller Random utan upprepning. Step lock går före moden, moden före paden | En hi-hat-pad med fyra hits låter olika varje gång utan mods |
-| 15. Stretch | Time stretch med korta bitar: på breaket (Off, Fit to tempo, Factor) och som mod (Multiply eller Replace), med bitlängd i ms | Ett break på 136 BPM i en låt på 170 BPM håller sin tonhöjd, och en mod kan dra ut en fill till metalliskt ljud |
+| 15. Stretch | Time stretch med korta bitar: på hitten (Off, Fit to tempo, Factor) med föräldern som makro, och som mod (Multiply eller Replace), med bitlängd i ms och bitar från breakets eller hittens början | Ett break på 136 BPM i en låt på 170 BPM håller sin tonhöjd, och en mod kan dra ut en fill till metalliskt ljud |
+| 16. Export i Project | Export WAV flyttar till Project; varje snapshot kan spelas och exporteras utan att laddas; Save och New snapshot i sidhuvudet | Två snapshots kan jämföras och exporteras utan att man byter mellan dem |
 
 ## Utanför v1
 
