@@ -21,6 +21,10 @@ Låten exporteras som en MIDI-fil och en WAV-fil med bitar. När de laddas i en 
 6. **MIDI-filen** har låtens tempo, och varje not är så lång som ljudet hörs.
 7. **Exporten ligger i Project**, bredvid Export WAV (fas 16).
 
+## Test i Reason
+
+När fasen är klar testar Magnus: WAV-filen laddas som ett klipp i Reason, delas i slice-läget och blir en Dr. Octo Rex med "Create Dr. Octo Rex". Sedan läggs MIDI-filen på, och det ska låta som låten.
+
 ## Min tolkning (granska gärna)
 
 - **Normalisering:** WAV-filen med bitar normaliseras med samma faktor som låtens WAV-export. Då stämmer nivåerna mellan bitarna, och velocity är 100 på alla noter.
