@@ -1,4 +1,4 @@
-import type { BufferCache, Trigger } from '../engine';
+import type { BufferCache, Trigger, Voice } from '../engine';
 import { hitPlay, scheduleHit } from '../engine';
 import type { AudioData, Id, Project } from '../model';
 
@@ -80,6 +80,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
   let pending: Segment | null = null;
   const auditionBuffers = new WeakMap<AudioData, AudioBuffer>();
   let auditioning: AudioBufferSourceNode | null = null;
+  let hitVoice: Voice | null = null;
   let region: { startTime: number; offset: number; duration: number; loop: boolean } | null = null;
   // Hit buffers are cached per project version, so edits to audio are never stale.
   let hitCache: { project: Project; cache: BufferCache } | null = null;
@@ -91,6 +92,8 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       // Already stopped.
     }
     auditioning = null;
+    hitVoice?.stop();
+    hitVoice = null;
     region = null;
   };
 
@@ -171,7 +174,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       const hit = project.hits[hitId];
       if (hit === undefined) return;
       if (hitCache?.project.audio !== project.audio) hitCache = { project, cache: new Map() };
-      auditioning = scheduleHit(c, hitCache.cache, project, hitPlay(project, hit), c.currentTime);
+      hitVoice = scheduleHit(c, hitCache.cache, project, hitPlay(project, hit), c.currentTime);
     },
     audition: (audio, offset, duration, onEnded, loop = false) => {
       stopAudition();

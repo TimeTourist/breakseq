@@ -1,5 +1,5 @@
 import type { EffectTarget, ModShape, StepEffect, StepTarget } from '../model';
-import { STEP_TARGETS } from '../model';
+import { MAX_STRETCH, MIN_STRETCH, STEP_TARGETS } from '../model';
 
 export const TARGET_LABELS: Record<EffectTarget, string> = {
   tape: 'Tape',
@@ -9,6 +9,7 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   pitch: 'Pitch',
   volume: 'Volume',
   direction: 'Direction',
+  stretch: 'Stretch',
   tempo: 'Tempo (slip)',
 };
 
@@ -19,6 +20,7 @@ export const VALUE_HINTS: Record<StepTarget, string> = {
   pitch: 'semitones, e.g. 0 3 5 7',
   volume: 'dB, e.g. 0 -6',
   direction: 'F or R, e.g. F R',
+  stretch: 'length factor, e.g. 2 1/2 4',
   tempo: 'speed, e.g. 1/3 1/2 2',
 };
 
@@ -50,6 +52,7 @@ export function parseValues(target: StepTarget, text: string): Parsed {
     if (target === 'ratchet' && !(Number.isInteger(value) && value >= 1 && value <= 8)) return { ok: false, error: 'Ratchet is a whole number from 1 to 8' };
     if (target === 'padMember' && !(Number.isInteger(value) && value >= 1)) return { ok: false, error: 'Members count from 1' };
     if (target === 'tempo' && !(value > 0)) return { ok: false, error: 'Tempo is a speed above 0, e.g. 1/3' };
+    if (target === 'stretch' && !(value >= MIN_STRETCH && value <= MAX_STRETCH)) return { ok: false, error: 'Stretch is a factor from 1/16 to 16, e.g. 2' };
     values.push(value);
   }
   return { ok: true, values };
@@ -65,7 +68,7 @@ const fractions: [number, string][] = [
 ];
 
 const formatNumber = (target: StepTarget, value: number): string => {
-  if (target === 'tempo') {
+  if (target === 'tempo' || target === 'stretch') {
     const known = fractions.find(([f]) => Math.abs(f - value) < 1e-6);
     if (known !== undefined) return known[1];
   }
@@ -105,6 +108,7 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
     volume: () => pick(rng, [-12, -6, -3, 0]),
     direction: () => between(rng, 0, 1),
     tempo: () => pick(rng, [1 / 3, 1 / 2, 2 / 3, 3 / 2, 2]),
+    stretch: () => pick(rng, [1 / 2, 3 / 2, 2, 2, 4]),
   };
   const kinds: ModShape['kind'][] =
     target === 'direction' ? ['list', 'cycle', 'random'] : target === 'tempo' ? ['list', 'list', 'ramp'] : ['list', 'cycle', 'ramp', 'random'];
@@ -116,6 +120,7 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
       : target === 'padMember' ? [1, 4]
       : target === 'volume' ? [-12, 0]
       : target === 'tempo' ? [1 / 3, 1]
+      : target === 'stretch' ? [1, 4]
       : [-between(rng, 2, 12), between(rng, 2, 12)];
     return { kind: 'random', min, max, chance: pick(rng, [15, 25, 33, 50, 75]), whole: target === 'pitch' };
   };

@@ -131,7 +131,7 @@ export function StepSentence({ effect, taken, onChange, onTarget, onCommit }: St
     const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [];
     const range = target === 'direction' ? { min: 0, max: 1 } : { min: 1, max: 4 };
     // Pitch rolls whole semitones unless you choose otherwise.
-    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? { kind, from: 0, to: 12 } : { kind, ...range, chance: 50, whole: target === 'pitch' });
+    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? (target === 'stretch' ? { kind, from: 1, to: 4 } : { kind, from: 0, to: 12 }) : { kind, ...range, chance: 50, whole: target === 'pitch' });
   };
 
 

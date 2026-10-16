@@ -55,6 +55,30 @@ export interface Region {
   readonly end: number;
 }
 
+/**
+ * Time stretch: the hit plays as short grains, each starting a little further
+ * into the slice and laid over each other, so its length changes but its pitch
+ * stays. Off is a factor of 1; Fit to tempo stretches by the break's tempo over
+ * the song's, so a slice lasts as long as its steps in the song.
+ */
+export type StretchMode = 'off' | 'fit' | 'factor';
+/** Where the grain grid starts: at the break's start in the sample, as when a sampler stretched the whole break, or at the hit's start. */
+export type GrainFrom = 'break' | 'hit';
+
+export interface HitStretch {
+  readonly mode: StretchMode;
+  /** Length factor for 'factor': 2 is twice as long. */
+  readonly factor: number;
+  /** Grain length in ms; null takes the parent's, or DEFAULT_GRAIN. */
+  readonly grain: number | null;
+  /** null takes the parent's, or 'break'. */
+  readonly from: GrainFrom | null;
+}
+
+/** Grain length when nothing sets one, in ms. */
+export const DEFAULT_GRAIN = 30;
+export const NO_STRETCH: HitStretch = { mode: 'off', factor: 1, grain: null, from: null };
+
 export interface Hit {
   readonly id: Id;
   readonly name: string;
@@ -70,6 +94,7 @@ export interface Hit {
   readonly volume: number;
   /** Milliseconds. */
   readonly fadeOut: number;
+  readonly stretch: HitStretch;
   /** The hit this one was duplicated from, or null. */
   readonly variantOf: Id | null;
 }
@@ -110,7 +135,7 @@ export interface Loop {
 }
 
 /** What a mod changes. Applied in this order, whatever row the mod is in. */
-export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'tempo'] as const;
+export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'stretch', 'tempo'] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
 export type ModRate = 'step' | 'beat' | 'bar';
@@ -138,7 +163,18 @@ export interface StepEffect {
   readonly target: StepTarget;
   readonly rate: ModRate;
   readonly shape: ModShape;
+  /** For Stretch only: its grain length and how it meets the hit's own stretch. Missing means DEFAULT_MOD_STRETCH. */
+  readonly stretch?: ModStretch;
 }
+
+/** Multiply: times the hit's own stretch. Replace: instead of it. */
+export type StretchCombine = 'multiply' | 'replace';
+export interface ModStretch {
+  /** Grain length in ms. */
+  readonly grain: number;
+  readonly combine: StretchCombine;
+}
+export const DEFAULT_MOD_STRETCH: ModStretch = { grain: DEFAULT_GRAIN, combine: 'multiply' };
 
 /**
  * Stack chooses among everything under the playhead: the layers top down (Fill,

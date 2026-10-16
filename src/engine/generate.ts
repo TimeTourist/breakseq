@@ -1,5 +1,6 @@
-import type { Clip, Direction, Id, Loop, Project, Region, Rng } from '../model';
-import { STEPS_PER_BAR, clipsByStep, effectiveHit, hitSound, stepDuration } from '../model';
+import type { Clip, Direction, Id, Loop, Project, Region, Rng, StretchPlay } from '../model';
+import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitSound, hitStretch, stepDuration } from '../model';
+import type { StepState } from './mods';
 import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
 import { padPicker } from './pad-choice';
 import { swapper } from './swap';
@@ -20,6 +21,8 @@ export interface Trigger {
   readonly volume: number;
   readonly direction: Direction;
   readonly region: Region;
+  /** How it is stretched; null plays it as it is. */
+  readonly stretch: StretchPlay | null;
 }
 
 /** The loop heard at a song step, and the index of the step in it. */
@@ -103,6 +106,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     const sound = hitSound(project, state.hit);
     if (sound === null) return;
     const hit = effectiveHit(project, state.hit);
+    const stretch = playedStretch(hitStretch(project, state.hit), state.stretch);
     for (let i = 0; i < state.ratchet; i++) {
       triggers.push({
         time: time + (i * length) / state.ratchet,
@@ -113,6 +117,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
         volume: hit.volume + state.volume,
         direction: state.reverse === null ? hit.direction : state.reverse ? 'reverse' : 'forward',
         region: sound.region,
+        stretch,
       });
     }
   };
@@ -142,6 +147,23 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     clock = end;
   }
   return triggers;
+}
+
+/**
+ * A hit's own stretch with a Stretch mod over it: Multiply times the hit's,
+ * Replace instead of it; the mod's grain length applies either way. A factor of
+ * 1 is no stretch at all: grains at 1 play the sound back unchanged.
+ */
+export function playedStretch(own: StretchPlay, mod: StepState['stretch']): StretchPlay | null {
+  const played =
+    mod === null
+      ? own
+      : {
+          factor: clampStretch(mod.settings.combine === 'multiply' ? own.factor * mod.factor : mod.factor),
+          grain: mod.settings.grain,
+          from: own.from,
+        };
+  return Math.abs(played.factor - 1) < 1e-9 ? null : played;
 }
 
 /**

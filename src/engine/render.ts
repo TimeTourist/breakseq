@@ -1,6 +1,8 @@
 import type { AudioData, Direction, Hit, Project, Sample } from '../model';
-import { effectiveHit, hitSound, songDuration } from '../model';
+import { effectiveHit, hitSound, hitStretch, songDuration } from '../model';
 import type { Take, Trigger } from './generate';
+import { playedStretch } from './generate';
+import { grainCurve, grainPlan } from './stretch';
 import type { Tape } from './tape';
 import { speedCurve, tapePasses } from './tape';
 
@@ -24,7 +26,12 @@ function sampleBuffer(context: BaseAudioContext, sample: Sample, audio: AudioDat
 }
 
 /** What one voice plays: a hit with its final settings, as a trigger carries them. */
-export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'direction' | 'region'>;
+export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'direction' | 'region' | 'stretch'>;
+
+/** A voice that has been scheduled: stop() silences it at once. */
+export interface Voice {
+  readonly stop: () => void;
+}
 
 /** Sample buffers made on one context, per sample and direction. */
 export type BufferCache = Map<string, AudioBuffer>;
@@ -32,13 +39,20 @@ export type BufferCache = Map<string, AudioBuffer>;
 /** A hit played as it is, with no mods: its own settings plus its parent's. */
 export function hitPlay(project: Project, hit: Hit): HitPlay {
   const own = effectiveHit(project, hit);
-  return { hitId: own.id, pitch: own.pitch, volume: own.volume, direction: own.direction, region: hitSound(project, hit)?.region ?? { start: 0, end: 0 } };
+  return {
+    hitId: own.id,
+    pitch: own.pitch,
+    volume: own.volume,
+    direction: own.direction,
+    region: hitSound(project, hit)?.region ?? { start: 0, end: 0 },
+    stretch: playedStretch(hitStretch(project, hit), null),
+  };
 }
 
 /**
  * Schedules one voice on any context, offline or live: region, direction,
- * pitch as playback rate, volume and fade out. If `chokeAt` comes before the
- * voice ends, it fades out from there over CHOKE_FADE.
+ * pitch as playback rate, stretch as grains, volume and fade out. If `chokeAt`
+ * comes before the voice ends, it fades out from there over CHOKE_FADE.
  */
 export function scheduleHit(
   context: BaseAudioContext,
@@ -47,7 +61,7 @@ export function scheduleHit(
   play: HitPlay,
   start: number,
   chokeAt = Infinity,
-): AudioBufferSourceNode | null {
+): Voice | null {
   const hit = project.hits[play.hitId];
   const sample = hit === undefined ? undefined : hitSound(project, hit)?.sample;
   const audio = sample === undefined ? undefined : project.audio[sample.audioId];
@@ -70,8 +84,22 @@ export function scheduleHit(
   const onFrame = (t: number) => Math.round(t * buffer.sampleRate) / buffer.sampleRate;
   const offset = onFrame(region.start);
   const rate = 2 ** (play.pitch / 12);
+  // A stretched voice is grains; the grid from the break starts at the sample's start (its end, backwards).
+  const plan =
+    play.stretch === null
+      ? null
+      : grainPlan({
+          start: offset,
+          end: onFrame(region.end),
+          rate,
+          factor: play.stretch.factor,
+          grain: play.stretch.grain / 1000,
+          origin: play.stretch.from === 'break' ? 0 : offset,
+          // From the hit, grains stay within it; from the break, they may read on into the next slice.
+          limit: play.stretch.from === 'break' ? buffer.duration : onFrame(region.end),
+        });
   // It ends on a whole frame too: the buffer goes on past the slice, into the next one.
-  const naturalEnd = start + Math.max(0, onFrame(region.end) - offset) / rate;
+  const naturalEnd = start + (plan === null ? Math.max(0, onFrame(region.end) - offset) / rate : plan.length);
   // A next trigger within a frame of the end is not a choke: the voice ends there, without a fade.
   const choked = chokeAt < naturalEnd - 1.5 / context.sampleRate;
 
@@ -96,14 +124,46 @@ export function scheduleHit(
     gain.gain.linearRampToValueAtTime(0, naturalEnd);
   }
 
-  const source = context.createBufferSource();
-  source.buffer = buffer;
-  source.playbackRate.value = rate;
-  source.connect(gain).connect(context.destination);
-  source.start(start, offset);
+  gain.connect(context.destination);
   // Half a frame early, so the frame where the next sound starts is not played as well.
-  source.stop(choked ? chokeAt + CHOKE_FADE : Math.min(naturalEnd, chokeAt) - 0.5 / context.sampleRate);
-  return source;
+  const stopAt = choked ? chokeAt + CHOKE_FADE : Math.min(naturalEnd, chokeAt) - 0.5 / context.sampleRate;
+  const sources: AudioBufferSourceNode[] = [];
+  const voice = (at: number, from: number, until: number, into: AudioNode) => {
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = rate;
+    source.connect(into);
+    source.start(at, from);
+    source.stop(until);
+    sources.push(source);
+  };
+
+  if (plan === null) {
+    voice(start, offset, stopAt, gain);
+  } else {
+    for (const g of plan.grains) {
+      // A grain under way when the voice starts, or reaching before the sample, plays from where it can.
+      const skip = Math.max(0, -g.at, -g.from / rate);
+      const at = start + g.at + skip;
+      const until = Math.min(start + g.at + g.length, stopAt);
+      if (skip >= g.length || at >= until) continue;
+      const envelope = context.createGain();
+      envelope.gain.setValueCurveAtTime(grainCurve(g.shape, skip / g.length), at, start + g.at + g.length - at);
+      envelope.connect(gain);
+      voice(at, g.from + skip * rate, until, envelope);
+    }
+  }
+  return {
+    stop: () => {
+      for (const source of sources) {
+        try {
+          source.stop();
+        } catch {
+          // Already stopped.
+        }
+      }
+    },
+  };
 }
 
 /** Plays triggers on a context, one voice: each trigger is cut where the next sound starts. */

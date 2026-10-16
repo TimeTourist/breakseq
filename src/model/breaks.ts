@@ -1,5 +1,6 @@
 import type { Break, Hit, Id, Pad, Project, Region, Sample } from './types';
-import { STEPS_PER_BAR } from './types';
+import { DEFAULT_GRAIN, NO_STRETCH, STEPS_PER_BAR } from './types';
+import type { GrainFrom } from './types';
 
 /** A file name without its audio extension: "amen.wav 01" → "amen 01". */
 export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc)(?=\s|$)/gi, '');
@@ -100,6 +101,47 @@ export function effectiveHit(project: Project, hit: Hit): Hit {
   };
 }
 
+/** The longest a stretch may make a hit, and the shortest, as a factor. */
+export const MAX_STRETCH = 16;
+export const MIN_STRETCH = 1 / 16;
+/** Grain lengths in ms. */
+export const MIN_GRAIN = 5;
+export const MAX_GRAIN = 500;
+
+/** How a hit is stretched as it plays: a length factor, grain length in ms, and where the grain grid starts. */
+export interface StretchPlay {
+  readonly factor: number;
+  readonly grain: number;
+  readonly from: GrainFrom;
+}
+
+export const clampStretch = (factor: number): number =>
+  Number.isFinite(factor) && factor > 0 ? Math.min(MAX_STRETCH, Math.max(MIN_STRETCH, factor)) : 1;
+
+/** A hit's own stretch factor: Fit to tempo is the break's tempo over the song's, and 1 for a one-shot. */
+function ownFactor(project: Project, hit: Hit): number {
+  const { mode, factor } = hit.stretch;
+  if (mode === 'factor') return clampStretch(factor);
+  if (mode === 'off') return 1;
+  const brk = project.breaks[hit.breakId];
+  const bpm = brk === undefined ? null : bpmOf(project, brk);
+  return bpm === null || project.song.bpm <= 0 ? 1 : clampStretch(bpm / project.song.bpm);
+}
+
+/**
+ * How a hit is stretched without mods: its own factor times its parent's, which
+ * works like a macro. Grain length and grid come from the hit, else its parent,
+ * else the defaults.
+ */
+export function hitStretch(project: Project, hit: Hit): StretchPlay {
+  const parent = parentHit(project, hit);
+  return {
+    factor: clampStretch(ownFactor(project, hit) * (parent === undefined ? 1 : ownFactor(project, parent))),
+    grain: hit.stretch.grain ?? parent?.stretch.grain ?? DEFAULT_GRAIN,
+    from: hit.stretch.from ?? parent?.stretch.from ?? 'break',
+  };
+}
+
 /** Whether a hit is a break's parent: a macro for its slices, never played as a pad. */
 export function isParentHit(project: Project, hit: Hit): boolean {
   return project.breaks[hit.breakId]?.parent === hit.id;
@@ -118,7 +160,7 @@ export function isParentPad(project: Project, pad: Pad): boolean {
 
 /** A new hit playing a whole slot (or the whole break), unchanged. */
 export function slotHit(id: Id, name: string, breakId: Id, slot: number | null): Hit {
-  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, fadeOut: 0, variantOf: null };
+  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, fadeOut: 0, stretch: NO_STRETCH, variantOf: null };
 }
 
 /** The name of a slot's hit and pad: "amen 05", or just "snare" for a one-shot. */

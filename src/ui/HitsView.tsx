@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import type { Hit, Id, Pad, Project } from '../model';
+import type { Hit, HitStretch, Id, Pad, Project, StretchMode } from '../model';
 import {
   addPadMember,
   addVariant,
+  MAX_GRAIN,
+  MIN_GRAIN,
   baseName,
+  hitStretch,
   createPad,
   isParentHit,
   isParentPad,
@@ -24,6 +27,9 @@ import { PlayIcon } from './icons';
 import { CHOICE_LABEL, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
+
+/** A stretch factor as it reads: 2×, 0.5×, 1.33×. */
+const formatFactor = (f: number) => `${Math.round(f * 100) / 100}×`;
 
 /** A hit being dragged: from the list on the left, or within a pad. */
 export const HIT_MIME = 'application/x-breakseq-hit';
@@ -353,6 +359,97 @@ export function HitsView() {
     );
   }
 
+  /**
+   * Stretch: Off, Fit to tempo or a factor, the grain length and where the
+   * grains start. A slice without a grain length or grid of its own takes its
+   * parent's, and its factor is multiplied by the parent's.
+   */
+  function stretchPanel(hit: Hit, parent: Hit | undefined, oneShot: boolean) {
+    const stretch = hit.stretch;
+    const set = (patch: Partial<HitStretch>, field: string) => setError(run(updateHit(hit.id, { stretch: { ...stretch, ...patch } }), `hit:${hit.id}:stretch:${field}`));
+    const played = hitStretch(project, hit);
+    const modes: [StretchMode, string][] = [
+      ['off', 'Off'],
+      ['fit', 'Fit to tempo'],
+      ['factor', 'Factor'],
+    ];
+    const inherited = parent === undefined ? 'default' : 'parent';
+    return (
+      <div className="panel stack-tight" aria-label="Stretch" role="group">
+        <div className="row spread">
+          <span className="label">Stretch</span>
+          <span className="muted small mono">
+            {played.factor === 1 ? 'plays as it is' : `plays ${formatFactor(played.factor)}${parent !== undefined ? ' with the parent' : ''}`}
+          </span>
+        </div>
+        <div className="segmented full" role="group" aria-label="Stretch mode">
+          {modes.map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={stretch.mode === mode}
+              disabled={mode === 'fit' && oneShot}
+              title={mode === 'fit' && oneShot ? 'A one-shot has no tempo to fit' : undefined}
+              onClick={() => set({ mode }, 'mode')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="slider-grid">
+          {stretch.mode === 'factor' && (
+            <Slider
+              label="Factor"
+              value={Math.log2(stretch.factor)}
+              min={-4}
+              max={4}
+              step={1 / 12}
+              format={(v) => formatFactor(2 ** v)}
+              onChange={(v) => set({ factor: 2 ** v }, 'factor')}
+              onCommit={seal}
+            />
+          )}
+          <Slider
+            label="Grain"
+            value={stretch.grain ?? played.grain}
+            min={MIN_GRAIN}
+            max={MAX_GRAIN}
+            step={1}
+            format={(v) => `${v} ms${stretch.grain === null ? ` (${inherited})` : ''}`}
+            onChange={(v) => set({ grain: v }, 'grain')}
+            onCommit={seal}
+          />
+        </div>
+        <div className="row">
+          <span className="label">Grains from</span>
+          <div className="segmented" role="group" aria-label="Grains from">
+            {parent !== undefined && (
+              <button type="button" aria-pressed={stretch.from === null} onClick={() => set({ from: null }, 'from')}>
+                Parent
+              </button>
+            )}
+            {(['break', 'hit'] as const).map((from) => (
+              <button
+                key={from}
+                type="button"
+                aria-pressed={stretch.from === from || (parent === undefined && stretch.from === null && from === 'break')}
+                title={from === 'break' ? 'A grid from the start of the break, like a sampler stretching the whole break' : 'Grains start with the hit, for clean attacks'}
+                onClick={() => set({ from }, 'from')}
+              >
+                {from === 'break' ? 'Break' : 'Hit'}
+              </button>
+            ))}
+          </div>
+          {stretch.grain !== null && (
+            <button type="button" className="link-text small push" onClick={() => set({ grain: null }, 'grain')}>
+              Grain from {inherited}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   /** How the selected hit plays: region, direction, pitch, volume and fade. */
   function hitEditor(hit: Hit) {
     const onError = setError;
@@ -489,6 +586,7 @@ export function HitsView() {
           <Slider label="Volume" value={hit.volume} min={-24} max={6} step={0.5} format={(v) => withParent(v, parent?.volume, 'dB')} onChange={(v) => edit({ volume: v }, 'volume')} onCommit={seal} />
           <Slider label="Fade out" value={hit.fadeOut} min={0} max={200} step={1} format={(v) => `${v} ms`} onChange={(v) => edit({ fadeOut: v }, 'fade')} onCommit={seal} />
         </div>
+        {stretchPanel(hit, parent, brk?.bars === null)}
       </section>
     );
   }
