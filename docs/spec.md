@@ -146,7 +146,7 @@ Play spelar det som visas i fliken:
 
 | Vy | Vad Play spelar |
 | --- | --- |
-| Import | Samplet vars Trim är öppen (annars breaket som senast valdes för Slice), trimmat. Ett break loopas, en one-shot spelas en gång. Inget öppet: Play går inte att trycka på. |
+| Import | Samplet vars Trim är öppen, trimmat: ett break loopas, en one-shot spelas en gång. Utan öppen Trim spelar Play låten. |
 | Slice | Breaket som det låter när föräldern läggs i en loop, renderat och loopat |
 | Hits | Den öppna föräldern som breaket läggs ut (med utbytta slices), den valda hitten, eller med bara en pad vald padens val. Once (förvalt) eller Loop; i Loop väljer en pad på nytt varje varv, och Round robin går hela varv. |
 | Loops | Den valda loopen, renderad och loopad |

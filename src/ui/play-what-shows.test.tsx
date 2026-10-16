@@ -36,8 +36,9 @@ describe('what Play plays', () => {
   const p = split();
   const brk = brkOf(p);
 
-  it('is the trimmed sample in Import, looped for a break; nothing with none open', () => {
-    expect(subjectOf(p, state(p, { view: 'import' }))).toBeNull();
+  it('is the trimmed sample in Import, looped for a break; the song with no Trim open', () => {
+    expect(subjectOf(p, state(p, { view: 'import' }))?.key).toBe(SONG_KEY);
+    expect(subjectOf(p, state(p, { view: 'import', sliceTarget: brk.id }))?.key).toBe(SONG_KEY);
     const s = subjectOf(p, state(p, { view: 'import', trimming: brk.id }));
     expect(s).toMatchObject({ key: `sample:${brk.sampleId}`, once: false, kind: 'preview' });
   });
