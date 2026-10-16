@@ -12,7 +12,8 @@ export interface Services {
   readonly storage: ProjectStorage;
   readonly player: Player;
   readonly renderSong: (project: Project, rng: Rng) => Promise<Take>;
-  readonly exportWav: (take: Take) => void;
+  /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
+  readonly exportWav: (take: Take, name?: string) => void;
   /** Hands the user a file to save. */
   readonly download: (name: string, bytes: Uint8Array, type: string) => void;
   /** Fresh randomness for each take. */
@@ -38,10 +39,18 @@ function download(name: string, bytes: Uint8Array, type: string): void {
 
 export const timestamp = () => new Date().toISOString().slice(0, 19).replaceAll(':', '-');
 
-function exportWav(take: Take): void {
+/** A name as it can stand in a file name: "Hek-tick Amen groove" → "hek-tick-amen-groove". */
+export const fileSafe = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9åäöæø]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+function exportWav(take: Take, name?: string): void {
   const { buffer } = take;
   const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
-  download(`breakseq-${timestamp()}.wav`, encodeWav({ sampleRate: buffer.sampleRate, channels }), 'audio/wav');
+  const part = name === undefined || fileSafe(name) === '' ? '' : `${fileSafe(name)}-`;
+  download(`breakseq-${part}${timestamp()}.wav`, encodeWav({ sampleRate: buffer.sampleRate, channels }), 'audio/wav');
 }
 
 export function browserServices(): Services {

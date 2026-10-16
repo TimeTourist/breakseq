@@ -105,8 +105,10 @@ describe('Project', () => {
     await act(async () => {
       store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Hek-tick') });
     });
-    fireEvent.change(screen.getByRole('textbox', { name: 'New snapshot name' }), { target: { value: 'Hek-tick Amen groove' } });
+    // New snapshot in the header asks for a name.
     await click('New snapshot');
+    fireEvent.change(screen.getByRole('textbox', { name: 'New snapshot name' }), { target: { value: 'Hek-tick Amen groove' } });
+    await click('Keep');
     expect((await listSnapshots(folder)).map((s) => s.name).sort()).toEqual(['Hek-tick Amen groove', 'Start']);
     const activeRow = within(snapshots()).getByText('active').closest('.snapshot-row')!;
     expect(activeRow.textContent).toContain('Hek-tick Amen groove');
@@ -115,7 +117,7 @@ describe('Project', () => {
     await act(async () => {
       store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Unsaved') });
     });
-    await click('Load');
+    await click('Load Start');
     expect(screen.getByRole('dialog').textContent).toContain('not in “Hek-tick Amen groove”');
     await answer('Discard changes');
 
@@ -132,12 +134,14 @@ describe('Project', () => {
     const store = await setup(build(createLoop('basic', 'main', 1)), [folder]);
     await click('New');
     await answer('Keep the current work');
-    fireEvent.change(screen.getByRole('textbox', { name: 'New snapshot name' }), { target: { value: 'Second' } });
+    // New snapshot in the header asks for a name.
     await click('New snapshot');
+    fireEvent.change(screen.getByRole('textbox', { name: 'New snapshot name' }), { target: { value: 'Second' } });
+    await click('Keep');
     await act(async () => {
       store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Kept') });
     });
-    await click('Load');
+    await click('Load Start');
     await answer('Save first');
     expect(loopName(store)).toBe('basic');
     const second = (await listSnapshots(folder)).find((s) => s.name === 'Second')!;

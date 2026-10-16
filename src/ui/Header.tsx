@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { setBpm } from '../model';
 import { useApp, useProject, useRun, useSelect } from './context';
+import { useSnapshots } from './snapshots';
 import { describeChange } from './describeChange';
 import type { View } from './store';
 import { VIEWS } from './store';
@@ -21,11 +22,10 @@ interface HeaderProps {
   readonly canPlay: boolean;
   readonly onPlay: () => void;
   readonly onStop: () => void;
-  readonly onExport: () => void;
   readonly status: string | null;
 }
 
-export function Header({ onView, playing, canPlay, onPlay, onStop, onExport, status }: HeaderProps) {
+export function Header({ onView, playing, canPlay, onPlay, onStop, status }: HeaderProps) {
   const view = useSelect((s) => s.view);
   const { store } = useApp();
   const history = useSelect((s) => s.history);
@@ -109,10 +109,81 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, onExport, sta
           />
           <span>BPM</span>
         </label>
-        <button type="button" className="primary" disabled={!canPlay} onClick={onExport}>
-          Export WAV
-        </button>
+        <SnapshotButtons />
       </div>
     </header>
+  );
+}
+
+/**
+ * Save over the active snapshot, or keep the work as a new one with a name.
+ * Both need a project folder, opened in Project.
+ */
+function SnapshotButtons() {
+  const { folder, active, changed, save, newSnapshot } = useSnapshots();
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const noFolder = 'Open a project folder in Project first';
+
+  const attempt = (work: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    work()
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+
+  const saveTitle = folder === null ? noFolder : active === null ? 'No snapshot is active yet: use New snapshot' : changed ? `Save the work over “${active.name}”` : `“${active.name}” has no changes to save`;
+
+  return (
+    <div className="snapshot-buttons">
+      {error !== null && (
+        <span className="status error" role="alert">
+          {error}
+        </span>
+      )}
+      <button type="button" disabled={busy || folder === null || active === null || !changed} title={saveTitle} onClick={() => attempt(save)}>
+        Save
+      </button>
+      <button
+        type="button"
+        className="primary"
+        aria-expanded={naming}
+        disabled={busy || folder === null}
+        title={folder === null ? noFolder : 'Keep the work as a new snapshot'}
+        onClick={() => setNaming((n) => !n)}
+      >
+        New snapshot
+      </button>
+      {naming && (
+        <form
+          className="snapshot-popover panel row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            attempt(async () => {
+              await newSnapshot(name);
+              setName('');
+              setNaming(false);
+            });
+          }}
+        >
+          <input
+            aria-label="New snapshot name"
+            autoFocus
+            placeholder="Name, e.g. Hek-tick Amen groove"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setNaming(false);
+            }}
+          />
+          <button type="submit" className="primary" disabled={busy}>
+            Keep
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
