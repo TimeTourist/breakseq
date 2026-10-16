@@ -76,7 +76,9 @@ function useTake() {
     const timer = setTimeout(
       () => {
         const rng = services.rng();
-        (subject.kind === 'song' ? services.renderSong(subject.project, rng) : services.renderPreview(subject.preview(rng)))
+        // Through a promise, so a render that throws at once is reported like one that fails later.
+        Promise.resolve()
+          .then(() => (subject.kind === 'song' ? services.renderSong(subject.project, rng) : services.renderPreview(subject.preview(rng))))
           .then((take) => {
             if (id !== latest.current) return;
             setShown({ take, key: subject.key, once: subject.once });
