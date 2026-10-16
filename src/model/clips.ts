@@ -96,8 +96,19 @@ export const copyClip =
   (id: Id, row: SongRow, start: number): Command =>
   (project, ctx) => {
     const clip = project.song.clips.find((c) => c.id === id);
-    if (clip === undefined) return notFound(id);
+    return clip === undefined ? notFound(id) : pasteClip(clip, row, start)(project, ctx);
+  };
+
+/**
+ * A new clip like `clip` at `start` in `row`, which must be of its kind. The
+ * clip itself need not be in the song any more, as after a copy and delete.
+ */
+export const pasteClip =
+  (clip: Clip, row: SongRow, start: number): Command =>
+  (project, ctx) => {
     if (isLoopRow(row) !== isLoopRow(clip.row)) return invalid(isLoopRow(clip.row) ? 'Loops go in Main or Fill' : 'Mods go in Mod A or Mod B');
+    const problem = check(project, row, clip.ref);
+    if (problem !== null) return invalid(problem);
     const total = songSteps(project);
     const from = Math.max(0, Math.min(total - 1, Math.round(start)));
     const copy: Clip = { ...clip, id: ctx.newId(), row, start: from, length: Math.min(clip.length, total - from) };

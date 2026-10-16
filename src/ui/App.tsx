@@ -23,6 +23,13 @@ export const RENDER_DEBOUNCE_MS = 300;
 export const SAVE_DEBOUNCE_MS = 1000;
 
 
+/** Whether two projects render the same: all but the song's loop, which only says what plays over and over. */
+export const sameRender = (a: Project, b: Project): boolean =>
+  (Object.keys(a) as (keyof Project)[]).every((key) => key === 'song' || a[key] === b[key]) &&
+  a.song.bpm === b.song.bpm &&
+  a.song.bars === b.song.bars &&
+  a.song.clips === b.song.clips;
+
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
@@ -33,7 +40,11 @@ const isTyping = (target: EventTarget | null) =>
  */
 function useTake() {
   const { services } = useApp();
-  const full = useProject();
+  const latestFull = useProject();
+  // Marking or turning the song's loop on or off is no reason for a new take.
+  const stable = useRef(latestFull);
+  if (stable.current !== latestFull && !sameRender(stable.current, latestFull)) stable.current = latestFull;
+  const full = stable.current;
   const view = useSelect((s) => s.view);
   const loopId = useSelect((s) =>
     s.view === 'loops' ? currentLoopId(s.history.present, s.selection) : s.view === 'mods' ? previewLoopId(s.history.present, s.selection) : null,
@@ -73,7 +84,7 @@ function useTake() {
     return () => clearTimeout(timer);
   }, [project, nonce, services]);
 
-  return { take, rendering, error, newTake: useCallback(() => setNonce((n) => n + 1), []) };
+  return { take, rendering, error, isSong: project === full, newTake: useCallback(() => setNonce((n) => n + 1), []) };
 }
 
 /**
@@ -172,13 +183,37 @@ function usePlayhead(playing: boolean): { trigger: Trigger | null; seconds: numb
 function Shell() {
   const { store, services } = useApp();
   const view = useSelect((s) => s.view);
-  const { take, rendering, error: renderError, newTake } = useTake();
+  const { take, rendering, error: renderError, isSong, newTake } = useTake();
   const { error: saveError, backups, restore } = useAutosave();
   const [playing, setPlaying] = useState(false);
+  // A snapshot played from Project is not the song: the song's loop and start are not its.
+  const [snapshotPlaying, setSnapshotPlaying] = useState(false);
   const playhead = usePlayhead(playing);
   const bpm = useSelect((s) => s.history.present.song.bpm);
+  const songLoop = useSelect((s) => s.history.present.song.loop ?? null);
+  const step = stepDuration(bpm);
+  const songPlays = isSong && !snapshotPlaying;
 
   const setView = useCallback((v: View) => store.dispatch({ type: 'view', view: v }), [store]);
+
+  useEffect(() => {
+    services.player.setLoop(songPlays && songLoop?.on === true ? { start: songLoop.start * step, end: songLoop.end * step } : null);
+  }, [services, songPlays, songLoop, step]);
+
+  const play = () => {
+    if (take === null) return;
+    setSnapshotPlaying(false);
+    services.player.play(take, isSong ? store.getState().songCursor * step : 0);
+    setPlaying(true);
+  };
+  const stop = () => {
+    services.player.stop();
+    setPlaying(false);
+    setSnapshotPlaying(false);
+  };
+  // The keyboard handler is set up once and reads the latest of these.
+  const toggle = useRef(() => {});
+  toggle.current = () => (playing ? stop() : play());
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -189,6 +224,10 @@ function Shell() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         store.dispatch({ type: 'redo' });
+      } else if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Space plays and stops, also with a button focused, which it would otherwise press.
+        e.preventDefault();
+        if (!e.repeat) toggle.current();
       } else if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[1-8]$/.test(e.key)) {
         setView(VIEWS[Number(e.key) - 1]!);
       }
@@ -205,15 +244,8 @@ function Shell() {
         onView={setView}
         playing={playing}
         canPlay={take !== null}
-        onPlay={() => {
-          if (take === null) return;
-          services.player.play(take);
-          setPlaying(true);
-        }}
-        onStop={() => {
-          services.player.stop();
-          setPlaying(false);
-        }}
+        onPlay={play}
+        onStop={stop}
         status={status}
       />
       {view === 'import' && <ImportView />}
@@ -232,12 +264,21 @@ function Shell() {
           onRestore={restore}
           onPlayTake={(snapshotTake) => {
             services.player.play(snapshotTake);
+            setSnapshotPlaying(true);
             setPlaying(true);
           }}
         />
       )}
       {view === 'song' && (
-        <SongView playheadSeconds={playhead.seconds} stepSeconds={stepDuration(bpm)} rendering={rendering} onNewTake={newTake} />
+        <SongView
+          playheadSeconds={snapshotPlaying ? null : playhead.seconds}
+          stepSeconds={step}
+          rendering={rendering}
+          onNewTake={newTake}
+          onSeek={(at) => {
+            if (playing && songPlays) services.player.seek(at * step);
+          }}
+        />
       )}
     </div>
   );

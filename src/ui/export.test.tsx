@@ -33,6 +33,8 @@ function makeServices(folder: ReturnType<typeof memoryFolder> | null) {
   const player = {
     play: vi.fn(),
     replace: vi.fn(),
+    seek: vi.fn(),
+    setLoop: vi.fn(),
     stop: vi.fn(),
     isPlaying: () => false,
     currentTrigger: () => null,

@@ -1645,6 +1645,62 @@ input[type='search'] {
 .timeline-ruler {
   position: relative;
   height: 22px;
+  cursor: text;
+  touch-action: none;
+  user-select: none;
+}
+
+/* The song's loop, marked by a drag in the ruler: dim while off. */
+.loop-toggle[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.ruler-loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--muted) 25%, transparent);
+  border-left: 2px solid var(--muted);
+  border-right: 2px solid var(--muted);
+  pointer-events: none;
+}
+
+.ruler-loop.on {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
+}
+
+/* Where Play starts, set by a click in the ruler. */
+.ruler-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--text);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ruler-cursor::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -6px;
+  border: 5px solid transparent;
+  border-top: 7px solid var(--text);
+}
+
+/* The loop shown over the lanes while it is on. */
+.timeline-loop {
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-left: 1px dashed var(--accent);
+  border-right: 1px dashed var(--accent);
+  pointer-events: none;
 }
 
 .ruler-bar {

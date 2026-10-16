@@ -6,17 +6,20 @@ export const CELL_MIME = 'application/x-breakseq-cell';
 /** A loop step being dragged: its index. */
 export const STEP_MIME = 'application/x-breakseq-step';
 
-/** Alt (Option) while dropping copies; otherwise a drag moves. */
-export const copies = (e: DragEvent) => e.altKey;
+/**
+ * Ctrl while dropping copies; otherwise a drag moves. Alt (Option) copies too,
+ * as on a Mac, though on Linux Alt+drag moves the browser's window instead.
+ */
+export const copies = (e: Pick<DragEvent, 'ctrlKey' | 'altKey'>) => e.ctrlKey || e.altKey;
 
 /**
  * The drop effect to ask for. It must be one the drag allows, or the browser
  * silently refuses the drop: library chips only allow 'copy'.
  */
-export function dropEffectFor(effectAllowed: string, altKey: boolean): 'copy' | 'move' {
+export function dropEffectFor(effectAllowed: string, copy: boolean): 'copy' | 'move' {
   if (effectAllowed === 'copy') return 'copy';
   if (effectAllowed === 'move') return 'move';
-  return altKey ? 'copy' : 'move';
+  return copy ? 'copy' : 'move';
 }
 
 /**
@@ -31,7 +34,7 @@ export function useDropTargets() {
       onDragOver: (e: DragEvent) => {
         if (type(e) === undefined) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = dropEffectFor(e.dataTransfer.effectAllowed, e.altKey);
+        e.dataTransfer.dropEffect = dropEffectFor(e.dataTransfer.effectAllowed, copies(e));
         if (over !== key) setOver(key);
       },
       onDragLeave: () => setOver((current) => (current === key ? null : current)),

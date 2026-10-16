@@ -13,15 +13,55 @@ export interface Take {
 /** Lead time so a scheduled start is never in the past. */
 const MIN_LEAD = 0.02;
 
+/** A stretch of a take, in seconds: what plays over and over. */
+export interface LoopRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+/** A take started at `startTime` from `offset` seconds into it, which then loops `loop`. */
+export interface Run {
+  readonly startTime: number;
+  readonly offset: number;
+  readonly loop: LoopRange;
+}
+
+/** The loop within a take of `duration` seconds: `range` cut to fit, or the whole take. */
+export function fitLoop(range: LoopRange | null, duration: number): LoopRange {
+  const start = Math.max(0, range?.start ?? 0);
+  const end = Math.min(duration, range?.end ?? duration);
+  return end - start > 1e-6 ? { start, end } : { start: 0, end: duration };
+}
+
+/** Where a run starts: at `from`, unless that is at or past the loop's end, then at the loop's start. */
+export const startOffset = (from: number, loop: LoopRange): number => (from >= 0 && from < loop.end ? from : loop.start);
+
+/** Seconds into the take at time `now`: on from the offset, then round the loop. Null before it starts. */
+export function runPosition(now: number, run: Run): number | null {
+  const elapsed = now - run.startTime;
+  if (elapsed < 0) return null;
+  const at = run.offset + elapsed;
+  const length = run.loop.end - run.loop.start;
+  if (at < run.loop.end || length <= 0) return at;
+  return run.loop.start + ((at - run.loop.end) % length);
+}
+
+/** When a run next reaches the end of its loop, or the time after if that is too close to `now`. */
+export function nextRunBoundary(now: number, run: Run): number {
+  const length = run.loop.end - run.loop.start;
+  const first = run.startTime + (run.loop.end - run.offset);
+  if (now < first) return first - now < MIN_LEAD ? first + length : first;
+  const boundary = first + (Math.floor((now - first) / length) + 1) * length;
+  return boundary - now < MIN_LEAD ? boundary + length : boundary;
+}
+
 /**
  * When a new take should start while `duration`-long loops have played since
  * `startTime`: the end of the current loop, or the one after if that is too close.
  */
 export function nextLoopBoundary(now: number, startTime: number, duration: number): number {
   if (now < startTime) return startTime;
-  const loops = Math.floor((now - startTime) / duration) + 1;
-  const boundary = startTime + loops * duration;
-  return boundary - now < MIN_LEAD ? boundary + duration : boundary;
+  return nextRunBoundary(now, { startTime, offset: 0, loop: { start: 0, end: duration } });
 }
 
 /** Where an audition is, in seconds of its audio: looped within its region, or null once a single play is over. */
@@ -45,16 +85,20 @@ export function playheadTrigger(triggers: readonly Trigger[], position: number):
   return last;
 }
 
-interface Segment {
+interface Segment extends Run {
   readonly take: Take;
   readonly source: AudioBufferSourceNode;
-  readonly startTime: number;
 }
 
 export interface Player {
-  readonly play: (take: Take) => void;
+  /** Plays a take from `from` seconds into it (0 if left out), looping the loop set with setLoop. */
+  readonly play: (take: Take, from?: number) => void;
   /** Swaps in a new take at the end of the current loop; starts nothing if stopped. */
   readonly replace: (take: Take) => void;
+  /** Jumps to `seconds` into what is playing; nothing if stopped. */
+  readonly seek: (seconds: number) => void;
+  /** The part of each take that loops, in seconds, or null for the whole take. Takes effect at once. */
+  readonly setLoop: (range: LoopRange | null) => void;
   readonly stop: () => void;
   readonly isPlaying: () => boolean;
   /** The trigger under the playhead now, or null when stopped. */
@@ -105,14 +149,20 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     return context;
   };
 
-  const start = (take: Take, at: number): Segment => {
+  let range: LoopRange | null = null;
+
+  const start = (take: Take, at: number, from: number): Segment => {
     const c = ctx();
+    const loop = fitLoop(range, take.buffer.duration);
+    const offset = startOffset(from, loop);
     const source = c.createBufferSource();
     source.buffer = take.buffer;
     source.loop = true;
+    source.loopStart = loop.start;
+    source.loopEnd = loop.end;
     source.connect(c.destination);
-    source.start(at);
-    return { take, source, startTime: at };
+    source.start(at, offset);
+    return { take, source, startTime: at, offset, loop };
   };
 
   const stopAll = () => {
@@ -135,10 +185,23 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     }
   };
 
+  const position = (): number | null => {
+    settle();
+    return current === null || context === null ? null : runPosition(context.currentTime, current);
+  };
+
+  /** Starts the newest take again from `from`, straight away. */
+  const restart = (from: number) => {
+    const take = (pending ?? current)?.take;
+    if (take === undefined) return;
+    stopAll();
+    current = start(take, ctx().currentTime + MIN_LEAD, from);
+  };
+
   return {
-    play: (take) => {
+    play: (take, from = 0) => {
       stopAll();
-      current = start(take, ctx().currentTime + MIN_LEAD);
+      current = start(take, ctx().currentTime + MIN_LEAD, from);
     },
     replace: (take) => {
       settle();
@@ -146,30 +209,37 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       if (pending !== null) {
         // A newer take supersedes one that has not started yet; the current loop keeps its stop time.
         pending.source.stop();
-        pending = start(take, pending.startTime);
+        pending = start(take, pending.startTime, fitLoop(range, take.buffer.duration).start);
         return;
       }
-      const at = nextLoopBoundary(context.currentTime, current.startTime, current.take.buffer.duration);
+      const at = nextRunBoundary(context.currentTime, current);
       current.source.stop(at);
-      pending = start(take, at);
+      pending = start(take, at, fitLoop(range, take.buffer.duration).start);
+    },
+    seek: (seconds) => {
+      if (current !== null) restart(seconds);
+    },
+    setLoop: (next) => {
+      range = next;
+      const at = position();
+      if (current === null || context === null || at === null) return;
+      const loop = fitLoop(range, current.take.buffer.duration);
+      if (pending !== null || at >= loop.end) {
+        restart(at);
+        return;
+      }
+      // Inside the new loop or before it, the sound carries on: only where it wraps changes.
+      current.source.loopStart = loop.start;
+      current.source.loopEnd = loop.end;
+      current = { ...current, startTime: context.currentTime, offset: at, loop };
     },
     stop: stopAll,
     isPlaying: () => current !== null,
     currentTrigger: () => {
-      settle();
-      if (current === null || context === null) return null;
-      const duration = current.take.buffer.duration;
-      const elapsed = context.currentTime - current.startTime;
-      if (elapsed < 0 || duration <= 0) return null;
-      return playheadTrigger(current.take.triggers, elapsed % duration);
+      const at = position();
+      return current === null || at === null ? null : playheadTrigger(current.take.triggers, at);
     },
-    currentPosition: () => {
-      settle();
-      if (current === null || context === null) return null;
-      const duration = current.take.buffer.duration;
-      const elapsed = context.currentTime - current.startTime;
-      return elapsed < 0 || duration <= 0 ? null : elapsed % duration;
-    },
+    currentPosition: position,
     playHit: (project, hitId) => {
       stopAudition();
       const c = ctx();

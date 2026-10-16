@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { Folder, SnapshotInfo } from '../engine';
-import type { Command, CommandError, History, Id, Project } from '../model';
+import type { Clip, Command, CommandError, History, Id, Project } from '../model';
 import { apply, createHistory, createProject, redo, seal, undo } from '../model';
 
 export const VIEWS = ['import', 'slice', 'hits', 'loops', 'mods', 'song', 'project'] as const;
@@ -37,6 +37,10 @@ export interface AppState {
   /** The slice Slice opens with selected, as when a parent's slice line in Hits is double-clicked. */
   readonly sliceSelected: number;
   readonly selection: Selection;
+  /** The step in Song that Play starts from, set by a click in its ruler; Stop goes back to it. */
+  readonly songCursor: number;
+  /** A clip copied in Song with Ctrl+C, to paste with Ctrl+V. */
+  readonly clipboard: Clip | null;
 }
 
 export type Action =
@@ -51,7 +55,9 @@ export type Action =
   | { readonly type: 'sliceTarget'; readonly breakId: string | null; readonly slice?: number }
   /** Swaps in a project and starts a new undo history, as a loaded snapshot does. */
   | { readonly type: 'load'; readonly project: Project }
-  | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> };
+  | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> }
+  | { readonly type: 'songCursor'; readonly step: number }
+  | { readonly type: 'clipboard'; readonly clip: Clip | null };
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
@@ -60,6 +66,8 @@ export const initialState = (project: Project = createProject()): AppState => ({
   sliceTarget: null,
   sliceSelected: 0,
   selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },
+  songCursor: 0,
+  clipboard: null,
 });
 
 /** Pure state transition. A failed command leaves the state unchanged and reports its error. */
@@ -87,9 +95,13 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'sliceTarget':
       return { state: { ...state, sliceTarget: action.breakId, sliceSelected: action.slice ?? 0 }, error: null };
     case 'load':
-      return { state: { ...state, history: createHistory(action.project) }, error: null };
+      return { state: { ...state, history: createHistory(action.project), songCursor: 0 }, error: null };
     case 'projectFolder':
       return { state: { ...state, projectFolder: { ...state.projectFolder, ...action.state } }, error: null };
+    case 'songCursor':
+      return { state: { ...state, songCursor: Math.max(0, Math.round(action.step)) }, error: null };
+    case 'clipboard':
+      return { state: { ...state, clipboard: action.clip }, error: null };
   }
 }
 

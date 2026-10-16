@@ -330,7 +330,30 @@ export const setSongBars =
   (bars: number): Command =>
   (project) => {
     if (!Number.isInteger(bars) || bars < 1) return invalid('A song is a whole number of bars');
-    return ok(setSong(project, { ...project.song, bars, clips: fitClips(project.song.clips, bars * STEPS_PER_BAR) }));
+    const total = bars * STEPS_PER_BAR;
+    const loop = project.song.loop;
+    const fitted = loop == null || loop.start >= total ? null : { ...loop, end: Math.min(loop.end, total) };
+    return ok(setSong(project, { ...project.song, bars, clips: fitClips(project.song.clips, total), loop: fitted }));
+  };
+
+/** Marks steps `start` to `end` (after the last) as the song's loop and turns it on. */
+export const setSongLoop =
+  (start: number, end: number): Command =>
+  (project) => {
+    const total = project.song.bars * STEPS_PER_BAR;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > total || end <= start) {
+      return invalid('A loop is at least one step, within the song');
+    }
+    return ok(setSong(project, { ...project.song, loop: { start, end, on: true } }));
+  };
+
+/** Turns the song's loop on or off, keeping where it is. */
+export const setSongLoopOn =
+  (on: boolean): Command =>
+  (project) => {
+    const loop = project.song.loop;
+    if (loop == null) return invalid('Drag in the ruler to mark a loop first');
+    return ok(setSong(project, { ...project.song, loop: { ...loop, on } }));
   };
 
 /**

@@ -40,6 +40,8 @@ const services = (storage: ProjectStorage, backups: BackupStorage): Services => 
   player: {
     play: vi.fn(),
     replace: vi.fn(),
+    seek: vi.fn(),
+    setLoop: vi.fn(),
     stop: vi.fn(),
     isPlaying: () => false,
     currentTrigger: () => null,
