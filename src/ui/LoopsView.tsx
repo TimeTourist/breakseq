@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, loopReach, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { HIT_COLOR, lengthText, loopUsage, padGroups, padLabel } from './labels';
@@ -38,6 +38,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const [rangeEnd, setRangeEnd] = useState<number | null>(null);
   const loopId = currentLoopId(project, selection);
   const loop = loopId === null ? undefined : project.loops[loopId];
+  /** How much of each step the sounds cover: a hit's own step, and its tail over the steps after it. */
+  const covered = loop === undefined ? [] : loopReach(project, loop);
 
   const newLoop = (kind: LoopKind) => {
     const before = store.getState().history.present.loops;
@@ -223,7 +225,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       }}
                       onDragEnd={drops.clear}
                       {...dropOnStep(index)}
-                      style={color === undefined ? undefined : { color, boxShadow: `inset 0 -4px 0 ${color}` }}
+                      style={color === undefined ? undefined : { color }}
                       aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}`}
                       onClick={(e) => clickStep(index, e.shiftKey)}
                       onDoubleClick={() => {
@@ -238,6 +240,9 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       }}
                     >
                       <span className="cell-label">{pad === undefined ? '' : padLabel(pad)}</span>
+                      {(covered[index] ?? 0) > 0 && (
+                        <span className={`reach${pad === undefined ? ' tail' : ''}`} style={{ width: `${(covered[index] ?? 0) * 100}%` }} aria-hidden="true" />
+                      )}
                       <span className="cell-sub">
                         {pad === undefined ? '' : `${pad.members.length > 1 ? `${memberIndex + 1}/${pad.members.length}` : ''}${cell?.ignoreMods === true ? ' ⊘' : ''}`}
                       </span>

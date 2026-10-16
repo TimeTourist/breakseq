@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, setBreakBars, setMarkers, sliceAtMarkers, unlikelyBpm, unsliceBreak } from '../model';
+import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, slicePlaces, setBreakBars, setMarkers, sliceAtMarkers, unlikelyBpm, unsliceBreak } from '../model';
 import { detectTransients } from '../engine';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { sources } from './ImportView';
@@ -63,6 +63,8 @@ export function SliceView() {
   const stepTime = duration / (info.bars * STEPS_PER_BAR);
   const current = Math.min(selected, markers.length - 1);
   const ends = markers.map((_, i) => markers[i + 1] ?? duration);
+  /** The slices on the break's 1/16 grid, as laying the parent in a loop places them. */
+  const places = slicePlaces(markers, duration, info.bars * STEPS_PER_BAR);
   const move = (next: readonly number[]) => setError(run(setMarkers(sample.id, next), `markers:${sample.id}`));
   const moveMarker = (index: number, time: number) => {
     const low = (markers[index - 1] ?? 0) + MIN_SLICE;
@@ -196,7 +198,7 @@ export function SliceView() {
 
       {audio !== undefined && (
         <div className="table-scroll slice-box">
-          <div className="slice-canvas" style={{ minWidth: Math.max(1000, markers.length * 24) }}>
+          <div className="slice-canvas" style={{ minWidth: Math.max(1000, markers.length * 24, places.length * 22) }}>
             <div
               ref={box}
               className="slice-area"
@@ -205,6 +207,7 @@ export function SliceView() {
               }}
             >
               <Waveform audio={audio} offset={sample.offset} duration={duration} height={200} />
+              <div className="slice-grid" style={{ backgroundSize: `${100 / places.length}% 100%` }} aria-hidden="true" />
               {playhead !== null && (
                 <div className="playhead" style={{ left: `${((playhead - sample.offset) / duration) * 100}%` }} />
               )}
@@ -252,6 +255,22 @@ export function SliceView() {
                   onKeyUp={seal}
                 />
               ))}
+            </div>
+            <div className="slice-steps" style={{ gridTemplateColumns: `repeat(${places.length}, minmax(0, 1fr))` }} aria-label="Where the slices land on the 1/16 grid">
+              {places.map((p, i) => {
+                const label = `Step ${position(i * stepTime, stepTime)}: ${p.slice === null ? 'empty' : `slice ${p.slice + 1}`}${p.dropped.length > 0 ? `; ${p.dropped.length + 1} slices here, ${p.dropped.map((d) => `slice ${d + 1}`).join(' and ')} dropped` : ''}`;
+                return (
+                  <div
+                    key={i}
+                    className={`slice-step${p.slice !== null ? ' filled' : ''}${p.slice === current ? ' selected' : ''}${p.dropped.length > 0 ? ' clash' : ''}${i % 4 === 0 ? ' downbeat' : ''}`}
+                    title={p.dropped.length > 0 ? `${p.dropped.length + 1} slices land here: only ${String(p.slice! + 1).padStart(2, '0')} plays` : undefined}
+                    aria-label={label}
+                  >
+                    {p.slice === null ? '' : String(p.slice + 1).padStart(2, '0')}
+                    {p.reach > 0 && <span className={`reach${p.slice === null ? ' tail' : ''}`} style={{ width: `${p.reach * 100}%` }} />}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

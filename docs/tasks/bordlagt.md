@@ -12,6 +12,8 @@ En hit spelar sin region i egen längd, och nästa slag klipper den. När låten
 
 Mitt förslag var a + b.
 
+Att *se* längden byggdes i fas 12 (svansar i Loops, griden i Slice). Kvar här är bara vad som ska hända när tempona skiljer sig. Trioler och mikrotiming (nudge när föräldern dras in) väntar också (2026-10-16).
+
 ## Ordning mellan mods (2026-10-15)
 
 Ordningen är fast: Swap → Pad member, Ratchet, Pitch, Volume, Direction → Tempo (slip) → Tape. Det går inte att lägga effekter efter Tape, och två tapes kan inte köras efter varandra (B vinner). Förslag:
