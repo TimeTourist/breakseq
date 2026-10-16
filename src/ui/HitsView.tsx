@@ -16,6 +16,7 @@ import {
   parentHit,
   remove,
   removePadMember,
+  sampleAudio,
   renamePad,
   setPadChoice,
   PAD_CHOICES,
@@ -32,6 +33,8 @@ import { Waveform } from './Waveform';
 
 /** A stretch factor as it reads: 2×, 0.5×, 1.33×. */
 const formatFactor = (f: number) => `${Math.round(f * 100) / 100}×`;
+/** A pan as it reads: L 50, C, R 100. */
+const panText = (pan: number) => (Math.round(pan * 100) === 0 ? 'C' : `${pan < 0 ? 'L' : 'R'} ${Math.abs(Math.round(pan * 100))}`);
 /** A frequency as it reads: 200 Hz, 2.5 kHz. */
 const formatHz = (hz: number) => (hz >= 1000 ? `${Math.round(hz / 100) / 10} kHz` : `${Math.round(hz)} Hz`);
 
@@ -526,7 +529,7 @@ export function HitsView() {
     const onError = setError;
     const brk = project.breaks[hit.breakId];
     const sample = brk === undefined ? undefined : project.samples[brk.sampleId];
-    const audio = sample === undefined ? undefined : project.audio[sample.audioId];
+    const audio = sample === undefined ? undefined : sampleAudio(project, sample);
     const usages = hitUsages(project, hit.id);
     const source = hit.variantOf === null ? undefined : project.hits[hit.variantOf];
     const edit = (patch: Partial<Omit<Hit, 'id' | 'breakId' | 'slot'>>, field: string) => onError(run(updateHit(hit.id, patch), `hit:${hit.id}:${field}`));
@@ -655,6 +658,16 @@ export function HitsView() {
           </div>
           <Slider label="Pitch" value={hit.pitch} min={-24} max={24} step={1} format={(v) => withParent(v, parent?.pitch, 'st')} onChange={(v) => edit({ pitch: v }, 'pitch')} onCommit={seal} />
           <Slider label="Volume" value={hit.volume} min={-24} max={6} step={0.5} format={(v) => withParent(v, parent?.volume, 'dB')} onChange={(v) => edit({ volume: v }, 'volume')} onCommit={seal} />
+          <Slider
+            label="Pan"
+            value={Math.round(hit.pan * 100)}
+            min={-100}
+            max={100}
+            step={1}
+            format={(v) => panText(v / 100) + (parent !== undefined && parent.pan !== 0 ? ` · parent ${panText(parent.pan)}` : '')}
+            onChange={(v) => edit({ pan: v / 100 }, 'pan')}
+            onCommit={seal}
+          />
           <Slider label="Fade out" value={hit.fadeOut} min={0} max={200} step={1} format={(v) => `${v} ms`} onChange={(v) => edit({ fadeOut: v }, 'fade')} onCommit={seal} />
         </div>
         {stretchPanel(hit, parent, brk?.bars === null)}

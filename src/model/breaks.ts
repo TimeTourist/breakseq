@@ -96,6 +96,7 @@ export function effectiveHit(project: Project, hit: Hit): Hit {
     ...hit,
     pitch: hit.pitch + parent.pitch,
     volume: hit.volume + parent.volume,
+    pan: hit.pan + parent.pan,
     direction: flipped ? (hit.direction === 'reverse' ? 'forward' : 'reverse') : hit.direction,
     fadeOut: hit.fadeOut > 0 ? hit.fadeOut : parent.fadeOut,
   };
@@ -195,7 +196,7 @@ export function isParentPad(project: Project, pad: Pad): boolean {
 
 /** A new hit playing a whole slot (or the whole break), unchanged. */
 export function slotHit(id: Id, name: string, breakId: Id, slot: number | null): Hit {
-  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, fadeOut: 0, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, variantOf: null };
+  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, pan: 0, fadeOut: 0, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, variantOf: null };
 }
 
 /** The name of a slot's hit and pad: "amen 05", or just "snare" for a one-shot. */

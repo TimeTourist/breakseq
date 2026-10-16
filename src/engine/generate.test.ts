@@ -204,6 +204,7 @@ describe('pad members', () => {
         hitId: hit.K,
         pitch: 2,
         volume: -6,
+        pan: 0,
         direction: 'reverse',
         // The region is a part of the 0.1 s sample, played as seconds of it.
         region: { start: 0.025, end: 0.05 },

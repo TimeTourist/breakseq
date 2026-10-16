@@ -20,7 +20,12 @@ export interface Sample {
   readonly offset: number;
   /** Length in seconds. */
   readonly duration: number;
+  /** Which channels play: everything plays in stereo, so Left, Right and Mono are the same in both. */
+  readonly channel: SampleChannel;
 }
+
+/** Stereo as the file is; Left or Right that channel in both; Mono the two averaged in both. */
+export type SampleChannel = 'stereo' | 'left' | 'right' | 'mono';
 
 /**
  * A sample cut into slots 01…N, one pad per slot, each pad with its slot's hit
@@ -117,6 +122,8 @@ export interface Hit {
   readonly pitch: number;
   /** dB. */
   readonly volume: number;
+  /** −1 (left) to 1 (right); the parent's and mods' add to it. */
+  readonly pan: number;
   /** Milliseconds. */
   readonly fadeOut: number;
   readonly stretch: HitStretch;
@@ -162,7 +169,7 @@ export interface Loop {
 }
 
 /** What a mod changes. Applied in this order, whatever row the mod is in. */
-export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'stretch', 'dist', 'filter', 'tempo'] as const;
+export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'tempo'] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
 export type ModRate = 'step' | 'beat' | 'bar';

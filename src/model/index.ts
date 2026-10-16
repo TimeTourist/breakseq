@@ -4,6 +4,7 @@ export * from './project';
 export * from './references';
 export * from './history';
 export * from './breaks';
+export * from './audio';
 export * from './chain';
 export * from './commands';
 export * from './clips';

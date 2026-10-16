@@ -29,6 +29,7 @@ const DEFAULTS: Record<StepTarget, { rate: ModRate; shape: ModShape }> = {
   ratchet: { rate: 'step', shape: { kind: 'random', min: 2, max: 4, chance: 30, whole: true } },
   pitch: { rate: 'beat', shape: { kind: 'ramp', from: 0, to: 12 } },
   volume: { rate: 'step', shape: { kind: 'list', values: [0, -6] } },
+  pan: { rate: 'step', shape: { kind: 'random', min: -100, max: 100, chance: 100, whole: true } },
   direction: { rate: 'step', shape: { kind: 'random', min: 0, max: 1, chance: 25, whole: true } },
   stretch: { rate: 'beat', shape: { kind: 'ramp', from: 1, to: 4 } },
   dist: { rate: 'step', shape: { kind: 'ramp', from: 0, to: 1 } },
