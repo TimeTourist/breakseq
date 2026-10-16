@@ -146,6 +146,7 @@ I vyer utan egen uppspelning (Import, Slice, Project) spelar Play låten.
 - **Byte under uppspelning:** en ny rendering startar exakt där den gamla loopen tar slut, utan avbrott.
 - **Spelhuvud:** renderaren lämnar en triggerlista (tid, takt, steg). GUI:t tänder det steg vars trigger senast passerats. Ingen annan feedback, och mods ändrar inte hur steg ser ut.
 - **Export:** görs i fliken Project. Export WAV sparar låten som den är nu, och varje snapshot har egna knappar för att spela och exportera den utan att ladda den; det laddade projektet rörs inte. WAV-filen är 44,1 kHz / 24 bit, normaliserad till −0,3 dBFS. Det som exporteras är exakt det man hör.
+- **MIDI och bitar:** bredvid Export WAV i Project exporteras låten som en MIDI-fil och en WAV-fil med bitar, för en sampler som Dr. Octo Rex eller Digitakt. En bit är varje unik variant som hörs i låten (hit med pitch, riktning, stretch och volym, mods inräknade), så MIDI-filen bara är noter och låter som låten. Bitarna ligger i break- och platsordning (Amen 01, 02 …, sedan varianter och one-shots), en per lika lång ruta: rutan är så lång som den längsta biten, resten av rutan är tyst, och antalet rutor avrundas uppåt till 4, 8, 16, 32 eller 64 så att filen kan delas på ett rutnät. Varje ruta har också en cue-markör. Ett Tape-segment blir en egen bit. Bit 1 är C1 (not 36) och följande bitar ligger en halvton upp; fler än 92 bitar ryms inte och exporten säger då ifrån. MIDI-filen har låtens tempo, och varje not är så lång som ljudet hörs.
 
 ## Data, undo och lagring
 
@@ -190,6 +191,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 14. Padens val | En pad väljer medlem: Top, Round robin, Random eller Random utan upprepning. Step lock går före moden, moden före paden | En hi-hat-pad med fyra hits låter olika varje gång utan mods |
 | 15. Stretch | Time stretch med korta bitar: på hitten (Off, Fit to tempo, Factor) med föräldern som makro, och som mod (Multiply eller Replace), med bitlängd i ms och bitar från breakets eller hittens början | Ett break på 136 BPM i en låt på 170 BPM håller sin tonhöjd, och en mod kan dra ut en fill till metalliskt ljud |
 | 16. Export i Project | Export WAV flyttar till Project; varje snapshot kan spelas och exporteras utan att laddas; Save och New snapshot i sidhuvudet | Två snapshots kan jämföras och exporteras utan att man byter mellan dem |
+| 17. MIDI-export | Låten som MIDI och en WAV med bitar i lika långa rutor, C1 = bit 1 | Exporten laddad i Dr. Octo Rex (via Bounce to REX) låter som låten i Breakseq |
 
 ## Utanför v1
 
