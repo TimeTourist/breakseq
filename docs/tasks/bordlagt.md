@@ -12,6 +12,8 @@ En hit spelar sin region i egen längd, och nästa slag klipper den. När låten
 
 Mitt förslag var a + b.
 
+Alternativ c blir Fit to tempo i fas 15 (Stretch). Kvar är b, där tonhöjden följer med.
+
 Att *se* längden byggdes i fas 12 (svansar i Loops, griden i Slice). Kvar här är bara vad som ska hända när tempona skiljer sig. Trioler och mikrotiming (nudge när föräldern dras in) väntar också (2026-10-16).
 
 ## Ordning mellan mods (2026-10-15)
