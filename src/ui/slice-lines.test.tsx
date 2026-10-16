@@ -30,6 +30,7 @@ const services = (): Services => ({
     auditionPosition: () => null,
     playHit: vi.fn(),
   },
+  renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }),
   renderSong: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] } satisfies Take),
   exportWav: vi.fn(),
   exportMidi: vi.fn(),

@@ -42,6 +42,7 @@ function makeServices(): Services {
   return {
     storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() },
     player,
+    renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }),
     renderSong: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] } satisfies Take),
     exportWav: vi.fn(),
     exportMidi: vi.fn(),

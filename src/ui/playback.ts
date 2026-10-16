@@ -88,12 +88,17 @@ export function playheadTrigger(triggers: readonly Trigger[], position: number):
 interface Segment extends Run {
   readonly take: Take;
   readonly source: AudioBufferSourceNode;
+  /** Plays to the end and stops, rather than looping. */
+  readonly once: boolean;
 }
 
 export interface Player {
-  /** Plays a take from `from` seconds into it (0 if left out), looping the loop set with setLoop. */
-  readonly play: (take: Take, from?: number) => void;
-  /** Swaps in a new take at the end of the current loop; starts nothing if stopped. */
+  /**
+   * Plays a take from `from` seconds into it (0 if left out), looping the loop
+   * set with setLoop; with `once`, to its end and then it stops by itself.
+   */
+  readonly play: (take: Take, from?: number, once?: boolean) => void;
+  /** Swaps in a new take at the end of the current loop; starts nothing if stopped or playing once. */
   readonly replace: (take: Take) => void;
   /** Jumps to `seconds` into what is playing; nothing if stopped. */
   readonly seek: (seconds: number) => void;
@@ -151,18 +156,24 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
 
   let range: LoopRange | null = null;
 
-  const start = (take: Take, at: number, from: number): Segment => {
+  const start = (take: Take, at: number, from: number, once = false): Segment => {
     const c = ctx();
-    const loop = fitLoop(range, take.buffer.duration);
+    const loop = once ? { start: 0, end: take.buffer.duration } : fitLoop(range, take.buffer.duration);
     const offset = startOffset(from, loop);
     const source = c.createBufferSource();
     source.buffer = take.buffer;
-    source.loop = true;
+    source.loop = !once;
     source.loopStart = loop.start;
     source.loopEnd = loop.end;
     source.connect(c.destination);
     source.start(at, offset);
-    return { take, source, startTime: at, offset, loop };
+    const segment: Segment = { take, source, startTime: at, offset, loop, once };
+    if (once) {
+      source.onended = () => {
+        if (current?.source === source) current = null;
+      };
+    }
+    return segment;
   };
 
   const stopAll = () => {
@@ -187,25 +198,27 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
 
   const position = (): number | null => {
     settle();
-    return current === null || context === null ? null : runPosition(context.currentTime, current);
+    if (current === null || context === null) return null;
+    const at = runPosition(context.currentTime, current);
+    return current.once && at !== null && at >= current.loop.end ? null : at;
   };
 
   /** Starts the newest take again from `from`, straight away. */
   const restart = (from: number) => {
-    const take = (pending ?? current)?.take;
-    if (take === undefined) return;
+    const newest = pending ?? current;
+    if (newest === null) return;
     stopAll();
-    current = start(take, ctx().currentTime + MIN_LEAD, from);
+    current = start(newest.take, ctx().currentTime + MIN_LEAD, from, newest.once);
   };
 
   return {
-    play: (take, from = 0) => {
+    play: (take, from = 0, once = false) => {
       stopAll();
-      current = start(take, ctx().currentTime + MIN_LEAD, from);
+      current = start(take, ctx().currentTime + MIN_LEAD, from, once);
     },
     replace: (take) => {
       settle();
-      if (current === null || context === null) return;
+      if (current === null || context === null || current.once) return;
       if (pending !== null) {
         // A newer take supersedes one that has not started yet; the current loop keeps its stop time.
         pending.source.stop();
@@ -222,7 +235,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     setLoop: (next) => {
       range = next;
       const at = position();
-      if (current === null || context === null || at === null) return;
+      if (current === null || context === null || at === null || current.once) return;
       const loop = fitLoop(range, current.take.buffer.duration);
       if (pending !== null || at >= loop.end) {
         restart(at);

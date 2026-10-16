@@ -2,7 +2,7 @@ import { Fragment, useRef, useState } from 'react';
 import type { Break, Project } from '../model';
 import { addSample, bpmOf, guessBars, replaceProject, setBreak, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
-import { useApp, useProject, useRun } from './context';
+import { useApp, useProject, useRun, useSelect } from './context';
 import { timestamp } from './services';
 import { TrimEditor } from './TrimEditor';
 
@@ -32,7 +32,8 @@ export function ImportView() {
   };
   const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [trimming, setTrimming] = useState<string | null>(null);
+  const trimming = useSelect((s) => s.trimming);
+  const setTrimming = (breakId: string | null) => store.dispatch({ type: 'trimming', breakId });
 
   const importFiles = async (files: readonly File[]) => {
     const failed: string[] = [];

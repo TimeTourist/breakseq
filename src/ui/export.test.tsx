@@ -51,7 +51,7 @@ function makeServices(folder: ReturnType<typeof memoryFolder> | null) {
   );
   const exportWav = vi.fn();
   const exportMidi = vi.fn<(project: Project, take: Take) => Promise<number>>(() => Promise.resolve(23));
-  const services: Services = { storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() }, player, renderSong, exportWav, exportMidi, download: vi.fn(), rng: () => () => 0, folders };
+  const services: Services = { storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() }, player, renderSong, renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }), exportWav, exportMidi, download: vi.fn(), rng: () => () => 0, folders };
   return { services, player, exportWav, exportMidi };
 }
 

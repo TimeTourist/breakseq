@@ -26,6 +26,8 @@ import {
   updateHit,
 } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
+import type { Selection } from './store';
+import { PlayMode } from './AuditionPlayhead';
 import { PlayIcon } from './icons';
 import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
 import { Slider } from './Slider';
@@ -53,6 +55,19 @@ function currentPad(project: Project, padId: Id | null, hitId: Id | null): Pad |
 }
 
 /**
+ * What is open in Hits. A parent is edited on its own, with no pad. Otherwise
+ * the open pad, and the hit picked in it; with none picked, Play plays the
+ * pad's choice and its first hit is the one edited.
+ */
+export function hitsOpen(project: Project, selection: Pick<Selection, 'pad' | 'hit'>): { pad: Pad | undefined; hit: Hit | undefined; picked: boolean; parent: boolean } {
+  const selectedHit = selection.hit === null ? undefined : project.hits[selection.hit];
+  if (selectedHit !== undefined && isParentHit(project, selectedHit)) return { pad: undefined, hit: selectedHit, picked: true, parent: true };
+  const pad = currentPad(project, selection.pad, selection.hit);
+  const picked = selectedHit !== undefined && pad?.members.includes(selectedHit.id) === true;
+  return { pad, hit: picked ? selectedHit : project.hits[pad?.members[0] ?? ''], picked, parent: false };
+}
+
+/**
  * Breaks, their pads and the hits in each, in one place. On the left each break
  * with its parent as heading and its pads in order, then one-shots and pads
  * built by hand. On the right the open pad's hits, and the hit being edited.
@@ -67,11 +82,28 @@ export function HitsView() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const selectedHit = selection.hit === null ? undefined : project.hits[selection.hit];
-  // A break's parent is edited on its own: it has no pad of its own to show.
-  const parentOpen = selectedHit !== undefined && isParentHit(project, selectedHit);
-  const pad = parentOpen ? undefined : currentPad(project, selection.pad, selection.hit);
-  const hit = parentOpen ? selectedHit : selectedHit !== undefined && pad?.members.includes(selectedHit.id) ? selectedHit : project.hits[pad?.members[0] ?? ''];
+  const { pad, hit, picked, parent: parentOpen } = hitsOpen(project, selection);
+  const hitsLoop = useSelect((s) => s.hitsLoop);
+  const folded = useSelect((s) => s.folded);
+  /** The break and slot each slot pad belongs to. */
+  const slotOf = new Map(Object.values(project.breaks).flatMap((b) => b.pads.map((id, slot) => [id, { brk: b, slot }] as const)));
+  /** Where a hit in a slot pad plays from, when it is not that slot: "07", "Think 07", or a one-shot's name. */
+  const replacedBy = (padId: Id, h: Hit): string | null => {
+    const home = slotOf.get(padId);
+    if (home === undefined || (h.breakId === home.brk.id && h.slot === home.slot)) return null;
+    const source = project.breaks[h.breakId];
+    if (source === undefined) return null;
+    if (h.slot === null || source.bars === null) return source.name;
+    const number = String(h.slot + 1).padStart(2, '0');
+    return h.breakId === home.brk.id ? number : `${source.name} ${number}`;
+  };
+  const playing = parentOpen
+    ? `${project.breaks[hit?.breakId ?? '']?.name ?? 'the break'} as laid out, with its pads`
+    : picked
+      ? (hit?.name ?? '')
+      : pad === undefined
+        ? 'nothing'
+        : `pad ${pad.name}, as it picks (${CHOICE_LABEL[pad.choice]})`;
   const groups = padGroups(project);
   /** Slot pads past their break's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
@@ -94,9 +126,19 @@ export function HitsView() {
         return (
           <section key={group.breakId ?? group.name} className="stack-tight">
             {parent !== undefined ? (
+              <div className="row nowrap fold-head">
               <button
                 type="button"
-                className="list-item break-head"
+                className="icon-button small fold"
+                aria-expanded={!folded.includes(group.breakId ?? '')}
+                aria-label={`${folded.includes(group.breakId ?? '') ? 'Show' : 'Hide'} the pads of ${group.name}`}
+                onClick={() => store.dispatch({ type: 'fold', breakId: group.breakId ?? '', folded: !folded.includes(group.breakId ?? '') })}
+              >
+                {folded.includes(group.breakId ?? '') ? '▸' : '▾'}
+              </button>
+              <button
+                type="button"
+                className="list-item break-head grow"
                 aria-current={hit?.id === parent.id ? 'true' : undefined}
                 title="The break's own hit: its pitch, volume and direction apply to every slice"
                 onClick={() => open({ hit: parent.id, pad: null }, 'hits')}
@@ -104,22 +146,24 @@ export function HitsView() {
                 <span className="label grow ellipsis">{group.name}</span>
                 <span className="badge">parent</span>
               </button>
+              </div>
             ) : (
               <h2 className="label">{group.name}</h2>
             )}
-            {group.items.map((p) => (
+            {!folded.includes(group.breakId ?? '') && group.items.map((p) => (
               <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}${silent.has(p.id) ? ' silent' : ''}`} title={silent.has(p.id) ? 'Silent: the break has fewer slices than this slot' : undefined}>
-                <button type="button" className="pad-row-name mono" aria-label={`Pad ${p.name}`} onClick={() => open({ pad: p.id, hit: p.members[0] ?? null }, 'hits')}>
+                <button type="button" className="pad-row-name mono" aria-label={`Pad ${p.name}`} onClick={() => open({ pad: p.id, hit: null }, 'hits')}>
                   {padLabel(p)}
                 </button>
                 {p.members.map((m, i) => {
                   const h = project.hits[m];
+                  const by = h === undefined ? null : replacedBy(p.id, h);
                   return h === undefined ? null : (
                     <button
                       key={m}
                       type="button"
-                      className={`hit-chip mono${i === 0 ? ' first' : ''}${p.id === pad?.id && m === hit?.id ? ' current' : ''}`}
-                      title={`${h.name}${i === 0 && p.choice === 'top' ? ' · plays by default' : ''} · drag onto a pad to add it there`}
+                      className={`hit-chip mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}${p.id === pad?.id && picked && m === hit?.id ? ' current' : ''}`}
+                      title={`${h.name}${by !== null ? ` · plays ${by} instead` : ''}${i === 0 && p.choice === 'top' ? ' · plays by default' : ''} · drag onto a pad to add it there`}
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData(HIT_MIME, m);
@@ -128,6 +172,7 @@ export function HitsView() {
                       onClick={() => open({ pad: p.id, hit: m }, 'hits')}
                     >
                       {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
+                      {by !== null && `→${by}`}
                       {h.direction === 'reverse' ? ' ◂' : ''}
                     </button>
                   );
@@ -161,6 +206,10 @@ export function HitsView() {
     <div className="split">
       {sidebar}
       <main className="view">
+        <div className="row hits-play">
+          <PlayMode loop={hitsLoop} onChange={(loop) => store.dispatch({ type: 'hitsLoop', loop })} />
+          <span className="muted small ellipsis">Play (Space) plays {playing}</span>
+        </div>
         {error !== null && (
           <p className="error" role="alert">
             {error}

@@ -276,11 +276,12 @@ function scheduleTape(context: BaseAudioContext, tape: Tape, recording: AudioBuf
 
 /**
  * Renders a take to audio offline. One voice: a new trigger or tape cuts the
- * sound before it with a short fade. The buffer is exactly as long as the song.
+ * sound before it with a short fade. The buffer is exactly as long as the song,
+ * or `seconds` when given.
  */
-export async function renderTake(take: Take, project: Project, sampleRate: number): Promise<AudioBuffer> {
+export async function renderTake(take: Take, project: Project, sampleRate: number, seconds = songDuration(project.song)): Promise<AudioBuffer> {
   const recordings = await Promise.all(take.tapes.map((tape) => renderPart(tape.source, project, tape.length, sampleRate, tape.length)));
-  const length = Math.round(songDuration(project.song) * sampleRate);
+  const length = Math.max(1, Math.round(seconds * sampleRate));
   const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
   scheduleTriggers(context, project, take.triggers, take.tapes.map((t) => t.time), sampleRate);
   take.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!));

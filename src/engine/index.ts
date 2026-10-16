@@ -9,3 +9,4 @@ export * from './swap';
 export * from './midi';
 export * from './render-slices';
 export * from './project-folder';
+export * from './preview';

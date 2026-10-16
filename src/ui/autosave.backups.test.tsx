@@ -52,6 +52,7 @@ const services = (storage: ProjectStorage, backups: BackupStorage): Services => 
     auditionPosition: () => null,
     playHit: vi.fn(),
   },
+  renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }),
   renderSong: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] } satisfies Take),
   exportWav: vi.fn(),
   exportMidi: vi.fn(),

@@ -1,4 +1,5 @@
-import type { Project, Rng } from '../model';
+import type { AudioData, Project, Rng } from '../model';
+import type { HitRun } from '../engine';
 import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTake } from '../engine';
 import type { FolderService } from './folders';
 import { browserFolders } from './folders';
@@ -15,6 +16,8 @@ export interface Services {
   readonly backups?: BackupStorage;
   readonly player: Player;
   readonly renderSong: (project: Project, rng: Rng) => Promise<Take>;
+  /** Renders what a view plays that is not a song: hits one after another, or a sample's audio as it is. */
+  readonly renderPreview: (preview: Preview) => Promise<Take>;
   /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
   readonly exportWav: (take: Take, name?: string) => void;
   /** Saves the song as a MIDI file and a WAV of its sounds in slots; says how many sounds. */
@@ -25,6 +28,23 @@ export interface Services {
   readonly rng: () => Rng;
   /** Project folders on disk; without it, Project only explains what it would do. */
   readonly folders?: FolderService;
+}
+
+/** Something Play plays that is not a song. */
+export type Preview =
+  | { readonly kind: 'hits'; readonly project: Project; readonly run: HitRun }
+  | { readonly kind: 'audio'; readonly audio: AudioData };
+
+async function renderPreview(preview: Preview): Promise<Take> {
+  if (preview.kind === 'hits') {
+    const take = { triggers: preview.run.triggers, tapes: [] };
+    return { ...take, buffer: await renderTake(take, preview.project, EXPORT_SAMPLE_RATE, preview.run.seconds) };
+  }
+  const { audio } = preview;
+  const length = Math.max(1, audio.channels[0]?.length ?? 0);
+  const buffer = new AudioBuffer({ numberOfChannels: Math.max(1, audio.channels.length), length, sampleRate: audio.sampleRate });
+  audio.channels.forEach((channel, i) => buffer.copyToChannel(Float32Array.from(channel), i));
+  return { buffer, triggers: [], tapes: [] };
 }
 
 async function renderSong(project: Project, rng: Rng): Promise<Take> {
@@ -73,6 +93,7 @@ export function browserServices(): Services {
     folders: browserFolders(),
     player: createPlayer(),
     renderSong,
+    renderPreview,
     exportWav,
     exportMidi,
     download,

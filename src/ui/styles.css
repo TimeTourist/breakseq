@@ -2082,6 +2082,29 @@ input[type='search'] {
   color: var(--accent);
 }
 
+/* A hit in a slot pad that plays another slice: 15→07. */
+.hit-chip.replaced {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* A parent in the Hits list with the fold for its pads. */
+.fold-head {
+  gap: 4px;
+}
+
+.icon-button.fold {
+  width: 28px;
+  min-height: 28px;
+  height: 28px;
+  flex: none;
+}
+
+/* What Play plays in Hits, and whether it loops. */
+.hits-play {
+  margin-bottom: 12px;
+}
+
 .member.current {
   outline: 1px solid var(--accent);
 }

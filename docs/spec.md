@@ -39,7 +39,7 @@ Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Va
 
 1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Break gör ett break med markörer på 1/16 och loopen M1; One-shot gör ett break med en plats. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. I samma Trim-editor väljs kanal: Stereo (som filen är), Left eller Right (den kanalen i både vänster och höger) eller Mono (L+R, medelvärdet i båda). Allt spelas i stereo: en monofil har samma ljud i båda kanalerna. För ett break gissas antal takter (det av 1, 2, 4, 8 och 16 som ger 70–180 BPM) och ändras i Slice, även efter slicing; BPM räknas fram ur den trimmade längden, och ett tempo under 60 eller över 200 BPM ger en varning.
 2. **Slice** – placera markörer i ett break, när som helst. Varje ändring slår igenom direkt i allt som spelar breaket, utan varningar. Här byts också samplet under breaket ("Replace sample…"). Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare. Under vågformen visas en rad med 1/16-steg som i Loops: varje slice står i steget där den hamnar när föräldern läggs i en loop, i en låda fram till nästa slice eller slutet, och svaga 1/16-linjer ligger över vågformen. Hamnar två slices på samma steg markeras steget rött, eftersom den andra då inte kommer med.
-3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar hur den väljer (Pad plays: Top, Round robin, Random, No repeat) och sina hits; den valda hitten redigeras (region, riktning, pitch, volym, pan, fade, stretch, dist, filter, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort. En hit kan bytas till en annan slice eller one-shot ("Replace…") och behåller då pitch, volym, fade och riktning. Förälderns vågform visar var slicesen börjar, som numrerade linjer. Ett dubbelklick på en linje öppnar den slicen i Slice, där markörerna flyttas.
+3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar hur den väljer (Pad plays: Top, Round robin, Random, No repeat) och sina hits; den valda hitten redigeras (region, riktning, pitch, volym, pan, fade, stretch, dist, filter, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort. En hit kan bytas till en annan slice eller one-shot ("Replace…") och behåller då pitch, volym, fade och riktning. En hit i en platspad som spelar en annan slice visas i listan till vänster som `15→07` (eller `→Think 07` från ett annat break). Varje förälders pads kan fällas ihop i listan (▸/▾); det sparas bara i vyn. Förälderns vågform visar var slicesen börjar, som numrerade linjer. Ett dubbelklick på en linje öppnar den slicen i Slice, där markörerna flyttas.
 4. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks. Ett steg låter antingen paden välja ("The pad picks", förvalt) eller låser en medlem, även medlem 1. Ett break i en loop kan bytas mot ett annat ("Break: Amen → Think"): varje steg som spelar plats N i det gamla spelar plats N i det nya. Varje hit visas som en låda från sitt steg fram till nästa hit eller loopens slut, hur länge ljudet än klingar; en låda över radens slut fortsätter på nästa rad. Stegen i lådan är tomma och går att klicka och släppa på, och det som läggs där kortar lådan.
 5. **Mods** – bygg mods.
 6. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Ctrl kopierar, Alt också) och ändras i längd från båda kanterna. Ett markerat klipp kopieras med Ctrl+C och klistras in med Ctrl+V där spelhuvudet står, i klippets rad. Ctrl+D lägger en kopia direkt efter klippet, och kopian blir markerad. Ett klick i linjalen flyttar spelhuvudet dit: Play startar där, och spelar låten hoppar den dit. Stop går tillbaka dit. Ett drag i linjalen markerar ett loopområde. Områdets ändar har var sitt handtag, som i Trim, som dras eller flyttas med ←/→ (Shift: ett slag). Knappen Loop slår av och på området. När det är på spelar Song från startpunkten in i området och sedan området om och om igen. När det är av loopas hela låten. Området sparas i projektet och går att ångra, men exporten tar alltid hela låten.
@@ -142,13 +142,18 @@ Spelhuvudet i GUI:t följer triggers, så under en tempo-mod tänds stegen i det
 
 Allt som spelar mer än ett ljud renderas först; uppspelningen spelar den färdiga buffern i realtid.
 
-| Vy | Vad som spelas |
-| --- | --- |
-| Hits | Ett enskilt ljud direkt vid tryck, ingen rendering |
-| Loops | Den valda loopen, renderad och loopad |
-| Song | Hela låten, renderad och loopad |
+Play spelar det som visas i fliken:
 
-I vyer utan egen uppspelning (Import, Slice, Project) spelar Play låten. Mellanslag gör samma sak som Play/Stop, i alla vyer, utom när man skriver i ett fält.
+| Vy | Vad Play spelar |
+| --- | --- |
+| Import | Samplet vars Trim är öppen (annars breaket som senast valdes för Slice), trimmat. Ett break loopas, en one-shot spelas en gång. Inget öppet: Play går inte att trycka på. |
+| Slice | Breaket som det låter när föräldern läggs i en loop, renderat och loopat |
+| Hits | Den öppna föräldern som breaket läggs ut (med utbytta slices), den valda hitten, eller med bara en pad vald padens val. Once (förvalt) eller Loop; i Loop väljer en pad på nytt varje varv, och Round robin går hela varv. |
+| Loops | Den valda loopen, renderad och loopad |
+| Mods | Moden på sin loop, renderad och loopad |
+| Song, Project | Hela låten, renderad och loopad |
+
+Förhandslyssningsknapparna i Hits och Play trimmed i Trim spelar som förut, direkt vid tryck. Byts flik under uppspelning startar den nya flikens ljud direkt från början när det är renderat; ändras det som spelar tar den nya renderingen vid där loopen tar slut. Har den nya fliken inget att spela stannar uppspelningen. Mellanslag gör samma sak som Play/Stop, i alla vyer, utom när man skriver i ett fält.
 
 - **När det renderas:** automatiskt kort efter varje ändring (debounce), plus en knapp för ny slumptagning utan att något ändrats.
 - **Byte under uppspelning:** en ny rendering startar exakt där den gamla loopen tar slut, utan avbrott.
