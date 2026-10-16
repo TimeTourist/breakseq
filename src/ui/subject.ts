@@ -25,11 +25,11 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
   const song = (key: string, p: Project, once = false): Subject => ({ key, once, kind: 'song', project: p });
   switch (view) {
     case 'import': {
-      // The sample whose Trim is open, else the break last picked for slicing; trimmed, as it is.
-      const brk = project.breaks[state.trimming ?? state.sliceTarget ?? ''];
+      // The sample whose Trim is open, trimmed, as it is; with none open, the song.
+      const brk = project.breaks[state.trimming ?? ''];
       const sample = brk === undefined ? undefined : project.samples[brk.sampleId];
       const audio = sample === undefined ? undefined : sampleAudio(project, sample);
-      if (brk === undefined || sample === undefined || audio === undefined) return null;
+      if (brk === undefined || sample === undefined || audio === undefined) return song(SONG_KEY, project);
       const from = Math.round(sample.offset * audio.sampleRate);
       const to = Math.round((sample.offset + sample.duration) * audio.sampleRate);
       // Breaks loop, as in Trim; one-shots play once.
