@@ -1,6 +1,7 @@
 import type { Clip, Direction, Id, Loop, Project, Region, Rng } from '../model';
 import { STEPS_PER_BAR, clipsByStep, effectiveHit, hitSound, stepDuration } from '../model';
 import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
+import { padPicker } from './pad-choice';
 import { swapper } from './swap';
 import type { Tape } from './tape';
 import { tapeWindows, windowTape } from './tape';
@@ -80,6 +81,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
   const tempo = tempoRuns(runs);
   const values = modValues(rng);
   const swap = swapper(project, runs, layers.map((l) => l?.loop.steps[l.index]), rng);
+  const pick = padPicker(rng);
   const triggers: Trigger[] = [];
 
   /**
@@ -92,7 +94,10 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     if (layer == null || own === undefined) return;
     const cell = swap(content, clock, own);
     const place = { index: layer.index, clock };
-    const state = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values);
+    const modded = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values);
+    // A step lock goes before a mod, and a mod before the pad: only an unpicked member is the pad's choice.
+    const picked = modded.cell.memberId === null && modded.pad !== undefined && modded.hit !== undefined ? pick(modded.pad) : undefined;
+    const state = picked === undefined ? modded : { ...modded, hit: project.hits[picked] };
     if (state.hit === undefined) return;
     // A slot past its break's last slice is silent.
     const sound = hitSound(project, state.hit);

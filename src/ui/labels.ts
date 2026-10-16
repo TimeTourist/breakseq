@@ -1,4 +1,4 @@
-import type { Id, Pad, Project } from '../model';
+import type { Id, Pad, PadChoice, Project } from '../model';
 import { STEPS_PER_BAR, baseName, isParentPad, slotHeard } from '../model';
 
 /** Hits have no colour of their own for now: every hit is drawn in this one. */
@@ -76,3 +76,6 @@ export function musicalLength(steps: number): string {
   if (steps < STEPS_PER_BAR && steps % 4 === 0) return `${steps / 4} beat${steps === 4 ? '' : 's'}`;
   return lengthText(steps);
 }
+
+/** What each way a pad picks its member is called. */
+export const CHOICE_LABEL: Record<PadChoice, string> = { top: 'Top', roundRobin: 'Round robin', random: 'Random', noRepeat: 'No repeat' };

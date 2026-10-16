@@ -137,7 +137,7 @@ export function ensureSlots(project: Project, breakId: Id, count: number, newId:
   const added: Id[] = [];
   for (let slot = brk.pads.length; slot < count; slot++) {
     const hit = slotHit(newId(), slotName(brk, slot), breakId, slot);
-    const pad: Pad = { id: newId(), name: hit.name, members: [hit.id], auto: true };
+    const pad: Pad = { id: newId(), name: hit.name, members: [hit.id], auto: true, choice: 'top' };
     hits[hit.id] = hit;
     pads[pad.id] = pad;
     added.push(pad.id);

@@ -38,7 +38,7 @@ export function upgradeProject(project: Project): Project {
     Object.entries(project.hits).map(([id, hit]): [Id, Hit] => [id, { ...hit, variantOf: hit.variantOf ?? null }]),
   );
   const pads = Object.fromEntries(
-    Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true }]),
+    Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true, choice: pad.choice ?? 'top' }]),
   );
   const legacyLoops = project.loops as Readonly<Record<Id, Loop & { window?: LegacyWindow }>>;
   // Fill windows became clips, and a loop's length is its steps: drop both fields.

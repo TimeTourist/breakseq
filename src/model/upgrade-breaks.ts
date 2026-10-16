@@ -72,7 +72,7 @@ export function breaksFromSamples(project: Project): Project {
       if (pad !== undefined) return pad.id;
       const hit = slotHit(`${breakId}-slot-${slot}-hit`, slotName(brk, slot), breakId, slot);
       hits[hit.id] = hit;
-      const made: Pad = { id: `${breakId}-slot-${slot}`, name: hit.name, members: [hit.id], auto: true };
+      const made: Pad = { id: `${breakId}-slot-${slot}`, name: hit.name, members: [hit.id], auto: true, choice: 'top' };
       pads[made.id] = made;
       return made.id;
     });
