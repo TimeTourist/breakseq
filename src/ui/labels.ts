@@ -1,14 +1,9 @@
-import type { Id, Pad, Project, Sample } from '../model';
-import { STEPS_PER_BAR, baseName, isParentPad } from '../model';
+import type { Id, Pad, Project } from '../model';
+import { STEPS_PER_BAR, baseName, isParentPad, slotHeard } from '../model';
 
 /** Hits have no colour of their own for now: every hit is drawn in this one. */
 export const HIT_COLOR = '#C9C4B8';
 
-
-export const sampleOfHit = (project: Project, hitId: Id | null | undefined): Sample | undefined => {
-  const hit = hitId == null ? undefined : project.hits[hitId];
-  return hit === undefined ? undefined : project.samples[hit.sampleId];
-};
 
 /** A short label for a pad chip: a slice's number ("amen 07" → "07"), otherwise the start of its name. */
 export function padLabel(pad: Pad): string {
@@ -17,42 +12,35 @@ export function padLabel(pad: Pad): string {
   return number ?? (name.length > 8 ? `${name.slice(0, 7)}…` : name);
 }
 
-/** The imported file a sample comes from: itself, or the break it was sliced from. */
-export const sourceOf = (project: Project, sample: Sample): Sample =>
-  (sample.sliceOf === null ? undefined : project.samples[sample.sliceOf]) ?? sample;
-
 export interface Group<T> {
   readonly name: string;
   readonly items: readonly T[];
-  /** For a group of a sliced break's pads: the break, whose parent lays all of them out. */
+  /** For a group of a break's pads: the break, which lays all of them out. */
   readonly breakId?: Id;
 }
 
 /**
- * Pads grouped the way they belong together: each sliced break's pads in order,
- * named after the break; then one-shots, each a pad with its own hit; then pads
- * built by hand. A break's parent never shows as a pad.
+ * Pads grouped the way they belong together: each break's slot pads in order,
+ * named after the break; then one-shots, each a break with one pad; then pads
+ * built by hand. A break's parent never shows as a pad, and a silent slot (past
+ * the break's last slice) only while a loop still plays it.
  */
 export function padGroups(project: Project, filter: (pad: Pad) => boolean = () => true): Group<Pad>[] {
-  const pads = Object.values(project.pads).filter((p) => filter(p) && !isParentPad(project, p));
-  const built = pads.filter((p) => !p.auto);
-  const byBreak = new Map<Id, { pad: Pad; offset: number }[]>();
-  const oneShots: Pad[] = [];
-  for (const pad of pads.filter((p) => p.auto)) {
-    const sample = sampleOfHit(project, pad.members[0]);
-    const source = sample === undefined ? undefined : sourceOf(project, sample);
-    if (sample !== undefined && source !== undefined && source.break?.sliced === true && sample.sliceOf === source.id) {
-      byBreak.set(source.id, [...(byBreak.get(source.id) ?? []), { pad, offset: sample.offset }]);
-    } else {
-      oneShots.push(pad);
-    }
-  }
+  const inLoops = new Set(Object.values(project.loops).flatMap((l) => l.steps.flatMap((s) => (s.padId === null ? [] : [s.padId]))));
+  const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
+  const shown = (id: Id) => {
+    const pad = project.pads[id];
+    return pad !== undefined && filter(pad) && !isParentPad(project, pad) && (!silent.has(id) || inLoops.has(id)) ? [pad] : [];
+  };
+  const breaks = Object.values(project.breaks);
+  const inBreaks = new Set(breaks.flatMap((b) => b.pads));
+  const oneShots = breaks.filter((b) => b.bars === null).flatMap((b) => b.pads.flatMap(shown));
+  const built = Object.values(project.pads).filter((p) => !inBreaks.has(p.id) && filter(p) && !isParentPad(project, p));
   return [
-    ...[...byBreak].map(([id, items]) => ({
-      name: project.samples[id]?.name ?? 'Break',
-      items: [...items].sort((a, b) => a.offset - b.offset).map((i) => i.pad),
-      breakId: id,
-    })),
+    ...breaks
+      .filter((b) => b.bars !== null)
+      .map((b) => ({ name: b.name, items: b.pads.flatMap(shown), breakId: b.id }))
+      .filter((g) => g.items.length > 0),
     ...(oneShots.length > 0 ? [{ name: 'One-shots', items: oneShots }] : []),
     ...(built.length > 0 ? [{ name: 'Built', items: built }] : []),
   ];

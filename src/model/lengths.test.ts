@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Command, Project } from './index';
-import { addSample, createLoop, createProject, loopReach, reach, setBpm, setBreak, setMarkers, setStep, sliceAtMarkers, slicePlaces, updateHit } from './index';
+import { addSample, createLoop, createProject, loopReach, reach, setBpm, setBreak, setMarkers, setStep, slicePlaces, updateHit } from './index';
 
 const ctx = sequentialIds();
 function run(project: Project, ...commands: Command[]): Project {
@@ -15,8 +15,8 @@ function run(project: Project, ...commands: Command[]): Project {
 /** One bar of 2 s (a step is 0.125 s at 120 BPM), split +-|+-|+-----------: slices of 2, 2 and 12 steps. */
 function sliced(bpm: number) {
   const start = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), setBpm(bpm));
-  const id = Object.keys(start.samples)[0]!;
-  const project = run(start, setBreak(id, 1), setMarkers(id, [0, 0.25, 0.5]), sliceAtMarkers(id));
+  const id = Object.keys(start.breaks)[0]!;
+  const project = run(start, setBreak(id, 1), setMarkers(id, [0, 0.125, 0.25]));
   const m1 = Object.values(project.loops)[0]!;
   return { project, id, m1 };
 }
@@ -49,7 +49,7 @@ describe('hit lengths', () => {
     const gap = run(project, setStep(m1.id, 4, { padId: null }));
     expect(round(loopReach(gap, gap.loops[m1.id]!)).slice(0, 6)).toEqual([1, 0, 1, 0, 0, 0]);
     // Up an octave on the parent, they play in half the time.
-    const parent = Object.values(project.hits).find((h) => h.sampleId === id)!;
+    const parent = project.hits[project.breaks[id]!.parent!]!;
     const up = run(gap, setBpm(120), updateHit(parent.id, { pitch: 12 }));
     expect(round(loopReach(up, up.loops[m1.id]!)).slice(0, 6)).toEqual([1, 0, 1, 0, 0, 0]);
   });
@@ -63,8 +63,8 @@ describe('hit lengths', () => {
   });
 
   it('in Slice, each slice lands on its nearest step and a second slice on the same step is dropped', () => {
-    // A step is 0.125 s: 0.3 and 0.31 both round to step 2.
-    const places = slicePlaces([0, 0.3, 0.31, 1.06], 2, 16);
+    // In a 2 s bar a step is 0.125 s: 0.3 and 0.31 s both round to step 2.
+    const places = slicePlaces([0, 0.3, 0.31, 1.06].map((s) => s / 2), 16);
     expect(places.map((p) => p.slice)).toEqual([0, null, 1, null, null, null, null, null, 3, null, null, null, null, null, null, null]);
     expect(places[2]!.dropped).toEqual([2]);
     expect(places.filter((p) => p.dropped.length > 0)).toHaveLength(1);

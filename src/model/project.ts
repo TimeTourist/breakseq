@@ -1,5 +1,6 @@
 import type { Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, Pad, Project, Sample, Song, SongRow, Step, StepTarget, SwapEffect, TapeEffect } from './types';
 import { STEPS_PER_BAR } from './types';
+import { breaksFromSamples } from './upgrade-breaks';
 
 // A new song starts at 170 BPM and 8 bars.
 export const DEFAULT_BPM = 170;
@@ -16,24 +17,7 @@ export function emptySong(bars = DEFAULT_SONG_BARS, bpm = DEFAULT_BPM): Song {
 }
 
 export function createProject(): Project {
-  return { audio: {}, samples: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
-}
-
-/** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
-export type SliceGrid = 4 | 8 | 16;
-
-/** Slice starts on an equal grid, in seconds from the start of the break. */
-export function gridMarkers(duration: number, bars: number, grid: SliceGrid = 16): number[] {
-  const count = bars * grid;
-  return Array.from({ length: count }, (_, i) => (i * duration) / count);
-}
-
-/** Whether markers lie on an equal grid of some resolution, rather than placed by hand. */
-export function onGrid(markers: readonly number[], duration: number, bars: number): boolean {
-  return ([4, 8, 16] as const).some((grid) => {
-    const even = gridMarkers(duration, bars, grid);
-    return even.length === markers.length && even.every((m, i) => Math.abs(m - markers[i]!) < 1e-6);
-  });
+  return { audio: {}, samples: {}, breaks: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
 
 /** The next free loop name: M1, M2, … for mains and F1, F2, … for fills. */
@@ -56,29 +40,6 @@ export function upgradeProject(project: Project): Project {
   const pads = Object.fromEntries(
     Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true }]),
   );
-  // Tags went: a sample keeps everything but its tag fields.
-  const untagged = (sample: Sample): Sample => {
-    const copy: Sample & { mainTag?: unknown; extraTags?: unknown; tagGuessed?: unknown } = { ...sample };
-    delete copy.mainTag;
-    delete copy.extraTags;
-    delete copy.tagGuessed;
-    return copy;
-  };
-  const samples = Object.fromEntries(
-    Object.entries(project.samples).map(([id, sample]): [Id, Sample] => [
-      id,
-      sample.break === null || (sample.break.markers !== undefined && sample.break.loop !== undefined)
-        ? untagged(sample)
-        : {
-            ...untagged(sample),
-            break: {
-              ...sample.break,
-              markers: sample.break.markers ?? gridMarkers(sample.duration, sample.break.bars),
-              loop: sample.break.loop ?? (sample.break.sliced ? sliceLoop(project, id) : null),
-            },
-          },
-    ]),
-  );
   const legacyLoops = project.loops as Readonly<Record<Id, Loop & { window?: LegacyWindow }>>;
   // Fill windows became clips, and a loop's length is its steps: drop both fields.
   const loops = Object.fromEntries(
@@ -98,10 +59,20 @@ export function upgradeProject(project: Project): Project {
       return [id, { id, name: mod.name, effects: effects.map(upgradeEffect) }];
     }),
   );
-  // Tags went with the samples' tag fields.
+  // Tags went: a sample keeps everything but its tag fields.
+  const samples = Object.fromEntries(
+    Object.entries(project.samples).map(([id, sample]): [Id, Sample] => {
+      const copy: Sample & { mainTag?: unknown; extraTags?: unknown; tagGuessed?: unknown } = { ...sample };
+      delete copy.mainTag;
+      delete copy.extraTags;
+      delete copy.tagGuessed;
+      return [id, copy];
+    }),
+  );
   const upgraded: Project & { tags?: unknown } = { ...project, samples, hits, pads, loops, mods, song };
   delete upgraded.tags;
-  return upgraded;
+  // Breaks became their own objects, taking the samples' break fields (and tag fields) with them.
+  return (project as { breaks?: unknown }).breaks === undefined ? breaksFromSamples(upgraded) : upgraded;
 }
 
 /** An effect as an older version may have saved it. */
@@ -168,18 +139,6 @@ function clipsFromRows(rows: LegacyRows, bars: number, loops: Readonly<Record<Id
   return clips;
 }
 
-/** For breaks sliced before the loop was recorded: the first loop that only plays the break's slices. */
-function sliceLoop(project: Project, breakId: Id): Id | null {
-  const isSlicePad = (padId: Id) => {
-    const hit = project.hits[project.pads[padId]?.members[0] ?? ''];
-    return hit !== undefined && project.samples[hit.sampleId]?.sliceOf === breakId;
-  };
-  const loop = Object.values(project.loops).find(
-    (l) => l.steps.some((s) => s.padId !== null) && l.steps.every((s) => s.padId === null || isSlicePad(s.padId)),
-  );
-  return loop?.id ?? null;
-}
-
 /** Seconds per step (a 1/16 note). */
 export function stepDuration(bpm: number): number {
   return 60 / bpm / 4;
@@ -187,63 +146,4 @@ export function stepDuration(bpm: number): number {
 
 export function songDuration(song: Song): number {
   return song.bars * STEPS_PER_BAR * stepDuration(song.bpm);
-}
-
-/**
- * The parent of a slice's hit: the break's own hit (its whole, trimmed sample).
- * Its pitch and volume apply to every hit from the break's slices.
- */
-export function parentHit(project: Project, hit: Hit): Hit | undefined {
-  const breakId = project.samples[hit.sampleId]?.sliceOf;
-  if (breakId == null) return undefined;
-  return Object.values(project.hits).find((h) => h.sampleId === breakId && h.variantOf === null);
-}
-
-/**
- * A hit as it plays, with its parent working like a macro on it: pitch and
- * volume add, reverse on the parent turns each slice round (a reversed slice
- * plays forward again), and the parent's fade applies where the slice has none.
- */
-export function effectiveHit(project: Project, hit: Hit): Hit {
-  const parent = parentHit(project, hit);
-  if (parent === undefined) return hit;
-  const flipped = parent.direction === 'reverse';
-  return {
-    ...hit,
-    pitch: hit.pitch + parent.pitch,
-    volume: hit.volume + parent.volume,
-    direction: flipped ? (hit.direction === 'reverse' ? 'forward' : 'reverse') : hit.direction,
-    fadeOut: hit.fadeOut > 0 ? hit.fadeOut : parent.fadeOut,
-  };
-}
-
-/** Whether a hit is the parent of a sliced break: a macro for its slices, never played as a pad. */
-export function isParentHit(project: Project, hit: Hit): boolean {
-  return project.samples[hit.sampleId]?.break?.sliced === true && hit.variantOf === null;
-}
-
-/** A pad whose members are only parent hits: hidden, because parents are not played. */
-export function isParentPad(project: Project, pad: Pad): boolean {
-  return pad.members.length > 0 && pad.members.every((m) => {
-    const hit = project.hits[m];
-    return hit !== undefined && isParentHit(project, hit);
-  });
-}
-
-/**
- * A sliced break's slice pads in order, each with the step it plays on from the
- * break's start, as in the loop the slicing made.
- */
-export function breakSequence(project: Project, breakId: Id): { padId: Id; step: number }[] {
-  const source = project.samples[breakId];
-  if (source?.break?.sliced !== true) return [];
-  const stepTime = source.duration / (source.break.bars * STEPS_PER_BAR);
-  const slices = Object.values(project.samples)
-    .filter((s) => s.sliceOf === breakId)
-    .sort((a, b) => a.offset - b.offset);
-  return slices.flatMap((slice) => {
-    const hit = Object.values(project.hits).find((h) => h.sampleId === slice.id && h.variantOf === null);
-    const pad = hit === undefined ? undefined : Object.values(project.pads).find((p) => p.auto && p.members[0] === hit.id);
-    return pad === undefined ? [] : [{ padId: pad.id, step: Math.round((slice.offset - source.offset) / stepTime) }];
-  });
 }

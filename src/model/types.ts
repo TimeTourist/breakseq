@@ -11,18 +11,7 @@ export interface AudioData {
   readonly channels: readonly Float32Array[];
 }
 
-export interface BreakInfo {
-  readonly bars: number;
-  readonly bpm: number;
-  /** Sliced breaks are locked until unsliced. */
-  readonly sliced: boolean;
-  /** Where slices start, in seconds from the break's start: sorted, the first at 0. */
-  readonly markers: readonly number[];
-  /** The loop the slicing made, while the break is sliced. */
-  readonly loop: Id | null;
-}
-
-/** Audio: a slice of a break or an imported file, as a window into an AudioData. */
+/** Audio: an imported file, trimmed to a window of it. Only sound; what it is used for is its breaks'. */
 export interface Sample {
   readonly id: Id;
   readonly name: string;
@@ -31,15 +20,36 @@ export interface Sample {
   readonly offset: number;
   /** Length in seconds. */
   readonly duration: number;
-  /** Set when the sample is a break; null for a one-shot. */
-  readonly break: BreakInfo | null;
-  /** The break this sample was sliced from, or null for an imported file. */
-  readonly sliceOf: Id | null;
+}
+
+/**
+ * A sample cut into slots 01…N, one pad per slot, each pad with its slot's hit
+ * on top. Slots count by number: pad 05 always plays the fifth slice, whatever
+ * the markers or the sample under the break. A one-shot is a break with one
+ * slot and no markers to move.
+ */
+export interface Break {
+  readonly id: Id;
+  readonly name: string;
+  readonly sampleId: Id;
+  /** Its length in bars, which gives its tempo; null for a one-shot. */
+  readonly bars: number | null;
+  /**
+   * Where slices start, as parts 0–1 of the break: sorted, the first at 0. In
+   * parts rather than seconds, so they keep their steps when the sample changes.
+   */
+  readonly markers: readonly number[];
+  /** One pad per slot, in order. It grows with the markers but never shrinks: a slot past the last slice is silent. */
+  readonly pads: readonly Id[];
+  /** The break's own hit: a macro for the hits of its slices. null for a one-shot. */
+  readonly parent: Id | null;
+  /** The loop made for the break the first time it became one, or null. */
+  readonly loop: Id | null;
 }
 
 export type Direction = 'forward' | 'reverse';
 
-/** Region in seconds, relative to the start of the sample. */
+/** Part of a slice, start and end as parts 0–1 of it. */
 export interface Region {
   readonly start: number;
   readonly end: number;
@@ -48,7 +58,10 @@ export interface Region {
 export interface Hit {
   readonly id: Id;
   readonly name: string;
-  readonly sampleId: Id;
+  /** The break it plays a slice of. */
+  readonly breakId: Id;
+  /** The slot it plays, from 0; null for the whole break. A slot past the break's last slice is silent. */
+  readonly slot: number | null;
   readonly region: Region;
   readonly direction: Direction;
   /** Semitones. */
@@ -222,6 +235,7 @@ export interface Song {
 export interface Project {
   readonly audio: Readonly<Record<Id, AudioData>>;
   readonly samples: Readonly<Record<Id, Sample>>;
+  readonly breaks: Readonly<Record<Id, Break>>;
   readonly hits: Readonly<Record<Id, Hit>>;
   readonly pads: Readonly<Record<Id, Pad>>;
   readonly loops: Readonly<Record<Id, Loop>>;

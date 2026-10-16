@@ -10,6 +10,8 @@ import {
   addClip,
   resizeClip,
   setBpm,
+  setBreak,
+  setMarkers,
   setSongBars,
   setSongCell,
   setStep,
@@ -189,7 +191,7 @@ describe('pad members', () => {
 
   it('uses the hit settings', () => {
     let { project, pad, hit } = withPads(['K']);
-    project = run(project, updateHit(hit.K!, { pitch: 2, volume: -6, direction: 'reverse', region: { start: 0.01, end: 0.05 } }));
+    project = run(project, updateHit(hit.K!, { pitch: 2, volume: -6, direction: 'reverse', region: { start: 0.25, end: 0.5 } }));
     let loop: Id;
     [project, loop] = addLoop(project, 'M1', 'main', 1);
     project = run(project, setStep(loop, 0, { padId: pad.K! }), setSongBars(1), setSongCell('main', 0, loop));
@@ -203,7 +205,8 @@ describe('pad members', () => {
         pitch: 2,
         volume: -6,
         direction: 'reverse',
-        region: { start: 0.01, end: 0.05 },
+        // The region is a part of the 0.1 s sample, played as seconds of it.
+        region: { start: 0.025, end: 0.05 },
       },
     ]);
   });
@@ -397,5 +400,24 @@ describe('fill clips', () => {
     const project = run(base, resizeClip(clip.id, 'start', 16 + 12), resizeClip(clip.id, 'end', 32 + 4));
     expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(4));
     expect(layerOf(project, hit, 2)).toBe('F'.repeat(4) + 'M'.repeat(12));
+  });
+});
+
+describe('silent slots', () => {
+  it('a slot past its break\'s last slice plays nothing, and sounds again when the break has it back', () => {
+    let project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), setBpm(120));
+    const id = Object.keys(project.breaks)[0]!;
+    project = run(project, setBreak(id, 1));
+    const m1 = Object.values(project.loops)[0]!.id;
+    project = run(project, setSongBars(1), setSongCell('main', 0, m1));
+    expect(generateTriggers(project, () => 0)).toHaveLength(16);
+
+    // Four slices left: M1 follows the break and plays them on 1, 5, 9 and 13.
+    const four = run(project, setMarkers(id, [0, 0.25, 0.5, 0.75]));
+    expect(generateTriggers(four, () => 0).map((t) => t.step)).toEqual([0, 4, 8, 12]);
+
+    // Edited by hand, M1 keeps playing all 16 slots: 12 of them are silent now.
+    const edited = run(project, setStep(m1, 0, { ignoreMods: true }), setMarkers(id, [0, 0.25, 0.5, 0.75]));
+    expect(generateTriggers(edited, () => 0).map((t) => t.step)).toEqual([0, 1, 2, 3]);
   });
 });

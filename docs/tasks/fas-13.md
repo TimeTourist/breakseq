@@ -33,7 +33,8 @@ Hit     { id, name, breakId, slot | null,                      null = hela break
 - **Markörer i andelar** av breakets längd, så att de stannar på sina steg när samplet byts. Trimmas samplet följer markörerna därför med i takt med fönstret (i dag behåller egna markörer sin plats i filen).
 - **Platser utöver antalet slices:** padsen finns kvar men är tysta, och de visas nedtonade i hyllan. Kommer platsen tillbaka hörs paden igen.
 - **Byte av break i en loop:** steg på plats N i det gamla breaket får det nya breakets pad N. Saknas den skapas den, tyst. En vald medlem som inte finns i den nya paden nollställs. Pads man byggt själv rörs inte.
-- **Ändrade takter:** markörerna ligger kvar på samma ställen i ljudet. Rutnätsknapparna (1/4, 1/8, 1/16) lägger om dem.
+- **Ändrade takter:** markörer på ett rutnät följer med till det nya antalet takter (samma upplösning). Egna markörer ligger kvar på samma ställen i ljudet.
+- **M1 följer breaket** så länge den är exakt som breaket lade ut den. När du har ändrat i M1 rörs den inte.
 - **Det gamla samplet** ligger kvar i projektet efter ett byte, så att det kan väljas igen.
 - **Gamla projekt** (fil, autospar, snapshots) uppgraderas när de öppnas. Slice-samples blir platser och deras hits får region i andelar. Osliceade breaks får platser och pads men ingen M1. One-shots blir breaks med en plats och behåller sin pad.
 - **Re-slice, unslice och varningar om användning** tas bort.

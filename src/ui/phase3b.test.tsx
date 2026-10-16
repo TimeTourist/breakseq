@@ -62,7 +62,10 @@ async function setup(project: Project, view: View): Promise<Store> {
   return store;
 }
 
-const sample = (store: Store) => Object.values(store.getState().history.present.samples).find((s) => s.sliceOf === null)!;
+const sample = (store: Store) => Object.values(store.getState().history.present.samples)[0]!;
+const brk = (store: Store) => Object.values(store.getState().history.present.breaks)[0]!;
+/** The break's markers in seconds: it is 2 s long. */
+const markers = (store: Store) => brk(store).markers.map((m) => m * 2);
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 describe('Trim in Import', () => {
@@ -85,52 +88,56 @@ describe('Markers in Slice', () => {
   /** A 2 s, one-bar break with markers on 1/16, open in Slice. */
   async function sliceSetup() {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-    const result = setBreak(Object.keys(project.samples)[0]!, 1)(project, ctx);
+    const result = setBreak(Object.keys(project.breaks)[0]!, 1)(project, ctx);
     if (!result.ok) throw new Error('setBreak failed');
     return setup(result.project, 'slice');
   }
 
   it('←/→ nudges the selected marker by 1 ms, Shift by 10 ms', async () => {
     const store = await sliceSetup();
-    const before = sample(store).break!.markers[2]!;
+    const before = markers(store)[2]!;
     const marker = button(/^Marker 3 at/);
     fireEvent.focus(marker);
 
     fireEvent.keyDown(marker, { key: 'ArrowRight' });
     fireEvent.keyDown(marker, { key: 'ArrowLeft', shiftKey: true });
 
-    expect(sample(store).break!.markers[2]).toBeCloseTo(before + 0.001 - 0.01, 6);
+    expect(markers(store)[2]).toBeCloseTo(before + 0.001 - 0.01, 6);
   });
 
   it('Add marker splits the selected slice, and Remove marker takes it out again', async () => {
     const store = await sliceSetup();
     fireEvent.click(button('Play slice 4'));
-    const [a, b] = [sample(store).break!.markers[3]!, sample(store).break!.markers[4]!];
+    const [a, b] = [markers(store)[3]!, markers(store)[4]!];
 
     fireEvent.click(button('Add marker'));
-    expect(sample(store).break!.markers).toHaveLength(17);
-    expect(sample(store).break!.markers[4]).toBeCloseTo((a + b) / 2);
+    expect(markers(store)).toHaveLength(17);
+    expect(markers(store)[4]).toBeCloseTo((a + b) / 2);
+    expect(brk(store).pads).toHaveLength(17);
 
     fireEvent.click(button('Remove marker'));
-    expect(sample(store).break!.markers).toHaveLength(16);
+    expect(markers(store)).toHaveLength(16);
+    // The 17th pad stays, silent.
+    expect(brk(store).pads).toHaveLength(17);
   });
 
-  it('Apply slices and Re-slice take turns', async () => {
+  it('there is nothing to apply: the break has its pads and M1 straight away, and markers move while M1 is in use', async () => {
     const store = await sliceSetup();
-    fireEvent.click(button('Apply slices'));
-    expect(sample(store).break!.sliced).toBe(true);
-    expect(Object.keys(store.getState().history.present.loops)).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Apply slices' })).toBeNull();
+    expect(brk(store).pads).toHaveLength(16);
+    expect(Object.values(store.getState().history.present.loops).map((l) => l.name)).toEqual(['M1']);
 
-    fireEvent.click(button('Re-slice'));
-    expect(sample(store).break!.sliced).toBe(false);
-    expect(Object.keys(store.getState().history.present.loops)).toHaveLength(0);
+    fireEvent.click(button('Play slice 2'));
+    fireEvent.click(button('Remove marker'));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(markers(store)).toHaveLength(15);
   });
 });
 
 describe('Playing while trimming', () => {
   it('a break plays looped by default, follows the trim while it plays, and Once restarts it once', async () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-    const id = Object.keys(project.samples)[0]!;
+    const id = Object.keys(project.breaks)[0]!;
     const asBreak = setBreak(id, 1)(project, ctx);
     if (!asBreak.ok) throw new Error('setBreak failed');
     await setup(asBreak.project, 'import');

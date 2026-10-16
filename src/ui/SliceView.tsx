@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, gridMarkers, slicePlaces, setBreakBars, setMarkers, sliceAtMarkers, unlikelyBpm, unsliceBreak } from '../model';
-import { detectTransients } from '../engine';
+import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, replaceSample, replaceSampleWithFile, setBreakBars, setGrid, setMarkers, slicePlaces, unlikelyBpm } from '../model';
+import { decodeAudioFile, detectTransients } from '../engine';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
-import { sources } from './ImportView';
 import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
 import { Waveform } from './Waveform';
 
@@ -17,9 +16,6 @@ function position(time: number, stepTime: number): string {
   const at = `${Math.floor(step / 16) + 1}.${Math.floor((step % 16) / 4) + 1}.${(step % 4) + 1}`;
   return off === 0 ? at : `${at} ${off > 0 ? '+' : ''}${off} ms`;
 }
-
-const sameMarkers = (a: readonly number[], b: readonly number[]) =>
-  a.length === b.length && a.every((m, i) => Math.abs(m - b[i]!) < 1e-6);
 
 export function SliceView() {
   const project = useProject();
@@ -35,14 +31,16 @@ export function SliceView() {
   const [loopBreak, setLoopBreak] = useState(true);
   const playhead = useAuditionPlayhead(playingBreak);
   const box = useRef<HTMLDivElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   // Leaving the view stops whatever is being auditioned.
   useEffect(() => () => services.player.stopAudition(), [services]);
 
-  const breaks = sources(project).filter((s) => s.break !== null);
-  const sample = breaks.find((s) => s.id === target) ?? breaks.find((s) => s.break?.sliced === false) ?? breaks[0];
+  const breaks = Object.values(project.breaks).filter((b) => b.bars !== null);
+  const brk = breaks.find((b) => b.id === target) ?? breaks[0];
+  const sample = brk === undefined ? undefined : project.samples[brk.sampleId];
 
-  if (sample === undefined || sample.break === null) {
+  if (brk === undefined || brk.bars === null || sample === undefined) {
     return (
       <main className="view">
         <div className="view-head">
@@ -56,16 +54,19 @@ export function SliceView() {
     );
   }
 
-  const info = sample.break;
-  const { markers, sliced } = info;
+  const bars = brk.bars;
+  const bpm = bpmOf(project, brk) ?? 0;
   const audio = project.audio[sample.audioId];
   const duration = sample.duration;
-  const stepTime = duration / (info.bars * STEPS_PER_BAR);
+  // Markers are parts of the break; here they are worked with in seconds.
+  const markers = brk.markers.map((m) => m * duration);
+  const stepTime = duration / (bars * STEPS_PER_BAR);
   const current = Math.min(selected, markers.length - 1);
   const ends = markers.map((_, i) => markers[i + 1] ?? duration);
   /** The slices on the break's 1/16 grid, as laying the parent in a loop places them. */
-  const places = slicePlaces(markers, duration, info.bars * STEPS_PER_BAR);
-  const move = (next: readonly number[]) => setError(run(setMarkers(sample.id, next), `markers:${sample.id}`));
+  const places = slicePlaces(brk.markers, bars * STEPS_PER_BAR);
+  const toParts = (seconds: readonly number[]) => seconds.map((m) => m / duration);
+  const move = (next: readonly number[]) => setError(run(setMarkers(brk.id, toParts(next)), `markers:${brk.id}`));
   const moveMarker = (index: number, time: number) => {
     const low = (markers[index - 1] ?? 0) + MIN_SLICE;
     const high = (markers[index + 1] ?? duration) - MIN_SLICE;
@@ -77,9 +78,9 @@ export function SliceView() {
   };
   const addAt = (time: number) => {
     const next = [...markers, time].sort((a, b) => a - b);
-    if (run(setMarkers(sample.id, next)) === null) setSelected(next.indexOf(time));
+    if (run(setMarkers(brk.id, toParts(next))) === null) setSelected(next.indexOf(time));
   };
-  const grid = GRIDS.find((g) => sameMarkers(markers, gridMarkers(duration, info.bars, g))) ?? null;
+  const grid = markerGrid(brk.markers, bars);
 
   /** Markers on the hits found at this sensitivity. Moving a marker by hand makes them your own. */
   const detect = (value: number, mergeKey?: string) => {
@@ -87,17 +88,24 @@ export function SliceView() {
     setSensitivity(value);
     setTransients(true);
     setSelected(0);
-    setError(run(setMarkers(sample.id, detectTransients(audio, sample.offset, duration, value)), mergeKey));
+    setError(run(setMarkers(brk.id, toParts(detectTransients(audio, sample.offset, duration, value))), mergeKey));
   };
 
-  const apply = () => setError(run(sliceAtMarkers(sample.id)));
+  /** Plays a new file under the break: its markers keep their steps. */
+  const replaceWithFile = async (file: File) => {
+    try {
+      setError(run(replaceSampleWithFile(brk.id, { name: file.name, audio: decodeAudioFile(await file.arrayBuffer()) })));
+    } catch (e) {
+      setError(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
 
   return (
     <main className="view">
       <div className="view-head row">
         <div className="stack-tight">
           <h1>
-            Slice <span className="mono muted title-file">{sample.name}</span>
+            Slice <span className="mono muted title-file">{brk.name}</span>
           </h1>
           <p className="muted row">
             <label className="field inline">
@@ -106,18 +114,18 @@ export function SliceView() {
                 min={1}
                 max={64}
                 aria-label="Bars in the break"
-                value={info.bars}
+                value={bars}
                 onChange={(e) => {
                   const bars = Math.round(Number(e.target.value));
-                  if (bars >= 1) setError(run(setBreakBars(sample.id, bars), `bars:${sample.id}`));
+                  if (bars >= 1) setError(run(setBreakBars(brk.id, bars), `bars:${brk.id}`));
                 }}
                 onBlur={seal}
               />
               bars
             </label>
-            · {info.bpm.toFixed(2)} BPM
-            {unlikelyBpm(info.bpm) && <span className="warn-text">· check the bars: that tempo looks wrong</span>} · {markers.length} slices
-            {sliced ? ' · sliced' : grid === null ? ' · own markers' : ` · equal 1/${grid}`}
+            · {bpm.toFixed(2)} BPM
+            {unlikelyBpm(bpm) && <span className="warn-text">· check the bars: that tempo looks wrong</span>} · {markers.length} slices
+            {grid === null ? ' · own markers' : ` · equal 1/${grid}`}
           </p>
         </div>
         <div className="row push">
@@ -149,7 +157,7 @@ export function SliceView() {
           {breaks.length > 1 && (
             <label className="field">
               Break
-              <select value={sample.id} onChange={(e) => store.dispatch({ type: 'sliceTarget', sampleId: e.target.value })}>
+              <select value={brk.id} onChange={(e) => store.dispatch({ type: 'sliceTarget', breakId: e.target.value })}>
                 {breaks.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -164,21 +172,20 @@ export function SliceView() {
                 key={g}
                 type="button"
                 aria-pressed={!transients && grid === g}
-                disabled={sliced}
                 onClick={() => {
                   setSelected(0);
                   setTransients(false);
-                  setError(run(setMarkers(sample.id, gridMarkers(duration, info.bars, g))));
+                  setError(run(setGrid(brk.id, g)));
                 }}
               >
                 1/{g}
               </button>
             ))}
-            <button type="button" aria-pressed={transients} disabled={sliced || audio === undefined} onClick={() => detect(sensitivity)}>
+            <button type="button" aria-pressed={transients} disabled={audio === undefined} onClick={() => detect(sensitivity)}>
               Transients
             </button>
           </div>
-          {transients && !sliced && (
+          {transients && (
             <label className="field sensitivity">
               Sensitivity
               <input
@@ -186,7 +193,7 @@ export function SliceView() {
                 min={0}
                 max={100}
                 value={sensitivity}
-                onChange={(e) => detect(Number(e.target.value), `transients:${sample.id}`)}
+                onChange={(e) => detect(Number(e.target.value), `transients:${brk.id}`)}
                 onPointerUp={seal}
                 onKeyUp={seal}
               />
@@ -203,7 +210,7 @@ export function SliceView() {
               ref={box}
               className="slice-area"
               onDoubleClick={(e) => {
-                if (!sliced) addAt(at(e.clientX));
+                addAt(at(e.clientX));
               }}
             >
               <Waveform audio={audio} offset={sample.offset} duration={duration} height={200} />
@@ -234,7 +241,6 @@ export function SliceView() {
                   style={{ left: `${(m / duration) * 100}%` }}
                   aria-label={`Marker ${i + 1} at ${position(m, stepTime)}`}
                   aria-pressed={i === current}
-                  disabled={sliced}
                   onFocus={() => setSelected(i)}
                   onPointerDown={(e) => {
                     setSelected(i);
@@ -287,67 +293,67 @@ export function SliceView() {
             <span className="muted">Length</span>
             <span className="mono">{ms((ends[current] ?? 0) - (markers[current] ?? 0))} ms</span>
           </div>
-          {!sliced && (
-            <>
-              <div className="row">
-                <button type="button" aria-label="Nudge marker left" disabled={current === 0} onClick={() => moveMarker(current, (markers[current] ?? 0) - 0.001)}>
-                  ←
-                </button>
-                <button type="button" aria-label="Nudge marker right" disabled={current === 0} onClick={() => moveMarker(current, (markers[current] ?? 0) + 0.001)}>
-                  →
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addAt(((markers[current] ?? 0) + (ends[current] ?? duration)) / 2)}
-                >
-                  Add marker
-                </button>
-                <button
-                  type="button"
-                  disabled={current === 0}
-                  onClick={() => {
-                    if (run(setMarkers(sample.id, markers.filter((_, i) => i !== current))) === null) setSelected(current - 1);
-                  }}
-                >
-                  Remove marker
-                </button>
-              </div>
-              <p className="muted small">
-                Drag a marker, or select it and use ←/→ (Shift: 10 ms). Double-click the waveform to add one.
-              </p>
-            </>
-          )}
+          <div className="row">
+            <button type="button" aria-label="Nudge marker left" disabled={current === 0} onClick={() => moveMarker(current, (markers[current] ?? 0) - 0.001)}>
+              ←
+            </button>
+            <button type="button" aria-label="Nudge marker right" disabled={current === 0} onClick={() => moveMarker(current, (markers[current] ?? 0) + 0.001)}>
+              →
+            </button>
+            <button
+              type="button"
+              onClick={() => addAt(((markers[current] ?? 0) + (ends[current] ?? duration)) / 2)}
+            >
+              Add marker
+            </button>
+            <button
+              type="button"
+              disabled={current === 0}
+              onClick={() => {
+                if (run(setMarkers(brk.id, toParts(markers.filter((_, i) => i !== current)))) === null) setSelected(current - 1);
+              }}
+            >
+              Remove marker
+            </button>
+          </div>
+          <p className="muted small">
+            Drag a marker, or select it and use ←/→ (Shift: 10 ms). Double-click the waveform to add one.
+          </p>
         </section>
 
-        <section className="panel stack grow-1">
-          <h2 className="label">{sliced ? 'Sliced' : 'Apply creates'}</h2>
-          {sliced ? (
-            <>
-              <p className="muted">
-                The slices, their hits and pads, and the loop are made. Re-slicing takes them back, as long as nothing else
-                uses them and the loop is not in the song.
-              </p>
-              <div className="row">
-                <button type="button" onClick={() => setError(run(unsliceBreak(sample.id)))}>
-                  Re-slice
-                </button>
-                <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'song' })}>
-                  Song →
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="chain mono">
-                <span>{markers.length} samples</span>→<span>{markers.length} hits</span>→<span>{markers.length} pads</span>→
-                <span className="accent">a main loop</span>
-              </div>
-              <p className="muted">Each slice goes on its nearest 1/16 in the loop. After that it is a normal loop.</p>
-              <button type="button" className="primary self-start" onClick={apply}>
-                Apply slices
-              </button>
-            </>
-          )}
+        <section className="panel stack grow-1" aria-label="Sample">
+          <h2 className="label">Sample</h2>
+          <p className="muted">
+            The sound under the markers. Replace it and every slot plays the new sound at the same steps. Changes here and to
+            the markers are heard straight away wherever the break plays.
+          </p>
+          <div className="row">
+            <label className="field">
+              Plays
+              <select aria-label="Sample under the break" value={sample.id} onChange={(e) => setError(run(replaceSample(brk.id, e.target.value)))}>
+                {Object.values(project.samples).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="self-end" onClick={() => fileInput.current?.click()}>
+              Replace sample…
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              hidden
+              accept=".wav,.aif,.aiff,.aifc,audio/wav,audio/aiff"
+              aria-label="New sample file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file !== undefined) void replaceWithFile(file);
+                e.target.value = '';
+              }}
+            />
+          </div>
           {error !== null && (
             <p className="error" role="alert">
               {error}

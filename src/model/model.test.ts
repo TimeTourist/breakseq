@@ -5,23 +5,15 @@ import {
   addPadMember,
   addSample,
   addVariant,
-  breakSequence,
   guessBars,
-  setBreakBars,
   unlikelyBpm,
   duplicateHit,
-  gridMarkers,
   seal,
-  setMarkers,
-  sliceAtMarkers,
-  trimSample,
-  unsliceBreak,
   setBpm,
   setLoopLength,
   setSongBars,
   upgradeProject,
   apply,
-  breakBpm,
   createHistory,
   createLoop,
   createMod,
@@ -42,7 +34,6 @@ import {
   resizeClip,
   setLoopKind,
   setSongCell,
-  updateHit,
   setStep,
   sliceBreak,
   undo,
@@ -63,7 +54,7 @@ const only = <T>(record: Readonly<Record<string, T>>): T => {
 };
 
 describe('automatic chain', () => {
-  it('addSample creates a sample, a default hit and a pad with that hit as its only member', () => {
+  it('addSample creates a sample, a one-shot break over it, a default hit and a pad with that hit as its only member', () => {
     const ctx = sequentialIds();
     const project = run(createProject(), ctx, addSample({ name: 'Kick', audio: constantAudio(0.5) }));
 
@@ -71,92 +62,18 @@ describe('automatic chain', () => {
     const hit = only(project.hits);
     const pad = only(project.pads);
     expect(sample.duration).toBeCloseTo(0.5);
+    const brk = only(project.breaks);
+    expect(brk).toMatchObject({ sampleId: sample.id, bars: null, markers: [0], pads: [pad.id], parent: null });
     expect(hit).toMatchObject({
-      sampleId: sample.id,
-      region: { start: 0, end: sample.duration },
+      breakId: brk.id,
+      slot: 0,
+      region: { start: 0, end: 1 },
       direction: 'forward',
       pitch: 0,
       volume: 0,
       fadeOut: 0,
     });
     expect(pad.members).toEqual([hit.id]);
-  });
-
-  it('sliceBreak with 4 bars and 1/16 gives 64 samples, hits and pads, and M1 playing the pads in order', () => {
-    const ctx = sequentialIds();
-    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
-    const amen = only(imported.samples);
-    const sliced = run(imported, ctx, sliceBreak(amen.id, 4, 16));
-
-    const newSamples = Object.values(sliced.samples).filter((s) => !(s.id in imported.samples));
-    const newHits = Object.values(sliced.hits).filter((h) => !(h.id in imported.hits));
-    const newPads = Object.values(sliced.pads).filter((p) => !(p.id in imported.pads));
-    expect(newSamples).toHaveLength(64);
-    expect(newHits).toHaveLength(64);
-    expect(newPads).toHaveLength(64);
-
-    const m1 = only(sliced.loops);
-    expect(m1).toMatchObject({ name: 'M1', kind: 'main' });
-    expect(m1.steps).toHaveLength(64);
-    // Step i plays the pad of slice i, and slices follow each other through the break.
-    m1.steps.forEach((step, i) => {
-      const pad = sliced.pads[step.padId!]!;
-      const sample = sliced.samples[sliced.hits[pad.members[0]!]!.sampleId]!;
-      expect(sample.offset).toBeCloseTo((i * amen.duration) / 64);
-      expect(sample.duration).toBeCloseTo(amen.duration / 64);
-      expect(sample.audioId).toBe(amen.audioId);
-    });
-  });
-
-  it('a coarser grid leaves gaps between slices in M1', () => {
-    const ctx = sequentialIds();
-    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(1) }));
-    const sliced = run(imported, ctx, sliceBreak(only(imported.samples).id, 1, 4));
-    const m1 = only(sliced.loops);
-    expect(m1.steps.map((s) => s.padId !== null)).toEqual(
-      Array.from({ length: 16 }, (_, i) => i % 4 === 0),
-    );
-  });
-
-  it('works out the BPM of a break from its length and bars', () => {
-    expect(breakBpm(4 * 1.75, 4)).toBeCloseTo(137.142857);
-
-    const ctx = sequentialIds();
-    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
-    const id = only(imported.samples).id;
-    const sliced = run(imported, ctx, sliceBreak(id, 4));
-    expect(sliced.samples[id]!.break?.bpm).toBeCloseTo(137.142857);
-    expect(sliced.samples[id]!.break?.bars).toBe(4);
-  });
-});
-
-describe('breaks', () => {
-  it('setBreak works out the BPM, and null makes the sample a one-shot again', () => {
-    const ctx = sequentialIds();
-    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(4 * 1.75) }));
-    const id = only(imported.samples).id;
-
-    const asBreak = run(imported, ctx, setBreak(id, 4));
-    expect(asBreak.samples[id]!.break).toEqual({ bars: 4, bpm: breakBpm(4 * 1.75, 4), sliced: false, markers: gridMarkers(4 * 1.75, 4), loop: null });
-
-    const asShot = run(asBreak, ctx, setBreak(id, null));
-    expect(asShot.samples[id]!.break).toBeNull();
-  });
-
-  it('sliceBreak marks the slices and the break, and refuses to slice it twice', () => {
-    const ctx = sequentialIds();
-    const imported = run(createProject(), ctx, addSample({ name: 'Amen', audio: constantAudio(1) }));
-    const id = only(imported.samples).id;
-    const sliced = run(imported, ctx, setBreak(id, 1), sliceBreak(id, 1, 16));
-
-    const slices = Object.values(sliced.samples).filter((s) => s.id !== id);
-    expect(slices).toHaveLength(16);
-    expect(slices.every((s) => s.sliceOf === id)).toBe(true);
-    expect(sliced.samples[id]!.sliceOf).toBeNull();
-    expect(sliced.samples[id]!.break?.sliced).toBe(true);
-
-    expect(sliceBreak(id, 1, 16)(sliced, ctx)).toMatchObject({ ok: false, error: { kind: 'invalid' } });
-    expect(setBreak(id, 2)(sliced, ctx).ok).toBe(false);
   });
 });
 
@@ -178,10 +95,23 @@ describe('removal', () => {
   it('removes an unused object', () => {
     const ctx = sequentialIds();
     let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
-    const pad = only(project.pads);
-    project = run(project, ctx, remove('pad', pad.id), remove('hit', pad.members[0]!));
-    expect(project.pads).toEqual({});
-    expect(project.hits).toEqual({});
+    const hit = only(project.hits);
+    project = run(project, ctx, duplicateHit(hit.id), createPad('Mine'));
+    const copy = Object.values(project.hits).find((h) => h.variantOf === hit.id)!;
+    const mine = Object.values(project.pads).find((p) => p.name === 'Mine')!;
+    project = run(project, ctx, remove('pad', mine.id), remove('hit', copy.id));
+    expect(Object.keys(project.pads)).toHaveLength(1);
+    expect(Object.keys(project.hits)).toEqual([hit.id]);
+  });
+
+  it("a break's pads and parent are in use by the break", () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
+    const brk = only(project.breaks);
+    project = run(project, ctx, setBreak(brk.id, 1));
+    const result = remove('pad', project.breaks[brk.id]!.pads[0]!)(project, ctx);
+    expect(result.ok || result.error).toMatchObject({ kind: 'in-use', usages: expect.arrayContaining([{ kind: 'break', id: brk.id, name: 'amen.wav' }]) });
+    expect(remove('hit', project.breaks[brk.id]!.parent!)(project, ctx).ok).toBe(false);
   });
 
   it('lists every kind of usage', () => {
@@ -195,7 +125,10 @@ describe('removal', () => {
     const padResult = remove('pad', pad.id)(project, ctx);
     expect(padResult.ok || padResult.error).toEqual({
       kind: 'in-use',
-      usages: [{ kind: 'loop', id: loop.id, name: 'Beat' }],
+      usages: [
+        { kind: 'break', id: only(project.breaks).id, name: 'Snare' },
+        { kind: 'loop', id: loop.id, name: 'Beat' },
+      ],
     });
     const loopResult = remove('loop', loop.id)(project, ctx);
     expect(loopResult.ok || loopResult.error).toEqual({
@@ -397,137 +330,6 @@ describe('fas 3 model', () => {
   });
 });
 
-describe('fas 3b: trimming, markers and re-slicing', () => {
-  /** A 2 s one-shot or break at 44.1 kHz. */
-  function imported(seconds = 2) {
-    const ctx = sequentialIds();
-    const project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(seconds) }));
-    return { ctx, project, id: only(project.samples).id };
-  }
-
-  it('trimSample sets the window and BPM, keeps whole hits whole and cuts the rest', () => {
-    const { ctx, project: start, id } = imported();
-    const defaultHit = only(start.hits);
-    let project = run(start, ctx, duplicateHit(defaultHit.id));
-    const variant = Object.values(project.hits).find((h) => h.id !== defaultHit.id)!;
-    project = run(project, ctx, updateHit(variant.id, { region: { start: 0.1, end: 0.5 } }), setBreak(id, 1));
-
-    project = run(project, ctx, trimSample(id, 0.25, 1.85));
-
-    const sample = project.samples[id]!;
-    expect(sample.offset).toBeCloseTo(0.25);
-    expect(sample.duration).toBeCloseTo(1.6);
-    expect(sample.break?.bpm).toBeCloseTo(breakBpm(1.6, 1));
-    expect(sample.break?.markers).toEqual(gridMarkers(sample.duration, 1));
-    expect(project.hits[defaultHit.id]!.region.start).toBeCloseTo(0);
-    expect(project.hits[defaultHit.id]!.region.end).toBeCloseTo(1.6);
-    // The variant played 0.1–0.5 s of the file; it now starts at the trim.
-    expect(project.hits[variant.id]!.region.start).toBeCloseTo(0);
-    expect(project.hits[variant.id]!.region.end).toBeCloseTo(0.25);
-  });
-
-  it('trimSample is refused for a sliced break', () => {
-    const { ctx, project, id } = imported();
-    const sliced = run(project, ctx, sliceBreak(id, 1, 4));
-    expect(trimSample(id, 0.1, 1)(sliced, ctx).ok).toBe(false);
-  });
-
-  it('slices at its own markers and puts each slice on the nearest 1/16', () => {
-    const { ctx, project: start, id } = imported(2);
-    // One bar of 2 s: a step is 0.125 s. 0.3 rounds to step 2; 0.31 also does and is left out.
-    const project = run(start, ctx, setBreak(id, 1), setMarkers(id, [0.3, 0.31, 1.06]), sliceAtMarkers(id));
-
-    const slices = Object.values(project.samples).filter((s) => s.sliceOf === id);
-    expect(slices.map((s) => [+s.offset.toFixed(3), +s.duration.toFixed(3)])).toEqual([
-      [0, 0.3],
-      [0.3, 0.01],
-      [0.31, 0.75],
-      [1.06, 0.94],
-    ]);
-    const m1 = Object.values(project.loops)[0]!;
-    const filled = m1.steps.flatMap((s, i) => (s.padId === null ? [] : [i]));
-    expect(filled).toEqual([0, 2, 8]);
-  });
-
-  it('setMarkers keeps the first marker at 0 and refuses markers too close together', () => {
-    const { ctx, project, id } = imported();
-    const withBreak = run(project, ctx, setBreak(id, 1));
-    expect(run(withBreak, ctx, setMarkers(id, [1, 0.5])).samples[id]!.break!.markers).toEqual([0, 0.5, 1]);
-    expect(setMarkers(id, [0.5, 0.5005])(withBreak, ctx).ok).toBe(false);
-  });
-
-  it('unsliceBreak takes back everything the slicing made', () => {
-    const { ctx, project: start, id } = imported();
-    const before = run(start, ctx, setBreak(id, 1));
-    const sliced = run(before, ctx, sliceAtMarkers(id));
-
-    const back = run(sliced, ctx, unsliceBreak(id));
-
-    expect(back.samples).toEqual(before.samples);
-    expect(back.hits).toEqual(before.hits);
-    expect(back.pads).toEqual(before.pads);
-    expect(back.loops).toEqual({});
-  });
-
-  it('unsliceBreak is refused while M1 is in the song or a slice pad is in another loop', () => {
-    const { ctx, project: start, id } = imported();
-    const sliced = run(start, ctx, sliceBreak(id, 1, 4));
-    const m1 = only(sliced.loops);
-
-    const inSong = run(sliced, ctx, setSongCell('main', 0, m1.id));
-    expect(unsliceBreak(id)(inSong, ctx)).toMatchObject({ ok: false, error: { kind: 'in-use', usages: [{ kind: 'song' }] } });
-
-    const slicePad = m1.steps[0]!.padId!;
-    const other = run(sliced, ctx, createLoop('Mine', 'main', 1));
-    const mine = Object.values(other.loops).find((l) => l.name === 'Mine')!;
-    const borrowed = run(other, ctx, setStep(mine.id, 0, { padId: slicePad }));
-    expect(unsliceBreak(id)(borrowed, ctx)).toMatchObject({
-      ok: false,
-      error: { kind: 'in-use', usages: [{ kind: 'loop', name: 'Mine' }] },
-    });
-  });
-
-  it('an older break without markers loads with markers on 1/16', () => {
-    const { ctx, project, id } = imported();
-    const withBreak = run(project, ctx, setBreak(id, 2));
-    const old = structuredClone(withBreak) as unknown as { samples: Record<string, { break: { markers?: unknown; loop?: unknown } }> };
-    delete old.samples[id]!.break.markers;
-    delete old.samples[id]!.break.loop;
-    expect(upgradeProject(old as unknown as Project).samples[id]!.break!.markers).toEqual(gridMarkers(2, 2));
-  });
-});
-
-describe('fas 5: kept markers', () => {
-
-  it('setBreak and trimSample keep markers placed by hand, but move grid markers to the new grid', () => {
-    const ctx = sequentialIds();
-    const { project: start, id } = (() => {
-      const p = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-      return { project: p, id: only(p.samples).id };
-    })();
-    let project = run(start, ctx, setBreak(id, 1), setMarkers(id, [0.3, 1.1]));
-
-    expect(run(project, ctx, setBreak(id, 2)).samples[id]!.break!.markers).toEqual([0, 0.3, 1.1]);
-
-    project = run(project, ctx, trimSample(id, 0.2, 1.2));
-    // 0.3 and 1.1 s in the file are 0.1 and 0.9 s into the trimmed sample.
-    const markers = project.samples[id]!.break!.markers;
-    expect(markers).toHaveLength(3);
-    expect(markers[1]).toBeCloseTo(0.1);
-    expect(markers[2]).toBeCloseTo(0.9);
-
-    const grid = run(start, ctx, setBreak(id, 1), setBreak(id, 2));
-    expect(grid.samples[id]!.break!.markers).toEqual(gridMarkers(2, 2));
-  });
-
-  it('a file with cues imports as a break with markers at the cues', () => {
-    const ctx = sequentialIds();
-    const project = run(createProject(), ctx, addSample({ name: 'cued.wav', audio: constantAudio(2), cues: [0, 0.5, 1.25] }));
-    // Two seconds is one bar at 120 BPM.
-    expect(only(project.samples).break).toMatchObject({ bars: 1, markers: [0, 0.5, 1.25], sliced: false });
-  });
-});
-
 describe('loop kind is a tag', () => {
   it('any loop can go in the Main or the Fill row, and setLoopKind retags it', () => {
     const ctx = sequentialIds();
@@ -548,9 +350,9 @@ describe('addVariant', () => {
   it("adds the variant last to the original's own pad; a variant of a variant goes there too", () => {
     const ctx = sequentialIds();
     let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const id = only(project.samples).id;
+    const id = only(project.breaks).id;
     project = run(project, ctx, sliceBreak(id, 1, 4));
-    const slicePad = Object.values(project.pads).find((p) => p.auto && project.samples[project.hits[p.members[0]!]!.sampleId]!.sliceOf === id)!;
+    const slicePad = project.pads[project.breaks[id]!.pads[1]!]!;
     const original = slicePad.members[0]!;
 
     project = run(project, ctx, addVariant(original));
@@ -569,27 +371,6 @@ describe('break length', () => {
     expect(guessBars(6.94 / 2)).toBe(2);
     expect(unlikelyBpm(552)).toBe(true);
     expect(unlikelyBpm(138)).toBe(false);
-  });
-
-  it('a file with cues gets its bars guessed', () => {
-    const ctx = sequentialIds();
-    const project = run(createProject(), ctx, addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0, 0.4] }));
-    expect(only(project.samples).break?.bars).toBe(1);
-  });
-
-  it('bars can change after slicing: the BPM and where the slices land follow', () => {
-    const ctx = sequentialIds();
-    let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1.75) }));
-    const id = only(project.samples).id;
-    // Sliced as 4 bars by mistake: one bar of 1/4 slices lands 4 times too far apart.
-    project = run(project, ctx, setBreak(id, 4), setMarkers(id, [0.4375, 0.875, 1.3125]), sliceAtMarkers(id));
-    expect(breakSequence(project, id).map((s) => s.step)).toEqual([0, 16, 32, 48]);
-
-    project = run(project, ctx, setBreakBars(id, 1));
-
-    expect(project.samples[id]!.break).toMatchObject({ bars: 1, sliced: true });
-    expect(project.samples[id]!.break!.bpm).toBeCloseTo(breakBpm(1.75, 1));
-    expect(breakSequence(project, id).map((s) => s.step)).toEqual([0, 4, 8, 12]);
   });
 });
 

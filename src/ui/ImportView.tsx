@@ -1,30 +1,18 @@
 import { Fragment, useRef, useState } from 'react';
-import type { Project, Sample } from '../model';
-import { addSample, guessBars, replaceProject, setBreak, unlikelyBpm } from '../model';
+import type { Break, Project } from '../model';
+import { addSample, bpmOf, guessBars, replaceProject, setBreak, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun } from './context';
 import { timestamp } from './services';
 import { TrimEditor } from './TrimEditor';
 
-/** Files imported directly, in import order (slices are not sources). */
-export const sources = (project: Project): Sample[] => Object.values(project.samples).filter((s) => s.sliceOf === null);
+/** Every break, in import order: each imported file is one, a one-shot being a break with one slot. */
+export const sources = (project: Project): Break[] => Object.values(project.breaks);
 
-/** The loop made when this break was sliced: the one whose pads play its slices. */
-function sliceLoopName(project: Project, breakId: string): string | null {
-  const isSlicePad = (padId: string | null) => {
-    const hitId = padId === null ? undefined : project.pads[padId]?.members[0];
-    const hit = hitId === undefined ? undefined : project.hits[hitId];
-    return hit !== undefined && project.samples[hit.sampleId]?.sliceOf === breakId;
-  };
-  return Object.values(project.loops).find((l) => l.steps.some((s) => isSlicePad(s.padId)))?.name ?? null;
-}
-
-function creates(project: Project, sample: Sample): string {
-  if (sample.break === null) return '1 sample · 1 hit · 1 pad';
-  if (!sample.break.sliced) return 'Slice to make samples, hits, pads and a loop';
-  const n = Object.values(project.samples).filter((s) => s.sliceOf === sample.id).length;
-  const loop = sliceLoopName(project, sample.id);
-  return `${n} samples · ${n} hits · ${n} pads${loop === null ? '' : ` · loop ${loop}`}`;
+function creates(project: Project, brk: Break): string {
+  if (brk.bars === null) return '1 hit · 1 pad';
+  const loop = brk.loop === null ? undefined : project.loops[brk.loop];
+  return `${brk.markers.length} slices · ${brk.markers.length} pads${loop === undefined ? '' : ` · loop ${loop.name}`}`;
 }
 
 export function ImportView() {
@@ -63,7 +51,7 @@ export function ImportView() {
   };
 
   const goSlice = (id: string) => {
-    store.dispatch({ type: 'sliceTarget', sampleId: id });
+    store.dispatch({ type: 'sliceTarget', breakId: id });
     store.dispatch({ type: 'view', view: 'slice' });
   };
 
@@ -71,7 +59,7 @@ export function ImportView() {
     <main className="view">
       <div className="view-head">
         <h1>Import</h1>
-        <p className="muted">Every sample gets a hit and a pad. Breaks continue to Slice.</p>
+        <p className="muted">Every file gets a hit and a pad. Breaks continue to Slice.</p>
       </div>
 
       <div
@@ -167,86 +155,78 @@ export function ImportView() {
                 </tr>
               </thead>
               <tbody>
-                {sources(project).map((sample) => {
-                  const sliced = sample.break?.sliced === true;
+                {sources(project).map((brk) => {
+                  const sample = project.samples[brk.sampleId];
+                  if (sample === undefined) return null;
+                  const bpm = bpmOf(project, brk);
                   return (
-                    <Fragment key={sample.id}>
+                    <Fragment key={brk.id}>
                     <tr
-                      title={sample.break === null ? 'Double-click to edit the hit' : 'Double-click to slice'}
+                      title={brk.bars === null ? 'Double-click to edit the hit' : 'Double-click to slice'}
                       onDoubleClick={(e) => {
                         if ((e.target as HTMLElement).closest('button, input') !== null) return;
-                        if (sample.break !== null) goSlice(sample.id);
+                        if (brk.bars !== null) goSlice(brk.id);
                         else {
-                          const hit = Object.values(project.hits).find((h) => h.sampleId === sample.id && h.variantOf === null);
-                          if (hit !== undefined) store.dispatch({ type: 'select', selection: { hit: hit.id }, view: 'hits' });
+                          const hit = project.pads[brk.pads[0] ?? '']?.members[0];
+                          if (hit !== undefined) store.dispatch({ type: 'select', selection: { hit }, view: 'hits' });
                         }
                       }}
                     >
                       <td>
                         <div className="row nowrap">
-                          <span className="mono grow ellipsis">{sample.name}</span>
+                          <span className="mono grow ellipsis">{brk.name}</span>
                           <button
                             type="button"
                             className="small-button"
-                            aria-expanded={trimming === sample.id}
-                            aria-label={`Trim ${sample.name}`}
-                            onClick={() => setTrimming(trimming === sample.id ? null : sample.id)}
+                            aria-expanded={trimming === brk.id}
+                            aria-label={`Trim ${brk.name}`}
+                            onClick={() => setTrimming(trimming === brk.id ? null : brk.id)}
                           >
                             Trim
                           </button>
                         </div>
                       </td>
                       <td>
-                        <div className="segmented" role="group" aria-label={`Type of ${sample.name}`}>
+                        <div className="segmented" role="group" aria-label={`Type of ${brk.name}`}>
                           <button
                             type="button"
-                            aria-pressed={sample.break !== null}
-                            disabled={sliced}
-                            onClick={() => run(setBreak(sample.id, sample.break?.bars ?? guessBars(sample.duration)))}
+                            aria-pressed={brk.bars !== null}
+                            onClick={() => run(setBreak(brk.id, brk.bars ?? guessBars(sample.duration)))}
                           >
                             Break
                           </button>
-                          <button
-                            type="button"
-                            aria-pressed={sample.break === null}
-                            disabled={sliced}
-                            onClick={() => run(setBreak(sample.id, null))}
-                          >
+                          <button type="button" aria-pressed={brk.bars === null} onClick={() => run(setBreak(brk.id, null))}>
                             One-shot
                           </button>
                         </div>
                       </td>
                       <td className="mono muted">
-                        {sample.break === null ? (
+                        {bpm === null ? (
                           `${sample.duration.toFixed(2)} s`
                         ) : (
                           <span className="bars" title="Bars are set in Slice">
-                            {sample.break.bars} bars · {sample.break.bpm.toFixed(1)} BPM
-                            {unlikelyBpm(sample.break.bpm) && <span className="warn-text">check bars in Slice</span>}
+                            {brk.bars} bars · {bpm.toFixed(1)} BPM
+                            {unlikelyBpm(bpm) && <span className="warn-text">check bars in Slice</span>}
                           </span>
                         )}
                       </td>
-                      <td>{creates(project, sample)}</td>
+                      <td>{creates(project, brk)}</td>
                       <td className="next">
-                        {sample.break === null ? (
+                        {brk.bars === null ? (
                           <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'hits' })}>
                             Hits →
                           </button>
-                        ) : sliced ? (
-                          <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'song' })}>
-                            Song →
-                          </button>
                         ) : (
-                          <button type="button" onClick={() => goSlice(sample.id)}>
+                          <button type="button" onClick={() => goSlice(brk.id)}>
                             Slice →
                           </button>
                         )}
                       </td>
                     </tr>
-                    {trimming === sample.id && (
+                    {trimming === brk.id && (
                       <tr>
                         <td colSpan={5} className="trim-cell">
-                          <TrimEditor sample={sample} />
+                          <TrimEditor sample={sample} loopFirst={brk.bars !== null} />
                         </td>
                       </tr>
                     )}

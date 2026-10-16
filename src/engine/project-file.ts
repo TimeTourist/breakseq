@@ -3,7 +3,7 @@ import type { AudioData, Id, Project } from '../model';
 import { upgradeProject } from '../model';
 import { AudioFileError, decodeAudioFile, encodeFloatWav } from './codec';
 
-export const PROJECT_FILE_VERSION = 1;
+export const PROJECT_FILE_VERSION = 2;
 
 export class ProjectFileError extends Error {
   override name = 'ProjectFileError';

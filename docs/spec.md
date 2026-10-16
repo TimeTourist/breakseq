@@ -44,9 +44,9 @@ Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Va
 5. **Mods** – bygg mods.
 6. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Alt kopierar) och ändras i längd från båda kanterna.
 
-**Automatisk kedja.** Ett break får direkt en pad per plats, med platsens hit överst, och en förälder; ett break av en fil som importeras som Break får dessutom loopen M1, som spelar platserna i ordning, var och en på närmaste 1/16 (hamnar två på samma steg kommer bara den första med). M1 skapas en gång och ändras aldrig av sig själv.
+**Automatisk kedja.** Ett break får direkt en pad per plats, med platsens hit överst, och en förälder; ett break av en fil som importeras som Break får dessutom loopen M1, som spelar platserna i ordning, var och en på närmaste 1/16 (hamnar två på samma steg kommer bara den första med). M1 skapas en gång. Så länge den är exakt som breaket lade ut den följer den med när breakets takter eller markörer ändras; när man har ändrat i den själv rörs den aldrig.
 
-**Byten och omräkning.** Platser räknas efter nummer: pad 05 är alltid breakets femte slice. Flyttas, läggs till eller tas bort en markör räknas alla slices om; blir det färre platser blir de sista tysta där de spelas, och blir det fler dyker de nya upp som pads att dra. Byts samplet under ett break behåller markörerna sin plats i takten och ljudet under dem byts. En hits region är i procent av dess slice och följer med när slicen ändras. Undo och snapshots är skyddsnätet: inget av detta frågar eller varnar.
+**Byten och omräkning.** Platser räknas efter nummer: pad 05 är alltid breakets femte slice. Flyttas, läggs till eller tas bort en markör räknas alla slices om; blir det färre platser blir de sista tysta där de spelas (de visas nedtonade, och i hyllorna bara så länge en loop spelar dem), och blir det fler dyker de nya upp som pads att dra. Byts samplet under ett break behåller markörerna sin plats i takten och ljudet under dem byts. En hits region är i procent av dess slice och följer med när slicen ändras. Undo och snapshots är skyddsnätet: inget av detta frågar eller varnar.
 
 **Biblioteksraden.** I Loops och Song finns en rad att dra från: pads i Loops, loopar och mods i Song. Man drar därifrån för att använda, aldrig för att redigera.
 

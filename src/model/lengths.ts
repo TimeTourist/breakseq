@@ -1,10 +1,12 @@
 import type { Hit, Id, Loop, Project, Step } from './types';
-import { effectiveHit, stepDuration } from './project';
+import { effectiveHit, hitSound, slotStep } from './breaks';
+import { stepDuration } from './project';
 
 /** How long a hit sounds, in seconds: its region at its pitch and its parent's, without mods. */
 export function hitSeconds(project: Project, hit: Hit): number {
-  const { region, pitch } = effectiveHit(project, hit);
-  return (region.end - region.start) / 2 ** (pitch / 12);
+  const sound = hitSound(project, hit);
+  if (sound === null) return 0;
+  return (sound.region.end - sound.region.start) / 2 ** (effectiveHit(project, hit).pitch / 12);
 }
 
 /** The hit a step plays: its chosen member, or member 1. */
@@ -55,24 +57,23 @@ export interface SlicePlace {
 }
 
 /**
- * The break's slices on its 1/16 grid, as laying the parent in a loop places
+ * The break's slices on its 1/16 grid, as laying the break in a loop places
  * them: each on its nearest step, the first one there wins. `markers` are the
- * slice starts and `duration` the break's length, in seconds.
+ * slice starts as parts 0–1 of the break.
  */
-export function slicePlaces(markers: readonly number[], duration: number, steps: number): SlicePlace[] {
-  const stepTime = duration / steps;
+export function slicePlaces(markers: readonly number[], steps: number): SlicePlace[] {
   const slices: (number | null)[] = Array.from({ length: steps }, () => null);
   const dropped: number[][] = Array.from({ length: steps }, () => []);
   const lengths: (number | null)[] = Array.from({ length: steps }, () => null);
   markers.forEach((m, i) => {
-    const at = Math.round(m / stepTime);
+    const at = slotStep(m, steps);
     if (at >= steps) return;
     if (slices[at] !== null) {
       dropped[at]!.push(i);
       return;
     }
     slices[at] = i;
-    lengths[at] = ((markers[i + 1] ?? duration) - m) / stepTime;
+    lengths[at] = ((markers[i + 1] ?? 1) - m) * steps;
   });
   const covered = reach(lengths);
   return slices.map((slice, i) => ({ slice, dropped: dropped[i]!, reach: covered[i]! }));
