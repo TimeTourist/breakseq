@@ -145,5 +145,14 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
       : kind === 'ramp'
         ? { kind: 'ramp', from: value[target](), to: value[target]() }
         : { kind, values: target === 'padMember' && kind === 'cycle' && rng() < 0.5 ? [] : several(rng, [1, 4], value[target]) };
-  return { target, rate, shape };
+  // Dist, Filter and Stretch have settings of their own: those are rolled too.
+  const settings: Partial<StepEffect> =
+    target === 'dist'
+      ? { dist: { mode: pick(rng, ['drive', 'crush', 'decimate'] as const) } }
+      : target === 'filter'
+        ? { filter: { type: pick(rng, ['lowpass', 'lowpass', 'highpass'] as const), resonance: pick(rng, [0, 0.2, 0.4, 0.6]) } }
+        : target === 'stretch'
+          ? { stretch: { grain: pick(rng, [8, 15, 30, 60, 120]), combine: pick(rng, ['multiply', 'replace'] as const) } }
+          : {};
+  return { target, rate, shape, ...settings };
 }
