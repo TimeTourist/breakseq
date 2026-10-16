@@ -620,6 +620,31 @@ export function HitsView() {
               <Waveform audio={audio} offset={sample.offset + window.start} duration={duration} height={180} color={HIT_COLOR} />
               <div className="region-shade" style={{ left: 0, width: `${hit.region.start * 100}%` }} />
               <div className="region-shade" style={{ left: `${hit.region.end * 100}%`, right: 0 }} />
+              {/* The parent shows where its slices are; a double-click edits one in Slice, where markers are moved. */}
+              {isParentHit(project, hit) &&
+                brk !== undefined &&
+                brk.markers.map((m, i) => {
+                  const toSlice = () => {
+                    store.dispatch({ type: 'sliceTarget', breakId: brk.id, slice: i });
+                    store.dispatch({ type: 'view', view: 'slice' });
+                  };
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      className="slice-line"
+                      style={{ left: `${m * 100}%` }}
+                      aria-label={`Slice ${String(i + 1).padStart(2, '0')}: double-click to edit in Slice`}
+                      title="Double-click to edit in Slice"
+                      onDoubleClick={toSlice}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') toSlice();
+                      }}
+                    >
+                      <span>{String(i + 1).padStart(2, '0')}</span>
+                    </button>
+                  );
+                })}
             </div>
           </div>
         )}

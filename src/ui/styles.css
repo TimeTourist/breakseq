@@ -1053,6 +1053,44 @@ input[type='search'] {
   pointer-events: none;
 }
 
+.slice-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 11px;
+  min-height: 0;
+  margin-left: -5px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slice-line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 1px;
+  background: rgb(232 230 225 / 0.45);
+}
+
+.slice-line:hover::before,
+.slice-line:focus-visible::before {
+  background: var(--accent);
+}
+
+.slice-line span {
+  position: absolute;
+  top: 2px;
+  left: 8px;
+  font-family: var(--mono, monospace);
+  font-size: 10px;
+  color: rgb(232 230 225 / 0.7);
+}
+
 .slider-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
