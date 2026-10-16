@@ -6,3 +6,4 @@ export * from './history';
 export * from './chain';
 export * from './commands';
 export * from './clips';
+export * from './lengths';

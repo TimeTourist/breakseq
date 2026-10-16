@@ -14,6 +14,8 @@
   --accent-bg: #2e2715;
   --accent-dim: #4a3d1f;
   --error: #f08a7e;
+  /* A hit's tail over the steps after it: the hit colour, fainter. */
+  --hit-tail: rgb(201 196 184 / 0.45);
   --sans: 'IBM Plex Sans', 'Helvetica Neue', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   color-scheme: dark;
@@ -438,6 +440,52 @@ p {
   position: relative;
   padding-top: 20px;
   touch-action: none;
+}
+
+/* Faint 1/16 lines over the waveform, one per step of the break. */
+.slice-grid {
+  position: absolute;
+  top: 20px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to right, rgb(236 233 226 / 0.09) 1px, transparent 1px);
+}
+
+/* Where each slice lands on the 1/16 grid, drawn like the steps in Loops. */
+.slice-steps {
+  display: grid;
+  gap: 1px;
+  margin-top: 6px;
+}
+
+.slice-step {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: #1a1d21;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #c9c4b8;
+  overflow: hidden;
+}
+
+.slice-step.downbeat {
+  background: #22262b;
+}
+
+.slice-step.selected {
+  color: var(--accent);
+}
+
+.slice-step.clash {
+  background: rgb(240 138 126 / 0.25);
+  outline: 1px solid var(--error);
+  outline-offset: -1px;
 }
 
 .slice-segment {
@@ -1157,6 +1205,25 @@ input[type='search'] {
 
 .step.downbeat {
   background: #22262b;
+}
+
+/* How long the step's hit sounds: under its own step, and on as a tail over the empty steps after it. */
+.step {
+  position: relative;
+}
+
+.step .reach,
+.slice-step .reach {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: currentColor;
+}
+
+.step .reach.tail,
+.slice-step .reach.tail {
+  background: var(--hit-tail);
 }
 
 .step.selected {
