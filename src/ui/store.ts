@@ -34,6 +34,8 @@ export interface AppState {
   readonly view: View;
   /** The break picked in Import for slicing. */
   readonly sliceTarget: string | null;
+  /** The slice Slice opens with selected, as when a parent's slice line in Hits is double-clicked. */
+  readonly sliceSelected: number;
   readonly selection: Selection;
 }
 
@@ -46,7 +48,7 @@ export type Action =
   | { readonly type: 'undo' }
   | { readonly type: 'redo' }
   | { readonly type: 'view'; readonly view: View }
-  | { readonly type: 'sliceTarget'; readonly breakId: string | null }
+  | { readonly type: 'sliceTarget'; readonly breakId: string | null; readonly slice?: number }
   /** Swaps in a project and starts a new undo history, as a loaded snapshot does. */
   | { readonly type: 'load'; readonly project: Project }
   | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> };
@@ -56,6 +58,7 @@ export const initialState = (project: Project = createProject()): AppState => ({
   projectFolder: { folder: null, active: null, saved: null, snapshots: [] },
   view: 'import',
   sliceTarget: null,
+  sliceSelected: 0,
   selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },
 });
 
@@ -82,7 +85,7 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'view':
       return { state: { ...state, view: action.view }, error: null };
     case 'sliceTarget':
-      return { state: { ...state, sliceTarget: action.breakId }, error: null };
+      return { state: { ...state, sliceTarget: action.breakId, sliceSelected: action.slice ?? 0 }, error: null };
     case 'load':
       return { state: { ...state, history: createHistory(action.project) }, error: null };
     case 'projectFolder':

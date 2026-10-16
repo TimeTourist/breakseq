@@ -23,7 +23,8 @@ export function SliceView() {
   const run = useRun();
   const seal = useSeal();
   const target = useSelect((s) => s.sliceTarget);
-  const [selected, setSelected] = useState(0);
+  // Slice opens on the slice it was sent to, if any; from then on it is picked here.
+  const [selected, setSelected] = useState(() => store.getState().sliceSelected);
   const [error, setError] = useState<string | null>(null);
   const [playingBreak, setPlayingBreak] = useState(false);
   const [sensitivity, setSensitivity] = useState(60);
