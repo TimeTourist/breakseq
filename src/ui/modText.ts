@@ -8,6 +8,7 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   ratchet: 'Ratchet',
   pitch: 'Pitch',
   volume: 'Volume',
+  pan: 'Pan',
   direction: 'Direction',
   stretch: 'Stretch',
   dist: 'Dist',
@@ -21,6 +22,7 @@ export const VALUE_HINTS: Record<StepTarget, string> = {
   ratchet: 'repeats per step, 1–8, e.g. 2 4',
   pitch: 'semitones, e.g. 0 3 5 7',
   volume: 'dB, e.g. 0 -6',
+  pan: 'percent, −100 left to 100 right, e.g. -50 50',
   direction: 'F or R, e.g. F R',
   stretch: 'length factor, e.g. 2 1/2 4',
   dist: 'amount 0–1, e.g. 0.2 0.8',
@@ -57,6 +59,7 @@ export function parseValues(target: StepTarget, text: string): Parsed {
     if (target === 'padMember' && !(Number.isInteger(value) && value >= 1)) return { ok: false, error: 'Members count from 1' };
     if (target === 'tempo' && !(value > 0)) return { ok: false, error: 'Tempo is a speed above 0, e.g. 1/3' };
     if (target === 'stretch' && !(value >= MIN_STRETCH && value <= MAX_STRETCH)) return { ok: false, error: 'Stretch is a factor from 1/16 to 16, e.g. 2' };
+    if (target === 'pan' && !(value >= -100 && value <= 100)) return { ok: false, error: 'Pan is a percent from −100 (left) to 100 (right), e.g. -50' };
     if (target === 'dist' && !(value >= 0 && value <= 1)) return { ok: false, error: 'Dist is an amount from 0 to 1, e.g. 0.5' };
     if (target === 'filter' && !(value >= MIN_CUTOFF && value <= MAX_CUTOFF)) return { ok: false, error: 'Filter is a cutoff from 20 to 20000 Hz, e.g. 2000' };
     values.push(value);
@@ -79,7 +82,7 @@ const formatNumber = (target: StepTarget, value: number): string => {
     if (known !== undefined) return known[1];
   }
   const rounded = Math.round(value * 1000) / 1000;
-  return (target === 'pitch' || target === 'volume') && rounded > 0 ? `+${rounded}` : String(rounded);
+  return (target === 'pitch' || target === 'volume' || target === 'pan') && rounded > 0 ? `+${rounded}` : String(rounded);
 };
 
 /** Values written back the way they are typed. */
@@ -112,6 +115,7 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
     ratchet: () => pick(rng, [2, 2, 3, 4, 4, 6, 8]),
     pitch: () => pick(rng, [-12, -7, -5, -3, 0, 3, 5, 7, 12]),
     volume: () => pick(rng, [-12, -6, -3, 0]),
+    pan: () => pick(rng, [-100, -50, -25, 25, 50, 100]),
     direction: () => between(rng, 0, 1),
     tempo: () => pick(rng, [1 / 3, 1 / 2, 2 / 3, 3 / 2, 2]),
     stretch: () => pick(rng, [1 / 2, 3 / 2, 2, 2, 4]),
@@ -127,6 +131,7 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
       : target === 'ratchet' ? [between(rng, 1, 2), between(rng, 3, 6)]
       : target === 'padMember' ? [1, 4]
       : target === 'volume' ? [-12, 0]
+      : target === 'pan' ? [-100, 100]
       : target === 'tempo' ? [1 / 3, 1]
       : target === 'stretch' ? [1, 4]
       : target === 'dist' ? [0, 1]

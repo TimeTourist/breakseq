@@ -19,6 +19,8 @@ export interface Trigger {
   readonly pitch: number;
   /** Final volume in dB. */
   readonly volume: number;
+  /** Final pan, −1 (left) to 1 (right): the hit's, its parent's and mods' added. */
+  readonly pan: number;
   readonly direction: Direction;
   readonly region: Region;
   /** How it is stretched; null plays it as it is. */
@@ -122,6 +124,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
         hitId: hit.id,
         pitch: hit.pitch + state.pitch,
         volume: hit.volume + state.volume,
+        pan: Math.max(-1, Math.min(1, hit.pan + state.pan)),
         direction: state.reverse === null ? hit.direction : state.reverse ? 'reverse' : 'forward',
         region: sound.region,
         stretch,

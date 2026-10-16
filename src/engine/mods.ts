@@ -12,6 +12,8 @@ export interface StepState {
   readonly pitch: number;
   /** dB added on top of the hit's own volume. */
   readonly volume: number;
+  /** Added to the hit's own pan, −1 to 1. */
+  readonly pan: number;
   /** null keeps the hit's own direction. */
   readonly reverse: boolean | null;
   /** A Stretch mod's factor and settings; null keeps the hit's own stretch. */
@@ -31,7 +33,7 @@ function resolve(project: Project, cell: Step): Pick<StepState, 'pad' | 'hit'> {
 }
 
 export function stepState(project: Project, cell: Step): StepState {
-  return { cell, ...resolve(project, cell), ratchet: 1, pitch: 0, volume: 0, reverse: null, stretch: null, dist: null, filter: null };
+  return { cell, ...resolve(project, cell), ratchet: 1, pitch: 0, volume: 0, pan: 0, reverse: null, stretch: null, dist: null, filter: null };
 }
 
 export type Row = 'A' | 'B';
@@ -75,6 +77,8 @@ const handlers: readonly (readonly [StepTarget, TargetHandler])[] = [
   ['ratchet', { discrete: true, combine: 'b-wins', apply: (s, v) => ({ ...s, ratchet: Math.max(1, Math.min(8, Math.round(v))) }) }],
   ['pitch', { discrete: false, combine: 'add', apply: (s, v) => ({ ...s, pitch: s.pitch + v }) }],
   ['volume', { discrete: false, combine: 'add', apply: (s, v) => ({ ...s, volume: s.volume + v }) }],
+  // Pan values are percent, −100 (left) to 100 (right).
+  ['pan', { discrete: false, combine: 'add', apply: (s, v) => ({ ...s, pan: s.pan + v / 100 }) }],
   ['direction', { discrete: true, combine: 'b-wins', apply: (s, v) => ({ ...s, reverse: Math.round(v) === 1 }) }],
   ['stretch', { discrete: false, combine: 'b-wins', apply: (s, v, effect) => ({ ...s, stretch: { factor: v, settings: effect.stretch ?? DEFAULT_MOD_STRETCH } }) }],
   ['dist', { discrete: false, combine: 'b-wins', apply: (s, v, effect) => ({ ...s, dist: distPlay((effect.dist ?? DEFAULT_MOD_DIST).mode, v) }) }],

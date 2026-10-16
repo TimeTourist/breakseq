@@ -9,6 +9,7 @@ const at = (time: number, bar: number): Trigger => ({
   hitId: 'h',
   pitch: 0,
   volume: 0,
+  pan: 0,
   direction: 'forward',
   region: { start: 0, end: 0.1 },
   stretch: null,

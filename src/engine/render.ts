@@ -1,5 +1,6 @@
 import type { AudioData, Direction, Hit, Project, Sample } from '../model';
-import { effectiveHit, hitColour, hitSound, hitStretch, songDuration } from '../model';
+import { effectiveHit, hitColour, hitSound, hitStretch, sampleAudio, songDuration } from '../model';
+import { panGains } from './colour';
 import { distort, filterSettings, levelMatch, rms } from './colour';
 import type { Take, Trigger } from './generate';
 import { playedStretch } from './generate';
@@ -27,7 +28,7 @@ function sampleBuffer(context: BaseAudioContext, sample: Sample, audio: AudioDat
 }
 
 /** What one voice plays: a hit with its final settings, as a trigger carries them. */
-export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'direction' | 'region' | 'stretch' | 'dist' | 'filter'>;
+export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'pan' | 'direction' | 'region' | 'stretch' | 'dist' | 'filter'>;
 
 /** A voice that has been scheduled: stop() silences it at once. */
 export interface Voice {
@@ -44,6 +45,7 @@ export function hitPlay(project: Project, hit: Hit): HitPlay {
     hitId: own.id,
     pitch: own.pitch,
     volume: own.volume,
+    pan: Math.max(-1, Math.min(1, own.pan)),
     direction: own.direction,
     region: hitSound(project, hit)?.region ?? { start: 0, end: 0 },
     stretch: playedStretch(hitStretch(project, hit), null),
@@ -66,11 +68,12 @@ export function scheduleHit(
 ): Voice | null {
   const hit = project.hits[play.hitId];
   const sample = hit === undefined ? undefined : hitSound(project, hit)?.sample;
-  const audio = sample === undefined ? undefined : project.audio[sample.audioId];
+  // The sample's channel choice: always stereo.
+  const audio = sample === undefined ? undefined : sampleAudio(project, sample);
   if (hit === undefined || sample === undefined || audio === undefined) return null;
 
   // Backwards buffers are worked out once per sample, and distorted ones once per dist.
-  const key = `${sample.id}:${play.direction}`;
+  const key = `${sample.id}:${sample.channel}:${play.direction}`;
   let clean = cache.get(key);
   if (clean === undefined) {
     clean = sampleBuffer(context, sample, audio, play.direction);
@@ -144,7 +147,23 @@ export function scheduleHit(
     gain.gain.linearRampToValueAtTime(0, naturalEnd);
   }
 
-  gain.connect(context.destination);
+  // Pan is balance with equal power: the middle as without pan, and towards one
+  // side the other channel fades to nothing while this one rises up to 3 dB.
+  if (play.pan === 0) {
+    gain.connect(context.destination);
+  } else {
+    const { left, right } = panGains(play.pan);
+    const split = context.createChannelSplitter(2);
+    const merge = context.createChannelMerger(2);
+    const l = context.createGain();
+    const r = context.createGain();
+    l.gain.value = left;
+    r.gain.value = right;
+    gain.connect(split);
+    split.connect(l, 0).connect(merge, 0, 0);
+    split.connect(r, 1).connect(merge, 0, 1);
+    merge.connect(context.destination);
+  }
   // Dist is in the buffer; the filter comes after it, before the voice's level.
   let input: AudioNode = gain;
   if (filter !== null) {

@@ -129,9 +129,9 @@ export function StepSentence({ effect, taken, onChange, onTarget, onCommit }: St
 
   const setKind = (kind: ModShape['kind']) => {
     const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [];
-    const range = target === 'direction' || target === 'dist' ? { min: 0, max: 1 } : target === 'filter' ? { min: 200, max: 8000 } : { min: 1, max: 4 };
+    const range = target === 'direction' || target === 'dist' ? { min: 0, max: 1 } : target === 'filter' ? { min: 200, max: 8000 } : target === 'pan' ? { min: -100, max: 100 } : { min: 1, max: 4 };
     // Pitch rolls whole semitones unless you choose otherwise.
-    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? (target === 'stretch' ? { kind, from: 1, to: 4 } : target === 'dist' ? { kind, from: 0, to: 1 } : target === 'filter' ? { kind, from: 200, to: 8000 } : { kind, from: 0, to: 12 }) : { kind, ...range, chance: 50, whole: target === 'pitch' });
+    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? (target === 'stretch' ? { kind, from: 1, to: 4 } : target === 'dist' ? { kind, from: 0, to: 1 } : target === 'filter' ? { kind, from: 200, to: 8000 } : target === 'pan' ? { kind, from: -100, to: 100 } : { kind, from: 0, to: 12 }) : { kind, ...range, chance: 50, whole: target === 'pitch' });
   };
 
 

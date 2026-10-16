@@ -35,7 +35,7 @@ export function nextLoopName(project: Project, kind: LoopKind): string {
  */
 export function upgradeProject(project: Project): Project {
   const hits = Object.fromEntries(
-    Object.entries(project.hits).map(([id, hit]): [Id, Hit] => [id, { ...hit, variantOf: hit.variantOf ?? null, stretch: hit.stretch ?? NO_STRETCH, dist: hit.dist ?? NO_DIST, filter: hit.filter ?? NO_FILTER }]),
+    Object.entries(project.hits).map(([id, hit]): [Id, Hit] => [id, { ...hit, pan: hit.pan ?? 0, variantOf: hit.variantOf ?? null, stretch: hit.stretch ?? NO_STRETCH, dist: hit.dist ?? NO_DIST, filter: hit.filter ?? NO_FILTER }]),
   );
   const pads = Object.fromEntries(
     Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true, choice: pad.choice ?? 'top' }]),
@@ -59,10 +59,10 @@ export function upgradeProject(project: Project): Project {
       return [id, { id, name: mod.name, effects: effects.map(upgradeEffect) }];
     }),
   );
-  // Tags went: a sample keeps everything but its tag fields.
+  // Tags went: a sample keeps everything but its tag fields. Samples from before the channel choice play in stereo.
   const samples = Object.fromEntries(
     Object.entries(project.samples).map(([id, sample]): [Id, Sample] => {
-      const copy: Sample & { mainTag?: unknown; extraTags?: unknown; tagGuessed?: unknown } = { ...sample };
+      const copy: Sample & { mainTag?: unknown; extraTags?: unknown; tagGuessed?: unknown } = { ...sample, channel: sample.channel ?? 'stereo' };
       delete copy.mainTag;
       delete copy.extraTags;
       delete copy.tagGuessed;

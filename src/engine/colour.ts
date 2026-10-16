@@ -77,3 +77,12 @@ export function filterSettings(filter: FilterPlay, sampleRate: number): { type: 
     gain: q > FILTER_PEAK_DB ? 10 ** (-(q - FILTER_PEAK_DB) / 20) : 1,
   };
 }
+
+/**
+ * Balance with equal power for a pan of −1 (left) to 1 (right): the middle is
+ * 1 and 1, as without pan; at one side the other channel is 0 and this one √2.
+ */
+export function panGains(pan: number): { left: number; right: number } {
+  const theta = ((Math.max(-1, Math.min(1, pan)) + 1) * Math.PI) / 4;
+  return { left: Math.SQRT2 * Math.cos(theta), right: Math.SQRT2 * Math.sin(theta) };
+}

@@ -3,7 +3,7 @@ import { invalid, notFound, ok, sequence } from './command';
 import type { SliceGrid } from './breaks';
 import { MIN_SLICE, baseName, breakBpm, breakSequence, ensureSlots, gridMarkers, markerGrid, padSlot, slotHit, slotName } from './breaks';
 import { emptyStep, nextLoopName } from './project';
-import type { AudioData, Break, Id, Loop, Pad, Project, Sample, Step } from './types';
+import type { AudioData, Break, Id, Loop, Pad, Project, Sample, SampleChannel, Step } from './types';
 import { STEPS_PER_BAR } from './types';
 
 export { MIN_SLICE, baseName, breakBpm, gridMarkers };
@@ -22,7 +22,7 @@ function addAudio(project: Project, { name, audio }: NewSample, ctx: CommandCont
   const length = audio.channels[0]?.length ?? 0;
   if (length === 0 || audio.sampleRate <= 0) return 'Audio is empty';
   const audioId = ctx.newId();
-  const sample: Sample = { id: ctx.newId(), name, audioId, offset: 0, duration: length / audio.sampleRate };
+  const sample: Sample = { id: ctx.newId(), name, audioId, offset: 0, duration: length / audio.sampleRate, channel: 'stereo' };
   return { project: { ...project, audio: { ...project.audio, [audioId]: audio }, samples: { ...project.samples, [sample.id]: sample } }, sample };
 }
 
@@ -147,6 +147,15 @@ export const setBreakBars =
     if (brk === undefined) return notFound(breakId);
     if (brk.bars === null) return invalid('Only a break has bars');
     return setBreak(breakId, bars)(project, ctx);
+  };
+
+/** Which channels of its file a sample plays: Stereo, Left, Right or Mono, always in stereo. */
+export const setSampleChannel =
+  (sampleId: Id, channel: SampleChannel): Command =>
+  (project) => {
+    const sample = project.samples[sampleId];
+    if (sample === undefined) return notFound(sampleId);
+    return ok({ ...project, samples: { ...project.samples, [sampleId]: { ...sample, channel } } });
   };
 
 /**

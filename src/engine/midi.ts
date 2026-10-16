@@ -54,6 +54,7 @@ const soundKey = (t: Trigger): string =>
     round(t.region.end, 6),
     round(t.pitch, 2),
     round(t.volume, 2),
+    round(t.pan, 2),
     t.direction,
     t.stretch === null ? '-' : `${round(t.stretch.factor, 4)}:${round(t.stretch.grain, 2)}:${t.stretch.from}`,
     t.dist === null ? '-' : `${t.dist.mode}:${round(t.dist.amount, 3)}`,
@@ -73,6 +74,7 @@ function isPlain(project: Project, t: Trigger): boolean {
     same(colour.filter, t.filter) &&
     Math.abs(own.pitch - t.pitch) < 0.005 &&
     Math.abs(own.volume - t.volume) < 0.005 &&
+    Math.abs(Math.max(-1, Math.min(1, own.pan)) - t.pan) < 0.005 &&
     own.direction === t.direction &&
     (stretch === null ? t.stretch === null : t.stretch !== null && Math.abs(stretch.factor - t.stretch.factor) < 1e-4 && stretch.grain === t.stretch.grain && stretch.from === t.stretch.from)
   );

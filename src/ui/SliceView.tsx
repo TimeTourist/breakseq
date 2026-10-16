@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, replaceSample, replaceSampleWithFile, setBreakBars, setGrid, setMarkers, slicePlaces, unlikelyBpm } from '../model';
+import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, replaceSample, replaceSampleWithFile, sampleAudio, setBreakBars, setGrid, setMarkers, slicePlaces, unlikelyBpm } from '../model';
 import { decodeAudioFile, detectTransients } from '../engine';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
@@ -56,7 +56,7 @@ export function SliceView() {
 
   const bars = brk.bars;
   const bpm = bpmOf(project, brk) ?? 0;
-  const audio = project.audio[sample.audioId];
+  const audio = sampleAudio(project, sample);
   const duration = sample.duration;
   // Markers are parts of the break; here they are worked with in seconds.
   const markers = brk.markers.map((m) => m * duration);

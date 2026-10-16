@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Sample } from '../model';
-import { trimSample } from '../model';
+import type { Sample, SampleChannel } from '../model';
+import { sampleAudio, setSampleChannel, trimSample } from '../model';
 import { useApp, useProject, useRun, useSeal } from './context';
 import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
 import { Waveform } from './Waveform';
 
 const ms = (seconds: number) => Math.round(seconds * 1000);
 
-/** Start and end of an imported sample, as a window in its file. */
+const CHANNELS: [SampleChannel, string, string][] = [
+  ['stereo', 'Stereo', 'Both channels, as the file is'],
+  ['left', 'Left', 'The left channel, in both'],
+  ['right', 'Right', 'The right channel, in both'],
+  ['mono', 'Mono', 'Left and right averaged, in both'],
+];
+
+/** Start and end of an imported sample, as a window in its file, and which of its channels play. */
 export function TrimEditor({ sample, loopFirst }: { readonly sample: Sample; readonly loopFirst: boolean }) {
   const project = useProject();
   const { services } = useApp();
@@ -19,7 +26,8 @@ export function TrimEditor({ sample, loopFirst }: { readonly sample: Sample; rea
   // Breaks are trimmed to loop; one-shots to play once.
   const [loop, setLoop] = useState(loopFirst);
   const playhead = useAuditionPlayhead(playing);
-  const audio = project.audio[sample.audioId];
+  // The file with the sample's channel choice, so what is shown and heard is what plays.
+  const audio = sampleAudio(project, sample);
 
   // Closing the editor stops what it plays.
   useEffect(() => () => services.player.stopAudition(), [services]);
@@ -110,6 +118,23 @@ export function TrimEditor({ sample, loopFirst }: { readonly sample: Sample; rea
         <span className="mono muted small">
           {ms(sample.duration)} ms of {ms(length)} ms
         </span>
+        <div className="segmented" role="group" aria-label="Channel">
+          {CHANNELS.map(([channel, label, title]) => (
+            <button
+              key={channel}
+              type="button"
+              title={title}
+              aria-pressed={sample.channel === channel}
+              onClick={() => {
+                // What plays now is the old channels: stop it, and play again to hear the new ones.
+                if (playing) services.player.stopAudition();
+                setError(run(setSampleChannel(sample.id, channel)));
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="row push">
           <PlayMode
             loop={loop}
