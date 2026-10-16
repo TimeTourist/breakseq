@@ -1,6 +1,6 @@
 import type { Break, Hit, Id, Pad, Project, Region, Sample } from './types';
-import { DEFAULT_GRAIN, NO_STRETCH, STEPS_PER_BAR } from './types';
-import type { GrainFrom } from './types';
+import { DEFAULT_GRAIN, MAX_CUTOFF, MIN_CUTOFF, NO_DIST, NO_FILTER, NO_STRETCH, STEPS_PER_BAR } from './types';
+import type { DistMode, FilterType, GrainFrom } from './types';
 
 /** A file name without its audio extension: "amen.wav 01" → "amen 01". */
 export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc)(?=\s|$)/gi, '');
@@ -142,6 +142,41 @@ export function hitStretch(project: Project, hit: Hit): StretchPlay {
   };
 }
 
+/** Dist as a sound plays it: a mode and an amount 0–1. */
+export interface DistPlay {
+  readonly mode: Exclude<DistMode, 'off'>;
+  readonly amount: number;
+}
+/** A filter as a sound plays it. */
+export interface FilterPlay {
+  readonly type: Exclude<FilterType, 'off'>;
+  readonly cutoff: number;
+  readonly resonance: number;
+}
+
+const clamp01 = (x: number) => (Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0);
+export const clampCutoff = (hz: number): number => (Number.isFinite(hz) ? Math.min(MAX_CUTOFF, Math.max(MIN_CUTOFF, hz)) : NO_FILTER.cutoff);
+export const distPlay = (mode: Exclude<DistMode, 'off'>, amount: number): DistPlay => ({ mode, amount: clamp01(amount) });
+export const filterPlay = (type: Exclude<FilterType, 'off'>, cutoff: number, resonance: number): FilterPlay => ({
+  type,
+  cutoff: clampCutoff(cutoff),
+  resonance: clamp01(resonance),
+});
+
+/**
+ * A hit's dist and filter without mods: its own, or where it has none (Off),
+ * its parent's, as with fade.
+ */
+export function hitColour(project: Project, hit: Hit): { readonly dist: DistPlay | null; readonly filter: FilterPlay | null } {
+  const parent = parentHit(project, hit);
+  const d = hit.dist.mode !== 'off' ? hit.dist : parent?.dist;
+  const f = hit.filter.type !== 'off' ? hit.filter : parent?.filter;
+  return {
+    dist: d === undefined || d.mode === 'off' ? null : distPlay(d.mode, d.amount),
+    filter: f === undefined || f.type === 'off' ? null : filterPlay(f.type, f.cutoff, f.resonance),
+  };
+}
+
 /** Whether a hit is a break's parent: a macro for its slices, never played as a pad. */
 export function isParentHit(project: Project, hit: Hit): boolean {
   return project.breaks[hit.breakId]?.parent === hit.id;
@@ -160,7 +195,7 @@ export function isParentPad(project: Project, pad: Pad): boolean {
 
 /** A new hit playing a whole slot (or the whole break), unchanged. */
 export function slotHit(id: Id, name: string, breakId: Id, slot: number | null): Hit {
-  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, fadeOut: 0, stretch: NO_STRETCH, variantOf: null };
+  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, fadeOut: 0, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, variantOf: null };
 }
 
 /** The name of a slot's hit and pad: "amen 05", or just "snare" for a one-shot. */

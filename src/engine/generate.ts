@@ -1,5 +1,5 @@
-import type { Clip, Direction, Id, Loop, Project, Region, Rng, StretchPlay } from '../model';
-import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitSound, hitStretch, stepDuration } from '../model';
+import type { Clip, Direction, DistPlay, FilterPlay, Id, Loop, Project, Region, Rng, StretchPlay } from '../model';
+import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitColour, hitSound, hitStretch, stepDuration } from '../model';
 import type { StepState } from './mods';
 import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
 import { padPicker } from './pad-choice';
@@ -23,6 +23,9 @@ export interface Trigger {
   readonly region: Region;
   /** How it is stretched; null plays it as it is. */
   readonly stretch: StretchPlay | null;
+  /** Dist, then filter; null for none. */
+  readonly dist: DistPlay | null;
+  readonly filter: FilterPlay | null;
 }
 
 /** The loop heard at a song step, and the index of the step in it. */
@@ -107,6 +110,10 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     if (sound === null) return;
     const hit = effectiveHit(project, state.hit);
     const stretch = playedStretch(hitStretch(project, state.hit), state.stretch);
+    // A Dist or Filter mod plays in place of the hit's own.
+    const colour = hitColour(project, state.hit);
+    const dist = state.dist ?? colour.dist;
+    const filter = state.filter ?? colour.filter;
     for (let i = 0; i < state.ratchet; i++) {
       triggers.push({
         time: time + (i * length) / state.ratchet,
@@ -118,6 +125,8 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
         direction: state.reverse === null ? hit.direction : state.reverse ? 'reverse' : 'forward',
         region: sound.region,
         stretch,
+        dist,
+        filter,
       });
     }
   };

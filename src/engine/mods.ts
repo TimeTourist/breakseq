@@ -1,5 +1,5 @@
-import type { Clip, Hit, Mod, ModRate, ModShape, ModStretch, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
-import { DEFAULT_MOD_STRETCH, STEPS_PER_BAR, clipsByStep } from '../model';
+import type { Clip, DistPlay, FilterPlay, Hit, Mod, ModRate, ModShape, ModStretch, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
+import { DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_STRETCH, STEPS_PER_BAR, clipsByStep, distPlay, filterPlay } from '../model';
 
 /** What a step will play after mods. Handlers return a changed copy. */
 export interface StepState {
@@ -16,6 +16,10 @@ export interface StepState {
   readonly reverse: boolean | null;
   /** A Stretch mod's factor and settings; null keeps the hit's own stretch. */
   readonly stretch: { readonly factor: number; readonly settings: ModStretch } | null;
+  /** A Dist mod's dist, in place of the hit's; null keeps the hit's. */
+  readonly dist: DistPlay | null;
+  /** A Filter mod's filter, in place of the hit's; null keeps the hit's. */
+  readonly filter: FilterPlay | null;
 }
 
 /** The hit a step plays: its chosen member if that is in the pad, otherwise member 1. */
@@ -27,7 +31,7 @@ function resolve(project: Project, cell: Step): Pick<StepState, 'pad' | 'hit'> {
 }
 
 export function stepState(project: Project, cell: Step): StepState {
-  return { cell, ...resolve(project, cell), ratchet: 1, pitch: 0, volume: 0, reverse: null, stretch: null };
+  return { cell, ...resolve(project, cell), ratchet: 1, pitch: 0, volume: 0, reverse: null, stretch: null, dist: null, filter: null };
 }
 
 export type Row = 'A' | 'B';
@@ -73,6 +77,18 @@ const handlers: readonly (readonly [StepTarget, TargetHandler])[] = [
   ['volume', { discrete: false, combine: 'add', apply: (s, v) => ({ ...s, volume: s.volume + v }) }],
   ['direction', { discrete: true, combine: 'b-wins', apply: (s, v) => ({ ...s, reverse: Math.round(v) === 1 }) }],
   ['stretch', { discrete: false, combine: 'b-wins', apply: (s, v, effect) => ({ ...s, stretch: { factor: v, settings: effect.stretch ?? DEFAULT_MOD_STRETCH } }) }],
+  ['dist', { discrete: false, combine: 'b-wins', apply: (s, v, effect) => ({ ...s, dist: distPlay((effect.dist ?? DEFAULT_MOD_DIST).mode, v) }) }],
+  [
+    'filter',
+    {
+      discrete: false,
+      combine: 'b-wins',
+      apply: (s, v, effect) => {
+        const { type, resonance } = effect.filter ?? DEFAULT_MOD_FILTER;
+        return { ...s, filter: filterPlay(type, v, resonance) };
+      },
+    },
+  ],
 ];
 
 const RATE_STEPS: Record<ModRate, number> = { step: 1, beat: 4, bar: STEPS_PER_BAR };

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import type { EffectTarget, Id, Mod, ModEffect, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
-import { DEFAULT_MOD_STRETCH, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, remove, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
+import type { EffectTarget, Id, Mod, ModEffect, ModFilter, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
+import { DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_STRETCH, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, remove, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { StepGraph, SwapGraph, TapeGraph } from './ModGraph';
 import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
 import { StepSentence, SwapSentence, TapeSentence } from './ModSentence';
 import { TARGET_LABELS, randomMod } from './modText';
 import type { Selection } from './store';
+import { DIST_MODES, FILTER_TYPES } from './labels';
 import { Slider } from './Slider';
 
 /** The mod open in Mods: the selected one, else the first. */
@@ -30,6 +31,8 @@ const DEFAULTS: Record<StepTarget, { rate: ModRate; shape: ModShape }> = {
   volume: { rate: 'step', shape: { kind: 'list', values: [0, -6] } },
   direction: { rate: 'step', shape: { kind: 'random', min: 0, max: 1, chance: 25, whole: true } },
   stretch: { rate: 'beat', shape: { kind: 'ramp', from: 1, to: 4 } },
+  dist: { rate: 'step', shape: { kind: 'ramp', from: 0, to: 1 } },
+  filter: { rate: 'step', shape: { kind: 'ramp', from: 200, to: 8000 } },
   tempo: { rate: 'bar', shape: { kind: 'list', values: [1 / 3] } },
 };
 
@@ -131,6 +134,46 @@ export function ModsView() {
   const change = (next: ModEffect, key?: string) =>
     effect !== undefined &&
     setError(run(replaceEffect(mod.id, effect.target, next), key === undefined ? undefined : `mod:${mod.id}:${effect.target}:${key}`));
+  /** A Dist effect's mode; its values are the amount. */
+  const distSettings = (dist: StepEffect) => {
+    const { mode } = dist.dist ?? DEFAULT_MOD_DIST;
+    return (
+      <div className="panel stack-tight" role="group" aria-label="Dist settings">
+        <span className="label">Dist</span>
+        <div className="segmented full" role="group" aria-label="Dist mode">
+          {DIST_MODES.map(([m, label]) => (
+            <button key={m} type="button" aria-pressed={mode === m} onClick={() => change({ ...dist, dist: { mode: m } }, 'mode')}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="muted small">The values are the amount, 0 to 1. Dist keeps the level as it was.</p>
+      </div>
+    );
+  };
+
+  /** A Filter effect's type and resonance; its values are the cutoff. */
+  const filterSettingsPanel = (filter: StepEffect) => {
+    const settings = filter.filter ?? DEFAULT_MOD_FILTER;
+    const set = (patch: Partial<ModFilter>, key: string) => change({ ...filter, filter: { ...settings, ...patch } }, key);
+    return (
+      <div className="slider-grid" role="group" aria-label="Filter settings">
+        <div className="panel stack-tight">
+          <span className="label">Filter</span>
+          <div className="segmented full" role="group" aria-label="Filter type">
+            {FILTER_TYPES.map(([t, label]) => (
+              <button key={t} type="button" aria-pressed={settings.type === t} onClick={() => set({ type: t }, 'type')}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="muted small">The values are the cutoff in Hz.</p>
+        </div>
+        <Slider label="Resonance" value={settings.resonance} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ resonance: v }, 'resonance')} onCommit={seal} />
+      </div>
+    );
+  };
+
   /** A Stretch effect's grain length, and whether it multiplies the hit's own stretch or replaces it. */
   const stretchSettings = (stretch: StepEffect) => {
     const settings = stretch.stretch ?? DEFAULT_MOD_STRETCH;
@@ -290,6 +333,8 @@ export function ModsView() {
               />
               <StepGraph effect={effect} seed={exampleSeed} />
               {effect.target === 'stretch' && stretchSettings(effect)}
+              {effect.target === 'dist' && distSettings(effect)}
+              {effect.target === 'filter' && filterSettingsPanel(effect)}
               <div className="row">
                 <p className="muted small">
                   Over one bar of its clip.

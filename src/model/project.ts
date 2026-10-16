@@ -1,5 +1,5 @@
 import type { Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, Pad, Project, Sample, Song, SongRow, Step, StepTarget, SwapEffect, TapeEffect } from './types';
-import { NO_STRETCH, STEPS_PER_BAR } from './types';
+import { NO_DIST, NO_FILTER, NO_STRETCH, STEPS_PER_BAR } from './types';
 import { breaksFromSamples } from './upgrade-breaks';
 
 // A new song starts at 170 BPM and 8 bars.
@@ -35,7 +35,7 @@ export function nextLoopName(project: Project, kind: LoopKind): string {
  */
 export function upgradeProject(project: Project): Project {
   const hits = Object.fromEntries(
-    Object.entries(project.hits).map(([id, hit]): [Id, Hit] => [id, { ...hit, variantOf: hit.variantOf ?? null, stretch: hit.stretch ?? NO_STRETCH }]),
+    Object.entries(project.hits).map(([id, hit]): [Id, Hit] => [id, { ...hit, variantOf: hit.variantOf ?? null, stretch: hit.stretch ?? NO_STRETCH, dist: hit.dist ?? NO_DIST, filter: hit.filter ?? NO_FILTER }]),
   );
   const pads = Object.fromEntries(
     Object.entries(project.pads).map(([id, pad]): [Id, Pad] => [id, { ...pad, auto: pad.auto ?? true, choice: pad.choice ?? 'top' }]),

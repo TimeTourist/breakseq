@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import type { Hit, HitStretch, Id, Pad, Project, StretchMode } from '../model';
+import type { Hit, HitDist, HitFilter, HitStretch, Id, Pad, Project, StretchMode } from '../model';
 import {
   addPadMember,
   addVariant,
+  MAX_CUTOFF,
   MAX_GRAIN,
+  MIN_CUTOFF,
   MIN_GRAIN,
   baseName,
   hitStretch,
@@ -24,12 +26,14 @@ import {
 } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { PlayIcon } from './icons';
-import { CHOICE_LABEL, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
+import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
 /** A stretch factor as it reads: 2×, 0.5×, 1.33×. */
 const formatFactor = (f: number) => `${Math.round(f * 100) / 100}×`;
+/** A frequency as it reads: 200 Hz, 2.5 kHz. */
+const formatHz = (hz: number) => (hz >= 1000 ? `${Math.round(hz / 100) / 10} kHz` : `${Math.round(hz)} Hz`);
 
 /** A hit being dragged: from the list on the left, or within a pad. */
 export const HIT_MIME = 'application/x-breakseq-hit';
@@ -450,6 +454,73 @@ export function HitsView() {
     );
   }
 
+  /**
+   * Dist, then filter. Off on a slice takes its parent's, which is shown
+   * beside it; dist keeps the level as it was.
+   */
+  function colourPanel(hit: Hit, parent: Hit | undefined) {
+    const setDist = (patch: Partial<HitDist>, field: string) => setError(run(updateHit(hit.id, { dist: { ...hit.dist, ...patch } }), `hit:${hit.id}:dist:${field}`));
+    const setFilter = (patch: Partial<HitFilter>, field: string) => setError(run(updateHit(hit.id, { filter: { ...hit.filter, ...patch } }), `hit:${hit.id}:filter:${field}`));
+    const fromParent = (on: boolean, what: string) => (parent !== undefined && !on ? <span className="muted small">{what}</span> : null);
+    const parentDist = parent?.dist.mode === 'off' || parent === undefined ? 'parent: none' : `parent: ${DIST_MODES.find(([m]) => m === parent.dist.mode)?.[1]} ${Math.round(parent.dist.amount * 100)}%`;
+    const parentFilter =
+      parent?.filter.type === 'off' || parent === undefined ? 'parent: none' : `parent: ${FILTER_TYPES.find(([t]) => t === parent.filter.type)?.[1]} ${formatHz(parent.filter.cutoff)}`;
+    return (
+      <div className="slider-grid">
+        <div className="panel stack-tight" role="group" aria-label="Dist">
+          <div className="row spread">
+            <span className="label">Dist</span>
+            {fromParent(hit.dist.mode !== 'off', parentDist)}
+          </div>
+          <div className="segmented full" role="group" aria-label="Dist mode">
+            <button type="button" aria-pressed={hit.dist.mode === 'off'} onClick={() => setDist({ mode: 'off' }, 'mode')}>
+              Off
+            </button>
+            {DIST_MODES.map(([mode, label]) => (
+              <button key={mode} type="button" aria-pressed={hit.dist.mode === mode} onClick={() => setDist({ mode }, 'mode')}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {hit.dist.mode !== 'off' && (
+            <Slider label="Amount" value={hit.dist.amount} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setDist({ amount: v }, 'amount')} onCommit={seal} />
+          )}
+        </div>
+        <div className="panel stack-tight" role="group" aria-label="Filter">
+          <div className="row spread">
+            <span className="label">Filter</span>
+            {fromParent(hit.filter.type !== 'off', parentFilter)}
+          </div>
+          <div className="segmented full" role="group" aria-label="Filter type">
+            <button type="button" aria-pressed={hit.filter.type === 'off'} onClick={() => setFilter({ type: 'off' }, 'type')}>
+              Off
+            </button>
+            {FILTER_TYPES.map(([type, label]) => (
+              <button key={type} type="button" aria-pressed={hit.filter.type === type} onClick={() => setFilter({ type }, 'type')}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {hit.filter.type !== 'off' && (
+            <>
+              <Slider
+                label="Cutoff"
+                value={Math.log10(hit.filter.cutoff)}
+                min={Math.log10(MIN_CUTOFF)}
+                max={Math.log10(MAX_CUTOFF)}
+                step={0.01}
+                format={(v) => formatHz(10 ** v)}
+                onChange={(v) => setFilter({ cutoff: Math.round(10 ** v) }, 'cutoff')}
+                onCommit={seal}
+              />
+              <Slider label="Resonance" value={hit.filter.resonance} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setFilter({ resonance: v }, 'resonance')} onCommit={seal} />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   /** How the selected hit plays: region, direction, pitch, volume and fade. */
   function hitEditor(hit: Hit) {
     const onError = setError;
@@ -587,6 +658,7 @@ export function HitsView() {
           <Slider label="Fade out" value={hit.fadeOut} min={0} max={200} step={1} format={(v) => `${v} ms`} onChange={(v) => edit({ fadeOut: v }, 'fade')} onCommit={seal} />
         </div>
         {stretchPanel(hit, parent, brk?.bars === null)}
+        {colourPanel(hit, parent)}
       </section>
     );
   }
