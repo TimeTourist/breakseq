@@ -208,6 +208,8 @@ describe('pad members', () => {
         // The region is a part of the 0.1 s sample, played as seconds of it.
         region: { start: 0.025, end: 0.05 },
         stretch: null,
+        dist: null,
+        filter: null,
       },
     ]);
   });

@@ -79,3 +79,14 @@ export function musicalLength(steps: number): string {
 
 /** What each way a pad picks its member is called. */
 export const CHOICE_LABEL: Record<PadChoice, string> = { top: 'Top', roundRobin: 'Round robin', random: 'Random', noRepeat: 'No repeat' };
+
+/** Dist modes and filter types as they read, without Off: for a mod, which always does something. */
+export const DIST_MODES = [
+  ['drive', 'Drive'],
+  ['crush', 'Crush'],
+  ['decimate', 'Decimate'],
+] as const;
+export const FILTER_TYPES = [
+  ['lowpass', 'Low-pass'],
+  ['highpass', 'High-pass'],
+] as const;

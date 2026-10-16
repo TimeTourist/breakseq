@@ -1,5 +1,5 @@
 import type { Hit, Project } from '../model';
-import { effectiveHit, hitStretch } from '../model';
+import { effectiveHit, hitColour, hitStretch } from '../model';
 import type { Trigger } from './generate';
 import { playedStretch } from './generate';
 import type { Tape } from './tape';
@@ -56,6 +56,8 @@ const soundKey = (t: Trigger): string =>
     round(t.volume, 2),
     t.direction,
     t.stretch === null ? '-' : `${round(t.stretch.factor, 4)}:${round(t.stretch.grain, 2)}:${t.stretch.from}`,
+    t.dist === null ? '-' : `${t.dist.mode}:${round(t.dist.amount, 3)}`,
+    t.filter === null ? '-' : `${t.filter.type}:${round(t.filter.cutoff, 1)}:${round(t.filter.resonance, 3)}`,
   ].join('|');
 
 /** Whether a trigger sounds as its hit does on its own: no variant, no mod. */
@@ -64,7 +66,11 @@ function isPlain(project: Project, t: Trigger): boolean {
   if (hit === undefined || hit.variantOf !== null) return false;
   const own = effectiveHit(project, hit);
   const stretch = playedStretch(hitStretch(project, hit), null);
+  const colour = hitColour(project, hit);
+  const same = <T,>(a: T | null, b: T | null) => JSON.stringify(a) === JSON.stringify(b);
   return (
+    same(colour.dist, t.dist) &&
+    same(colour.filter, t.filter) &&
     Math.abs(own.pitch - t.pitch) < 0.005 &&
     Math.abs(own.volume - t.volume) < 0.005 &&
     own.direction === t.direction &&

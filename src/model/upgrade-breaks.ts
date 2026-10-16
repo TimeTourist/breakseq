@@ -1,6 +1,6 @@
 import { ensureSlots, slotHit, slotName } from './breaks';
 import type { Break, Hit, Id, Pad, Project, Region, Sample } from './types';
-import { NO_STRETCH, STEPS_PER_BAR } from './types';
+import { NO_DIST, NO_FILTER, NO_STRETCH, STEPS_PER_BAR } from './types';
 
 /** A sample as saved before breaks were their own objects: a break was a sample with markers, a slice a sample of its own. */
 interface LegacySample {
@@ -14,7 +14,7 @@ interface LegacySample {
 }
 
 /** A hit as saved then: it played a sample, with its region in seconds of it. */
-type LegacyHit = Omit<Hit, 'breakId' | 'slot' | 'stretch'> & { readonly sampleId: Id };
+type LegacyHit = Omit<Hit, 'breakId' | 'slot' | 'stretch' | 'dist' | 'filter'> & { readonly sampleId: Id };
 
 const parts = (region: Region, duration: number): Region =>
   duration > 0 ? { start: region.start / duration, end: region.end / duration } : { start: 0, end: 1 };
@@ -35,7 +35,7 @@ export function breaksFromSamples(project: Project): Project {
   const hitsOn = (sampleId: Id) => oldHits.filter((h) => h.sampleId === sampleId);
   const toHit = (h: LegacyHit, breakId: Id, slot: number | null, duration: number): Hit => {
     const { id, name, direction, pitch, volume, fadeOut, variantOf } = h;
-    return { id, name, breakId, slot, region: parts(h.region, duration), direction, pitch, volume, fadeOut, stretch: NO_STRETCH, variantOf };
+    return { id, name, breakId, slot, region: parts(h.region, duration), direction, pitch, volume, fadeOut, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, variantOf };
   };
 
   const samples: Record<Id, Sample> = {};

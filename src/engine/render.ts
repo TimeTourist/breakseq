@@ -1,5 +1,6 @@
 import type { AudioData, Direction, Hit, Project, Sample } from '../model';
-import { effectiveHit, hitSound, hitStretch, songDuration } from '../model';
+import { effectiveHit, hitColour, hitSound, hitStretch, songDuration } from '../model';
+import { distort, filterSettings, levelMatch, rms } from './colour';
 import type { Take, Trigger } from './generate';
 import { playedStretch } from './generate';
 import { grainCurve, grainPlan } from './stretch';
@@ -26,7 +27,7 @@ function sampleBuffer(context: BaseAudioContext, sample: Sample, audio: AudioDat
 }
 
 /** What one voice plays: a hit with its final settings, as a trigger carries them. */
-export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'direction' | 'region' | 'stretch'>;
+export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'direction' | 'region' | 'stretch' | 'dist' | 'filter'>;
 
 /** A voice that has been scheduled: stop() silences it at once. */
 export interface Voice {
@@ -46,6 +47,7 @@ export function hitPlay(project: Project, hit: Hit): HitPlay {
     direction: own.direction,
     region: hitSound(project, hit)?.region ?? { start: 0, end: 0 },
     stretch: playedStretch(hitStretch(project, hit), null),
+    ...hitColour(project, hit),
   };
 }
 
@@ -67,12 +69,24 @@ export function scheduleHit(
   const audio = sample === undefined ? undefined : project.audio[sample.audioId];
   if (hit === undefined || sample === undefined || audio === undefined) return null;
 
-  // Backwards buffers are worked out once per sample.
+  // Backwards buffers are worked out once per sample, and distorted ones once per dist.
   const key = `${sample.id}:${play.direction}`;
-  let buffer = cache.get(key);
-  if (buffer === undefined) {
-    buffer = sampleBuffer(context, sample, audio, play.direction);
-    cache.set(key, buffer);
+  let clean = cache.get(key);
+  if (clean === undefined) {
+    clean = sampleBuffer(context, sample, audio, play.direction);
+    cache.set(key, clean);
+  }
+  let buffer = clean;
+  if (play.dist !== null) {
+    const distKey = `${key}:${play.dist.mode}:${play.dist.amount.toFixed(4)}`;
+    let distorted = cache.get(distKey);
+    if (distorted === undefined) {
+      const source = clean;
+      distorted = context.createBuffer(source.numberOfChannels, source.length, source.sampleRate);
+      for (let c = 0; c < source.numberOfChannels; c++) distorted.copyToChannel(distort(source.getChannelData(c), play.dist), c);
+      cache.set(distKey, distorted);
+    }
+    buffer = distorted;
   }
 
   // In a reversed buffer the region is mirrored. It starts on a whole frame, so
@@ -103,7 +117,13 @@ export function scheduleHit(
   // A next trigger within a frame of the end is not a choke: the voice ends there, without a fade.
   const choked = chokeAt < naturalEnd - 1.5 / context.sampleRate;
 
-  const level = dbToGain(play.volume);
+  // Dist keeps the level: the region played has the same RMS after it as before.
+  const channelsOf = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c));
+  const frameOf = (t: number) => Math.round(t * buffer.sampleRate);
+  const distGain =
+    buffer === clean ? 1 : levelMatch(rms(channelsOf(clean), frameOf(offset), frameOf(region.end)), rms(channelsOf(buffer), frameOf(offset), frameOf(region.end)));
+  const filter = play.filter === null ? null : filterSettings(play.filter, context.sampleRate);
+  const level = dbToGain(play.volume) * distGain * (filter?.gain ?? 1);
   // The parent's fade applies where the slice has none.
   const fadeOut = effectiveHit(project, hit).fadeOut / 1000;
   const fadeStart = fadeOut > 0 ? Math.max(start, naturalEnd - fadeOut) : naturalEnd;
@@ -125,6 +145,16 @@ export function scheduleHit(
   }
 
   gain.connect(context.destination);
+  // Dist is in the buffer; the filter comes after it, before the voice's level.
+  let input: AudioNode = gain;
+  if (filter !== null) {
+    const biquad = context.createBiquadFilter();
+    biquad.type = filter.type;
+    biquad.frequency.value = filter.frequency;
+    biquad.Q.value = filter.q;
+    biquad.connect(gain);
+    input = biquad;
+  }
   // Half a frame early, so the frame where the next sound starts is not played as well.
   const stopAt = choked ? chokeAt + CHOKE_FADE : Math.min(naturalEnd, chokeAt) - 0.5 / context.sampleRate;
   const sources: AudioBufferSourceNode[] = [];
@@ -139,7 +169,7 @@ export function scheduleHit(
   };
 
   if (plan === null) {
-    voice(start, offset, stopAt, gain);
+    voice(start, offset, stopAt, input);
   } else {
     for (const g of plan.grains) {
       // A grain under way when the voice starts, or reaching before the sample, plays from where it can.
@@ -149,7 +179,7 @@ export function scheduleHit(
       if (skip >= g.length || at >= until) continue;
       const envelope = context.createGain();
       envelope.gain.setValueCurveAtTime(grainCurve(g.shape, skip / g.length), at, start + g.at + g.length - at);
-      envelope.connect(gain);
+      envelope.connect(input);
       voice(at, g.from + skip * rate, until, envelope);
     }
   }

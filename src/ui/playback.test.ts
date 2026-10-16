@@ -12,6 +12,8 @@ const at = (time: number, bar: number): Trigger => ({
   direction: 'forward',
   region: { start: 0, end: 0.1 },
   stretch: null,
+  dist: null,
+  filter: null,
 });
 
 describe('playheadTrigger', () => {

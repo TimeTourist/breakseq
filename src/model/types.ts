@@ -79,6 +79,31 @@ export interface HitStretch {
 export const DEFAULT_GRAIN = 30;
 export const NO_STRETCH: HitStretch = { mode: 'off', factor: 1, grain: null, from: null };
 
+/**
+ * Dist colours a sound and keeps its level: Drive saturates and then clips,
+ * Crush lowers the bit depth, Decimate the sample rate. Off takes the parent's.
+ */
+export type DistMode = 'off' | 'drive' | 'crush' | 'decimate';
+export interface HitDist {
+  readonly mode: DistMode;
+  /** 0–1. */
+  readonly amount: number;
+}
+export const NO_DIST: HitDist = { mode: 'off', amount: 0.5 };
+
+/** A low- or high-pass filter after dist. Off takes the parent's. */
+export type FilterType = 'off' | 'lowpass' | 'highpass';
+export interface HitFilter {
+  readonly type: FilterType;
+  /** Hz. */
+  readonly cutoff: number;
+  /** 0–1. */
+  readonly resonance: number;
+}
+export const NO_FILTER: HitFilter = { type: 'off', cutoff: 2000, resonance: 0.2 };
+export const MIN_CUTOFF = 20;
+export const MAX_CUTOFF = 20000;
+
 export interface Hit {
   readonly id: Id;
   readonly name: string;
@@ -95,6 +120,8 @@ export interface Hit {
   /** Milliseconds. */
   readonly fadeOut: number;
   readonly stretch: HitStretch;
+  readonly dist: HitDist;
+  readonly filter: HitFilter;
   /** The hit this one was duplicated from, or null. */
   readonly variantOf: Id | null;
 }
@@ -135,7 +162,7 @@ export interface Loop {
 }
 
 /** What a mod changes. Applied in this order, whatever row the mod is in. */
-export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'stretch', 'tempo'] as const;
+export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'direction', 'stretch', 'dist', 'filter', 'tempo'] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
 export type ModRate = 'step' | 'beat' | 'bar';
@@ -165,7 +192,21 @@ export interface StepEffect {
   readonly shape: ModShape;
   /** For Stretch only: its grain length and how it meets the hit's own stretch. Missing means DEFAULT_MOD_STRETCH. */
   readonly stretch?: ModStretch;
+  /** For Dist only: its mode; the value is the amount. Missing means DEFAULT_MOD_DIST. */
+  readonly dist?: ModDist;
+  /** For Filter only: its type and resonance; the value is the cutoff. Missing means DEFAULT_MOD_FILTER. */
+  readonly filter?: ModFilter;
 }
+
+export interface ModDist {
+  readonly mode: Exclude<DistMode, 'off'>;
+}
+export const DEFAULT_MOD_DIST: ModDist = { mode: 'drive' };
+export interface ModFilter {
+  readonly type: Exclude<FilterType, 'off'>;
+  readonly resonance: number;
+}
+export const DEFAULT_MOD_FILTER: ModFilter = { type: 'lowpass', resonance: 0.2 };
 
 /** Multiply: times the hit's own stretch. Replace: instead of it. */
 export type StretchCombine = 'multiply' | 'replace';
