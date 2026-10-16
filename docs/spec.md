@@ -163,6 +163,7 @@ I vyer utan egen uppspelning (Import, Slice, Project) spelar Play låten.
 - **Tom pad:** en pads sista medlem får tas bort. En tom pad finns kvar och spelar inget.
 - **Undo:** alla ändringar går att ångra, i en gemensam historik för hela appen. State är oföränderligt (immutable) från start, så undo blir en historik av tillstånd.
 - **Lagring:** projektet autosparas i webbläsaren (IndexedDB). Det går också att exportera och importera ett projekt som en fil: en zip med projektets JSON och alla ljudfiler.
+- **Säkerhetskopior av autosparen:** webbläsaren behåller de 20 senaste kopiorna av projektet. En kopia sparas när sidan laddas, med projektet som det var innan något ändrats, och sedan högst var 5:e minut när projektet har ändrats. I Project listas kopiorna med tid, aktiv snapshot och antal breaks, loopar och klipp i Song. Restore ersätter projektet och börjar en ny ångra-historik, som Load. Det som fanns innan sparas först som en kopia. Listan visas även när laddningen misslyckades.
 - **Projekt och snapshots:** i fliken Project öppnas eller skapas ett projekt som en mapp på disk. En snapshot är en JSON-fil i mappen med allt i projektet, där ljuden refereras med sökväg till filer i mappen. Save och New snapshot finns i sidhuvudet, där Export låg. Save skriver över den aktiva snapshoten, och New sparar nuläget som en ny snapshot som blir aktiv, medan den förra ligger kvar orörd. (changed) visar osparade ändringar, och Load med osparade ändringar frågar först. En load börjar en ny ångra-historik.
 
 ## Teknik och arkitektur
@@ -202,6 +203,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 17. MIDI-export | Låten som MIDI och en WAV med bitar i lika långa rutor, C1 = bit 1 | Exporten laddad i Dr. Octo Rex (via Bounce to REX) låter som låten i Breakseq |
 | 18. Dist och filter | Dist (Drive, Crush, Decimate) som håller nivån, och filter (Low-pass, High-pass) med brytfrekvens och resonans; på hitten och som mod | En fill kan krossas allt mer med en Ramp utan att bli starkare, och ett lågpass kan öppnas över en takt |
 | 19. Pan och kanalval | Pan på hitten (föräldern som makro) och som mod, adderas som volym, balans med lika effekt; kanalval på samplet i Trim (Stereo, Left, Right, Mono) | En hi-hat kan studsa mellan vänster och höger med en Random-mod |
+| 20. Säkerhetskopior av autosparen | De 20 senaste kopiorna av projektet i webbläsaren, vid laddning och högst var 5:e minut; Restore i Project | Ett projekt som skrivits över går att få tillbaka från kopian vid laddningen |
 
 ## Utanför v1
 
