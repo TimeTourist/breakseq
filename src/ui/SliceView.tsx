@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, replaceSample, replaceSampleWithFile, sampleAudio, setBreakBars, setGrid, setMarkers, slicePlaces, unlikelyBpm } from '../model';
+import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, replaceSample, replaceSampleWithFile, sampleAudio, setBreakBars, setGrid, setMarkers, holds, slicePlaces, unlikelyBpm } from '../model';
 import { decodeAudioFile, detectTransients } from '../engine';
 import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
@@ -269,15 +269,18 @@ export function SliceView() {
                 return (
                   <div
                     key={i}
+                    style={{ gridColumn: i + 1, gridRow: 1 }}
                     className={`slice-step${p.slice !== null ? ' filled' : ''}${p.slice === current ? ' selected' : ''}${p.dropped.length > 0 ? ' clash' : ''}${i % 4 === 0 ? ' downbeat' : ''}`}
                     title={p.dropped.length > 0 ? `${p.dropped.length + 1} slices land here: only ${String(p.slice! + 1).padStart(2, '0')} plays` : undefined}
                     aria-label={label}
                   >
                     {p.slice === null ? '' : String(p.slice + 1).padStart(2, '0')}
-                    {p.reach > 0 && <span className={`reach${p.slice === null ? ' tail' : ''}`} style={{ width: `${p.reach * 100}%` }} />}
                   </div>
                 );
               })}
+              {holds(places.map((p) => p.slice !== null)).map((h) => (
+                <span key={`hold-${h.start}`} className="hold" style={{ gridColumn: `${h.start + 1} / span ${h.length}`, gridRow: 1 }} aria-hidden="true" />
+              ))}
             </div>
           </div>
         </div>
