@@ -336,15 +336,15 @@ export const setSongBars =
     return ok(setSong(project, { ...project.song, bars, clips: fitClips(project.song.clips, total), loop: fitted }));
   };
 
-/** Marks steps `start` to `end` (after the last) as the song's loop and turns it on. */
+/** Marks steps `start` to `end` (after the last) as the song's loop, on unless `on` says otherwise. */
 export const setSongLoop =
-  (start: number, end: number): Command =>
+  (start: number, end: number, on = true): Command =>
   (project) => {
     const total = project.song.bars * STEPS_PER_BAR;
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > total || end <= start) {
       return invalid('A loop is at least one step, within the song');
     }
-    return ok(setSong(project, { ...project.song, loop: { start, end, on: true } }));
+    return ok(setSong(project, { ...project.song, loop: { start, end, on } }));
   };
 
 /** Turns the song's loop on or off, keeping where it is. */

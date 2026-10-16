@@ -1657,19 +1657,26 @@ input[type='search'] {
   background: var(--accent-bg);
 }
 
+/* The loop's ends in the ruler, as Trim's handles; grey while the loop is off. */
+.loop-handle {
+  z-index: 2;
+}
+
+.loop-handle.off::before,
+.loop-handle.off::after {
+  background: var(--muted);
+}
+
 .ruler-loop {
   position: absolute;
   top: 0;
   bottom: 0;
   background: color-mix(in srgb, var(--muted) 25%, transparent);
-  border-left: 2px solid var(--muted);
-  border-right: 2px solid var(--muted);
   pointer-events: none;
 }
 
 .ruler-loop.on {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
-  border-color: var(--accent);
 }
 
 /* Where Play starts, set by a click in the ruler. */

@@ -110,6 +110,45 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /** One end of the loop, dragged or moved with ←/→ like Trim's handles; one drag is one undo step. */
+  const loopHandle = (which: 'start' | 'end') => {
+    if (songLoop === null) return null;
+    const { start, end, on } = songLoop;
+    const set = (to: number) =>
+      setError(
+        run(
+          which === 'start' ? setSongLoop(Math.max(0, Math.min(to, end - 1)), end, on) : setSongLoop(start, Math.min(total, Math.max(to, start + 1)), on),
+          'song:loop',
+        ),
+      );
+    return (
+      <button
+        type="button"
+        className={`trim-handle loop-handle${on ? '' : ' off'}`}
+        style={{ left: (which === 'start' ? start : end) * STEP_PX }}
+        aria-label={`Loop ${which} at ${position(which === 'start' ? start : end)}`}
+        title="Drag to move this end of the loop, or focus it and use ←/→ (Shift: a beat)"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const el = e.currentTarget.closest('.timeline-ruler') as HTMLElement | null;
+          if (el !== null && e.currentTarget.hasPointerCapture(e.pointerId)) set(boundaryAt(e, el));
+        }}
+        onPointerUp={seal}
+        onKeyDown={(e) => {
+          const by = (e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0) * (e.shiftKey ? 4 : 1);
+          if (by === 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          set((which === 'start' ? start : end) + by);
+        }}
+        onKeyUp={seal}
+      />
+    );
+  };
+
   /** A step boundary under the pointer in the ruler. */
   const boundaryAt = (e: { clientX: number }, el: HTMLElement) =>
     Math.max(0, Math.min(total, Math.round((e.clientX - el.getBoundingClientRect().left) / STEP_PX)));
@@ -236,7 +275,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
           <h1>Song</h1>
           <p className="muted">
             Drop loops and mods on a lane; drag clips to move them (Ctrl: copy) and their edges to resize. A fill takes over
-            the main for its length. Click the ruler to play from there; drag in it to mark a loop.{rendering ? ' Rendering…' : ''}
+            the main for its length. Click the ruler to play from there; drag in it to mark a loop, and its handles to move its ends.{rendering ? ' Rendering…' : ''}
           </p>
         </div>
         <div className="row push">
@@ -313,6 +352,8 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
                   title={`Loop ${loopText}${songLoop.on ? '' : ' (off)'}`}
                 />
               )}
+              {loopHandle('start')}
+              {loopHandle('end')}
               <span className="ruler-cursor" style={{ left: cursor * STEP_PX }} aria-label={`Play starts at ${position(cursor)}`} />
               {Array.from({ length: bars }, (_, bar) => (
                 <span key={bar} className="ruler-bar mono" style={{ left: bar * STEPS_PER_BAR * STEP_PX }}>
