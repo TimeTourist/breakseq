@@ -136,6 +136,10 @@ p {
   align-self: flex-start;
 }
 
+.self-end {
+  align-self: flex-end;
+}
+
 .label {
   margin: 0;
   font-size: 12px;
@@ -1932,6 +1936,13 @@ input[type='search'] {
 
 .pad-row.current {
   background: var(--accent-bg);
+}
+
+/* A slot pad past its break's last slice: it plays nothing. */
+.pad-row.silent,
+.chip.silent,
+.step.silent {
+  opacity: 0.4;
 }
 
 .pad-row-name {

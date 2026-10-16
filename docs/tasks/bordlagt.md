@@ -23,3 +23,13 @@ Ordningen är fast: Swap → Pad member, Ratchet, Pitch, Volume, Direction → T
 - c) Mod B verkar på det Mod A gör
 
 Mitt förslag var a för nu.
+
+## Presets (2026-10-16)
+
+Spara och återanvända mellan projekt. Förslagen var:
+
+- **Vad:** mods, hit-inställningar, breaks och one-shots (med ljud) och loopar som mönster av platsnummer.
+- **Var:** en bibliotekmapp på disk.
+- **Hur:** "+ From preset" och "Save as preset" i varje vy.
+- **Inbyggda:** mods (Tape stop, Stutter roll …), hits (Octave down, Reverse …) och loop-mönster.
+- **När:** efter fas 13 och 14.

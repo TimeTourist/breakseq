@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, setBpm, setBreak, setMarkers, sliceAtMarkers } from '../model';
+import { addSample, createProject, setBpm, setBreak, setMarkers } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player } from './playback';
@@ -37,7 +37,7 @@ function services(): Services {
 }
 
 /** One bar of 2 s at 120 BPM, split +-|+-|+-----------: slices of 2, 2 and 12 steps. */
-function split(slice: boolean, markers: number[] = [0, 0.25, 0.5]): Project {
+function split(markers: number[] = [0, 0.25, 0.5]): Project {
   const ctx = sequentialIds();
   const commands: Command[] = [addSample({ name: 'amen.wav', audio: constantAudio(2) }), setBpm(120)];
   let project = commands.reduce((p, c) => {
@@ -45,8 +45,8 @@ function split(slice: boolean, markers: number[] = [0, 0.25, 0.5]): Project {
     if (!r.ok) throw new Error(JSON.stringify(r.error));
     return r.project;
   }, createProject());
-  const id = Object.keys(project.samples)[0]!;
-  for (const c of [setBreak(id, 1), setMarkers(id, markers), ...(slice ? [sliceAtMarkers(id)] : [])]) {
+  const id = Object.keys(project.breaks)[0]!;
+  for (const c of [setBreak(id, 1), setMarkers(id, markers.map((m) => m / 2))]) {
     const r = c(project, ctx);
     if (!r.ok) throw new Error(JSON.stringify(r.error));
     project = r.project;
@@ -64,7 +64,7 @@ const widths = (cells: HTMLElement[]) => cells.map((c) => parseFloat(c.querySele
 
 describe('hit lengths', () => {
   it('Loops shows each slice of the laid out parent with its tail: 2, 2 and 12 steps', async () => {
-    await setup(split(true), 'loops');
+    await setup(split(), 'loops');
     const steps = screen.getAllByRole('button', { name: /^Bar 1, step \d+:/ });
     expect(steps).toHaveLength(16);
     expect(widths(steps)).toEqual(Array.from({ length: 16 }, () => 100));
@@ -73,7 +73,7 @@ describe('hit lengths', () => {
   });
 
   it('Slice shows where each slice lands on the 1/16 grid, with its length', async () => {
-    await setup(split(false), 'slice');
+    await setup(split(), 'slice');
     const strip = screen.getByLabelText('Where the slices land on the 1/16 grid');
     const cells = within(strip).getAllByLabelText(/^Step /);
     expect(cells).toHaveLength(16);
@@ -83,7 +83,7 @@ describe('hit lengths', () => {
 
   it('Slice marks a step where two slices land, since the second is dropped', async () => {
     // A step is 0.125 s: 0.3 and 0.31 both land on step 3.
-    await setup(split(false, [0, 0.3, 0.31, 1.06]), 'slice');
+    await setup(split([0, 0.3, 0.31, 1.06]), 'slice');
     const strip = screen.getByLabelText('Where the slices land on the 1/16 grid');
     const clashes = strip.querySelectorAll('.slice-step.clash');
     expect(clashes).toHaveLength(1);

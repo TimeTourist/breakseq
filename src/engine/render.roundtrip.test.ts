@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, setBpm, setBreak, setSongBars, setSongCell, sliceBreak } from '../model';
+import { addSample, createProject, setBpm, setBreak, setSongBars, setSongCell, sliceBreak, bpmOf } from '../model';
 import { seededRng, sequentialIds } from '../test/fixtures';
 import { generateTriggers } from './generate';
 import { renderTriggers } from './render';
@@ -34,11 +34,11 @@ describe('a sliced break played at its own tempo', () => {
     const channels = noiseBreak((bars * 4 * 60) / bpm);
 
     let project = run(createProject(), addSample({ name: 'break', audio: { sampleRate: SAMPLE_RATE, channels } }));
-    const id = Object.keys(project.samples)[0]!;
+    const id = Object.keys(project.breaks)[0]!;
     project = run(project, setBreak(id, bars), sliceBreak(id, bars, grid));
     const m1 = Object.values(project.loops)[0]!.id;
     // Its own tempo is worked out from its length, which is a whole number of samples.
-    const ownBpm = project.samples[id]!.break!.bpm;
+    const ownBpm = bpmOf(project, project.breaks[id]!)!;
     expect(ownBpm).toBeCloseTo(bpm, 3);
     project = run(project, setBpm(ownBpm), setSongBars(bars), setSongCell('main', 0, m1));
 

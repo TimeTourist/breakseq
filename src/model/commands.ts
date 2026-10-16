@@ -1,7 +1,8 @@
 import type { Command, CommandResult } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
 import { addClip, fitClips } from './clips';
-import { breakSequence, emptyStep, emptySteps, isParentHit, nextLoopName } from './project';
+import { breakSequence, isParentHit } from './breaks';
+import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { EffectTarget, Hit, Id, Loop, LoopKind, Mod, ModEffect, Pad, Project, Sample, Song, SongRow, Step } from './types';
@@ -224,7 +225,7 @@ export const placeBreak =
     const loop = project.loops[loopId];
     if (loop === undefined) return notFound(loopId);
     const sequence = breakSequence(project, breakId);
-    if (sequence.length === 0) return invalid('Slice the break first');
+    if (sequence.length === 0) return invalid('The break has no slices');
     const steps = [...loop.steps];
     const used = new Set<number>();
     for (const { padId, step } of sequence) {

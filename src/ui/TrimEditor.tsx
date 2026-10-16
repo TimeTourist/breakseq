@@ -8,7 +8,7 @@ import { Waveform } from './Waveform';
 const ms = (seconds: number) => Math.round(seconds * 1000);
 
 /** Start and end of an imported sample, as a window in its file. */
-export function TrimEditor({ sample }: { readonly sample: Sample }) {
+export function TrimEditor({ sample, loopFirst }: { readonly sample: Sample; readonly loopFirst: boolean }) {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
@@ -17,7 +17,7 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   // Breaks are trimmed to loop; one-shots to play once.
-  const [loop, setLoop] = useState(sample.break !== null);
+  const [loop, setLoop] = useState(loopFirst);
   const playhead = useAuditionPlayhead(playing);
   const audio = project.audio[sample.audioId];
 
@@ -29,7 +29,6 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
   const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
   const start = sample.offset;
   const end = sample.offset + sample.duration;
-  const locked = sample.break?.sliced === true;
   const trim = (from: number, to: number) => {
     const failed = run(trimSample(sample.id, from, to), `trim:${sample.id}`);
     setError(failed);
@@ -55,7 +54,6 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
       className={`trim-handle ${which}`}
       style={{ left: `${((which === 'start' ? start : end) / length) * 100}%` }}
       aria-label={`${which === 'start' ? 'Start' : 'End'} at ${ms(which === 'start' ? start : end)} ms`}
-      disabled={locked}
       onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
       onPointerMove={(e) => {
         if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
@@ -94,8 +92,7 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
             min={0}
             max={ms(end) - 1}
             value={ms(start)}
-            disabled={locked}
-            onChange={(e) => trim(Number(e.target.value) / 1000, end)}
+                  onChange={(e) => trim(Number(e.target.value) / 1000, end)}
             onBlur={seal}
           />
         </label>
@@ -106,8 +103,7 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
             min={ms(start) + 1}
             max={ms(length)}
             value={ms(end)}
-            disabled={locked}
-            onChange={(e) => trim(start, Number(e.target.value) / 1000)}
+                  onChange={(e) => trim(start, Number(e.target.value) / 1000)}
             onBlur={seal}
           />
         </label>
@@ -125,12 +121,11 @@ export function TrimEditor({ sample }: { readonly sample: Sample }) {
           <button type="button" aria-pressed={playing} onClick={() => (playing ? services.player.stopAudition() : play(loop))}>
             {playing ? 'Stop' : 'Play trimmed'}
           </button>
-          <button type="button" disabled={locked || (start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>
+          <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>
             Reset
           </button>
         </div>
       </div>
-      {locked && <p className="muted small">This break is sliced. Re-slice it in Slice to trim it.</p>}
       <p className="muted small">Drag the handles, or focus one and use ←/→ (Shift: 10 ms).</p>
       {error !== null && (
         <p className="error" role="alert">

@@ -1,103 +1,57 @@
-import type { Command, CommandContext, Usage } from './command';
-import { fail, invalid, notFound, ok, sequence } from './command';
-import { findUsages } from './references';
-import type { SliceGrid } from './project';
-import { emptySteps, gridMarkers, nextLoopName, onGrid } from './project';
-import type { AudioData, BreakInfo, Hit, Id, Loop, Pad, Project, Sample } from './types';
+import type { Command, CommandContext } from './command';
+import { invalid, notFound, ok, sequence } from './command';
+import type { SliceGrid } from './breaks';
+import { MIN_SLICE, baseName, breakBpm, breakSequence, ensureSlots, gridMarkers, markerGrid, padSlot, slotHit, slotName } from './breaks';
+import { emptyStep, nextLoopName } from './project';
+import type { AudioData, Break, Id, Loop, Pad, Project, Sample, Step } from './types';
 import { STEPS_PER_BAR } from './types';
 
-/** A file name without its audio extension: "amen.wav 01" → "amen 01". */
-export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc)(?=\s|$)/gi, '');
-
-/**
- * The automatic chain: every new sample gets a default hit (the whole sample,
- * unchanged) and a pad with that hit as its only member. It runs once; after
- * that they are ordinary objects.
- */
-function addWithChain(project: Project, sample: Sample, ctx: CommandContext): { project: Project; padId: Id } {
-  const hit: Hit = {
-    id: ctx.newId(),
-    name: baseName(sample.name),
-    sampleId: sample.id,
-    region: { start: 0, end: sample.duration },
-    direction: 'forward',
-    pitch: 0,
-    volume: 0,
-    fadeOut: 0,
-    variantOf: null,
-  };
-  const pad: Pad = { id: ctx.newId(), name: baseName(sample.name), members: [hit.id], auto: true };
-  return {
-    project: {
-      ...project,
-      samples: { ...project.samples, [sample.id]: sample },
-      hits: { ...project.hits, [hit.id]: hit },
-      pads: { ...project.pads, [pad.id]: pad },
-    },
-    padId: pad.id,
-  };
-}
+export { MIN_SLICE, baseName, breakBpm, gridMarkers };
 
 export interface NewSample {
   readonly name: string;
   readonly audio: AudioData;
-  /** Cue markers from the file, in seconds. A file with cues becomes a 4-bar break sliced at them. */
+  /** Cue markers from the file, in seconds. A file with cues becomes a break sliced at them. */
   readonly cues?: readonly number[];
 }
 
-/** Adds an imported file as a sample, with its default hit and pad. */
-export const addSample =
-  ({ name, audio, cues = [] }: NewSample): Command =>
-  (project, ctx) => {
-    const length = audio.channels[0]?.length ?? 0;
-    if (length === 0 || audio.sampleRate <= 0) return invalid('Audio is empty');
-    const audioId = ctx.newId();
-    const sample: Sample = {
-      id: ctx.newId(),
-      name,
-      audioId,
-      offset: 0,
-      duration: length / audio.sampleRate,
-      break: null,
-      sliceOf: null,
-    };
-    if (cues.length > 0) {
-      const withCues = { ...sample, break: breakInfo(sample.duration, guessBars(sample.duration), cleanMarkers(cues, sample.duration)) };
-      return ok(addWithChain({ ...project, audio: { ...project.audio, [audioId]: audio } }, withCues, ctx).project);
-    }
-    return ok(addWithChain({ ...project, audio: { ...project.audio, [audioId]: audio } }, sample, ctx).project);
-  };
+const setBreakIn = (project: Project, brk: Break): Project => ({ ...project, breaks: { ...project.breaks, [brk.id]: brk } });
 
-/** A break of `bars` bars in 4/4 lasting `duration` seconds. */
-export function breakBpm(duration: number, bars: number): number {
-  return (bars * 4 * 60) / duration;
+/** Adds the audio and a sample for it, without a break. */
+function addAudio(project: Project, { name, audio }: NewSample, ctx: CommandContext): { project: Project; sample: Sample } | string {
+  const length = audio.channels[0]?.length ?? 0;
+  if (length === 0 || audio.sampleRate <= 0) return 'Audio is empty';
+  const audioId = ctx.newId();
+  const sample: Sample = { id: ctx.newId(), name, audioId, offset: 0, duration: length / audio.sampleRate };
+  return { project: { ...project, audio: { ...project.audio, [audioId]: audio }, samples: { ...project.samples, [sample.id]: sample } }, sample };
 }
 
-/** The shortest slice markers may make, in seconds. */
-export const MIN_SLICE = 0.001;
+/**
+ * Adds an imported file: its sample, and a one-shot break over it with one pad
+ * playing the whole sample. A file with cue markers becomes a break sliced at them.
+ */
+export const addSample =
+  (file: NewSample): Command =>
+  (project, ctx) => {
+    const added = addAudio(project, file, ctx);
+    if (typeof added === 'string') return invalid(added);
+    const { sample } = added;
+    const brk: Break = { id: ctx.newId(), name: sample.name, sampleId: sample.id, bars: null, markers: [0], pads: [], parent: null, loop: null };
+    const next = ensureSlots(setBreakIn(added.project, brk), brk.id, 1, ctx.newId);
+    const cues = file.cues ?? [];
+    if (cues.length === 0) return ok(next);
+    const bars = guessBars(sample.duration);
+    return setBreak(brk.id, bars, cleanMarkers(cues.map((c) => c / sample.duration), sample.duration))(next, ctx);
+  };
 
-/** A break's info; markers default to 1/16. */
-const breakInfo = (duration: number, bars: number, markers: readonly number[] = gridMarkers(duration, bars)): BreakInfo => ({
-  bars,
-  bpm: breakBpm(duration, bars),
-  sliced: false,
-  markers,
-  loop: null,
-});
-
-/** Markers within a sample of `duration`, the first at 0, too-close ones dropped. */
+/** Markers within a break of `duration` seconds, as parts: the first at 0, ones too close dropped. */
 function cleanMarkers(markers: readonly number[], duration: number): number[] {
   const kept: number[] = [0];
   for (const m of [...markers].sort((a, b) => a - b)) {
-    if (m - kept[kept.length - 1]! >= MIN_SLICE && duration - m >= MIN_SLICE) kept.push(m);
+    if ((m - kept[kept.length - 1]!) * duration >= MIN_SLICE && (1 - m) * duration >= MIN_SLICE) kept.push(m);
   }
   return kept;
 }
-
-const setSample = (project: Project, sample: Sample): Project => ({
-  ...project,
-  samples: { ...project.samples, [sample.id]: sample },
-});
 
 /**
  * A likely length in bars for a break of `duration` seconds: the number among
@@ -113,198 +67,200 @@ export function guessBars(duration: number): number {
 /** Whether a break's tempo looks wrong, which usually means its bars are. */
 export const unlikelyBpm = (bpm: number): boolean => bpm < 60 || bpm > 200;
 
+/** The steps of a loop that plays a break's slots in order, each on its nearest 1/16. */
+function laidOut(project: Project, brk: Break): Step[] {
+  const steps: Step[] = Array.from({ length: (brk.bars ?? 1) * STEPS_PER_BAR }, () => emptyStep);
+  for (const { padId, step } of breakSequence(project, brk.id)) steps[step] = { ...emptyStep, padId };
+  return steps;
+}
+
+const sameSteps = (a: readonly Step[], b: readonly Step[]) =>
+  a.length === b.length && a.every((s, i) => s.padId === b[i]!.padId && s.memberId === b[i]!.memberId && !s.ignoreMods && !b[i]!.ignoreMods);
+
 /**
- * Changes how many bars a break is, even once it is sliced: its BPM follows, and
- * so does where its slices land when the break is laid out in a loop. Loops
- * already made stay as they are.
+ * The break's loop follows a change to the break while it is still exactly as
+ * the break laid it out before: once edited by hand, it is left alone.
  */
-export const setBreakBars =
-  (sampleId: Id, bars: number): Command =>
+function followLoop(before: Project, after: Project, breakId: Id): Project {
+  const was = before.breaks[breakId];
+  const brk = after.breaks[breakId];
+  const loop = brk?.loop == null ? undefined : after.loops[brk.loop];
+  if (was === undefined || brk === undefined || loop === undefined || was.bars === null || brk.bars === null) return after;
+  if (!sameSteps(loop.steps, laidOut(before, was))) return after;
+  return { ...after, loops: { ...after.loops, [loop.id]: { ...loop, steps: laidOut(after, brk) } } };
+}
+
+/**
+ * Makes a break a break of `bars` bars, or a one-shot with null. Markers on a
+ * grid follow the new length; markers placed by hand stay, unless `markers` are
+ * given. A break gets a parent and pads for its slots, and the first time, the
+ * loop M1 playing them in order. After that M1 follows the break only while it
+ * is exactly as the break laid it out.
+ */
+export const setBreak =
+  (breakId: Id, bars: number | null, markers?: readonly number[]): Command =>
   (project, ctx) => {
-    const sample = project.samples[sampleId];
-    if (sample?.break == null) return sample === undefined ? notFound(sampleId) : invalid('Only a break has bars');
-    if (!Number.isInteger(bars) || bars < 1) return invalid('A break must be a whole number of bars');
-    if (sample.break.sliced) {
-      return ok(setSample(project, { ...sample, break: { ...sample.break, bars, bpm: breakBpm(sample.duration, bars) } }));
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    if (bars !== null && (!Number.isInteger(bars) || bars < 1)) return invalid('A break must be a whole number of bars');
+    if (bars === null) return ok(setBreakIn(project, { ...brk, bars: null, markers: [0] }));
+
+    const grid = brk.bars === null ? 16 : markerGrid(brk.markers, brk.bars);
+    const nextMarkers = markers ?? (grid === null ? brk.markers : gridMarkers(bars, grid));
+    let next = project;
+    // A one-shot's pad and hit become slot 01's.
+    if (brk.bars === null) next = renameSlot(next, { ...brk, bars }, 0);
+    let parent = brk.parent;
+    if (parent === null) {
+      const hit = slotHit(ctx.newId(), baseName(brk.name), breakId, null);
+      next = { ...next, hits: { ...next.hits, [hit.id]: hit } };
+      parent = hit.id;
     }
-    return setBreak(sampleId, bars)(project, ctx);
+    next = ensureSlots(setBreakIn(next, { ...brk, bars, markers: nextMarkers, parent }), breakId, nextMarkers.length, ctx.newId);
+    const updated = next.breaks[breakId]!;
+
+    if (brk.loop === null) {
+      const loop: Loop = { id: ctx.newId(), name: nextLoopName(next, 'main'), kind: 'main', steps: laidOut(next, updated) };
+      return ok(setBreakIn({ ...next, loops: { ...next.loops, [loop.id]: loop } }, { ...updated, loop: loop.id }));
+    }
+    return ok(followLoop(project, next, breakId));
   };
 
-/** Makes a sample a break of `bars` bars, working out its BPM, or a one-shot with null. Markers start on 1/16. */
-export const setBreak =
-  (sampleId: Id, bars: number | null): Command =>
-  (project) => {
-    const sample = project.samples[sampleId];
-    if (sample === undefined) return notFound(sampleId);
-    if (sample.break?.sliced === true) return invalid('A sliced break cannot change');
-    if (bars !== null && (!Number.isInteger(bars) || bars < 1)) return invalid('A break must be a whole number of bars');
-    // Markers placed by hand (or from cues) stay; markers on a grid follow the new length.
-    const own = sample.break !== null && !onGrid(sample.break.markers, sample.duration, sample.break.bars) ? sample.break.markers : undefined;
-    return ok(setSample(project, { ...sample, break: bars === null ? null : breakInfo(sample.duration, bars, own) }));
+/** Names slot `slot`'s pad and its hit after the slot, if they still have the break's plain name. */
+function renameSlot(project: Project, brk: Break, slot: number): Project {
+  const pad = project.pads[brk.pads[slot] ?? ''];
+  const hit = pad === undefined ? undefined : project.hits[pad.members[0] ?? ''];
+  const plain = baseName(brk.name);
+  const name = slotName(brk, slot);
+  return {
+    ...project,
+    pads: pad === undefined || pad.name !== plain ? project.pads : { ...project.pads, [pad.id]: { ...pad, name } },
+    hits: hit === undefined || hit.name !== plain ? project.hits : { ...project.hits, [hit.id]: { ...hit, name } },
+  };
+}
+
+/** Changes how many bars a break is: its BPM follows, and markers on a grid. */
+export const setBreakBars =
+  (breakId: Id, bars: number): Command =>
+  (project, ctx) => {
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    if (brk.bars === null) return invalid('Only a break has bars');
+    return setBreak(breakId, bars)(project, ctx);
   };
 
 /**
- * Trims an imported sample to `start`–`end` seconds of its file. Hits keep their
- * place in the file, cut to the new window; a hit that covered the whole sample
- * still does. A break gets a new BPM and markers on 1/16.
+ * Trims an imported sample to `start`–`end` seconds of its file. Markers and
+ * hits are parts of the break and its slices, so they come along.
  */
 export const trimSample =
   (sampleId: Id, start: number, end: number): Command =>
   (project) => {
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
-    if (sample.sliceOf !== null) return invalid('A slice cannot be trimmed');
-    if (sample.break?.sliced === true) return invalid('Re-slice the break to trim it');
     const audio = project.audio[sample.audioId];
     const length = audio === undefined ? 0 : (audio.channels[0]?.length ?? 0) / audio.sampleRate;
     const from = Math.max(0, Math.min(start, length));
     const to = Math.max(0, Math.min(end, length));
     if (to - from < MIN_SLICE) return invalid('The trimmed sample is too short');
-
-    const duration = to - from;
-    const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
-    const hits = Object.fromEntries(
-      Object.entries(project.hits).map(([id, hit]): [Id, Hit] => {
-        if (hit.sampleId !== sampleId) return [id, hit];
-        const whole = near(hit.region.start, 0) && near(hit.region.end, sample.duration);
-        const regionStart = Math.max(0, Math.min(duration, sample.offset + hit.region.start - from));
-        const regionEnd = Math.max(0, Math.min(duration, sample.offset + hit.region.end - from));
-        const region = whole || regionEnd - regionStart < MIN_SLICE ? { start: 0, end: duration } : { start: regionStart, end: regionEnd };
-        return [id, { ...hit, region }];
-      }),
-    );
-    const trimmed: Sample = {
-      ...sample,
-      offset: from,
-      duration,
-      break:
-        sample.break === null
-          ? null
-          : breakInfo(
-              duration,
-              sample.break.bars,
-              // Own markers keep their place in the file; markers on a grid follow the new length.
-              onGrid(sample.break.markers, sample.duration, sample.break.bars)
-                ? undefined
-                : cleanMarkers(sample.break.markers.map((m) => m + sample.offset - from), duration),
-            ),
-    };
-    return ok({ ...setSample(project, trimmed), hits });
+    return ok({ ...project, samples: { ...project.samples, [sampleId]: { ...sample, offset: from, duration: to - from } } });
   };
 
-/** Sets where slices start, in seconds from the break's start. The first is always at 0. */
+/**
+ * Sets where slices start, as parts 0–1 of the break; the first is always at 0.
+ * Every slot is worked out again by number: with fewer slices the last slots go
+ * silent, with more there are new pads for them. Nothing asks first.
+ */
 export const setMarkers =
-  (sampleId: Id, markers: readonly number[]): Command =>
-  (project) => {
-    const sample = project.samples[sampleId];
-    if (sample === undefined) return notFound(sampleId);
-    if (sample.break === null) return invalid('Only a break has markers');
-    if (sample.break.sliced) return invalid('Re-slice the break to move its markers');
-    const sorted = [0, ...markers.filter((m) => m > 0 && m < sample.duration)].sort((a, b) => a - b);
-    for (let i = 1; i < sorted.length; i++) {
-      if (sorted[i]! - sorted[i - 1]! < MIN_SLICE) return invalid('Markers are too close together');
-    }
-    if (sample.duration - sorted[sorted.length - 1]! < MIN_SLICE) return invalid('A marker is too close to the end');
-    return ok(setSample(project, { ...sample, break: { ...sample.break, markers: sorted } }));
-  };
-
-/**
- * Slices a break at its markers. Each slice becomes a sample (with the chain),
- * and a main loop plays the slice pads in order, each on the nearest 1/16. If two
- * land on the same step the first keeps it, and the other is left out of the loop.
- */
-export const sliceAtMarkers =
-  (sampleId: Id): Command =>
+  (breakId: Id, markers: readonly number[]): Command =>
   (project, ctx) => {
-    const source = project.samples[sampleId];
-    if (source === undefined) return notFound(sampleId);
-    const info = source.break;
-    if (info === null) return invalid('Only a break can be sliced');
-    if (info.sliced) return invalid('The break is already sliced');
-
-    const { bars, markers } = info;
-    const digits = String(markers.length).length;
-    const stepTime = source.duration / (bars * STEPS_PER_BAR);
-    const loopId = ctx.newId();
-    let next = setSample(project, { ...source, break: { ...info, sliced: true, loop: loopId } });
-    const steps = emptySteps(bars);
-    markers.forEach((marker, i) => {
-      const end = markers[i + 1] ?? source.duration;
-      const slice: Sample = {
-        id: ctx.newId(),
-        name: `${baseName(source.name)} ${String(i + 1).padStart(digits, '0')}`,
-        audioId: source.audioId,
-        offset: source.offset + marker,
-        duration: end - marker,
-        break: null,
-        sliceOf: sampleId,
-      };
-      const added = addWithChain(next, slice, ctx);
-      next = added.project;
-      const step = Math.min(steps.length - 1, Math.round(marker / stepTime));
-      if (steps[step]?.padId === null) steps[step] = { padId: added.padId, memberId: null, ignoreMods: false, nudge: 0 };
-    });
-
-    const loop: Loop = { id: loopId, name: nextLoopName(next, 'main'), kind: 'main', steps };
-    return ok({ ...next, loops: { ...next.loops, [loop.id]: loop } });
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    if (brk.bars === null) return invalid('A one-shot has no markers');
+    const duration = project.samples[brk.sampleId]?.duration ?? 0;
+    const sorted = [0, ...markers.filter((m) => m > 0 && m < 1)].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i++) {
+      if ((sorted[i]! - sorted[i - 1]!) * duration < MIN_SLICE) return invalid('Markers are too close together');
+    }
+    if ((1 - sorted[sorted.length - 1]!) * duration < MIN_SLICE) return invalid('A marker is too close to the end');
+    return ok(followLoop(project, ensureSlots(setBreakIn(project, { ...brk, markers: sorted }), breakId, sorted.length, ctx.newId), breakId));
   };
 
-/** Makes the break `bars` bars, puts its markers on an equal grid and slices it. */
-export const sliceBreak = (sampleId: Id, bars: number, grid: SliceGrid = 16): Command =>
-  sequence(
-    setBreak(sampleId, bars),
-    (project, ctx) => {
-      const sample = project.samples[sampleId];
-      return sample === undefined ? notFound(sampleId) : setMarkers(sampleId, gridMarkers(sample.duration, bars, grid))(project, ctx);
-    },
-    sliceAtMarkers(sampleId),
-  );
+/** Puts a break's markers on an equal grid. */
+export const setGrid = (breakId: Id, grid: SliceGrid): Command => (project, ctx) => {
+  const brk = project.breaks[breakId];
+  if (brk === undefined) return notFound(breakId);
+  if (brk.bars === null) return invalid('A one-shot has no markers');
+  return setMarkers(breakId, gridMarkers(brk.bars, grid))(project, ctx);
+};
+
+/** Makes a sample's break a break of `bars` bars with its markers on an equal grid. */
+export const sliceBreak = (breakId: Id, bars: number, grid: SliceGrid = 16): Command =>
+  sequence(setBreak(breakId, bars), setGrid(breakId, grid));
+
+/** Plays another sample under a break: the markers keep their steps, and the sound under them changes. */
+export const replaceSample =
+  (breakId: Id, sampleId: Id): Command =>
+  (project) => {
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    if (project.samples[sampleId] === undefined) return notFound(sampleId);
+    return ok(setBreakIn(project, { ...brk, sampleId }));
+  };
+
+/** Adds a file as a sample and plays it under a break. The old sample stays, to go back to. */
+export const replaceSampleWithFile =
+  (breakId: Id, file: NewSample): Command =>
+  (project, ctx) => {
+    if (project.breaks[breakId] === undefined) return notFound(breakId);
+    const added = addAudio(project, file, ctx);
+    if (typeof added === 'string') return invalid(added);
+    return replaceSample(breakId, added.sample.id)(added.project, ctx);
+  };
+
+/** Makes a hit play another slot, of this break or another, keeping its pitch, volume, fade and direction. */
+export const setHitSource =
+  (hitId: Id, breakId: Id, slot: number | null): Command =>
+  (project) => {
+    const hit = project.hits[hitId];
+    if (hit === undefined) return notFound(hitId);
+    if (project.breaks[breakId] === undefined) return notFound(breakId);
+    if (slot !== null && (!Number.isInteger(slot) || slot < 0)) return invalid('A slot is a whole number from 0');
+    return ok({ ...project, hits: { ...project.hits, [hitId]: { ...hit, breakId, slot } } });
+  };
+
+/** The breaks whose slots a loop plays, in the order they first come. */
+export function loopBreaks(project: Project, loop: Loop): Break[] {
+  const found: Break[] = [];
+  for (const step of loop.steps) {
+    const at = step.padId === null ? null : padSlot(project, step.padId);
+    if (at !== null && !found.includes(at.brk)) found.push(at.brk);
+  }
+  return found;
+}
 
 /**
- * Takes back a slicing, so the break can be sliced again: removes its slices,
- * their hits and pads, and the loop the slicing made. Refused, listing why, if
- * anything else uses them, that loop plays other pads too, or it is in the song.
+ * Swaps one break for another in a loop: every step playing slot N of `fromId`
+ * plays slot N of `toId`. A slot the new break lacks gets a pad, silent until it
+ * has a slice. A chosen member not in the new pad falls back to member 1.
  */
-export const unsliceBreak =
-  (sampleId: Id): Command =>
-  (project) => {
-    const source = project.samples[sampleId];
-    if (source === undefined) return notFound(sampleId);
-    if (source.break?.sliced !== true) return invalid('The break is not sliced');
-
-    const slices = new Set(Object.values(project.samples).filter((s) => s.sliceOf === sampleId).map((s) => s.id));
-    const hits = new Set(Object.values(project.hits).filter((h) => slices.has(h.sampleId)).map((h) => h.id));
-    const pads = new Set(
-      Object.values(project.pads)
-        .filter((p) => p.auto && p.members.length === 1 && hits.has(p.members[0]!))
-        .map((p) => p.id),
-    );
-    const loops = Object.values(project.loops).filter((l) => l.steps.some((s) => s.padId !== null && pads.has(s.padId)));
-    const made = source.break.loop === null ? undefined : project.loops[source.break.loop];
-    const own = made !== undefined && made.steps.every((s) => s.padId === null || pads.has(s.padId)) ? [made] : [];
-
-    const usages: Usage[] = [
-      ...Object.values(project.hits)
-        .filter((h) => h.variantOf !== null && hits.has(h.variantOf) && !hits.has(h.id))
-        .map((h): Usage => ({ kind: 'hit', id: h.id, name: h.name })),
-      ...Object.values(project.pads)
-        .filter((p) => !pads.has(p.id) && p.members.some((m) => hits.has(m)))
-        .map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name })),
-      ...loops.filter((l) => !own.includes(l)).map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),
-      ...own
-        .filter((l) => findUsages(project, 'loop', l.id).length > 0)
-        .map((l): Usage => ({ kind: 'song', id: null, name: `${l.name} in Song` })),
-    ];
-    if (usages.length > 0) return fail({ kind: 'in-use', usages });
-
-    const keep = <T extends { id: Id }>(record: Readonly<Record<Id, T>>, drop: Set<Id>) =>
-      Object.fromEntries(Object.entries(record).filter(([id]) => !drop.has(id)));
-    const unsliced = setSample(project, { ...source, break: { ...source.break, sliced: false, loop: null } });
-    return ok({
-      ...unsliced,
-      samples: keep(unsliced.samples, slices),
-      hits: keep(project.hits, hits),
-      pads: keep(project.pads, pads),
-      loops: keep(project.loops, new Set(own.map((l) => l.id))),
+export const swapBreak =
+  (loopId: Id, fromId: Id, toId: Id): Command =>
+  (project, ctx) => {
+    const loop = project.loops[loopId];
+    if (loop === undefined) return notFound(loopId);
+    const from = project.breaks[fromId];
+    if (from === undefined) return notFound(fromId);
+    if (project.breaks[toId] === undefined) return notFound(toId);
+    const slots = loop.steps.map((s) => (s.padId === null ? -1 : from.pads.indexOf(s.padId)));
+    const next = ensureSlots(project, toId, Math.max(0, ...slots) + 1, ctx.newId);
+    const to = next.breaks[toId]!;
+    const steps = loop.steps.map((s, i): Step => {
+      const slot = slots[i]!;
+      if (slot < 0) return s;
+      const padId = to.pads[slot]!;
+      const pad: Pad | undefined = next.pads[padId];
+      return { ...s, padId, memberId: s.memberId !== null && pad?.members.includes(s.memberId) === true ? s.memberId : null };
     });
+    return ok({ ...next, loops: { ...next.loops, [loopId]: { ...loop, steps } } });
   };

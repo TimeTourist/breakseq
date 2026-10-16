@@ -221,9 +221,9 @@ describe('fas 4: mods', () => {
 describe('parent hit', () => {
   it("a break's own hit adds its pitch and volume to every slice, on top of the slice's own", () => {
     let project = run(createProject(), setBpm(120), addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const breakId = Object.keys(project.samples)[0]!;
-    const parent = Object.values(project.hits)[0]!;
+    const breakId = Object.keys(project.breaks)[0]!;
     project = run(project, sliceBreak(breakId, 1, 4));
+    const parent = project.hits[project.breaks[breakId]!.parent!]!;
     const m1 = Object.values(project.loops)[0]!;
     const sliceHit = (i: number) => project.pads[m1.steps[i * 4]!.padId!]!.members[0]!;
     project = run(
@@ -244,9 +244,9 @@ describe('parent hit', () => {
 describe('parent hit as a macro', () => {
   function slicedBreak() {
     let project = run(createProject(), setBpm(120), addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const breakId = Object.keys(project.samples)[0]!;
-    const parent = Object.values(project.hits)[0]!;
+    const breakId = Object.keys(project.breaks)[0]!;
     project = run(project, sliceBreak(breakId, 1, 4));
+    const parent = project.hits[project.breaks[breakId]!.parent!]!;
     const m1 = Object.values(project.loops)[0]!;
     const sliceHit = (i: number) => project.pads[m1.steps[i * 4]!.padId!]!.members[0]!;
     return { project: run(project, setSongBars(1), setSongCell('main', 0, m1.id)), breakId, parent, sliceHit };

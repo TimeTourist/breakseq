@@ -12,6 +12,9 @@ import {
   remove,
   removePadMember,
   renamePad,
+  setHitSource,
+  sliceWindow,
+  slotHeard,
   updateHit,
 } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
@@ -55,6 +58,9 @@ export function HitsView() {
   const pad = parentOpen ? undefined : currentPad(project, selection.pad, selection.hit);
   const hit = parentOpen ? selectedHit : selectedHit !== undefined && pad?.members.includes(selectedHit.id) ? selectedHit : project.hits[pad?.members[0] ?? ''];
   const groups = padGroups(project);
+  /** Slot pads past their break's last slice: they play nothing until it has more. */
+  const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
+  const [replacing, setReplacing] = useState(false);
 
   const newPad = () => {
     const before = store.getState().history.present.pads;
@@ -68,9 +74,10 @@ export function HitsView() {
   const sidebar = (
     <aside className="sidebar" aria-label="Breaks and pads">
       {groups.map((group) => {
-        const parent = group.breakId === undefined ? undefined : Object.values(project.hits).find((h) => h.sampleId === group.breakId && isParentHit(project, h));
+        const parentId = group.breakId === undefined ? null : (project.breaks[group.breakId]?.parent ?? null);
+        const parent = parentId === null ? undefined : project.hits[parentId];
         return (
-          <section key={group.name} className="stack-tight">
+          <section key={group.breakId ?? group.name} className="stack-tight">
             {parent !== undefined ? (
               <button
                 type="button"
@@ -86,7 +93,7 @@ export function HitsView() {
               <h2 className="label">{group.name}</h2>
             )}
             {group.items.map((p) => (
-              <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}`}>
+              <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}${silent.has(p.id) ? ' silent' : ''}`} title={silent.has(p.id) ? 'Silent: the break has fewer slices than this slot' : undefined}>
                 <button type="button" className="pad-row-name mono" aria-label={`Pad ${p.name}`} onClick={() => open({ pad: p.id, hit: p.members[0] ?? null }, 'hits')}>
                   {padLabel(p)}
                 </button>
@@ -288,17 +295,76 @@ export function HitsView() {
     );
   }
 
+  /**
+   * Which slice a hit plays: another slot of its break, or of another break or
+   * one-shot. Its pitch, volume, fade and direction stay.
+   */
+  function replacePanel(hit: Hit) {
+    const breaks = Object.values(project.breaks);
+    const brk = project.breaks[hit.breakId];
+    const slots = brk === undefined ? 0 : brk.bars === null ? 1 : Math.max(brk.markers.length, brk.pads.length);
+    return (
+      <section className="panel row" aria-label="Replace">
+        <span className="muted">Plays</span>
+        <select
+          aria-label="Break the hit plays"
+          value={hit.breakId}
+          onChange={(e) => {
+            const next = project.breaks[e.target.value];
+            if (next !== undefined) setError(run(setHitSource(hit.id, next.id, next.bars === null ? 0 : Math.min(hit.slot ?? 0, next.markers.length - 1))));
+          }}
+        >
+          {breaks.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.bars === null ? `${b.name} (one-shot)` : b.name}
+            </option>
+          ))}
+        </select>
+        {brk !== undefined && brk.bars !== null && (
+          <select
+            aria-label="Slot the hit plays"
+            value={hit.slot === null ? 'whole' : String(hit.slot)}
+            onChange={(e) => setError(run(setHitSource(hit.id, brk.id, e.target.value === 'whole' ? null : Number(e.target.value))))}
+          >
+            {Array.from({ length: slots }, (_, i) => (
+              <option key={i} value={i}>
+                Slot {String(i + 1).padStart(2, '0')}
+                {i >= brk.markers.length ? ' (silent)' : ''}
+              </option>
+            ))}
+            <option value="whole">The whole break</option>
+          </select>
+        )}
+        <span className="muted small">Pitch, volume, fade and direction stay.</span>
+      </section>
+    );
+  }
+
   /** How the selected hit plays: region, direction, pitch, volume and fade. */
   function hitEditor(hit: Hit) {
     const onError = setError;
-    const sample = project.samples[hit.sampleId];
+    const brk = project.breaks[hit.breakId];
+    const sample = brk === undefined ? undefined : project.samples[brk.sampleId];
     const audio = sample === undefined ? undefined : project.audio[sample.audioId];
     const usages = hitUsages(project, hit.id);
     const source = hit.variantOf === null ? undefined : project.hits[hit.variantOf];
-    const edit = (patch: Partial<Omit<Hit, 'id' | 'sampleId'>>, field: string) => onError(run(updateHit(hit.id, patch), `hit:${hit.id}:${field}`));
-    const duration = sample?.duration ?? 0;
+    const edit = (patch: Partial<Omit<Hit, 'id' | 'breakId' | 'slot'>>, field: string) => onError(run(updateHit(hit.id, patch), `hit:${hit.id}:${field}`));
+    // The slice the hit plays, in seconds of its sample; the region is a part of it.
+    const window = brk === undefined ? null : sliceWindow(project, brk, hit.slot);
+    const duration = window === null ? 0 : window.end - window.start;
+    const region = { start: hit.region.start * duration, end: hit.region.end * duration };
+    const toPart = (seconds: number) => (duration > 0 ? seconds / duration : 0);
+    const what =
+      brk === undefined
+        ? 'a missing break'
+        : hit.slot === null
+          ? `all of ${brk.name}`
+          : brk.bars === null
+            ? brk.name
+            : `slot ${String(hit.slot + 1).padStart(2, '0')} of ${brk.name}`;
     const parent = parentHit(project, hit);
-    const children = Object.values(project.hits).filter((h) => parentHit(project, h)?.id === hit.id).length;
+    // A parent stands for the break's slices: as many as it has markers.
+    const children = isParentHit(project, hit) ? (brk?.markers.length ?? 0) : 0;
     /** A slice's own value, and what it plays at with its parent's added. */
     const withParent = (own: number, inherited: number | undefined, unit: string) =>
       inherited === undefined || inherited === 0 ? signed(own, unit) : `${signed(own, unit)} · plays ${signed(own + inherited, unit)}`;
@@ -311,7 +377,8 @@ export function HitsView() {
             </label>
             <input id="hit-name" className="title-input mono" value={hit.name} onChange={(e) => edit({ name: e.target.value }, 'name')} onBlur={seal} />
             <p className="muted">
-              {source === undefined ? `From ${sample?.name ?? 'a missing sample'}` : `Variant of ${source.name}`}
+              {source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}
+              {window === null && brk !== undefined && ` · silent: ${brk.name} has ${brk.markers.length} slices`}
               {children > 0 && ` · parent: its pitch, volume and direction apply to all ${children} slices`}
               {parent !== undefined && ` · slice of ${baseName(parent.name)}, which adds its pitch and volume`}
             </p>
@@ -320,6 +387,11 @@ export function HitsView() {
             <button type="button" className="icon-button" aria-label="Preview hit" onClick={() => services.player.playHit(project, hit.id)}>
               <PlayIcon />
             </button>
+            {!isParentHit(project, hit) && (
+              <button type="button" aria-expanded={replacing} onClick={() => setReplacing(!replacing)}>
+                Replace…
+              </button>
+            )}
             {children === 0 && (
               <button
                 type="button"
@@ -350,18 +422,20 @@ export function HitsView() {
           </div>
         </div>
 
-        {audio !== undefined && sample !== undefined && (
+        {replacing && !isParentHit(project, hit) && replacePanel(hit)}
+
+        {audio !== undefined && sample !== undefined && window !== null && duration > 0 && (
           <div className="panel wave-panel">
             <div className="row spread mono small muted">
               <span>
-                Region {ms(hit.region.start)}–{ms(hit.region.end)} ms of {ms(duration)} ms
+                Region {ms(region.start)}–{ms(region.end)} ms of {ms(duration)} ms
               </span>
               {hit.direction === 'reverse' && <span>plays reversed</span>}
             </div>
             <div className="wave-region">
-              <Waveform audio={audio} offset={sample.offset} duration={sample.duration} height={180} color={HIT_COLOR} />
-              <div className="region-shade" style={{ left: 0, width: `${(hit.region.start / duration) * 100}%` }} />
-              <div className="region-shade" style={{ left: `${(hit.region.end / duration) * 100}%`, right: 0 }} />
+              <Waveform audio={audio} offset={sample.offset + window.start} duration={duration} height={180} color={HIT_COLOR} />
+              <div className="region-shade" style={{ left: 0, width: `${hit.region.start * 100}%` }} />
+              <div className="region-shade" style={{ left: `${hit.region.end * 100}%`, right: 0 }} />
             </div>
           </div>
         )}
@@ -369,22 +443,22 @@ export function HitsView() {
         <div className="slider-grid">
           <Slider
             label="Region start"
-            value={ms(hit.region.start)}
+            value={ms(region.start)}
             min={0}
             max={ms(duration)}
             step={1}
             format={(v) => `${v} ms`}
-            onChange={(v) => edit({ region: { start: Math.min(v / 1000, hit.region.end - 0.001), end: hit.region.end } }, 'start')}
+            onChange={(v) => edit({ region: { start: Math.min(toPart(v / 1000), hit.region.end - toPart(0.001)), end: hit.region.end } }, 'start')}
             onCommit={seal}
           />
           <Slider
             label="Region end"
-            value={ms(hit.region.end)}
+            value={ms(region.end)}
             min={0}
             max={ms(duration)}
             step={1}
             format={(v) => `${v} ms`}
-            onChange={(v) => edit({ region: { start: hit.region.start, end: Math.max(v / 1000, hit.region.start + 0.001) } }, 'end')}
+            onChange={(v) => edit({ region: { start: hit.region.start, end: Math.max(toPart(v / 1000), hit.region.start + toPart(0.001)) } }, 'end')}
             onCommit={seal}
           />
           <div className="panel stack-tight">

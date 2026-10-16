@@ -10,15 +10,23 @@ const songUsage = (project: Project, id: Id, rows: readonly SongRow[]): Usage[] 
 export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage[] {
   switch (kind) {
     case 'sample':
-      return Object.values(project.hits)
-        .filter((h) => h.sampleId === id)
-        .map((h) => ({ kind: 'hit', id: h.id, name: h.name }));
+      return Object.values(project.breaks)
+        .filter((b) => b.sampleId === id)
+        .map((b) => ({ kind: 'break', id: b.id, name: b.name }));
     case 'hit':
-      return Object.values(project.pads)
-        .filter((p) => p.members.includes(id))
-        .map((p) => ({ kind: 'pad', id: p.id, name: p.name }));
+      return [
+        ...Object.values(project.breaks)
+          .filter((b) => b.parent === id)
+          .map((b): Usage => ({ kind: 'break', id: b.id, name: b.name })),
+        ...Object.values(project.pads)
+          .filter((p) => p.members.includes(id))
+          .map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name })),
+      ];
     case 'pad':
       return [
+        ...Object.values(project.breaks)
+          .filter((b) => b.pads.includes(id))
+          .map((b): Usage => ({ kind: 'break', id: b.id, name: b.name })),
         ...Object.values(project.loops)
           .filter((l) => l.steps.some((s) => s.padId === id))
           .map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),

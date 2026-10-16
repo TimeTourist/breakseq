@@ -1,6 +1,6 @@
 import type { Id, Project } from './types';
 
-export type UsageKind = 'sample' | 'hit' | 'pad' | 'loop' | 'mod' | 'song';
+export type UsageKind = 'sample' | 'break' | 'hit' | 'pad' | 'loop' | 'mod' | 'song';
 
 /** Something that refers to the object being removed. */
 export interface Usage {

@@ -127,7 +127,7 @@ describe('Hits: breaks, pads and their hits', () => {
   /** A one-bar break amen.wav sliced in four, and a one-shot snare.wav. */
   function breakAndOneShot() {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
-    const amen = Object.values(project.samples).find((s) => s.name === 'amen.wav')!;
+    const amen = Object.values(project.breaks).find((s) => s.name === 'amen.wav')!;
     return applyAll(project, sliceBreak(amen.id, 1, 4));
   }
 
@@ -136,7 +136,7 @@ describe('Hits: breaks, pads and their hits', () => {
     const side = screen.getByRole('complementary', { name: 'Breaks and pads' });
     expect(within(side).getByRole('button', { name: /amen\.wav.*parent/ })).toBeTruthy();
     const pads = within(side).getAllByRole('button', { name: /^Pad / }).map((b) => b.getAttribute('aria-label'));
-    expect(pads).toEqual(['Pad amen 1', 'Pad amen 2', 'Pad amen 3', 'Pad amen 4', 'Pad snare']);
+    expect(pads).toEqual(['Pad amen 01', 'Pad amen 02', 'Pad amen 03', 'Pad amen 04', 'Pad snare']);
     expect(within(side).getByRole('heading', { name: 'One-shots' })).toBeTruthy();
   });
 
@@ -145,13 +145,13 @@ describe('Hits: breaks, pads and their hits', () => {
     fireEvent.click(within(screen.getByRole('complementary', { name: 'Breaks and pads' })).getByRole('button', { name: /amen\.wav.*parent/ }));
     expect(screen.queryByRole('region', { name: 'Pad' })).toBeNull();
     expect(screen.getByText(/parent: its pitch, volume and direction apply to all 4 slices/)).toBeTruthy();
-    expect(present(store).hits[store.getState().selection.hit!]!.sampleId).toBe(Object.values(present(store).samples).find((s) => s.name === 'amen.wav')!.id);
+    expect(present(store).hits[store.getState().selection.hit!]!.breakId).toBe(Object.values(present(store).breaks).find((s) => s.name === 'amen.wav')!.id);
   });
 
   it('a one-shot dragged onto a pad of the break becomes its second hit, and Pad member 2 plays it', async () => {
     const store = await setup(breakAndOneShot(), 'hits');
     const side = screen.getByRole('complementary', { name: 'Breaks and pads' });
-    fireEvent.click(within(side).getByRole('button', { name: 'Pad amen 2' }));
+    fireEvent.click(within(side).getByRole('button', { name: 'Pad amen 02' }));
     const snare = Object.values(present(store).hits).find((h) => h.name.startsWith('snare'))!;
     const data = new Map<string, string>();
     const dataTransfer = { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? '', get types() { return [...data.keys()]; }, effectAllowed: 'all', dropEffect: 'copy' };
@@ -161,7 +161,7 @@ describe('Hits: breaks, pads and their hits', () => {
     fireEvent.dragOver(list, { dataTransfer });
     fireEvent.drop(list, { dataTransfer });
 
-    const pad = Object.values(present(store).pads).find((p) => p.name === 'amen 2')!;
+    const pad = Object.values(present(store).pads).find((p) => p.name === 'amen 02')!;
     expect(pad.members[1]).toBe(snare.id);
 
     // In a loop with Pad member 2, the step plays the snare.

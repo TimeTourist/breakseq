@@ -47,7 +47,7 @@ function withM1(): Project {
     return result.project;
   };
   let project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(0.5) }));
-  const id = Object.keys(project.samples)[0]!;
+  const id = Object.keys(project.breaks)[0]!;
   project = run(project, setBreak(id, 1));
   return run(project, sliceBreak(id, 1, 4));
 }
@@ -125,7 +125,7 @@ describe('Slice', () => {
     const ctx = sequentialIds();
     const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(createProject(), ctx);
     if (!added.ok) throw new Error('addSample failed');
-    const id = Object.keys(added.project.samples)[0]!;
+    const id = Object.keys(added.project.breaks)[0]!;
     const asBreak = setBreak(id, 1)(added.project, ctx);
     if (!asBreak.ok) throw new Error('setBreak failed');
     return asBreak.project;

@@ -44,7 +44,7 @@ export type Action =
   | { readonly type: 'undo' }
   | { readonly type: 'redo' }
   | { readonly type: 'view'; readonly view: View }
-  | { readonly type: 'sliceTarget'; readonly sampleId: string | null }
+  | { readonly type: 'sliceTarget'; readonly breakId: string | null }
   /** Swaps in a project and starts a new undo history, as a loaded snapshot does. */
   | { readonly type: 'load'; readonly project: Project }
   | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> };
@@ -80,7 +80,7 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'view':
       return { state: { ...state, view: action.view }, error: null };
     case 'sliceTarget':
-      return { state: { ...state, sliceTarget: action.sampleId }, error: null };
+      return { state: { ...state, sliceTarget: action.breakId }, error: null };
     case 'load':
       return { state: { ...state, history: createHistory(action.project) }, error: null };
     case 'projectFolder':

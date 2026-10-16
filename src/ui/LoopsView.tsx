@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, loopReach, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, loopBreaks, loopReach, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { HIT_COLOR, lengthText, loopUsage, padGroups, padLabel } from './labels';
@@ -40,6 +40,9 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const loop = loopId === null ? undefined : project.loops[loopId];
   /** How much of each step the sounds cover: a hit's own step, and its tail over the steps after it. */
   const covered = loop === undefined ? [] : loopReach(project, loop);
+  /** Slot pads past their break's last slice: they play nothing until it has more. */
+  const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
+  const swappable = Object.values(project.breaks);
 
   const newLoop = (kind: LoopKind) => {
     const before = store.getState().history.present.loops;
@@ -191,6 +194,33 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           </p>
         )}
 
+        {loopBreaks(project, loop).length > 0 && swappable.length > 1 && (
+          <div className="row break-swaps" aria-label="Breaks in the loop">
+            {loopBreaks(project, loop).map((b) => (
+              <label key={b.id} className="field inline">
+                <span className="muted">Break</span>
+                <span className="mono">{b.name}</span>→
+                <select
+                  aria-label={`Swap ${b.name} for`}
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value !== '') setError(run(swapBreak(loop.id, b.id, e.target.value)));
+                  }}
+                >
+                  <option value="">swap for…</option>
+                  {swappable
+                    .filter((o) => o.id !== b.id)
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.bars === null ? `${o.name} (one-shot)` : o.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        )}
+
         <div className="table-scroll steps-box">
           <div className="steps">
             <div className="step-row mono muted small">
@@ -216,7 +246,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     <button
                       key={s}
                       type="button"
-                      className={`step${pad !== undefined ? ' filled' : ''}${inRange(index) ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
+                      className={`step${pad !== undefined ? ' filled' : ''}${pad !== undefined && silent.has(pad.id) ? ' silent' : ''}${inRange(index) ? ' selected' : ''}${now ? ' now' : ''}${s % 4 === 0 ? ' downbeat' : ''}${drops.isOver(`step:${index}`) ? ' drop-over' : ''}`}
                       draggable={pad !== undefined || (range !== null && inRange(index))}
                       onDragStart={(e) => {
                         const block = range !== null && inRange(index) ? range : { from: index, to: index };
@@ -264,7 +294,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           </div>
           <div className="shelf">
           {padGroups(project).map((group) => (
-            <div key={group.name} className="shelf-group">
+            <div key={group.breakId ?? group.name} className="shelf-group">
               <span className="muted small shelf-label ellipsis" title={group.name}>
                 {group.name}
               </span>
@@ -294,11 +324,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     key={p.id}
                     type="button"
                     draggable
-                    className="chip mono"
+                    className={`chip mono${silent.has(p.id) ? ' silent' : ''}`}
                     onDoubleClick={() => open({ pad: p.id, hit: null }, 'hits')}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
-                    title={p.name}
+                    title={silent.has(p.id) ? `${p.name}: silent, the break has fewer slices` : p.name}
                     style={{ color: HIT_COLOR, boxShadow: `inset 0 -3px 0 ${HIT_COLOR}` }}
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);

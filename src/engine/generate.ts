@@ -1,5 +1,5 @@
 import type { Clip, Direction, Id, Loop, Project, Region, Rng } from '../model';
-import { STEPS_PER_BAR, clipsByStep, effectiveHit, stepDuration } from '../model';
+import { STEPS_PER_BAR, clipsByStep, effectiveHit, hitSound, stepDuration } from '../model';
 import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
 import { swapper } from './swap';
 import type { Tape } from './tape';
@@ -94,6 +94,9 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     const place = { index: layer.index, clock };
     const state = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values);
     if (state.hit === undefined) return;
+    // A slot past its break's last slice is silent.
+    const sound = hitSound(project, state.hit);
+    if (sound === null) return;
     const hit = effectiveHit(project, state.hit);
     for (let i = 0; i < state.ratchet; i++) {
       triggers.push({
@@ -104,7 +107,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
         pitch: hit.pitch + state.pitch,
         volume: hit.volume + state.volume,
         direction: state.reverse === null ? hit.direction : state.reverse ? 'reverse' : 'forward',
-        region: hit.region,
+        region: sound.region,
       });
     }
   };

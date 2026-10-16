@@ -21,7 +21,7 @@ describe('project file', () => {
     const rng = seededRng(3);
     const noise = () => Float32Array.from({ length: 4410 }, () => rng() * 2 - 1);
     let project = run(createProject(), addSample({ name: 'amen.wav', audio: { sampleRate: 48000, channels: [noise(), noise()] } }));
-    const id = Object.keys(project.samples)[0]!;
+    const id = Object.keys(project.breaks)[0]!;
     project = run(project, setBreak(id, 1), sliceBreak(id, 1, 4), createLoop(null, 'fill', 1));
     project = run(project, setSongCell('main', 2, Object.values(project.loops)[0]!.id));
 

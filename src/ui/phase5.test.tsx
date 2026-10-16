@@ -71,12 +71,13 @@ function hits(): AudioData {
 describe('Transients in Slice', () => {
   it('puts markers on the hits', async () => {
     const project = apply(createProject(), addSample({ name: 'break.wav', audio: hits() }));
-    const store = await setup(apply(project, setBreak(Object.keys(project.samples)[0]!, 1)), 'slice');
+    const store = await setup(apply(project, setBreak(Object.keys(project.breaks)[0]!, 1)), 'slice');
 
     fireEvent.click(button('Transients'));
 
-    const markers = Object.values(present(store).samples)[0]!.break!.markers;
-    expect(markers.map((m) => Math.round(m * 100) / 100)).toEqual([0, 0.25, 0.8, 1.4]);
+    // Markers are parts of the 2 s break.
+    const markers = Object.values(present(store).breaks)[0]!.markers;
+    expect(markers.map((m) => Math.round(m * 200) / 100)).toEqual([0, 0.25, 0.8, 1.4]);
   });
 });
 

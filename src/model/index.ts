@@ -3,6 +3,7 @@ export * from './command';
 export * from './project';
 export * from './references';
 export * from './history';
+export * from './breaks';
 export * from './chain';
 export * from './commands';
 export * from './clips';

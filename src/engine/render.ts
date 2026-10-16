@@ -1,5 +1,5 @@
 import type { AudioData, Direction, Hit, Project, Sample } from '../model';
-import { effectiveHit, songDuration } from '../model';
+import { effectiveHit, hitSound, songDuration } from '../model';
 import type { Take, Trigger } from './generate';
 import type { Tape } from './tape';
 import { speedCurve, tapePasses } from './tape';
@@ -32,7 +32,7 @@ export type BufferCache = Map<string, AudioBuffer>;
 /** A hit played as it is, with no mods: its own settings plus its parent's. */
 export function hitPlay(project: Project, hit: Hit): HitPlay {
   const own = effectiveHit(project, hit);
-  return { hitId: own.id, pitch: own.pitch, volume: own.volume, direction: own.direction, region: own.region };
+  return { hitId: own.id, pitch: own.pitch, volume: own.volume, direction: own.direction, region: hitSound(project, hit)?.region ?? { start: 0, end: 0 } };
 }
 
 /**
@@ -49,7 +49,7 @@ export function scheduleHit(
   chokeAt = Infinity,
 ): AudioBufferSourceNode | null {
   const hit = project.hits[play.hitId];
-  const sample = hit === undefined ? undefined : project.samples[hit.sampleId];
+  const sample = hit === undefined ? undefined : hitSound(project, hit)?.sample;
   const audio = sample === undefined ? undefined : project.audio[sample.audioId];
   if (hit === undefined || sample === undefined || audio === undefined) return null;
 
@@ -61,14 +61,19 @@ export function scheduleHit(
     cache.set(key, buffer);
   }
 
-  // In a reversed buffer the region is mirrored.
+  // In a reversed buffer the region is mirrored. It starts on a whole frame, so
+  // slices of one sample played one after another give back the sample exactly.
   const region =
     play.direction === 'forward'
       ? play.region
       : { start: sample.duration - play.region.end, end: sample.duration - play.region.start };
+  const onFrame = (t: number) => Math.round(t * buffer.sampleRate) / buffer.sampleRate;
+  const offset = onFrame(region.start);
   const rate = 2 ** (play.pitch / 12);
-  const naturalEnd = start + Math.max(0, region.end - region.start) / rate;
-  const choked = chokeAt < naturalEnd;
+  // It ends on a whole frame too: the buffer goes on past the slice, into the next one.
+  const naturalEnd = start + Math.max(0, onFrame(region.end) - offset) / rate;
+  // A next trigger within a frame of the end is not a choke: the voice ends there, without a fade.
+  const choked = chokeAt < naturalEnd - 1.5 / context.sampleRate;
 
   const level = dbToGain(play.volume);
   // The parent's fade applies where the slice has none.
@@ -95,8 +100,9 @@ export function scheduleHit(
   source.buffer = buffer;
   source.playbackRate.value = rate;
   source.connect(gain).connect(context.destination);
-  source.start(start, region.start);
-  source.stop(choked ? chokeAt + CHOKE_FADE : naturalEnd);
+  source.start(start, offset);
+  // Half a frame early, so the frame where the next sound starts is not played as well.
+  source.stop(choked ? chokeAt + CHOKE_FADE : Math.min(naturalEnd, chokeAt) - 0.5 / context.sampleRate);
   return source;
 }
 

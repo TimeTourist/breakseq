@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Id, Project } from '../model';
-import { addSample, createProject, setBpm, setSongBars, songDuration, updateHit } from '../model';
+import { addSample, createProject, hitSound, setBpm, setSongBars, songDuration, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Trigger } from './generate';
 import { CHOKE_FADE, renderTake, renderTriggers } from './render';
@@ -42,7 +42,7 @@ function trigger(project: Project, hitId: Id, time: number, overrides: Partial<T
     pitch: hit.pitch,
     volume: hit.volume,
     direction: hit.direction,
-    region: hit.region,
+    region: hitSound(project, hit)!.region,
     ...overrides,
   };
 }
