@@ -35,3 +35,13 @@ Spara och återanvända mellan projekt. Förslagen var:
 - **Hur:** "+ From preset" och "Save as preset" i varje vy.
 - **Inbyggda:** mods (Tape stop, Stutter roll …), hits (Octave down, Reverse …) och loop-mönster.
 - **När:** efter fas 13 och 14.
+
+## Project först bland flikarna (2026-10-16)
+
+Fliken Project ligger sist, men en session börjar ofta där: du öppnar mappen, laddar en snapshot eller återställer en kopia. Att lägga den först i den numrerade raden bryter kedjan Import → Song. Siffertangenterna skulle också flyttas ett steg.
+
+Förslag:
+
+- Project blir en egen knapp till vänster, bredvid BREAKSEQ och utan nummer.
+- Den visar den öppna mappen, till exempel "Project: Hek-tick".
+- Kedjan 1–6 och tangenterna blir som de är.
