@@ -160,6 +160,16 @@ describe('encodeWav', () => {
   });
 });
 
+describe('encodeWav with cues', () => {
+  it('writes cue markers that read back, and a given gain instead of normalizing', () => {
+    const audio = { sampleRate: 44100, channels: [new Float32Array(44100).fill(0.25), new Float32Array(44100).fill(0.25)] };
+    const bytes = encodeWav(audio, { gain: 2, cues: [0, 4410, 22050] });
+    expect(readCues(bytes)).toEqual([0, 0.1, 0.5]);
+    const decoded = decodeAudioFile(bytes);
+    expect(decoded.channels[0]![100]).toBeCloseTo(0.5, 4);
+  });
+});
+
 describe('readCues', () => {
   it('reads cue points in seconds, sorted, and none from files without them', () => {
     const plain = wav(1, 16, 44100, Array.from({ length: 10 }, () => [0]));

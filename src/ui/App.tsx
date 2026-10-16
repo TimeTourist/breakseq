@@ -184,6 +184,7 @@ function Shell() {
           onExport={() => {
             if (take !== null) services.exportWav(take);
           }}
+          onExportMidi={() => (take === null ? Promise.resolve(0) : services.exportMidi(store.getState().history.present, take))}
           onPlayTake={(snapshotTake) => {
             services.player.play(snapshotTake);
             setPlaying(true);

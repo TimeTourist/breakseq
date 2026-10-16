@@ -25,6 +25,8 @@ interface ProjectViewProps {
   /** Exports the song as it is now, as heard. */
   readonly onExport: () => void;
   readonly canExport: boolean;
+  /** Exports the song as MIDI and a WAV of its sounds in slots; resolves to how many sounds. */
+  readonly onExportMidi: () => Promise<number>;
   /** Plays a take in the place of the song, until Stop. */
   readonly onPlayTake: (take: Take) => void;
 }
@@ -34,7 +36,7 @@ interface ProjectViewProps {
  * export any of them without loading it, or load one. Save and New snapshot
  * are in the header. Undo works within a snapshot; loading one starts afresh.
  */
-export function ProjectView({ onExport, canExport, onPlayTake }: ProjectViewProps) {
+export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake }: ProjectViewProps) {
   const { store, services } = useApp();
   const folders = services.folders;
   const { folder, active, changed, snapshots, setFolder, refresh, save } = useSnapshots();
@@ -43,6 +45,8 @@ export function ProjectView({ onExport, canExport, onPlayTake }: ProjectViewProp
   const [ask, setAsk] = useState<Ask | null>(null);
   const [remembered, setRemembered] = useState<RememberedFolder | null>(null);
   const [busy, setBusy] = useState(false);
+  /** What the last MIDI export saved. */
+  const [midiDone, setMidiDone] = useState<string | null>(null);
   /** The snapshot being rendered to play or export. */
   const [rendering, setRendering] = useState<string | null>(null);
 
@@ -246,12 +250,34 @@ export function ProjectView({ onExport, canExport, onPlayTake }: ProjectViewProp
         </p>
       )}
 
-      <section className="panel row" aria-label="Export">
-        <span className="label">Export</span>
-        <span className="muted small">The song as it is now, as you hear it: WAV, 44.1 kHz, 24 bit.</span>
-        <button type="button" className="primary push" disabled={!canExport} onClick={onExport}>
-          Export WAV
-        </button>
+      <section className="panel stack-tight" aria-label="Export">
+        <div className="row">
+          <span className="label">Export</span>
+          <span className="muted small">The song as it is now, as you hear it: WAV, 44.1 kHz, 24 bit.</span>
+          <button type="button" className="primary push" disabled={!canExport} onClick={onExport}>
+            Export WAV
+          </button>
+        </div>
+        <div className="row">
+          <span className="muted small grow">
+            Or as MIDI and a WAV of its sounds, one per slot from C1 up, for a sampler like Dr. Octo Rex or Digitakt: slice the WAV, play the MIDI, and it sounds like the song.
+          </span>
+          <button
+            type="button"
+            className="push"
+            disabled={!canExport || busy}
+            onClick={() =>
+              void attempt(async () => {
+                setMidiDone(null);
+                const pieces = await onExportMidi();
+                setMidiDone(`Saved a MIDI file and a WAV with ${pieces} sound${pieces === 1 ? '' : 's'}.`);
+              })
+            }
+          >
+            Export MIDI + slices
+          </button>
+        </div>
+        {midiDone !== null && <p className="muted small" role="status">{midiDone}</p>}
       </section>
 
       {folder !== null && (

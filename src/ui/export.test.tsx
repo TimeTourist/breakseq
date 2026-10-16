@@ -45,22 +45,23 @@ function makeServices(folder: ReturnType<typeof memoryFolder> | null) {
   } satisfies Player;
   const renderSong = vi.fn(
     (project: Project): Promise<Take> =>
-      Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], loop: Object.values(project.loops)[0]?.name } as NamedTake),
+      Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [], loop: Object.values(project.loops)[0]?.name } as NamedTake),
   );
   const exportWav = vi.fn();
-  const services: Services = { storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() }, player, renderSong, exportWav, download: vi.fn(), rng: () => () => 0, folders };
-  return { services, player, exportWav };
+  const exportMidi = vi.fn<(project: Project, take: Take) => Promise<number>>(() => Promise.resolve(23));
+  const services: Services = { storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() }, player, renderSong, exportWav, exportMidi, download: vi.fn(), rng: () => () => 0, folders };
+  return { services, player, exportWav, exportMidi };
 }
 
 async function setup(project: Project, folder: ReturnType<typeof memoryFolder> | null) {
-  const { services, player, exportWav } = makeServices(folder);
+  const { services, player, exportWav, exportMidi } = makeServices(folder);
   const store = createStore({ ...initialState(project), view: 'project' });
   render(<App store={store} services={services} />);
   // Let the first render of the song finish (it waits a short debounce).
   await act(async () => {
     await new Promise((r) => setTimeout(r, 400));
   });
-  return { store, player, exportWav };
+  return { store, player, exportWav, exportMidi };
 }
 
 const click = async (name: string | RegExp) => {
@@ -93,6 +94,18 @@ describe('export in Project', () => {
     fireEvent.keyDown(name, { key: 'Escape' });
     expect(screen.queryByRole('textbox', { name: 'New snapshot name' })).toBeNull();
     expect((await folder.list('snapshots')).length).toBe(1);
+  });
+
+  it('Export MIDI + slices exports the song as it is and says how many sounds; a song that does not fit says why', async () => {
+    const { exportMidi } = await setup(build(createLoop('M1', 'main', 1)), null);
+    await click('Export MIDI + slices');
+    expect(exportMidi).toHaveBeenCalledTimes(1);
+    expect(loopOf(exportMidi.mock.calls[0]![1])).toBe('M1');
+    expect(screen.getByRole('status').textContent).toBe('Saved a MIDI file and a WAV with 23 sounds.');
+
+    exportMidi.mockRejectedValueOnce(new Error('The song has 93 different sounds'));
+    await click('Export MIDI + slices');
+    expect(screen.getByRole('alert').textContent).toContain('93 different sounds');
   });
 
   it('Export WAV in Project exports the song as it is now', async () => {

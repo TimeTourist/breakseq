@@ -136,22 +136,43 @@ export const EXPORT_BITS = 24;
 /** Exports are normalized so the peak is at −0.3 dBFS. */
 export const NORMALIZE_PEAK = 10 ** (-0.3 / 20);
 
-/** Encodes stereo 24-bit PCM WAV, normalized so the peak is NORMALIZE_PEAK. Silence stays silent. */
-export function encodeWav(audio: AudioData): Uint8Array {
+/** The peak of some audio, for normalizing. */
+export function peakOf(channels: readonly Float32Array[]): number {
+  let peak = 0;
+  for (const channel of channels) for (const v of channel) peak = Math.max(peak, Math.abs(v));
+  return peak;
+}
+
+/** The gain that brings a peak to NORMALIZE_PEAK; 1 for silence. */
+export const normalizeGain = (peak: number): number => (peak > 0 ? NORMALIZE_PEAK / peak : 1);
+
+export interface WavOptions {
+  /** A gain to use instead of normalizing this audio on its own. */
+  readonly gain?: number;
+  /** Cue markers to write, in frames from the start. */
+  readonly cues?: readonly number[];
+}
+
+/**
+ * Encodes stereo 24-bit PCM WAV, normalized so the peak is NORMALIZE_PEAK
+ * unless a gain is given. Silence stays silent. Cue markers go in a `cue ` chunk.
+ */
+export function encodeWav(audio: AudioData, options: WavOptions = {}): Uint8Array {
   const channels = audio.channels.length === 1 ? [audio.channels[0]!, audio.channels[0]!] : audio.channels.slice(0, 2);
   if (channels.length !== 2) throw new AudioFileError('Nothing to export');
   const frames = channels[0]!.length;
-  let peak = 0;
-  for (const channel of channels) for (const v of channel) peak = Math.max(peak, Math.abs(v));
-  const gain = peak > 0 ? NORMALIZE_PEAK / peak : 1;
+  const gain = options.gain ?? normalizeGain(peakOf(channels));
+  const cues = options.cues ?? [];
 
   const bytes = EXPORT_BITS / 8;
   const dataSize = frames * 2 * bytes;
-  const out = new Uint8Array(44 + dataSize);
+  // Each cue point is 24 bytes after a count; a chunk is padded to an even size, which these always are.
+  const cueSize = cues.length === 0 ? 0 : 8 + 4 + cues.length * 24;
+  const out = new Uint8Array(44 + dataSize + cueSize);
   const view = new DataView(out.buffer);
   const text = (at: number, s: string) => [...s].forEach((ch, i) => view.setUint8(at + i, ch.charCodeAt(0)));
   text(0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
+  view.setUint32(4, 36 + dataSize + cueSize, true);
   text(8, 'WAVE');
   text(12, 'fmt ');
   view.setUint32(16, 16, true);
@@ -173,6 +194,21 @@ export function encodeWav(audio: AudioData): Uint8Array {
       view.setUint8(at + 2, (v >> 16) & 0xff);
       at += 3;
     }
+  }
+  if (cues.length > 0) {
+    text(at, 'cue ');
+    view.setUint32(at + 4, 4 + cues.length * 24, true);
+    view.setUint32(at + 8, cues.length, true);
+    cues.forEach((frame, i) => {
+      const point = at + 12 + i * 24;
+      // id, position, chunk id, chunk start, block start, sample offset.
+      view.setUint32(point, i + 1, true);
+      view.setUint32(point + 4, frame, true);
+      text(point + 8, 'data');
+      view.setUint32(point + 12, 0, true);
+      view.setUint32(point + 16, 0, true);
+      view.setUint32(point + 20, frame, true);
+    });
   }
   return out;
 }

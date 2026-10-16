@@ -45,6 +45,7 @@ function services(folders: ReturnType<typeof memoryFolder>[]): Services {
     player,
     renderSong: vi.fn(),
     exportWav: vi.fn(),
+    exportMidi: vi.fn(),
     download: vi.fn(),
     rng: () => () => 0,
     folders: folderService,

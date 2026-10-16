@@ -31,6 +31,7 @@ function services(): Services {
     player,
     renderSong: vi.fn(),
     exportWav: vi.fn(),
+    exportMidi: vi.fn(),
     download: vi.fn(),
     rng: () => () => 0,
   };
