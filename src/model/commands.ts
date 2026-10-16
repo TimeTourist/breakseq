@@ -5,7 +5,7 @@ import { breakSequence, isParentHit } from './breaks';
 import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
-import type { EffectTarget, Hit, Id, Loop, LoopKind, Mod, ModEffect, Pad, Project, Sample, Song, SongRow, Step } from './types';
+import type { EffectTarget, Hit, Id, Loop, LoopKind, Mod, ModEffect, Pad, PadChoice, Project, Sample, Song, SongRow, Step } from './types';
 import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, STEPS_PER_BAR } from './types';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
@@ -65,7 +65,7 @@ export const createPad =
   (project, ctx) => {
     const missing = members.find((m) => project.hits[m] === undefined);
     if (missing !== undefined) return notFound(missing);
-    const pad: Pad = { id: ctx.newId(), name, members, auto: false };
+    const pad: Pad = { id: ctx.newId(), name, members, auto: false, choice: 'top' };
     return ok({ ...project, pads: { ...project.pads, [pad.id]: pad } });
   };
 
@@ -76,6 +76,14 @@ export const renamePad =
   (project) => {
     const pad = project.pads[id];
     return pad === undefined ? notFound(id) : ok(setPad(project, { ...pad, name }));
+  };
+
+/** How the pad picks a member where no step lock or mod picks one. */
+export const setPadChoice =
+  (id: Id, choice: PadChoice): Command =>
+  (project) => {
+    const pad = project.pads[id];
+    return pad === undefined ? notFound(id) : ok(setPad(project, { ...pad, choice }));
   };
 
 export const addPadMember =

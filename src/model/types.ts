@@ -81,7 +81,13 @@ export interface Pad {
   readonly members: readonly Id[];
   /** Made by the automatic chain rather than built by hand. Only used to group pads in the GUI. */
   readonly auto: boolean;
+  /** How the pad picks a member when neither a step lock nor a mod has. */
+  readonly choice: PadChoice;
 }
+
+/** Top plays member 1; Round robin the next member each time the pad plays in the song; Random any; No repeat any but the last. */
+export const PAD_CHOICES = ['top', 'roundRobin', 'random', 'noRepeat'] as const;
+export type PadChoice = (typeof PAD_CHOICES)[number];
 
 export interface Step {
   readonly padId: Id | null;

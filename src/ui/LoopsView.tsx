@@ -4,7 +4,7 @@ import type { Id, LoopKind, Project } from '../model';
 import { STEPS_PER_BAR, baseName, createLoop, loopBreaks, loopReach, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { HIT_COLOR, lengthText, loopUsage, padGroups, padLabel } from './labels';
+import { CHOICE_LABEL, HIT_COLOR, lengthText, loopUsage, padGroups, padLabel } from './labels';
 import { LoopLength } from './LoopLength';
 import type { Selection } from './store';
 
@@ -256,7 +256,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       onDragEnd={drops.clear}
                       {...dropOnStep(index)}
                       style={color === undefined ? undefined : { color }}
-                      aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : `${pad.name}, member ${memberIndex + 1}`}`}
+                      aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : cell?.memberId == null && pad.choice !== 'top' ? `${pad.name}, ${CHOICE_LABEL[pad.choice].toLowerCase()}` : `${pad.name}, member ${memberIndex + 1}`}`}
                       onClick={(e) => clickStep(index, e.shiftKey)}
                       onDoubleClick={() => {
                         if (pad !== undefined) open({ pad: pad.id, hit: null }, 'hits');
@@ -379,22 +379,31 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           <>
             <section className="stack-tight" aria-label="Member on this step">
               <h2 className="label">Member on this step</h2>
-              {stepPad.members.map((hitId, i) => {
-                const chosen = (step.memberId ?? stepPad.members[0]) === hitId;
-                return (
-                  <button
-                    key={hitId}
-                    type="button"
-                    className="list-item"
-                    aria-pressed={chosen}
-                    onClick={() => setError(run(setStep(loop.id, selectedStep, { memberId: i === 0 ? null : hitId })))}
-                  >
-                    <span className="mono muted">{i + 1}</span>
-                    <span className="mono grow ellipsis">{baseName(project.hits[hitId]?.name ?? '')}</span>
-                    <span className="muted small">{i === 0 ? 'pad default' : ''}</span>
-                  </button>
-                );
-              })}
+              {stepPad.members.length > 0 && (
+                <button
+                  type="button"
+                  className="list-item"
+                  aria-pressed={step.memberId === null}
+                  onClick={() => setError(run(setStep(loop.id, selectedStep, { memberId: null })))}
+                >
+                  <span className="mono muted">·</span>
+                  <span className="grow">The pad picks</span>
+                  <span className="muted small">{CHOICE_LABEL[stepPad.choice]}</span>
+                </button>
+              )}
+              {stepPad.members.map((hitId, i) => (
+                <button
+                  key={hitId}
+                  type="button"
+                  className="list-item"
+                  aria-pressed={step.memberId === hitId}
+                  onClick={() => setError(run(setStep(loop.id, selectedStep, { memberId: hitId })))}
+                >
+                  <span className="mono muted">{i + 1}</span>
+                  <span className="mono grow ellipsis">{baseName(project.hits[hitId]?.name ?? '')}</span>
+                  <span className="muted small">{step.memberId === hitId ? 'locked' : ''}</span>
+                </button>
+              ))}
               {stepPad.members.length === 0 && <p className="muted small">The pad is empty and plays nothing.</p>}
             </section>
             <section className="stack-tight">

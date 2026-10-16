@@ -12,6 +12,8 @@ import {
   remove,
   removePadMember,
   renamePad,
+  setPadChoice,
+  PAD_CHOICES,
   setHitSource,
   sliceWindow,
   slotHeard,
@@ -19,7 +21,7 @@ import {
 } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { PlayIcon } from './icons';
-import { HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
+import { CHOICE_LABEL, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
@@ -104,7 +106,7 @@ export function HitsView() {
                       key={m}
                       type="button"
                       className={`hit-chip mono${i === 0 ? ' first' : ''}${p.id === pad?.id && m === hit?.id ? ' current' : ''}`}
-                      title={`${h.name}${i === 0 ? ' · plays by default' : ''} · drag onto a pad to add it there`}
+                      title={`${h.name}${i === 0 && p.choice === 'top' ? ' · plays by default' : ''} · drag onto a pad to add it there`}
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData(HIT_MIME, m);
@@ -184,7 +186,7 @@ export function HitsView() {
             onChange={(e) => onError(run(renamePad(pad.id, e.target.value), `pad:${pad.id}:name`))}
             onBlur={seal}
           />
-          <span className="muted small">The first hit plays by default; a step or a mod can choose another.</span>
+          <span className="muted small">A step lock goes first, then a mod, then the pad's own choice.</span>
           <div className="row push">
             <button
               type="button"
@@ -207,6 +209,17 @@ export function HitsView() {
             >
               Delete pad
             </button>
+          </div>
+        </div>
+
+        <div className="row">
+          <span className="label">Pad plays</span>
+          <div className="segmented" role="group" aria-label="Pad plays">
+            {PAD_CHOICES.map((c) => (
+              <button key={c} type="button" aria-pressed={pad.choice === c} onClick={() => onError(run(setPadChoice(pad.id, c)))}>
+                {CHOICE_LABEL[c]}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -245,7 +258,7 @@ export function HitsView() {
                 <button type="button" className="link-text mono grow ellipsis" aria-current={id === hitId ? 'true' : undefined} onClick={() => open({ pad: pad.id, hit: id }, 'hits')}>
                   {baseName(h.name)}
                 </button>
-                <span className="muted small">{i === 0 ? 'default' : ''}</span>
+                <span className="muted small">{i === 0 && pad.choice === 'top' ? 'default' : ''}</span>
                 <button type="button" className="icon-button small" aria-label={`Play ${h.name}`} onClick={() => services.player.playHit(project, id)}>
                   <PlayIcon />
                 </button>
