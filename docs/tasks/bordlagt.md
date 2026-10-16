@@ -69,7 +69,8 @@ Mitt förslag: komplementet först.
 
 ## Hosting och Windows-program (2026-10-16)
 
-**GitHub Pages:**
+**GitHub Pages:** görs 2026-10-16. `.github/workflows/pages.yml` testar, bygger med `--base=/breakseq/` och publicerar på https://timetourist.github.io/breakseq/ vid varje push till `main`. PWA och Tauri är fortfarande bordlagda.
+
 - Appen har ingen server, så Pages räcker.
 - Det behövs `base: '/<repo>/'` i `vite.config.ts` och ett Actions-flöde som testar, bygger och publicerar `dist`.
 - Med en gratis GitHub-plan måste repot vara publikt. Netlify och Cloudflare Pages fungerar med privata repo.
