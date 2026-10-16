@@ -17,14 +17,14 @@ Designprinciper:
 
 ## Datamodell
 
-Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit, en hit spelar en sample. Ordlistan är **Sample → Hit → Pad → Break**. Alla objekt har fasta id:n som aldrig ändras, oavsett ordning eller namn.
+Allt pekar nedåt i en enda kedja: ett steg spelar en pad, en pad väljer en hit, en hit spelar en slice av ett break, och ett break klipper upp ett sample. Ordlistan är **Sample → Hit → Pad → Break**. Alla objekt har fasta id:n som aldrig ändras, oavsett ordning eller namn.
 
 | Objekt | Innehåller | Skapas i |
 | --- | --- | --- |
-| Sample | Ljuddata: en importerad fil (one-shot eller break) eller en slice av ett break. | Import, Slice |
-| Hit | Hur ett sample spelas: region (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms). Ett breaks egen hit är förälder till dess slices. | Hits |
-| Pad | Det ett steg spelar: en hit plus alternativ, i ordning. Den första spelas utan mods. En one-shot är en pad med en hit. | Hits |
-| Break | Ett slicat sample: dess pads i ordning (groovet) och föräldern, som är ett makro för alla slices. Ingen egen data utöver samplet. | Slice |
+| Sample | Ljuddata: en importerad fil, trimmad till ett fönster i filen. Bara ljud, utan typ. | Import |
+| Hit | Hur en slice spelas: vilken plats i vilket break, region inom slicen i procent (start, slut), riktning (fram/bak), pitch (halvtoner), volym (dB), fade out (ms). Ett breaks egen hit är förälder till dess slices. | Hits |
+| Pad | Det ett steg spelar: en hit plus alternativ, i ordning. Den första spelas utan mods. Varje plats i ett break har en pad, med platsens hit överst. | Hits |
+| Break | En uppklippning av ett sample: takter, markörer och platser 01…N, en pad per plats, och föräldern, som är ett makro för alla slices. En one-shot är ett break med en enda plats och utan markörer. | Import, Slice |
 | Loop | Tagg Main/Fill (bara för gruppering och namn; vilken loop som helst kan ligga i Main- eller Fill-raden), längd i steg om 1/16 (från 1/16 till 16 takter), som väljs i takter, slag och 1/16. Varje steg: pad eller tomt, vald medlem, step locks. | Loops |
 | Mod | Namn och effekter, högst en per mål. En effekt verkar på allt under modens klipp i Song. | Mods |
 | Song | Längd i takter och klipp i raderna Main, Fill, Mod A och Mod B. Ett klipp har start, längd och offset i steg om 1/16. | Song |
@@ -37,14 +37,16 @@ En hit kan ingå i flera pads, till exempel sin automatiska pad och en pad man b
 
 Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Varje vy har ett ansvar; från andra vyer länkar man dit, men redigerar aldrig där.
 
-1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break gissas antal takter (det av 1, 2, 4, 8 och 16 som ger 70–180 BPM) och ändras i Slice, även efter slicing; BPM räknas fram ur den trimmade längden, och ett tempo under 60 eller över 200 BPM ger en varning.
-2. **Slice** – placera markörer i ett break. Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare. Under vågformen visas en rad med 1/16-steg som i Loops: varje slice står i steget där den hamnar när föräldern läggs i en loop, med sin längd i breakets tempo, och svaga 1/16-linjer ligger över vågformen. Hamnar två slices på samma steg markeras steget rött, eftersom den andra då inte kommer med.
-3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar sina hits; den valda hitten redigeras (region, riktning, pitch, volym, fade, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort.
-4. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks. Varje steg visar hur länge dess hit låter: en linje längs stegets underkant som fortsätter över följande steg tills ljudet tar slut eller nästa slag klipper det. Längden räknas i låtens tempo, med hittens och förälderns pitch men utan mods, och gäller även one-shots. Stegen under linjen är tomma och går att släppa på.
+1. **Import** – ladda WAV/AIFF, välj Break eller One-shot per fil. Break gör ett break med markörer på 1/16 och loopen M1; One-shot gör ett break med en plats. Start och slut trimmas per sample; trimningen är ett fönster i originalfilen. För ett break gissas antal takter (det av 1, 2, 4, 8 och 16 som ger 70–180 BPM) och ändras i Slice, även efter slicing; BPM räknas fram ur den trimmade längden, och ett tempo under 60 eller över 200 BPM ger en varning.
+2. **Slice** – placera markörer i ett break, när som helst. Varje ändring slår igenom direkt i allt som spelar breaket, utan varningar. Här byts också samplet under breaket ("Replace sample…"). Equal grid (1/4, 1/8, 1/16, där 1/16 är standard: 64 slices för fyra takter Amen) är startpunkten; markörerna kan sedan flyttas, läggas till och tas bort; transienter senare. Under vågformen visas en rad med 1/16-steg som i Loops: varje slice står i steget där den hamnar när föräldern läggs i en loop, med sin längd i breakets tempo, och svaga 1/16-linjer ligger över vågformen. Hamnar två slices på samma steg markeras steget rött, eftersom den andra då inte kommer med.
+3. **Hits** – varje break med föräldern överst och dess pads i ordning, sedan one-shots. En pad visar sina hits; den valda hitten redigeras (region, riktning, pitch, volym, fade, variant). Hits läggs till en pad som alternativ genom att dra eller med "+ Hit", ordnas om och tas bort. En hit kan bytas till en annan slice eller one-shot ("Replace…") och behåller då pitch, volym, fade och riktning.
+4. **Loops** – placera pads på steg, välj medlem per steg och sätt step locks. Ett break i en loop kan bytas mot ett annat ("Break: Amen → Think"): varje steg som spelar plats N i det gamla spelar plats N i det nya. Varje steg visar hur länge dess hit låter: en linje längs stegets underkant som fortsätter över följande steg tills ljudet tar slut eller nästa slag klipper det. Längden räknas i låtens tempo, med hittens och förälderns pitch men utan mods, och gäller även one-shots. Stegen under linjen är tomma och går att släppa på.
 5. **Mods** – bygg mods.
 6. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Alt kopierar) och ändras i längd från båda kanterna.
 
-**Automatisk kedja.** Varje sample får direkt en default-hit (hela samplet, inga ändringar) och en pad med den hitten som enda medlem. När ett break slicas skapas dessutom loopen M1, som spelar breakets pads i ordning, kvantiserad till 1/16. Kedjan körs en gång; därefter är allt vanliga objekt. Ett break kan slicas om så länge dess slices inte används utanför M1 och M1 inte ligger i Song; då ersätts slices, hits, pads och M1. Slices med egna markörer placeras i M1 på närmaste 1/16.
+**Automatisk kedja.** Ett break får direkt en pad per plats, med platsens hit överst, och en förälder; ett break av en fil som importeras som Break får dessutom loopen M1, som spelar platserna i ordning, var och en på närmaste 1/16 (hamnar två på samma steg kommer bara den första med). M1 skapas en gång och ändras aldrig av sig själv.
+
+**Byten och omräkning.** Platser räknas efter nummer: pad 05 är alltid breakets femte slice. Flyttas, läggs till eller tas bort en markör räknas alla slices om; blir det färre platser blir de sista tysta där de spelas, och blir det fler dyker de nya upp som pads att dra. Byts samplet under ett break behåller markörerna sin plats i takten och ljudet under dem byts. En hits region är i procent av dess slice och följer med när slicen ändras. Undo och snapshots är skyddsnätet: inget av detta frågar eller varnar.
 
 **Biblioteksraden.** I Loops och Song finns en rad att dra från: pads i Loops, loopar och mods i Song. Man drar därifrån för att använda, aldrig för att redigera.
 
@@ -178,6 +180,8 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 10. Swap: Stack och Shuffle | Swap ersätter Borrow: Stack väljer bland lagren under spelhuvudet, Shuffle blandar klippets hits | Main och Fill kan växla per steg, och ett groove kan blandas om med samma rytm |
 | 11. Project och snapshots | Fliken Project: projektmapp på disk, snapshots med save, new och load | Man kan hoppa mellan två snapshots av samma projekt, och den ena påverkar inte den andra |
 | 12. Hits längd | Svansar i Loops som visar hur länge varje hit låter; i Slice en rad som visar var varje slice hamnar på 1/16-griden | En split +-\|+-\|+--- syns som 2/16, 2/16 och 4/16 både i Slice och när föräldern dras in i en loop |
+| 13. Breaks som egna objekt | Sample är bara ljud; Break klipper upp ett sample i platser. Markörer går alltid att flytta, sample under ett break och slice under en hit går att byta, och ett break i en loop kan bytas mot ett annat | Amen kan bytas mot Think i en loop och tvärtom, och en markör kan flyttas medan M1 ligger i Song |
+| 14. Padens val | En pad väljer medlem: Top, Round robin, Random eller Random utan upprepning. Step lock går före moden, moden före paden | En hi-hat-pad med fyra hits låter olika varje gång utan mods |
 
 ## Utanför v1
 
