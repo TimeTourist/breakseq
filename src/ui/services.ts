@@ -2,14 +2,17 @@ import type { Project, Rng } from '../model';
 import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTake } from '../engine';
 import type { FolderService } from './folders';
 import { browserFolders } from './folders';
+import type { BackupStorage } from './backups';
 import type { ProjectStorage } from './persist';
-import { indexedDbStorage } from './persist';
+import { indexedDbBackups, indexedDbStorage } from './persist';
 import type { Player, Take } from './playback';
 import { createPlayer } from './playback';
 
 /** Everything the UI does outside React. Tests pass fakes. */
 export interface Services {
   readonly storage: ProjectStorage;
+  /** Backups of the autosave; without it, Project shows none. */
+  readonly backups?: BackupStorage;
   readonly player: Player;
   readonly renderSong: (project: Project, rng: Rng) => Promise<Take>;
   /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
@@ -66,6 +69,7 @@ async function exportMidi(project: Project, take: Take): Promise<number> {
 export function browserServices(): Services {
   return {
     storage: indexedDbStorage(),
+    backups: indexedDbBackups(),
     folders: browserFolders(),
     player: createPlayer(),
     renderSong,

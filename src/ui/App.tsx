@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Trigger } from '../engine';
 import { loopSong, modPreviewSong } from '../engine';
+import type { Project } from '../model';
 import { stepDuration } from '../model';
+import type { BackupInfo } from './backups';
+import { backupDue, summarize } from './backups';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
 import { HitsView } from './HitsView';
@@ -77,35 +80,75 @@ function useTake() {
  * Loads the saved project once, then saves shortly after every change. If the
  * saved project could not be loaded, nothing is saved: saving would write the
  * empty project over the one that is still there.
+ *
+ * Backups: the project as loaded, before anything changes it, then at most
+ * one every BACKUP_EVERY_MS while it changes. Restoring one first keeps the
+ * work as a backup, so a restore can be undone with another.
  */
 function useAutosave() {
   const { store, services } = useApp();
   const project = useProject();
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backups, setBackups] = useState<readonly BackupInfo[]>([]);
+  const lastBackup = useRef<number | null>(null);
+
+  const keep = useCallback(
+    async (kept: Project) => {
+      if (services.backups === undefined) return;
+      const now = Date.now();
+      lastBackup.current = now;
+      await services.backups.add(kept, summarize(kept, store.getState().projectFolder.active?.name ?? null), now);
+      setBackups(await services.backups.list());
+    },
+    [services, store],
+  );
 
   useEffect(() => {
+    services.backups
+      ?.list()
+      .then(setBackups)
+      .catch(() => undefined);
     services.storage
       .load()
       .then((saved) => {
         if (saved !== null) store.dispatch({ type: 'load', project: saved });
         setLoaded(true);
+        if (saved !== null) keep(saved).catch(() => setError('Could not keep a backup of the autosave'));
       })
-      .catch(() => setError('Could not load the saved project. Autosave is off so it is not overwritten; reload the page to try again.'));
-  }, [store, services]);
+      .catch(() => setError('Could not load the saved project. Autosave is off so it is not overwritten; restore a backup in Project, or reload the page to try again.'));
+  }, [store, services, keep]);
 
   useEffect(() => {
     if (!loaded) return;
     const timer = setTimeout(() => {
       services.storage
         .save(project)
-        .then(() => setError(null))
+        .then(() => {
+          setError(null);
+          if (backupDue(lastBackup.current, Date.now())) return keep(project);
+        })
         .catch(() => setError('Autosave failed'));
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [project, loaded, services]);
+  }, [project, loaded, services, keep]);
 
-  return { error };
+  /** Swaps in a backup, as Load does, after keeping the work as one. Autosave is on from then. */
+  const restore = useCallback(
+    async (id: string) => {
+      if (services.backups === undefined) return;
+      if (loaded) await keep(store.getState().history.present);
+      const restored = await services.backups.restore(id);
+      store.dispatch({ type: 'load', project: restored });
+      // What was restored is a backup already: the next is due BACKUP_EVERY_MS from now.
+      lastBackup.current = Date.now();
+      setLoaded(true);
+      setError(null);
+    },
+    [services, store, loaded, keep],
+  );
+
+  return { error, backups, restore };
 }
 
 /** The trigger under the playhead and the seconds into the take, polled each frame while playing. */
@@ -130,7 +173,7 @@ function Shell() {
   const { store, services } = useApp();
   const view = useSelect((s) => s.view);
   const { take, rendering, error: renderError, newTake } = useTake();
-  const { error: saveError } = useAutosave();
+  const { error: saveError, backups, restore } = useAutosave();
   const [playing, setPlaying] = useState(false);
   const playhead = usePlayhead(playing);
   const bpm = useSelect((s) => s.history.present.song.bpm);
@@ -185,6 +228,8 @@ function Shell() {
             if (take !== null) services.exportWav(take);
           }}
           onExportMidi={() => (take === null ? Promise.resolve(0) : services.exportMidi(store.getState().history.present, take))}
+          backups={services.backups === undefined ? null : backups}
+          onRestore={restore}
           onPlayTake={(snapshotTake) => {
             services.player.play(snapshotTake);
             setPlaying(true);

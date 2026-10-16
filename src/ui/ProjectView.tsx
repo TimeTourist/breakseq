@@ -7,6 +7,8 @@ import { useApp, useSelect } from './context';
 import type { RememberedFolder } from './folders';
 import type { Take } from './playback';
 import { useSnapshots } from './snapshots';
+import type { BackupInfo } from './backups';
+import { BACKUP_KEEP, backupTime, summaryText } from './backups';
 
 /** "2026-10-15 20:30", in local time. */
 export function when(iso: string): string {
@@ -29,6 +31,10 @@ interface ProjectViewProps {
   readonly onExportMidi: () => Promise<number>;
   /** Plays a take in the place of the song, until Stop. */
   readonly onPlayTake: (take: Take) => void;
+  /** Backups of the autosave, newest first; null when there are none to keep. */
+  readonly backups: readonly BackupInfo[] | null;
+  /** Swaps in a backup, after keeping the work as one. */
+  readonly onRestore: (id: string) => Promise<void>;
 }
 
 /**
@@ -36,7 +42,7 @@ interface ProjectViewProps {
  * export any of them without loading it, or load one. Save and New snapshot
  * are in the header. Undo works within a snapshot; loading one starts afresh.
  */
-export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake }: ProjectViewProps) {
+export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, backups, onRestore }: ProjectViewProps) {
   const { store, services } = useApp();
   const folders = services.folders;
   const { folder, active, changed, snapshots, setFolder, refresh, save } = useSnapshots();
@@ -45,6 +51,12 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake }: P
   const [ask, setAsk] = useState<Ask | null>(null);
   const [remembered, setRemembered] = useState<RememberedFolder | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The time backups are told against ("12 min ago"), kept current. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
   /** What the last MIDI export saved. */
   const [midiDone, setMidiDone] = useState<string | null>(null);
   /** The snapshot being rendered to play or export. */
@@ -308,6 +320,26 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake }: P
             );
           })}
           {snapshots.length === 0 && <p className="muted small">No snapshots yet: New snapshot at the top keeps the work as one.</p>}
+        </section>
+      )}
+
+      {backups !== null && (
+        <section className="panel stack" aria-label="Autosave backups">
+          <h2 className="label">Autosave backups</h2>
+          <p className="muted small">
+            The browser keeps the last {BACKUP_KEEP}: the project as it was when the page loaded, then one every 5 minutes while you work. Restore swaps one in like Load; the work you have now is kept as a backup first.
+          </p>
+          {backups.map((b) => (
+            <div key={b.id} className="snapshot-row" role="group" aria-label={`Backup ${backupTime(b.at, now)}`}>
+              <span className="mono muted">{backupTime(b.at, now)}</span>
+              <span className="grow snapshot-name">{b.summary.snapshot ?? <span className="muted">No snapshot</span>}</span>
+              <span className="muted small">{summaryText(b.summary)}</span>
+              <button type="button" disabled={busy} onClick={() => void attempt(() => onRestore(b.id))}>
+                Restore
+              </button>
+            </div>
+          ))}
+          {backups.length === 0 && <p className="muted small">No backups yet.</p>}
         </section>
       )}
 
