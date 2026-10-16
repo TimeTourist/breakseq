@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Folder, SnapshotInfo } from '../engine';
 import { comparable, listSnapshots, loadSnapshot, readManifest, saveSnapshot, writeManifest } from '../engine';
 import type { Project } from '../model';
 import { createProject } from '../model';
 import { useApp, useSelect } from './context';
 import type { RememberedFolder } from './folders';
-import type { ProjectFolderState } from './store';
+import type { Take } from './playback';
+import { useSnapshots } from './snapshots';
 
 /** "2026-10-15 20:30", in local time. */
 export function when(iso: string): string {
@@ -20,28 +21,33 @@ interface Ask {
   readonly answers: readonly { readonly label: string; readonly run: () => void }[];
 }
 
+interface ProjectViewProps {
+  /** Exports the song as it is now, as heard. */
+  readonly onExport: () => void;
+  readonly canExport: boolean;
+  /** Plays a take in the place of the song, until Stop. */
+  readonly onPlayTake: (take: Take) => void;
+}
+
 /**
- * Projects as folders on disk, and snapshots of the work in them: save over
- * the active one, save a new one, or load another. Undo works within a
- * snapshot; loading one starts afresh.
+ * Projects as folders on disk, and snapshots of the work in them: play or
+ * export any of them without loading it, or load one. Save and New snapshot
+ * are in the header. Undo works within a snapshot; loading one starts afresh.
  */
-export function ProjectView() {
+export function ProjectView({ onExport, canExport, onPlayTake }: ProjectViewProps) {
   const { store, services } = useApp();
   const folders = services.folders;
-  const { folder, active, saved } = useSelect((s) => s.projectFolder);
+  const { folder, active, changed, snapshots, setFolder, refresh, save } = useSnapshots();
   const present = useSelect((s) => s.history.present);
-  const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([]);
-  const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [ask, setAsk] = useState<Ask | null>(null);
   const [remembered, setRemembered] = useState<RememberedFolder | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The snapshot being rendered to play or export. */
+  const [rendering, setRendering] = useState<string | null>(null);
 
-  const changed = useMemo(() => saved !== null && comparable(present) !== saved, [present, saved]);
   /** Work that would be lost: changes since the active snapshot, or any work at all with no snapshot yet. */
   const unsaved = active !== null ? changed : Object.keys(present.samples).length > 0 || Object.keys(present.loops).length > 0;
-
-  const setFolder = (state: Partial<ProjectFolderState>) => store.dispatch({ type: 'projectFolder', state });
 
   /** Runs `work`, showing what went wrong, and keeps buttons off meanwhile. */
   const attempt = async (work: () => Promise<void>) => {
@@ -56,8 +62,6 @@ export function ProjectView() {
     }
   };
 
-  const refresh = async (f: Folder) => setSnapshots(await listSnapshots(f));
-
   /** Opens a folder that has a project: its active snapshot, or the newest. */
   const openFolder = async (f: Folder) => {
     const manifest = await readManifest(f);
@@ -67,8 +71,7 @@ export function ProjectView() {
     if (info === null) throw new Error('This project has no snapshots yet');
     const project = await loadSnapshot(f, info.file);
     store.dispatch({ type: 'load', project });
-    setFolder({ folder: f, active: info, saved: comparable(project) });
-    setSnapshots(list);
+    setFolder({ folder: f, active: info, saved: comparable(project), snapshots: list });
   };
 
   /** Starts a project in an empty folder, with the work as it is or empty; its first snapshot is "Start". */
@@ -99,6 +102,7 @@ export function ProjectView() {
 
   useEffect(() => {
     if (folder !== null) void refresh(folder).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the folder changes; refresh is a new function each render
   }, [folder]);
 
   /**
@@ -110,8 +114,7 @@ export function ProjectView() {
     const list = await listSnapshots(f);
     const info = list.find((s) => s.file === manifest?.active) ?? null;
     const savedText = info === null ? null : comparable(await loadSnapshot(f, info.file));
-    setFolder({ folder: f, active: info, saved: savedText });
-    setSnapshots(list);
+    setFolder({ folder: f, active: info, saved: savedText, snapshots: list });
   };
 
   /** Asks first when work would be lost: save it, throw it away, or stop. */
@@ -142,23 +145,21 @@ export function ProjectView() {
     });
   };
 
-  const save = async () => {
-    if (folder === null || active === null) return;
-    const project = store.getState().history.present;
-    const info = await saveSnapshot(folder, project, active.name, new Date(), active.file);
-    setFolder({ active: info, saved: comparable(project) });
-    await refresh(folder);
-  };
-
-  const newSnapshot = async () => {
-    if (folder === null) return;
-    const project = store.getState().history.present;
-    const info = await saveSnapshot(folder, project, name.trim() === '' ? `Snapshot ${snapshots.length + 1}` : name.trim(), new Date());
-    await writeManifest(folder, info.file);
-    setFolder({ active: info, saved: comparable(project) });
-    setName('');
-    await refresh(folder);
-  };
+  /**
+   * Renders a snapshot's song straight from its file, for playing or export.
+   * The work that is loaded is not touched.
+   */
+  const renderSnapshot = (info: SnapshotInfo, then: (take: Take) => void) =>
+    void attempt(async () => {
+      if (folder === null) return;
+      setRendering(info.file);
+      try {
+        const project = await loadSnapshot(folder, info.file);
+        then(await services.renderSong(project, services.rng()));
+      } finally {
+        setRendering(null);
+      }
+    });
 
   const load = (info: SnapshotInfo) =>
     guarded(`Load “${info.name}”`, async () => {
@@ -245,42 +246,42 @@ export function ProjectView() {
         </p>
       )}
 
+      <section className="panel row" aria-label="Export">
+        <span className="label">Export</span>
+        <span className="muted small">The song as it is now, as you hear it: WAV, 44.1 kHz, 24 bit.</span>
+        <button type="button" className="primary push" disabled={!canExport} onClick={onExport}>
+          Export WAV
+        </button>
+      </section>
+
       {folder !== null && (
         <section className="panel stack" aria-label="Snapshots">
           <h2 className="label">Snapshots</h2>
-          {active !== null && (
-            <div className="snapshot-row active">
-              <span className="mono muted">{when(active.saved)}</span>
-              <span className="grow snapshot-name">{active.name}</span>
-              <span className="badge">active</span>
-              {changed && <span className="badge warn">changed</span>}
-              <button type="button" disabled={busy || !changed} onClick={() => void attempt(save)}>
-                Save
-              </button>
-            </div>
-          )}
-          <form
-            className="snapshot-row new"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void attempt(newSnapshot);
-            }}
-          >
-            <span className="mono muted">{active === null ? '' : 'or keep it as'}</span>
-            <input aria-label="New snapshot name" className="grow" placeholder="New snapshot name, e.g. Hek-tick Amen groove" value={name} onChange={(e) => setName(e.target.value)} />
-            <button type="submit" aria-label="New snapshot" disabled={busy}>
-              New
-            </button>
-          </form>
-          {others.map((s) => (
-            <div key={s.file} className="snapshot-row">
-              <span className="mono muted">{when(s.saved)}</span>
-              <span className="grow snapshot-name">{s.name}</span>
-              <button type="button" disabled={busy} onClick={() => load(s)}>
-                Load
-              </button>
-            </div>
-          ))}
+          <p className="muted small">Play or export a snapshot without loading it: the work you have open stays as it is. Save and New snapshot are at the top.</p>
+          {[...(active === null ? [] : [active]), ...others].map((s) => {
+            const isActive = s.file === active?.file;
+            return (
+              <div key={s.file} className={`snapshot-row${isActive ? ' active' : ''}`} aria-label={`Snapshot ${s.name}`} role="group">
+                <span className="mono muted">{when(s.saved)}</span>
+                <span className="grow snapshot-name">{s.name}</span>
+                {isActive && <span className="badge">active</span>}
+                {isActive && changed && <span className="badge warn" title="The work has changes that are not in this snapshot">changed</span>}
+                {rendering === s.file && <span className="muted small">Rendering…</span>}
+                <button type="button" disabled={busy} aria-label={`Play ${s.name}`} onClick={() => renderSnapshot(s, onPlayTake)}>
+                  Play
+                </button>
+                <button type="button" disabled={busy} aria-label={`Export ${s.name}`} onClick={() => renderSnapshot(s, (take) => services.exportWav(take, s.name))}>
+                  Export
+                </button>
+                {!isActive && (
+                  <button type="button" disabled={busy} aria-label={`Load ${s.name}`} onClick={() => load(s)}>
+                    Load
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {snapshots.length === 0 && <p className="muted small">No snapshots yet: New snapshot at the top keeps the work as one.</p>}
         </section>
       )}
 

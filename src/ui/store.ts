@@ -24,6 +24,8 @@ export interface ProjectFolderState {
   readonly active: SnapshotInfo | null;
   /** `comparable` of the project as the active snapshot holds it: the work differs from it when changed. */
   readonly saved: string | null;
+  /** The snapshots in the folder, newest first. */
+  readonly snapshots: readonly SnapshotInfo[];
 }
 
 export interface AppState {
@@ -51,7 +53,7 @@ export type Action =
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
-  projectFolder: { folder: null, active: null, saved: null },
+  projectFolder: { folder: null, active: null, saved: null, snapshots: [] },
   view: 'import',
   sliceTarget: null,
   selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },

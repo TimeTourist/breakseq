@@ -2019,6 +2019,29 @@ input[type='search'] {
   border-style: dashed;
 }
 
+/* Header: Save and New snapshot, with the name asked for just below. */
+
+.snapshot-buttons {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.snapshot-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: min(360px, calc(100vw - 32px));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+.snapshot-popover input {
+  flex: 1;
+  min-width: 0;
+}
+
 .snapshot-row .mono.muted {
   min-width: 9.5em;
   font-size: 13px;

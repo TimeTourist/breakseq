@@ -171,9 +171,6 @@ function Shell() {
           services.player.stop();
           setPlaying(false);
         }}
-        onExport={() => {
-          if (take !== null) services.exportWav(take);
-        }}
         status={status}
       />
       {view === 'import' && <ImportView />}
@@ -181,7 +178,18 @@ function Shell() {
       {view === 'hits' && <HitsView />}
       {view === 'loops' && <LoopsView playhead={playhead.trigger} />}
       {view === 'mods' && <ModsView />}
-      {view === 'project' && <ProjectView />}
+      {view === 'project' && (
+        <ProjectView
+          canExport={take !== null}
+          onExport={() => {
+            if (take !== null) services.exportWav(take);
+          }}
+          onPlayTake={(snapshotTake) => {
+            services.player.play(snapshotTake);
+            setPlaying(true);
+          }}
+        />
+      )}
       {view === 'song' && (
         <SongView playheadSeconds={playhead.seconds} stepSeconds={stepDuration(bpm)} rendering={rendering} onNewTake={newTake} />
       )}
