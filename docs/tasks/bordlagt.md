@@ -45,3 +45,24 @@ Förslag:
 - Project blir en egen knapp till vänster, bredvid BREAKSEQ och utan nummer.
 - Den visar den öppna mappen, till exempel "Project: Hek-tick".
 - Kedjan 1–6 och tangenterna blir som de är.
+
+## Mobil (2026-10-16)
+
+Provat i 390 px bredd. Hits, Loops och Song får plats på bredden. Import gör det inte (823 px). Det man drar går också att göra med tryck: välj en pad eller loop och tryck på steget eller spåret.
+
+Det som behövs:
+
+1. **Projektmappar fungerar inte på mobil.** Mobila webbläsare kan inte öppna en mapp på disken. Snapshots, Save och New snapshot fungerar alltså inte. Autosparen, kopiorna och zip-filen fungerar.
+2. **Sidhuvudet** tar ungefär en fjärdedel av skärmen och behöver bli en rad.
+3. **Förklaringar i `title`** (31 ställen) syns aldrig med fingret.
+4. **Små mål och sidscroll:** 16 steg per rad i Loops och sidscroll i Song. Att flytta och ändra längd på klipp i Song behöver provas med fingret.
+5. **Import och Trim** behöver byggas om för smal skärm: större handtag, och ett sätt att flytta handtagen i små steg utan piltangenter.
+6. **iPhone:** ljudet är tyst när ljudlös-knappen är på. Kanske behövs en notis.
+7. **Rendering** går långsammare på en telefon.
+
+Förslag:
+
+- **Telefonen som komplement** (lyssna, justera mods och hits, arrangera Song): ungefär en fas av samma storlek som fas 16. Den omfattar punkt 2–6, och Project säger att mappar kräver en dator.
+- **Fullt likvärdigt med datorn** kräver att snapshots kan sparas på annat sätt, i webbläsaren eller som zip. Det ändrar specen.
+
+Mitt förslag: komplementet först.
