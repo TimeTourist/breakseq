@@ -110,6 +110,32 @@ describe('Song transport', () => {
     expect(player.setLoop).toHaveBeenLastCalledWith(null);
   });
 
+  it('the loop has a handle at each end, dragged like Trim\'s, keeping it off when off', async () => {
+    const { store } = await setup(song(setSongLoop(16, 32, false)));
+    const end = screen.getByRole('button', { name: 'Loop end at 3.1.1' });
+    fireEvent.pointerDown(end, { clientX: 320, pointerId: 1 });
+    fireEvent.pointerMove(end, { clientX: 480, pointerId: 1 });
+    fireEvent.pointerMove(end, { clientX: 640, pointerId: 1 });
+    fireEvent.pointerUp(end, { clientX: 640, pointerId: 1 });
+    expect(store.getState().history.present.song.loop).toEqual({ start: 16, end: 64, on: false });
+    expect(store.getState().history.past).toHaveLength(1);
+    // The start can't pass the end; the cursor stays where it was.
+    const start = screen.getByRole('button', { name: 'Loop start at 2.1.1' });
+    fireEvent.pointerDown(start, { clientX: 160, pointerId: 2 });
+    fireEvent.pointerMove(start, { clientX: 900, pointerId: 2 });
+    fireEvent.pointerUp(start, { clientX: 900, pointerId: 2 });
+    expect(store.getState().history.present.song.loop).toEqual({ start: 63, end: 64, on: false });
+    expect(store.getState().songCursor).toBe(0);
+  });
+
+  it('a loop handle moves a step with ←/→, a beat with Shift', async () => {
+    const { store } = await setup(song(setSongLoop(16, 32)));
+    const start = screen.getByRole('button', { name: 'Loop start at 2.1.1' });
+    fireEvent.keyDown(start, { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Loop start at 1.4.4' }), { key: 'ArrowRight', shiftKey: true });
+    expect(store.getState().history.present.song.loop).toEqual({ start: 19, end: 32, on: true });
+  });
+
   it('a marked loop is no reason for a new take', async () => {
     const { services: s } = services();
     const store = createStore({ ...initialState(song()), view: 'song' });
