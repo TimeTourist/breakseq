@@ -66,3 +66,23 @@ Förslag:
 - **Fullt likvärdigt med datorn** kräver att snapshots kan sparas på annat sätt, i webbläsaren eller som zip. Det ändrar specen.
 
 Mitt förslag: komplementet först.
+
+## Hosting och Windows-program (2026-10-16)
+
+**GitHub Pages:**
+- Appen har ingen server, så Pages räcker.
+- Det behövs `base: '/<repo>/'` i `vite.config.ts` och ett Actions-flöde som testar, bygger och publicerar `dist`.
+- Med en gratis GitHub-plan måste repot vara publikt. Netlify och Cloudflare Pages fungerar med privata repo.
+- Repot har inga ljudfiler.
+- Autosparen följer inte med från localhost, men projektmappen gör det.
+- Repot är bara lokalt i dag. Push och repo-namn bestämmer Magnus.
+
+**Windows-program**, från lättast:
+
+1. **PWA:** installeras från Edge eller Chrome och öppnas i ett eget fönster, även utan nätverk. Allt fungerar som i dag. Det behövs en manifest-fil, en ikon och en service worker, ungefär en liten fas. Den kräver https en gång, till exempel Pages.
+2. **Tauri:** en `.exe` på 5–10 MB som använder WebView2. Projektmapparna måste provas. Bygget kräver Rust, och kan göras på Windows eller i CI.
+3. **Electron:** fungerar som i dag men är 100 MB eller mer. Den ger inget som Tauri inte ger.
+
+En ny installation börjar med tom autospar, men snapshots ligger kvar i mappen. En VST-plugin kräver en ny motor, men `generate` är förberedd för det.
+
+Förslag: PWA tillsammans med GitHub Pages först, och Tauri senare om en fil ska delas ut.
