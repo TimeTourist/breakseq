@@ -43,6 +43,7 @@ function trigger(project: Project, hitId: Id, time: number, overrides: Partial<T
     volume: hit.volume,
     direction: hit.direction,
     region: hitSound(project, hit)!.region,
+    stretch: null,
     ...overrides,
   };
 }

@@ -1,5 +1,5 @@
-import type { Clip, Hit, Mod, ModRate, ModShape, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
-import { STEPS_PER_BAR, clipsByStep } from '../model';
+import type { Clip, Hit, Mod, ModRate, ModShape, ModStretch, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
+import { DEFAULT_MOD_STRETCH, STEPS_PER_BAR, clipsByStep } from '../model';
 
 /** What a step will play after mods. Handlers return a changed copy. */
 export interface StepState {
@@ -14,6 +14,8 @@ export interface StepState {
   readonly volume: number;
   /** null keeps the hit's own direction. */
   readonly reverse: boolean | null;
+  /** A Stretch mod's factor and settings; null keeps the hit's own stretch. */
+  readonly stretch: { readonly factor: number; readonly settings: ModStretch } | null;
 }
 
 /** The hit a step plays: its chosen member if that is in the pad, otherwise member 1. */
@@ -25,7 +27,7 @@ function resolve(project: Project, cell: Step): Pick<StepState, 'pad' | 'hit'> {
 }
 
 export function stepState(project: Project, cell: Step): StepState {
-  return { cell, ...resolve(project, cell), ratchet: 1, pitch: 0, volume: 0, reverse: null };
+  return { cell, ...resolve(project, cell), ratchet: 1, pitch: 0, volume: 0, reverse: null, stretch: null };
 }
 
 export type Row = 'A' | 'B';
@@ -70,6 +72,7 @@ const handlers: readonly (readonly [StepTarget, TargetHandler])[] = [
   ['pitch', { discrete: false, combine: 'add', apply: (s, v) => ({ ...s, pitch: s.pitch + v }) }],
   ['volume', { discrete: false, combine: 'add', apply: (s, v) => ({ ...s, volume: s.volume + v }) }],
   ['direction', { discrete: true, combine: 'b-wins', apply: (s, v) => ({ ...s, reverse: Math.round(v) === 1 }) }],
+  ['stretch', { discrete: false, combine: 'b-wins', apply: (s, v, effect) => ({ ...s, stretch: { factor: v, settings: effect.stretch ?? DEFAULT_MOD_STRETCH } }) }],
 ];
 
 const RATE_STEPS: Record<ModRate, number> = { step: 1, beat: 4, bar: STEPS_PER_BAR };

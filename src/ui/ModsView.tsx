@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import type { EffectTarget, Id, Mod, ModEffect, ModRate, ModShape, Project, StepEffect, StepTarget, SwapEffect } from '../model';
-import { MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, remove, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
+import type { EffectTarget, Id, Mod, ModEffect, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
+import { DEFAULT_MOD_STRETCH, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, remove, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { StepGraph, SwapGraph, TapeGraph } from './ModGraph';
 import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
 import { StepSentence, SwapSentence, TapeSentence } from './ModSentence';
 import { TARGET_LABELS, randomMod } from './modText';
 import type { Selection } from './store';
+import { Slider } from './Slider';
 
 /** The mod open in Mods: the selected one, else the first. */
 export function currentModId(project: Project, selection: Selection): Id | null {
@@ -28,6 +29,7 @@ const DEFAULTS: Record<StepTarget, { rate: ModRate; shape: ModShape }> = {
   pitch: { rate: 'beat', shape: { kind: 'ramp', from: 0, to: 12 } },
   volume: { rate: 'step', shape: { kind: 'list', values: [0, -6] } },
   direction: { rate: 'step', shape: { kind: 'random', min: 0, max: 1, chance: 25, whole: true } },
+  stretch: { rate: 'beat', shape: { kind: 'ramp', from: 1, to: 4 } },
   tempo: { rate: 'bar', shape: { kind: 'list', values: [1 / 3] } },
 };
 
@@ -129,6 +131,27 @@ export function ModsView() {
   const change = (next: ModEffect, key?: string) =>
     effect !== undefined &&
     setError(run(replaceEffect(mod.id, effect.target, next), key === undefined ? undefined : `mod:${mod.id}:${effect.target}:${key}`));
+  /** A Stretch effect's grain length, and whether it multiplies the hit's own stretch or replaces it. */
+  const stretchSettings = (stretch: StepEffect) => {
+    const settings = stretch.stretch ?? DEFAULT_MOD_STRETCH;
+    const set = (patch: Partial<ModStretch>, key: string) => change({ ...stretch, stretch: { ...settings, ...patch } }, key);
+    return (
+      <div className="slider-grid" aria-label="Stretch settings" role="group">
+        <div className="panel stack-tight">
+          <span className="label">With the hit's own stretch</span>
+          <div className="segmented full" role="group" aria-label="With the hit's own stretch">
+            <button type="button" aria-pressed={settings.combine === 'multiply'} title="Times the hit's stretch: 2× makes a break on Fit to tempo twice as long as its steps" onClick={() => set({ combine: 'multiply' }, 'combine')}>
+              Multiply
+            </button>
+            <button type="button" aria-pressed={settings.combine === 'replace'} title="Instead of the hit's stretch" onClick={() => set({ combine: 'replace' }, 'combine')}>
+              Replace
+            </button>
+          </div>
+        </div>
+        <Slider label="Grain" value={settings.grain} min={MIN_GRAIN} max={MAX_GRAIN} step={1} format={(v) => `${v} ms`} onChange={(v) => set({ grain: v }, 'grain')} onCommit={seal} />
+      </div>
+    );
+  };
 
   return (
     <div className="split">
@@ -266,6 +289,7 @@ export function ModsView() {
                 onCommit={seal}
               />
               <StepGraph effect={effect} seed={exampleSeed} />
+              {effect.target === 'stretch' && stretchSettings(effect)}
               <div className="row">
                 <p className="muted small">
                   Over one bar of its clip.

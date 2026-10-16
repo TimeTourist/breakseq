@@ -1,12 +1,12 @@
 import type { Hit, Id, Loop, Project, Step } from './types';
-import { effectiveHit, hitSound, slotStep } from './breaks';
+import { effectiveHit, hitSound, hitStretch, slotStep } from './breaks';
 import { stepDuration } from './project';
 
-/** How long a hit sounds, in seconds: its region at its pitch and its parent's, without mods. */
+/** How long a hit sounds, in seconds: its region at its pitch and stretch and its parent's, without mods. */
 export function hitSeconds(project: Project, hit: Hit): number {
   const sound = hitSound(project, hit);
   if (sound === null) return 0;
-  return (sound.region.end - sound.region.start) / 2 ** (effectiveHit(project, hit).pitch / 12);
+  return ((sound.region.end - sound.region.start) / 2 ** (effectiveHit(project, hit).pitch / 12)) * hitStretch(project, hit).factor;
 }
 
 /** The hit a step plays: its chosen member, or member 1. */
