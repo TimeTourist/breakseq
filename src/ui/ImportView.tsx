@@ -242,15 +242,15 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                               ) : (
                                 <>
                                   <span>
-                                    {brk.markers.length} slices{' '}
-                                    <button type="button" className="link-text small" title={`${sliceName(project, brk)}, in Slice`} onClick={() => goSlice(brk.id)}>
+                                    {brk.markers.length}{' '}
+                                    <button type="button" className="link-text small" title={`${brk.markers.length} slices: ${sliceName(project, brk)}, in Slice`} onClick={() => goSlice(brk.id)}>
                                       Slice →
                                     </button>
                                   </span>
                                   <span>
-                                    {brk.markers.length} pads{' '}
+                                    {brk.markers.length}{' '}
                                     {hit !== undefined && (
-                                      <button type="button" className="link-text small" title={`Break ${brk.name}, in Hits`} onClick={() => open({ hit, pad: null }, 'hits')}>
+                                      <button type="button" className="link-text small" title={`${brk.markers.length} pads: break ${brk.name}, in Hits`} onClick={() => open({ hit, pad: null }, 'hits')}>
                                         Hits →
                                       </button>
                                     )}
