@@ -64,6 +64,7 @@ Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Va
 - *Siffror*: längder står i ms, tempo med två decimaler, och takter som "1 bar" och "2 bars".
 - *Huvudet* är detsamma i Hits, Loops och Mods: namnet, under det en rad med info, länkar och inställningar, och knapparna till höger.
 - *Headern* (BREAKSEQ, flikarna och transporten) står alltid kvar överst när sidan scrollar.
+- *Webbläsarens Back och Forward* går mellan flikarna: varje flikbyte är ett steg, och fliken man kommer tillbaka till visar det som var öppet där (hit, pad, loop, mod, break i Slice, öppen Trim). Ändringar inom en flik är inga steg, och ångra (Ctrl+Z) är skilt från Back.
 - *Hjälptext* står inte i rubriker; rubriker är namn ("Pads", "Loops and mods"), och hjälpen står i en liten grå rad sist i sin panel. Ett tomt läge länkar till fliken där man gör det som saknas (← Import, ← Slice, ← Loops, ← Mods).
 - *Av och på* (Loop i Song) markeras som ett valt segment.
 - *Knappar säger vad de gör*: −1 ms och +1 ms flyttar en markör; pilar betyder att man hoppar till en annan flik. New example ritar om ett exempel i Mods, New take slumpar om det som spelas i Song.
