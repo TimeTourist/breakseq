@@ -4,7 +4,10 @@ import type { AudioData, Id, Project } from '../model';
 
 /** A rendered take: the audio and the triggers it was made from. */
 export interface Take {
+  /** Exactly as long as what it plays, ready to loop: reverb and delay ringing past the end come in at the start. */
   readonly buffer: AudioBuffer;
+  /** As long as it rings, for playing once and for export; missing when nothing rings past the end. */
+  readonly full?: AudioBuffer;
   readonly triggers: readonly Trigger[];
   /** Tape segments heard instead of triggers. */
   readonly tapes: readonly Tape[];
@@ -158,10 +161,12 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
 
   const start = (take: Take, at: number, from: number, once = false): Segment => {
     const c = ctx();
-    const loop = once ? { start: 0, end: take.buffer.duration } : fitLoop(range, take.buffer.duration);
+    // Played once, it rings out; looped, what rings past the end is already at the start.
+    const buffer = once ? (take.full ?? take.buffer) : take.buffer;
+    const loop = once ? { start: 0, end: buffer.duration } : fitLoop(range, buffer.duration);
     const offset = startOffset(from, loop);
     const source = c.createBufferSource();
-    source.buffer = take.buffer;
+    source.buffer = buffer;
     source.loop = !once;
     source.loopStart = loop.start;
     source.loopEnd = loop.end;

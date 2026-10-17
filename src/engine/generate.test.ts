@@ -211,6 +211,8 @@ describe('pad members', () => {
         stretch: null,
         dist: null,
         filter: null,
+        reverb: null,
+        delay: null,
       },
     ]);
   });

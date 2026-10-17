@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { EffectTarget, Id, Mod, ModEffect, ModFilter, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
-import { DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_STRETCH, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
+import type { EffectTarget, Id, Mod, ModDelay, ModEffect, ModFilter, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
+import { DEFAULT_MOD_DELAY, DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_REVERB, DEFAULT_MOD_STRETCH, MAX_FEEDBACK, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
 import { Delete } from './DeleteButton';
 import { InSong, InSongMark, useHeard } from './InSong';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
@@ -9,7 +9,7 @@ import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
 import { StepSentence, SwapSentence, TapeSentence } from './ModSentence';
 import { TARGET_LABELS, randomMod } from './modText';
 import type { Selection } from './store';
-import { DIST_MODES, FILTER_TYPES } from './labels';
+import { DELAY_TIMES, DIST_MODES, FILTER_TYPES, sizeText } from './labels';
 import { Slider } from './Slider';
 
 /** The mod open in Mods: the selected one, else the first. */
@@ -36,6 +36,9 @@ const DEFAULTS: Record<StepTarget, { rate: ModRate; shape: ModShape }> = {
   stretch: { rate: 'beat', shape: { kind: 'ramp', from: 1, to: 4 } },
   dist: { rate: 'step', shape: { kind: 'ramp', from: 0, to: 1 } },
   filter: { rate: 'step', shape: { kind: 'ramp', from: 200, to: 8000 } },
+  // A throw now and then: some hits get a lot of it.
+  reverb: { rate: 'step', shape: { kind: 'random', min: 60, max: 100, chance: 25, whole: true } },
+  delay: { rate: 'step', shape: { kind: 'random', min: 50, max: 80, chance: 25, whole: true } },
   tempo: { rate: 'bar', shape: { kind: 'list', values: [1 / 3] } },
 };
 
@@ -174,6 +177,42 @@ export function ModsView() {
           <p className="muted small">The values are the cutoff in Hz.</p>
         </div>
         <Slider label="Resonance" value={settings.resonance} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ resonance: v }, 'resonance')} onCommit={seal} />
+      </div>
+    );
+  };
+
+  /** A Reverb effect's size; its values are the amount sent, in percent. */
+  const reverbSettings = (reverb: StepEffect) => {
+    const { size } = reverb.reverb ?? DEFAULT_MOD_REVERB;
+    return (
+      <div className="slider-grid" role="group" aria-label="Reverb settings">
+        <div className="panel stack-tight">
+          <span className="label">Reverb</span>
+          <p className="muted small">The values are how much of each hit goes to the reverb, in percent. It rings out after the mod, beside the hits: the next hit does not cut it.</p>
+        </div>
+        <Slider label="Size" value={size} min={0} max={1} step={0.01} format={sizeText} onChange={(v) => change({ ...reverb, reverb: { size: v } }, 'size')} onCommit={seal} />
+      </div>
+    );
+  };
+
+  /** A Delay effect's time and feedback; its values are the amount sent, in percent. */
+  const delaySettings = (delay: StepEffect) => {
+    const settings = delay.delay ?? DEFAULT_MOD_DELAY;
+    const set = (patch: Partial<ModDelay>, key: string) => change({ ...delay, delay: { ...settings, ...patch } }, key);
+    return (
+      <div className="slider-grid" role="group" aria-label="Delay settings">
+        <div className="panel stack-tight">
+          <span className="label">Delay time</span>
+          <div className="segmented full" role="group" aria-label="Delay time">
+            {DELAY_TIMES.map(([steps, label]) => (
+              <button key={steps} type="button" aria-pressed={settings.steps === steps} onClick={() => set({ steps }, 'steps')}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="muted small">The values are how much of each hit goes to the delay, in percent. Its echoes ring on beside the hits.</p>
+        </div>
+        <Slider label="Feedback" value={settings.feedback} min={0} max={MAX_FEEDBACK} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ feedback: v }, 'feedback')} onCommit={seal} />
       </div>
     );
   };
@@ -332,6 +371,8 @@ export function ModsView() {
               {effect.target === 'stretch' && stretchSettings(effect)}
               {effect.target === 'dist' && distSettings(effect)}
               {effect.target === 'filter' && filterSettingsPanel(effect)}
+              {effect.target === 'reverb' && reverbSettings(effect)}
+              {effect.target === 'delay' && delaySettings(effect)}
               <div className="row">
                 <p className="muted small">
                   Over one bar of its clip.

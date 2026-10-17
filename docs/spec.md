@@ -94,7 +94,7 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 
 | Fält | Val i v1 |
 | --- | --- |
-| Mål | Swap (Stack eller Shuffle), Pad member, Pitch (halvtoner), Volume (dB), Pan (−100 till +100 %), Direction, Ratchet (1–8), Stretch (faktor, bitlängd i ms, Multiply eller Replace), Dist (läge; värdet är mängden 0–1), Filter (typ och resonans; värdet är brytfrekvensen i Hz), Tempo (slip), Tape |
+| Mål | Swap (Stack eller Shuffle), Pad member, Pitch (halvtoner), Volume (dB), Pan (−100 till +100 %), Direction, Ratchet (1–8), Stretch (faktor, bitlängd i ms, Multiply eller Replace), Dist (läge; värdet är mängden 0–1), Filter (typ och resonans; värdet är brytfrekvensen i Hz), Reverb (storlek; värdet är mängden i %), Delay (tid och feedback; värdet är mängden i %), Tempo (slip), Tape |
 | Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
 | Form | (Alla mål utom Swap och Tape.) List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
 
@@ -128,6 +128,15 @@ Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 - **Dist** har tre lägen och en mängd 0–1. *Drive* är mjuk mättnad som blir hård klippning; *Crush* sänker bitdjupet (16 bitar vid 0, 2 vid 1); *Decimate* sänker samplingsfrekvensen. Dist håller nivån: ljudets genomsnittliga nivå (RMS) är densamma efter dist som före, så att det inte blir tyst och sedan högt.
 - **Filter** är Low-pass eller High-pass med en brytfrekvens i Hz och en resonans. Filtret håller inte nivån, för ett stängt lågpass ska låta tunnare, men en hög resonanstopp dämpas så att den inte skjuter iväg.
 - **På hitten** (i Hits) gäller dist och filter alltid; på föräldern gäller de slices som saknar egna. **I en mod** ställs läget (dist) eller typen och resonansen (filter) i moden, och List, Ramp och Random ändrar mängden respektive brytfrekvensen. En mod gäller i stället för hittens dist eller filter.
+
+**Reverb och delay** är kast: ett break får plötsligt rymd eller eko en kort stund, eller bara på slumpvisa slag, som en del av breaket. (Reverb över hela låten läggs i Reason eller Digitakt.)
+
+- **Bredvid rösten.** Låten har en reverb och en delay som klingar ut bredvid rösten. Ett slag skickar en del av sitt ljud dit, som det hörs, alltså avklippt där nästa slag klipper det; svansen klipps inte av nästa slag eller av att moden tar slut.
+- **Reverb** har en mängd (0–100 %, hur mycket av slaget som skickas) och en storlek från litet rum till stor hall (0,3–4 s). Rummet är brus som klingar av, alltid samma, så samma låt låter likadant varje gång.
+- **Delay** har en mängd, en tid i låtens tempo (1/16, 1/8, 3/16 eller 1/4) och feedback (0–90 %, hur mycket av varje eko som kommer tillbaka).
+- **På hitten** (i Hits) skickar en hit alltid; mängd 0 på en slice tar förälderns. **I en mod** ställs storleken (reverb) eller tiden och feedbacken (delay) i moden, och formen ger mängden i procent, så Random med chans ger kast på slumpvisa slag. En mod gäller i stället för hittens; när A och B båda skickar adderas mängderna (högst 100 %) och B:s inställningar gäller.
+- **Svansen.** I en loop och i låten som spelas runt hörs det som klingar efter slutet i början av nästa varv. Spelas något en gång, och i Export WAV, klingar svansen ut efter slutet, så filen blir längre än låten.
+- **Exporten.** MIDI-filen, bit-WAV:en och REX-filen är torra: slagen utan reverb och delay. Har låten reverb eller delay följer en WAV med bara dem (…-reverb-delay.wav), tyst däremellan, från låtens början och så länge de klingar, i samma nivå som bitarna, så att den på ett ljudspår bredvid ger låten.
 
 **Stretch** ändrar en hits längd utan att ändra tonhöjden, som time stretch på gamla samplers: hitten spelas som korta bitar (bitlängden, förvalt 30 ms) som var och en börjar lite längre fram i slicen och läggs över varandra med korta övertoningar. Faktor 2 gör hitten dubbelt så lång, 0,5 hälften så lång; faktorn går från 1/16 till 16 och bitlängden från 5 till 500 ms. Kort bitlängd låter metalliskt, lång mjukare och ekande. Pitch ändrar fortfarande både tonhöjd och längd, så stretch och pitch tillsammans flyttar tonhöjden med samma längd (2× och +12 ger en oktav upp i samma längd).
 
@@ -232,6 +241,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 18. Dist och filter | Dist (Drive, Crush, Decimate) som håller nivån, och filter (Low-pass, High-pass) med brytfrekvens och resonans; på hitten och som mod | En fill kan krossas allt mer med en Ramp utan att bli starkare, och ett lågpass kan öppnas över en takt |
 | 19. Pan och kanalval | Pan på hitten (föräldern som makro) och som mod, adderas som volym, balans med lika effekt; kanalval på samplet i Trim (Stereo, Left, Right, Mono) | En hi-hat kan studsa mellan vänster och höger med en Random-mod |
 | 20. Säkerhetskopior av autosparen | De 20 senaste kopiorna av projektet i webbläsaren, vid laddning och högst var 5:e minut; Restore i Project | Ett projekt som skrivits över går att få tillbaka från kopian vid laddningen |
+| 21. Reverb och delay | Reverb (mängd, storlek) och delay (mängd, tid, feedback) på hitten och som mod, med svansen bredvid rösten; torr MIDI- och REX-export och rymden som egen WAV | En mod med reverb över två takter ger ett kast som klingar ut efter moden |
 
 ## Utanför v1
 

@@ -1,5 +1,5 @@
 import type { EffectTarget, ModShape, StepEffect, StepTarget } from '../model';
-import { MAX_CUTOFF, MAX_STRETCH, MIN_CUTOFF, MIN_STRETCH, STEP_TARGETS } from '../model';
+import { DELAY_STEPS, MAX_CUTOFF, MAX_STRETCH, MIN_CUTOFF, MIN_STRETCH, STEP_TARGETS } from '../model';
 
 export const TARGET_LABELS: Record<EffectTarget, string> = {
   tape: 'Tape',
@@ -13,6 +13,8 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   stretch: 'Stretch',
   dist: 'Dist',
   filter: 'Filter',
+  reverb: 'Reverb',
+  delay: 'Delay',
   tempo: 'Tempo (slip)',
 };
 
@@ -27,6 +29,8 @@ export const VALUE_HINTS: Record<StepTarget, string> = {
   stretch: 'length factor, e.g. 2 1/2 4',
   dist: 'amount 0–1, e.g. 0.2 0.8',
   filter: 'cutoff in Hz, e.g. 200 2000 8000',
+  reverb: 'amount in percent, 0–100, e.g. 0 60',
+  delay: 'amount in percent, 0–100, e.g. 0 50',
   tempo: 'speed, e.g. 1/3 1/2 2',
 };
 
@@ -62,6 +66,8 @@ export function parseValues(target: StepTarget, text: string): Parsed {
     if (target === 'pan' && !(value >= -100 && value <= 100)) return { ok: false, error: 'Pan is a percent from −100 (left) to 100 (right), e.g. -50' };
     if (target === 'dist' && !(value >= 0 && value <= 1)) return { ok: false, error: 'Dist is an amount from 0 to 1, e.g. 0.5' };
     if (target === 'filter' && !(value >= MIN_CUTOFF && value <= MAX_CUTOFF)) return { ok: false, error: 'Filter is a cutoff from 20 to 20000 Hz, e.g. 2000' };
+    if ((target === 'reverb' || target === 'delay') && !(value >= 0 && value <= 100))
+      return { ok: false, error: `${target === 'reverb' ? 'Reverb' : 'Delay'} is an amount in percent from 0 to 100, e.g. 60` };
     values.push(value);
   }
   return { ok: true, values };
@@ -121,6 +127,8 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
     stretch: () => pick(rng, [1 / 2, 3 / 2, 2, 2, 4]),
     dist: () => pick(rng, [0.2, 0.4, 0.6, 0.8, 1]),
     filter: () => pick(rng, [200, 500, 1000, 2000, 5000, 10000]),
+    reverb: () => pick(rng, [0, 0, 30, 60, 100]),
+    delay: () => pick(rng, [0, 0, 30, 50, 80]),
   };
   const kinds: ModShape['kind'][] =
     target === 'direction' ? ['list', 'cycle', 'random'] : target === 'tempo' ? ['list', 'list', 'ramp'] : ['list', 'cycle', 'ramp', 'random'];
@@ -136,6 +144,7 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
       : target === 'stretch' ? [1, 4]
       : target === 'dist' ? [0, 1]
       : target === 'filter' ? [200, 8000]
+      : target === 'reverb' || target === 'delay' ? [30, 100]
       : [-between(rng, 2, 12), between(rng, 2, 12)];
     return { kind: 'random', min, max, chance: pick(rng, [15, 25, 33, 50, 75]), whole: target === 'pitch' };
   };
@@ -145,7 +154,7 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
       : kind === 'ramp'
         ? { kind: 'ramp', from: value[target](), to: value[target]() }
         : { kind, values: target === 'padMember' && kind === 'cycle' && rng() < 0.5 ? [] : several(rng, [1, 4], value[target]) };
-  // Dist, Filter and Stretch have settings of their own: those are rolled too.
+  // Dist, Filter, Stretch, Reverb and Delay have settings of their own: those are rolled too.
   const settings: Partial<StepEffect> =
     target === 'dist'
       ? { dist: { mode: pick(rng, ['drive', 'crush', 'decimate'] as const) } }
@@ -153,6 +162,10 @@ export function randomMod(rng: () => number = Math.random, taken: readonly Effec
         ? { filter: { type: pick(rng, ['lowpass', 'lowpass', 'highpass'] as const), resonance: pick(rng, [0, 0.2, 0.4, 0.6]) } }
         : target === 'stretch'
           ? { stretch: { grain: pick(rng, [8, 15, 30, 60, 120]), combine: pick(rng, ['multiply', 'replace'] as const) } }
-          : {};
+          : target === 'reverb'
+            ? { reverb: { size: pick(rng, [0.2, 0.5, 0.8]) } }
+            : target === 'delay'
+              ? { delay: { steps: pick(rng, DELAY_STEPS), feedback: pick(rng, [0.2, 0.4, 0.6]) } }
+              : {};
   return { target, rate, shape, ...settings };
 }

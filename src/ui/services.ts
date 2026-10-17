@@ -1,6 +1,6 @@
 import type { AudioData, Project, Rng } from '../model';
 import type { HitRun } from '../engine';
-import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTake, rexExport } from '../engine';
+import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTakeWithTail, rexExport } from '../engine';
 import type { FolderService } from './folders';
 import { browserFolders } from './folders';
 import type { BackupStorage } from './backups';
@@ -40,7 +40,7 @@ export type Preview =
 async function renderPreview(preview: Preview): Promise<Take> {
   if (preview.kind === 'hits') {
     const take = { triggers: preview.run.triggers, tapes: [] };
-    return { ...take, buffer: await renderTake(take, preview.project, EXPORT_SAMPLE_RATE, preview.run.seconds) };
+    return { ...take, ...withTail(await renderTakeWithTail(take, preview.project, EXPORT_SAMPLE_RATE, preview.run.seconds)) };
   }
   const { audio } = preview;
   const length = Math.max(1, audio.channels[0]?.length ?? 0);
@@ -51,9 +51,11 @@ async function renderPreview(preview: Preview): Promise<Take> {
 
 async function renderSong(project: Project, rng: Rng): Promise<Take> {
   const take = generateTake(project, rng);
-  const buffer = await renderTake(take, project, EXPORT_SAMPLE_RATE);
-  return { buffer, triggers: take.triggers, tapes: take.tapes };
+  return { ...withTail(await renderTakeWithTail(take, project, EXPORT_SAMPLE_RATE)), triggers: take.triggers, tapes: take.tapes };
 }
+
+/** A take's buffers: `full` only when something rings past the end. */
+const withTail = ({ buffer, full }: { buffer: AudioBuffer; full: AudioBuffer }): Pick<Take, 'buffer' | 'full'> => (full === buffer ? { buffer } : { buffer, full });
 
 function download(name: string, bytes: Uint8Array, type: string): void {
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
@@ -73,26 +75,29 @@ export const fileSafe = (name: string) =>
     .replace(/[^a-z0-9åäöæø]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
+/** The song as heard, then its reverb and delay ringing out. */
 function exportWav(take: Take, name?: string): void {
-  const { buffer } = take;
+  const buffer = take.full ?? take.buffer;
   const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
   const part = name === undefined || fileSafe(name) === '' ? '' : `${fileSafe(name)}-`;
   download(`breakseq-${part}${timestamp()}.wav`, encodeWav({ sampleRate: buffer.sampleRate, channels }), 'audio/wav');
 }
 
 async function exportMidi(project: Project, take: Take): Promise<number> {
-  const { midi, wav, pieces } = await midiExport(project, take, EXPORT_SAMPLE_RATE);
+  const { midi, wav, pieces, space } = await midiExport(project, take, EXPORT_SAMPLE_RATE);
   const stamp = timestamp();
   download(`breakseq-${stamp}.mid`, midi, 'audio/midi');
   download(`breakseq-${stamp}-slices.wav`, wav, 'audio/wav');
+  if (space !== null) download(`breakseq-${stamp}-reverb-delay.wav`, space, 'audio/wav');
   return pieces;
 }
 
 async function exportRex(project: Project, take: Take): Promise<number> {
-  const { midi, rex, pieces } = await rexExport(project, take, EXPORT_SAMPLE_RATE);
+  const { midi, rex, pieces, space } = await rexExport(project, take, EXPORT_SAMPLE_RATE);
   const stamp = timestamp();
   download(`breakseq-${stamp}.mid`, midi, 'audio/midi');
   download(`breakseq-${stamp}.rx2`, rex, 'application/octet-stream');
+  if (space !== null) download(`breakseq-${stamp}-reverb-delay.wav`, space, 'audio/wav');
   return pieces;
 }
 

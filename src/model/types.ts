@@ -118,6 +118,31 @@ export const NO_FILTER: HitFilter = { type: 'off', cutoff: 2000, resonance: 0.2 
 export const MIN_CUTOFF = 20;
 export const MAX_CUTOFF = 20000;
 
+/**
+ * Reverb a hit sends to the song's one reverb, which rings out beside the
+ * voice: the next hit cuts the hit, not its reverb. Amount 0 takes the parent's.
+ */
+export interface HitReverb {
+  /** 0–1: how much of the hit is sent. */
+  readonly amount: number;
+  /** 0–1: a short room to a large hall. */
+  readonly size: number;
+}
+export const NO_REVERB: HitReverb = { amount: 0, size: 0.5 };
+
+/** Delay times, in steps of 1/16 at the song's tempo: 1/16, 1/8, 3/16, 1/4. */
+export const DELAY_STEPS = [1, 2, 3, 4] as const;
+export type DelaySteps = (typeof DELAY_STEPS)[number];
+/** Echoes a hit sends to a delay beside the voice, like reverb. Amount 0 takes the parent's. */
+export interface HitDelay {
+  /** 0–1: how much of the hit is sent. */
+  readonly amount: number;
+  readonly steps: DelaySteps;
+  /** 0–1: how much of each echo comes back as the next. */
+  readonly feedback: number;
+}
+export const NO_DELAY: HitDelay = { amount: 0, steps: 3, feedback: 0.4 };
+
 export interface Hit {
   readonly id: Id;
   readonly name: string;
@@ -138,6 +163,8 @@ export interface Hit {
   readonly stretch: HitStretch;
   readonly dist: HitDist;
   readonly filter: HitFilter;
+  readonly reverb: HitReverb;
+  readonly delay: HitDelay;
   /** The hit this one was duplicated from, or null. */
   readonly variantOf: Id | null;
 }
@@ -178,7 +205,7 @@ export interface Loop {
 }
 
 /** What a mod changes. Applied in this order, whatever row the mod is in. */
-export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'tempo'] as const;
+export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'tempo'] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
 export type ModRate = 'step' | 'beat' | 'bar';
@@ -212,7 +239,21 @@ export interface StepEffect {
   readonly dist?: ModDist;
   /** For Filter only: its type and resonance; the value is the cutoff. Missing means DEFAULT_MOD_FILTER. */
   readonly filter?: ModFilter;
+  /** For Reverb only: its size; the value is the amount in percent. Missing means DEFAULT_MOD_REVERB. */
+  readonly reverb?: ModReverb;
+  /** For Delay only: its time and feedback; the value is the amount in percent. Missing means DEFAULT_MOD_DELAY. */
+  readonly delay?: ModDelay;
 }
+
+export interface ModReverb {
+  readonly size: number;
+}
+export const DEFAULT_MOD_REVERB: ModReverb = { size: 0.5 };
+export interface ModDelay {
+  readonly steps: DelaySteps;
+  readonly feedback: number;
+}
+export const DEFAULT_MOD_DELAY: ModDelay = { steps: 3, feedback: 0.4 };
 
 export interface ModDist {
   readonly mode: Exclude<DistMode, 'off'>;

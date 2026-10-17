@@ -3,7 +3,7 @@ import { encodeWav, normalizeGain, peakOf } from './codec';
 import type { Trigger } from './generate';
 import type { MidiPlan, Piece } from './midi';
 import { encodeMidi, midiPlan, slotCount } from './midi';
-import { scheduleHit } from './render';
+import { renderTakeWithTail, scheduleHit } from './render';
 import { encodeRex } from './rex';
 import type { Tape } from './tape';
 
@@ -41,15 +41,33 @@ export async function renderSlices(
 }
 
 /**
+ * The song's reverb and delay alone, from its start for as long as they ring,
+ * at `gain`: laid beside the dry slices in a DAW, from where the MIDI starts,
+ * they sound like the song. Null when nothing is sent to them.
+ */
+async function spaceStem(
+  project: Project,
+  take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[] },
+  sampleRate: number,
+  gain: number,
+): Promise<Uint8Array | null> {
+  if (!take.triggers.some((t) => t.reverb !== null || t.delay !== null)) return null;
+  const { full } = await renderTakeWithTail(take, project, sampleRate, undefined, 'space');
+  const channels = Array.from({ length: full.numberOfChannels }, (_, i) => full.getChannelData(i));
+  return encodeWav({ sampleRate, channels }, { gain });
+}
+
+/**
  * The MIDI file and the WAV of slices for a take. The slices are normalized
  * like the song's own export, so the levels match; if a whole piece peaks
- * higher than the song does, they are brought down to fit.
+ * higher than the song does, they are brought down to fit. The slices are dry:
+ * the reverb and delay come as a WAV of their own, at the same level.
  */
 export async function midiExport(
   project: Project,
   take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[]; readonly buffer: AudioBuffer },
   sampleRate: number,
-): Promise<{ readonly midi: Uint8Array; readonly wav: Uint8Array; readonly pieces: number }> {
+): Promise<{ readonly midi: Uint8Array; readonly wav: Uint8Array; readonly pieces: number; readonly space: Uint8Array | null }> {
   const plan = midiPlan(project, take);
   const slices = await renderSlices(project, plan, take.buffer, sampleRate);
   const songChannels = Array.from({ length: take.buffer.numberOfChannels }, (_, i) => take.buffer.getChannelData(i));
@@ -58,6 +76,7 @@ export async function midiExport(
     midi: encodeMidi(project.song.bpm, plan.notes),
     wav: encodeWav(slices.audio, { gain, cues: slices.cues }),
     pieces: plan.pieces.length,
+    space: await spaceStem(project, take, sampleRate, gain),
   };
 }
 
@@ -73,7 +92,7 @@ export async function rexExport(
   project: Project,
   take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[]; readonly buffer: AudioBuffer },
   sampleRate: number,
-): Promise<{ readonly midi: Uint8Array; readonly rex: Uint8Array; readonly pieces: number }> {
+): Promise<{ readonly midi: Uint8Array; readonly rex: Uint8Array; readonly pieces: number; readonly space: Uint8Array | null }> {
   const plan = midiPlan(project, take);
   const pieces = await Promise.all(plan.pieces.map((p) => pieceAudio(project, p, take.buffer, sampleRate)));
   const songChannels = Array.from({ length: take.buffer.numberOfChannels }, (_, i) => take.buffer.getChannelData(i));
@@ -85,5 +104,10 @@ export async function rexExport(
     (r ?? l)!.forEach((v, i) => (out[1][i] = v * gain));
     return out;
   });
-  return { midi: encodeMidi(project.song.bpm, plan.notes), rex: encodeRex({ sampleRate, bpm: project.song.bpm, slices }), pieces: plan.pieces.length };
+  return {
+    midi: encodeMidi(project.song.bpm, plan.notes),
+    rex: encodeRex({ sampleRate, bpm: project.song.bpm, slices }),
+    pieces: plan.pieces.length,
+    space: await spaceStem(project, take, sampleRate, gain),
+  };
 }

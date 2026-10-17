@@ -1,6 +1,6 @@
 import { ensureSlots, slotHit, slotName } from './breaks';
 import type { Break, Hit, Id, Pad, Project, Region, Sample } from './types';
-import { NO_DIST, NO_FILTER, NO_STRETCH, STEPS_PER_BAR } from './types';
+import { NO_DELAY, NO_DIST, NO_FILTER, NO_REVERB, NO_STRETCH, STEPS_PER_BAR } from './types';
 
 /** A sample as saved before breaks were their own objects: a break was a sample with markers, a slice a sample of its own. */
 interface LegacySample {
@@ -35,7 +35,7 @@ export function breaksFromSamples(project: Project): Project {
   const hitsOn = (sampleId: Id) => oldHits.filter((h) => h.sampleId === sampleId);
   const toHit = (h: LegacyHit, breakId: Id, slot: number | null, duration: number): Hit => {
     const { id, name, direction, pitch, volume, fadeOut, variantOf } = h;
-    return { id, name, breakId, slot, region: parts(h.region, duration), direction, pitch, volume, pan: 0, fadeOut, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, variantOf };
+    return { id, name, breakId, slot, region: parts(h.region, duration), direction, pitch, volume, pan: 0, fadeOut, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, reverb: NO_REVERB, delay: NO_DELAY, variantOf };
   };
 
   const samples: Record<Id, Sample> = {};
