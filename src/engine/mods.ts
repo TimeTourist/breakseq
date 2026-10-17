@@ -1,5 +1,17 @@
-import type { Clip, DistPlay, FilterPlay, Hit, Mod, ModRate, ModShape, ModStretch, Pad, Project, Rng, Step, StepEffect, StepTarget } from '../model';
-import { DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_STRETCH, STEPS_PER_BAR, clipsByStep, distPlay, filterPlay } from '../model';
+import type { Clip, DelayPlay, DistPlay, FilterPlay, Hit, Mod, ModRate, ModShape, ModStretch, Pad, Project, ReverbPlay, Rng, Step, StepEffect, StepTarget } from '../model';
+import {
+  DEFAULT_MOD_DELAY,
+  DEFAULT_MOD_DIST,
+  DEFAULT_MOD_FILTER,
+  DEFAULT_MOD_REVERB,
+  DEFAULT_MOD_STRETCH,
+  STEPS_PER_BAR,
+  clipsByStep,
+  delayPlay,
+  distPlay,
+  filterPlay,
+  reverbPlay,
+} from '../model';
 
 /** What a step will play after mods. Handlers return a changed copy. */
 export interface StepState {
@@ -22,6 +34,10 @@ export interface StepState {
   readonly dist: DistPlay | null;
   /** A Filter mod's filter, in place of the hit's; null keeps the hit's. */
   readonly filter: FilterPlay | null;
+  /** A Reverb mod's reverb, in place of the hit's; undefined keeps the hit's, null sends none. */
+  readonly reverb?: ReverbPlay | null;
+  /** A Delay mod's delay, in place of the hit's; undefined keeps the hit's, null sends none. */
+  readonly delay?: DelayPlay | null;
 }
 
 /** The hit a step plays: its chosen member if that is in the pad, otherwise member 1. */
@@ -90,6 +106,19 @@ const handlers: readonly (readonly [StepTarget, TargetHandler])[] = [
       apply: (s, v, effect) => {
         const { type, resonance } = effect.filter ?? DEFAULT_MOD_FILTER;
         return { ...s, filter: filterPlay(type, v, resonance) };
+      },
+    },
+  ],
+  // Reverb and delay values are the amount in percent; A's and B's add, and B's settings win.
+  ['reverb', { discrete: false, combine: 'add', apply: (s, v, effect) => ({ ...s, reverb: reverbPlay(v / 100, (effect.reverb ?? DEFAULT_MOD_REVERB).size) }) }],
+  [
+    'delay',
+    {
+      discrete: false,
+      combine: 'add',
+      apply: (s, v, effect) => {
+        const { steps, feedback } = effect.delay ?? DEFAULT_MOD_DELAY;
+        return { ...s, delay: delayPlay(v / 100, steps, feedback) };
       },
     },
   ],

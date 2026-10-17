@@ -1,5 +1,5 @@
-import type { Clip, Direction, DistPlay, FilterPlay, Id, Loop, Project, Region, Rng, StretchPlay } from '../model';
-import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitColour, hitSound, hitStretch, stepDuration } from '../model';
+import type { Clip, DelayPlay, Direction, DistPlay, FilterPlay, Id, Loop, Project, Region, ReverbPlay, Rng, StretchPlay } from '../model';
+import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitColour, hitSound, hitSpace, hitStretch, stepDuration } from '../model';
 import type { StepState } from './mods';
 import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
 import { padPicker } from './pad-choice';
@@ -28,6 +28,9 @@ export interface Trigger {
   /** Dist, then filter; null for none. */
   readonly dist: DistPlay | null;
   readonly filter: FilterPlay | null;
+  /** Sent to the song's reverb and delay, which ring out beside the voice; null sends none. */
+  readonly reverb: ReverbPlay | null;
+  readonly delay: DelayPlay | null;
 }
 
 /** The loop heard at a song step, and the index of the step in it. */
@@ -116,6 +119,10 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     const colour = hitColour(project, state.hit);
     const dist = state.dist ?? colour.dist;
     const filter = state.filter ?? colour.filter;
+    // So do Reverb and Delay mods.
+    const space = hitSpace(project, state.hit);
+    const reverb = state.reverb === undefined ? space.reverb : state.reverb;
+    const delay = state.delay === undefined ? space.delay : state.delay;
     for (let i = 0; i < state.ratchet; i++) {
       triggers.push({
         time: time + (i * length) / state.ratchet,
@@ -130,6 +137,8 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
         stretch,
         dist,
         filter,
+        reverb,
+        delay,
       });
     }
   };

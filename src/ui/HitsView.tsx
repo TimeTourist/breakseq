@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { Hit, HitDist, HitFilter, HitStretch, Id, Pad, Project, StretchMode } from '../model';
+import type { Hit, HitDelay, HitDist, HitFilter, HitReverb, HitStretch, Id, Pad, Project, StretchMode } from '../model';
 import {
   cloneBreak,
   renameBreak,
@@ -11,6 +11,7 @@ import {
   MAX_CUTOFF,
   MAX_GRAIN,
   MIN_CUTOFF,
+  MAX_FEEDBACK,
   MIN_GRAIN,
   baseName,
   hitStretch,
@@ -39,7 +40,7 @@ import { PlayControls } from './PlayControls';
 import { RegionHandle } from './RegionHandle';
 import { decodeAudioFile } from '../engine';
 import { PlayIcon } from './icons';
-import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, padGroups, padLabel, replacedBy } from './labels';
+import { CHOICE_LABEL, DELAY_TIMES, DIST_MODES, FILTER_TYPES, padGroups, padLabel, replacedBy, sizeText } from './labels';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
@@ -577,6 +578,52 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
     );
   }
 
+  /**
+   * Reverb and delay: how much of the hit is sent to them, and their settings.
+   * They ring out beside the hits, so the next hit does not cut them. An amount
+   * of 0 on a slice takes its parent's, which is shown beside it.
+   */
+  function spacePanel(hit: Hit, parent: Hit | undefined) {
+    const setReverb = (patch: Partial<HitReverb>, field: string) => setError(run(updateHit(hit.id, { reverb: { ...hit.reverb, ...patch } }), `hit:${hit.id}:reverb:${field}`));
+    const setDelay = (patch: Partial<HitDelay>, field: string) => setError(run(updateHit(hit.id, { delay: { ...hit.delay, ...patch } }), `hit:${hit.id}:delay:${field}`));
+    const fromParent = (on: boolean, what: string) => (parent !== undefined && !on ? <span className="muted small">{what}</span> : null);
+    const percent = (v: number) => `${Math.round(v * 100)}%`;
+    const parentReverb = parent === undefined || parent.reverb.amount <= 0 ? 'parent: none' : `parent: ${percent(parent.reverb.amount)}`;
+    const parentDelay =
+      parent === undefined || parent.delay.amount <= 0 ? 'parent: none' : `parent: ${percent(parent.delay.amount)} at ${DELAY_TIMES.find(([s]) => s === parent.delay.steps)?.[1]}`;
+    return (
+      <div className="slider-grid">
+        <div className="panel stack-tight" role="group" aria-label="Reverb">
+          <div className="row spread">
+            <span className="label">Reverb</span>
+            {fromParent(hit.reverb.amount > 0, parentReverb)}
+          </div>
+          <Slider label="Reverb amount" value={hit.reverb.amount} min={0} max={1} step={0.01} format={(v) => (v <= 0 ? 'Off' : percent(v))} onChange={(v) => setReverb({ amount: v }, 'amount')} onCommit={seal} />
+          {hit.reverb.amount > 0 && <Slider label="Size" value={hit.reverb.size} min={0} max={1} step={0.01} format={sizeText} onChange={(v) => setReverb({ size: v }, 'size')} onCommit={seal} />}
+        </div>
+        <div className="panel stack-tight" role="group" aria-label="Delay">
+          <div className="row spread">
+            <span className="label">Delay</span>
+            {fromParent(hit.delay.amount > 0, parentDelay)}
+          </div>
+          <Slider label="Delay amount" value={hit.delay.amount} min={0} max={1} step={0.01} format={(v) => (v <= 0 ? 'Off' : percent(v))} onChange={(v) => setDelay({ amount: v }, 'amount')} onCommit={seal} />
+          {hit.delay.amount > 0 && (
+            <>
+              <div className="segmented full" role="group" aria-label="Delay time">
+                {DELAY_TIMES.map(([steps, label]) => (
+                  <button key={steps} type="button" aria-pressed={hit.delay.steps === steps} onClick={() => setDelay({ steps }, 'steps')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <Slider label="Feedback" value={hit.delay.feedback} min={0} max={MAX_FEEDBACK} step={0.01} format={percent} onChange={(v) => setDelay({ feedback: v }, 'feedback')} onCommit={seal} />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   /** How the selected hit plays: region, direction, pitch, volume and fade. */
   function hitEditor(hit: Hit) {
     const onError = setError;
@@ -830,6 +877,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
         </div>
         {stretchPanel(hit, parent, brk?.bars === null)}
         {colourPanel(hit, parent)}
+        {spacePanel(hit, parent)}
       </section>
     );
   }

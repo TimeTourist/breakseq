@@ -47,6 +47,8 @@ function trigger(project: Project, hitId: Id, time: number, overrides: Partial<T
     stretch: null,
     dist: null,
     filter: null,
+    reverb: null,
+    delay: null,
     ...overrides,
   };
 }

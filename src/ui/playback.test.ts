@@ -15,6 +15,8 @@ const at = (time: number, bar: number): Trigger => ({
   stretch: null,
   dist: null,
   filter: null,
+  reverb: null,
+  delay: null,
 });
 
 describe('playheadTrigger', () => {

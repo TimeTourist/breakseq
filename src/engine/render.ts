@@ -1,5 +1,5 @@
-import type { AudioData, Direction, Hit, Project, Sample } from '../model';
-import { effectiveHit, hitColour, hitSound, hitStretch, sampleAudio, songDuration } from '../model';
+import type { AudioData, DelayPlay, Direction, Hit, Project, Sample } from '../model';
+import { effectiveHit, hitColour, hitSound, hitSpace, hitStretch, sampleAudio, songDuration, stepDuration } from '../model';
 import { panGains } from './colour';
 import { distort, filterSettings, levelMatch, rms } from './colour';
 import type { Take, Trigger } from './generate';
@@ -28,7 +28,7 @@ function sampleBuffer(context: BaseAudioContext, sample: Sample, audio: AudioDat
 }
 
 /** What one voice plays: a hit with its final settings, as a trigger carries them. */
-export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'pan' | 'direction' | 'region' | 'stretch' | 'dist' | 'filter'>;
+export type HitPlay = Pick<Trigger, 'hitId' | 'pitch' | 'volume' | 'pan' | 'direction' | 'region' | 'stretch' | 'dist' | 'filter' | 'reverb' | 'delay'>;
 
 /** A voice that has been scheduled: stop() silences it at once. */
 export interface Voice {
@@ -50,13 +50,25 @@ export function hitPlay(project: Project, hit: Hit): HitPlay {
     region: hitSound(project, hit)?.region ?? { start: 0, end: 0 },
     stretch: playedStretch(hitStretch(project, hit), null),
     ...hitColour(project, hit),
+    ...hitSpace(project, hit),
   };
+}
+
+/**
+ * Where a voice goes: `dry` hears it as it is (null: not at all), and `space`
+ * takes what it sends to the reverb and delay (null: nothing is sent).
+ */
+export interface Route {
+  readonly dry: AudioNode | null;
+  readonly space: Space | null;
 }
 
 /**
  * Schedules one voice on any context, offline or live: region, direction,
  * pitch as playback rate, stretch as grains, volume and fade out. If `chokeAt`
- * comes before the voice ends, it fades out from there over CHOKE_FADE.
+ * comes before the voice ends, it fades out from there over CHOKE_FADE. What it
+ * sends to the reverb and delay is the voice as heard, cut where it is cut; the
+ * reverb and delay ring on.
  */
 export function scheduleHit(
   context: BaseAudioContext,
@@ -65,6 +77,7 @@ export function scheduleHit(
   play: HitPlay,
   start: number,
   chokeAt = Infinity,
+  route: Route = { dry: context.destination, space: null },
 ): Voice | null {
   const hit = project.hits[play.hitId];
   const sample = hit === undefined ? undefined : hitSound(project, hit)?.sample;
@@ -149,9 +162,8 @@ export function scheduleHit(
 
   // Pan is balance with equal power: the middle as without pan, and towards one
   // side the other channel fades to nothing while this one rises up to 3 dB.
-  if (play.pan === 0) {
-    gain.connect(context.destination);
-  } else {
+  let out: AudioNode = gain;
+  if (play.pan !== 0) {
     const { left, right } = panGains(play.pan);
     const split = context.createChannelSplitter(2);
     const merge = context.createChannelMerger(2);
@@ -162,8 +174,16 @@ export function scheduleHit(
     gain.connect(split);
     split.connect(l, 0).connect(merge, 0, 0);
     split.connect(r, 1).connect(merge, 0, 1);
-    merge.connect(context.destination);
+    out = merge;
   }
+  if (route.dry !== null) out.connect(route.dry);
+  const send = (amount: number, into: AudioNode) => {
+    const level = context.createGain();
+    level.gain.value = amount;
+    out.connect(level).connect(into);
+  };
+  if (route.space !== null && play.reverb !== null) send(play.reverb.amount, route.space.reverb(play.reverb.size));
+  if (route.space !== null && play.delay !== null) send(play.delay.amount, route.space.delay(play.delay));
   // Dist is in the buffer; the filter comes after it, before the voice's level.
   let input: AudioNode = gain;
   if (filter !== null) {
@@ -216,7 +236,14 @@ export function scheduleHit(
 }
 
 /** Plays triggers on a context, one voice: each trigger is cut where the next sound starts. */
-function scheduleTriggers(context: BaseAudioContext, project: Project, triggers: readonly Trigger[], cuts: readonly number[], sampleRate: number) {
+function scheduleTriggers(
+  context: BaseAudioContext,
+  project: Project,
+  triggers: readonly Trigger[],
+  cuts: readonly number[],
+  sampleRate: number,
+  route: Route = { dry: context.destination, space: null },
+) {
   const cache: BufferCache = new Map();
   const sorted = [...triggers].sort((a, b) => a.time - b.time);
   // Starts are placed on whole sample frames. Between frames Web Audio interpolates,
@@ -226,7 +253,7 @@ function scheduleTriggers(context: BaseAudioContext, project: Project, triggers:
   sorted.forEach((trigger) => {
     const start = onFrame(trigger.time);
     const next = starts.find((s) => s > start);
-    scheduleHit(context, cache, project, trigger, start, next ?? Infinity);
+    scheduleHit(context, cache, project, trigger, start, next ?? Infinity, route);
   });
 }
 
@@ -274,21 +301,159 @@ function scheduleTape(context: BaseAudioContext, tape: Tape, recording: AudioBuf
   }
 }
 
+/** What a render has in it: everything, the hits alone, or only the reverb and delay. */
+export type Mix = 'all' | 'dry' | 'space';
+
+/** A take as audio: `full` as long as it rings, and `buffer` exactly as long as asked, what rings past the end added from its start. */
+export interface Rendered {
+  /** Ready to loop: what rings past the end comes in at the start, as it would on the next time round. */
+  readonly buffer: AudioBuffer;
+  /** From the start for as long as anything rings: the song and then its reverb and delay dying away. */
+  readonly full: AudioBuffer;
+}
+
 /**
  * Renders a take to audio offline. One voice: a new trigger or tape cuts the
- * sound before it with a short fade. The buffer is exactly as long as the song,
- * or `seconds` when given.
+ * sound before it with a short fade. Beside it the reverb and delay ring out.
+ * Tapes record the hits alone.
  */
-export async function renderTake(take: Take, project: Project, sampleRate: number, seconds = songDuration(project.song)): Promise<AudioBuffer> {
+export async function renderTakeWithTail(
+  take: Take,
+  project: Project,
+  sampleRate: number,
+  seconds = songDuration(project.song),
+  mix: Mix = 'all',
+): Promise<Rendered> {
   const recordings = await Promise.all(take.tapes.map((tape) => renderPart(tape.source, project, tape.length, sampleRate, tape.length)));
+  const ring = mix === 'dry' ? 0 : spaceRing(take.triggers, project.song.bpm);
   const length = Math.max(1, Math.round(seconds * sampleRate));
-  const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
-  scheduleTriggers(context, project, take.triggers, take.tapes.map((t) => t.time), sampleRate);
-  take.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!));
-  return context.startRendering();
+  const context = new OfflineAudioContext({ numberOfChannels: 2, length: length + Math.round(ring * sampleRate), sampleRate });
+  const route: Route = { dry: mix === 'space' ? null : context.destination, space: mix === 'dry' ? null : createSpace(context, context.destination, project.song.bpm) };
+  scheduleTriggers(context, project, take.triggers, take.tapes.map((t) => t.time), sampleRate, route);
+  if (mix !== 'space') take.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!));
+  const full = await context.startRendering();
+  return { full, buffer: full.length === length ? full : folded(context, full, length) };
+}
+
+/** Renders a take to audio offline, exactly as long as the song or `seconds`: ready to loop. */
+export async function renderTake(take: Take, project: Project, sampleRate: number, seconds = songDuration(project.song)): Promise<AudioBuffer> {
+  return (await renderTakeWithTail(take, project, sampleRate, seconds)).buffer;
+}
+
+/** The first `length` frames of `full`, with the frames after them added from the start, round and round. */
+function folded(context: BaseAudioContext, full: AudioBuffer, length: number): AudioBuffer {
+  const out = context.createBuffer(full.numberOfChannels, length, full.sampleRate);
+  for (let c = 0; c < full.numberOfChannels; c++) {
+    const from = full.getChannelData(c);
+    const to = new Float32Array(length);
+    for (let i = 0; i < from.length; i++) to[i % length]! += from[i]!;
+    out.copyToChannel(to, c);
+  }
+  return out;
 }
 
 /** Renders triggers to audio offline, with no tapes. */
 export async function renderTriggers(triggers: readonly Trigger[], project: Project, sampleRate: number): Promise<AudioBuffer> {
   return renderTake({ triggers, tapes: [] }, project, sampleRate);
+}
+
+/** The shortest and longest reverb, in seconds, at size 0 and 1. */
+export const REVERB_SECONDS = { min: 0.3, max: 4 } as const;
+/** The longest anything rings after the song, in seconds. */
+const MAX_RING = 10;
+
+const reverbSeconds = (size: number) => REVERB_SECONDS.min + size * (REVERB_SECONDS.max - REVERB_SECONDS.min);
+/** How long a delay's echoes take to die away to −60 dB. */
+const delaySeconds = (delay: DelayPlay, bpm: number) => {
+  const time = delay.steps * stepDuration(bpm);
+  return delay.feedback <= 0 ? time : time * (1 + Math.log(0.001) / Math.log(delay.feedback));
+};
+
+/** How long the reverb and delay of these triggers can ring after the last one. */
+export function spaceRing(triggers: readonly Trigger[], bpm: number): number {
+  let ring = 0;
+  for (const t of triggers) {
+    if (t.reverb !== null) ring = Math.max(ring, reverbSeconds(t.reverb.size));
+    if (t.delay !== null) ring = Math.max(ring, delaySeconds(t.delay, bpm));
+  }
+  return Math.min(MAX_RING, ring);
+}
+
+/** The song's reverb and delay: where voices send, by size and by delay. */
+export interface Space {
+  readonly reverb: (size: number) => AudioNode;
+  readonly delay: (delay: DelayPlay) => AudioNode;
+}
+
+/**
+ * Noise that is the same every time: a fixed room, not chance. (Randomness in
+ * a take comes from its Rng; this is part of the sound, like a sample.)
+ */
+function noise(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (((t ^ (t >>> 14)) >>> 0) / 4294967296) * 2 - 1;
+  };
+}
+
+/** A room: stereo noise dying away to −60 dB over its length, with as much energy as a single click, so the reverb is about as loud as what is sent. */
+export function reverbImpulse(size: number, sampleRate: number): Float32Array<ArrayBuffer>[] {
+  const seconds = reverbSeconds(size);
+  const length = Math.max(1, Math.round(seconds * sampleRate));
+  return [1, 2].map((seed) => {
+    const next = noise(seed);
+    const data = new Float32Array(length);
+    let energy = 0;
+    for (let i = 0; i < length; i++) {
+      data[i] = next() * Math.exp((-6.9 * i) / length);
+      energy += data[i]! * data[i]!;
+    }
+    const scale = 1 / Math.sqrt(energy);
+    for (let i = 0; i < length; i++) data[i]! *= scale;
+    return data;
+  });
+}
+
+/** The reverb and delay on a context, made as they are first sent to and shared by all voices after. */
+export function createSpace(context: BaseAudioContext, out: AudioNode, bpm: number): Space {
+  const reverbs = new Map<string, AudioNode>();
+  const delays = new Map<string, AudioNode>();
+  return {
+    reverb: (size) => {
+      const key = size.toFixed(2);
+      let input = reverbs.get(key);
+      if (input === undefined) {
+        const convolver = context.createConvolver();
+        convolver.normalize = false;
+        const impulse = reverbImpulse(Number(key), context.sampleRate);
+        const buffer = context.createBuffer(2, impulse[0]!.length, context.sampleRate);
+        impulse.forEach((data, c) => buffer.copyToChannel(data, c));
+        convolver.buffer = buffer;
+        convolver.connect(out);
+        input = convolver;
+        reverbs.set(key, input);
+      }
+      return input;
+    },
+    delay: (delay) => {
+      const key = `${delay.steps}:${delay.feedback.toFixed(3)}`;
+      let input = delays.get(key);
+      if (input === undefined) {
+        const time = delay.steps * stepDuration(bpm);
+        const line = context.createDelay(Math.max(1, time + 0.01));
+        line.delayTime.value = time;
+        const feedback = context.createGain();
+        feedback.gain.value = delay.feedback;
+        line.connect(feedback).connect(line);
+        line.connect(out);
+        input = line;
+        delays.set(key, input);
+      }
+      return input;
+    },
+  };
 }

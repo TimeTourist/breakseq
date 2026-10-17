@@ -127,6 +127,15 @@ export const FILTER_TYPES = [
   ['lowpass', 'Low-pass'],
   ['highpass', 'High-pass'],
 ] as const;
+/** Delay times as note values, in steps of 1/16. */
+export const DELAY_TIMES = [
+  [1, '1/16'],
+  [2, '1/8'],
+  [3, '3/16'],
+  [4, '1/4'],
+] as const;
+/** A reverb's size as words: a room to a hall. */
+export const sizeText = (size: number): string => `${Math.round(size * 100)}% (${size < 0.34 ? 'room' : size < 0.67 ? 'chamber' : 'hall'})`;
 
 /** A long file name shortened in the middle, keeping its start and its end with the extension. */
 export function middleEllipsis(name: string, max = 32): string {

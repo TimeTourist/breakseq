@@ -87,3 +87,37 @@ describe('dist and filter in the GUI', () => {
     expect(effects.find((e) => e.target === 'filter')).toMatchObject({ filter: { type: 'highpass', resonance: 0.2 } });
   });
 });
+
+describe('reverb and delay in the GUI', () => {
+  it('Hits sends a hit to the reverb and the delay, with a size, a time and feedback', async () => {
+    const project = apply(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
+    const hit = Object.values(project.hits)[0]!;
+    const store = await setup(project, 'hits', { hit: hit.id });
+    // Off until an amount is set: then its settings show.
+    expect(screen.queryByRole('slider', { name: /^Size/ })).toBeNull();
+    fireEvent.change(screen.getByRole('slider', { name: /^Reverb amount/ }), { target: { value: '0.6' } });
+    fireEvent.change(screen.getByRole('slider', { name: /^Size/ }), { target: { value: '0.9' } });
+    fireEvent.change(screen.getByRole('slider', { name: /^Delay amount/ }), { target: { value: '0.4' } });
+    fireEvent.click(within(screen.getByRole('group', { name: 'Delay time' })).getByRole('button', { name: '1/8' }));
+    fireEvent.change(screen.getByRole('slider', { name: /^Feedback/ }), { target: { value: '0.5' } });
+    expect(store.getState().history.present.hits[hit.id]).toMatchObject({ reverb: { amount: 0.6, size: 0.9 }, delay: { amount: 0.4, steps: 2, feedback: 0.5 } });
+  });
+
+  it('a Reverb mod has a size, and a Delay mod a time and feedback; their values are the amount in percent', async () => {
+    const project = apply(
+      createProject(),
+      createMod('m', [
+        { target: 'reverb', rate: 'step', shape: { kind: 'list', values: [80] } },
+        { target: 'delay', rate: 'step', shape: { kind: 'list', values: [50] } },
+      ]),
+    );
+    const mod = Object.values(project.mods)[0]!;
+    const store = await setup(project, 'mods', { mod: mod.id });
+    fireEvent.change(screen.getByRole('slider', { name: /^Size/ }), { target: { value: '0.2' } });
+    fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Delay' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Delay time' })).getByRole('button', { name: '1/16' }));
+    const effects = store.getState().history.present.mods[mod.id]!.effects;
+    expect(effects.find((e) => e.target === 'reverb')).toMatchObject({ reverb: { size: 0.2 } });
+    expect(effects.find((e) => e.target === 'delay')).toMatchObject({ delay: { steps: 1, feedback: 0.4 } });
+  });
+});

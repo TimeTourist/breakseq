@@ -1,6 +1,6 @@
 import type { Break, Hit, Id, Pad, Project, Region, Sample } from './types';
-import { DEFAULT_GRAIN, MAX_CUTOFF, MIN_CUTOFF, NO_DIST, NO_FILTER, NO_STRETCH, STEPS_PER_BAR } from './types';
-import type { DistMode, FilterType, GrainFrom } from './types';
+import { DEFAULT_GRAIN, DELAY_STEPS, MAX_CUTOFF, MIN_CUTOFF, NO_DELAY, NO_DIST, NO_FILTER, NO_REVERB, NO_STRETCH, STEPS_PER_BAR } from './types';
+import type { DelaySteps, DistMode, FilterType, GrainFrom, HitDelay, HitReverb } from './types';
 
 /** A file name without its audio extension: "amen.wav 01" → "amen 01". */
 export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc)(?=\s|$)/gi, '');
@@ -190,6 +190,44 @@ export function hitColour(project: Project, hit: Hit): { readonly dist: DistPlay
   };
 }
 
+/** Reverb as a sound sends it: an amount 0–1 and a size 0–1. */
+export interface ReverbPlay {
+  readonly amount: number;
+  readonly size: number;
+}
+/** Delay as a sound sends it: an amount 0–1, a time in steps of 1/16, and feedback 0–1. */
+export interface DelayPlay {
+  readonly amount: number;
+  readonly steps: DelaySteps;
+  readonly feedback: number;
+}
+
+/** The most feedback a delay takes, so its echoes always die away. */
+export const MAX_FEEDBACK = 0.9;
+export const delaySteps = (steps: number): DelaySteps =>
+  DELAY_STEPS.reduce((best, s) => (Math.abs(s - steps) < Math.abs(best - steps) ? s : best), DELAY_STEPS[0] as DelaySteps);
+/** Reverb to send, or null when the amount is nothing. */
+export const reverbPlay = (amount: number, size: number): ReverbPlay | null => {
+  const a = clamp01(amount);
+  return a <= 0 ? null : { amount: a, size: clamp01(size) };
+};
+/** Delay to send, or null when the amount is nothing. */
+export const delayPlay = (amount: number, steps: number, feedback: number): DelayPlay | null => {
+  const a = clamp01(amount);
+  return a <= 0 ? null : { amount: a, steps: delaySteps(steps), feedback: Math.min(MAX_FEEDBACK, clamp01(feedback)) };
+};
+
+/** A hit's reverb and delay without mods: its own, or where its amount is 0, its parent's, as with dist. */
+export function hitSpace(project: Project, hit: Hit): { readonly reverb: ReverbPlay | null; readonly delay: DelayPlay | null } {
+  const parent = parentHit(project, hit);
+  const r: HitReverb | undefined = hit.reverb.amount > 0 ? hit.reverb : parent?.reverb;
+  const d: HitDelay | undefined = hit.delay.amount > 0 ? hit.delay : parent?.delay;
+  return {
+    reverb: r === undefined ? null : reverbPlay(r.amount, r.size),
+    delay: d === undefined ? null : delayPlay(d.amount, d.steps, d.feedback),
+  };
+}
+
 /** Whether a hit is a break's parent: a macro for its slices, never played as a pad. */
 export function isParentHit(project: Project, hit: Hit): boolean {
   return project.breaks[hit.breakId]?.parent === hit.id;
@@ -208,7 +246,7 @@ export function isParentPad(project: Project, pad: Pad): boolean {
 
 /** A new hit playing a whole slot (or the whole break), unchanged. */
 export function slotHit(id: Id, name: string, breakId: Id, slot: number | null): Hit {
-  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, pan: 0, fadeOut: 0, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, variantOf: null };
+  return { id, name, breakId, slot, region: { start: 0, end: 1 }, direction: 'forward', pitch: 0, volume: 0, pan: 0, fadeOut: 0, stretch: NO_STRETCH, dist: NO_DIST, filter: NO_FILTER, reverb: NO_REVERB, delay: NO_DELAY, variantOf: null };
 }
 
 /** The name of a slot's hit and pad: "amen 05", or just "snare" for a one-shot. */
