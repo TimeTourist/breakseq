@@ -300,7 +300,7 @@ function Shell() {
         onStop={stop}
         status={status}
       />
-      {view === 'import' && <ImportView />}
+      {view === 'import' && <ImportView playheadSeconds={playingKey?.startsWith('sample:') === true ? playhead.seconds : null} />}
       {view === 'slice' && <SliceView />}
       {view === 'hits' && <HitsView />}
       {view === 'loops' && <LoopsView playhead={playhead.trigger} />}

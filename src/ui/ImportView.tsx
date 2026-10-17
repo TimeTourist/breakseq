@@ -16,7 +16,12 @@ function creates(project: Project, brk: Break): string {
   return `${brk.markers.length} slices · ${brk.markers.length} pads${loop === undefined ? '' : ` · loop ${loop.name}`}`;
 }
 
-export function ImportView() {
+interface ImportViewProps {
+  /** Where Play is in the open Trim's sample, in seconds from its start, while it plays it. */
+  readonly playheadSeconds?: number | null;
+}
+
+export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const project = useProject();
   const run = useRun();
   const { store, services } = useApp();
@@ -232,7 +237,7 @@ export function ImportView() {
                     {trimming === brk.id && (
                       <tr>
                         <td colSpan={5} className="trim-cell" ref={trimCell}>
-                          <TrimEditor sample={sample} loopFirst={brk.bars !== null} />
+                          <TrimEditor sample={sample} loopFirst={brk.bars !== null} played={playheadSeconds} />
                         </td>
                       </tr>
                     )}
