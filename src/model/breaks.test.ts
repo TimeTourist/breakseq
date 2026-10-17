@@ -9,6 +9,7 @@ import {
   createPad,
   createProject,
   hitSound,
+  placeBreak,
   replaceSample,
   replaceSampleWithFile,
   setBreak,
@@ -270,5 +271,22 @@ describe('upgrading a project saved before breaks', () => {
 
   it('upgrades the same way every time', () => {
     expect(upgradeProject(legacy())).toEqual(upgradeProject(legacy()));
+  });
+});
+
+describe('placing a break in a loop', () => {
+  it('writes over its whole length, emptying the steps no slice lands on', () => {
+    const { project, id } = amen(4);
+    const withLoop = run(project, createLoop('L', 'main', 2));
+    const loop = Object.values(withLoop.loops).find((l) => l.name === 'L')!;
+    const other = withLoop.breaks[id]!.pads[3]!;
+    // Something on every step the break covers, and on the step after it.
+    const filled = run(withLoop, ...Array.from({ length: 18 }, (_, i) => setStep(loop.id, i, { padId: other })));
+    const placed = run(filled, placeBreak(loop.id, id, 1)).loops[loop.id]!.steps;
+    const pads = withLoop.breaks[id]!.pads.slice(0, 4);
+    expect(placed[0]!.padId).toBe(other);
+    expect([1, 5, 9, 13].map((i) => placed[i]!.padId)).toEqual(pads);
+    expect([2, 3, 4, 6, 16].map((i) => placed[i]!.padId)).toEqual([null, null, null, null, null]);
+    expect(placed[17]!.padId).toBe(other);
   });
 });

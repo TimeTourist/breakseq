@@ -225,7 +225,9 @@ export const setStep =
 /**
  * Lays a sliced break's slices out in a loop from step `at`, each on its own
  * step as in the loop the slicing made: what placing the break's parent means.
- * Slices past the loop's end, or on the same step as an earlier one, are left out.
+ * It writes over the break's whole length: steps there that no slice lands on
+ * are emptied. Slices past the loop's end, or on the same step as an earlier
+ * one, are left out.
  */
 export const placeBreak =
   (loopId: Id, breakId: Id, at: number): Command =>
@@ -234,7 +236,8 @@ export const placeBreak =
     if (loop === undefined) return notFound(loopId);
     const sequence = breakSequence(project, breakId);
     if (sequence.length === 0) return invalid('The break has no slices');
-    const steps = [...loop.steps];
+    const span = (project.breaks[breakId]?.bars ?? 1) * STEPS_PER_BAR;
+    const steps = loop.steps.map((s, i) => (i >= at && i < at + span ? emptyStep : s));
     const used = new Set<number>();
     for (const { padId, step } of sequence) {
       const index = at + step;
