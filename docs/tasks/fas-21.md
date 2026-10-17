@@ -14,6 +14,7 @@ Ett break kan plötsligt få reverb eller eko en kort stund, eller bara på slum
 1. **Reverb och delay är mål i Mods**, med samma rate och former som de andra (List, Cycle, Ramp, Random med chans). De finns också som reglage på hitten (och föräldern), för ett slag som alltid ska ha lite rymd.
 2. **Svansen klingar ut bredvid rösten.** Allt spelas på en röst där varje slag klipper det förra; reverben och delayen ligger utanför den. Ett slag skickar en kopia av sitt ljud dit, och svansen klipps inte av nästa slag eller av att moden tar slut.
 3. **Inga fler spår.** Breakseq gör breaks som läggs i lager i en riktig DAW (se `bordlagt.md`).
+4. **Exporten:** MIDI-filen, bit-WAV:en och REX-filen blir torra, slagen utan reverb och delay. Rymden exporteras som en egen WAV över hela låten (en stem): bara reverb och delay, tyst däremellan, och den börjar där MIDI-filen börjar, så den ligger rätt på ett ljudspår i Reason. Export WAV för hela låten har allt, med rymden.
 
 ## Förslag (granska gärna)
 
@@ -22,7 +23,3 @@ Ett break kan plötsligt få reverb eller eko en kort stund, eller bara på slum
 - **A och B:** mängderna adderas och begränsas till 100 %, som volym; storlek, tid och feedback är lägesvärden där B vinner, som dist och filter.
 - **Loopar:** svansen från slutet av en loop hörs i början av nästa varv, så att det inte hackar vid varvet.
 - **Låtens slut:** Export WAV blir så mycket längre att svansen hinner klinga ut.
-
-## Öppet
-
-- **MIDI-, slices- och REX-exporten:** svansen hör inte till ett enskilt slag, och Dr. Octo Rex klipper föregående slice. Förslag: svansarna blir egna bitar, ungefär som Tape-segment, på egna noter.
