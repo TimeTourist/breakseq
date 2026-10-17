@@ -4,6 +4,11 @@ import type { Command, Hit, Project } from './index';
 import {
   addClip,
   addPadMember,
+  addTrim,
+  renameBreak,
+  sliceName,
+  sliceToOneShot,
+  trimName,
   addSample,
   bpmOf,
   breakSequence,
@@ -72,9 +77,9 @@ describe('a break', () => {
     expect(project.hits[brk.parent!]).toMatchObject({ breakId: id, slot: null });
     // The one-shot's pad is slot 01 now.
     expect(brk.pads[0]).toBe(start.breaks[id]!.pads[0]);
-    expect(project.pads[brk.pads[0]!]!.name).toBe('amen 01');
+    expect(project.pads[brk.pads[0]!]!.name).toBe('amen 1 01');
     expect(bpmOf(project, brk)).toBeCloseTo(120);
-    expect(Object.values(project.loops).map((l) => l.name)).toEqual(['amen']);
+    expect(Object.values(project.loops).map((l) => l.name)).toEqual(['amen 1']);
 
     const again = run(project, setBreak(id, null), setBreak(id, 1));
     expect(Object.values(again.loops)).toHaveLength(1);
@@ -128,7 +133,7 @@ describe('a break', () => {
   it('a hit can play another slot or a one-shot, keeping its settings', () => {
     let { project, id } = amen(4);
     project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
-    const snare = Object.values(project.breaks).find((b) => b.name === 'snare.wav')!;
+    const snare = Object.values(project.breaks).find((b) => b.name === 'snare 1')!;
     const hit = slotHit(project, id, 0);
     project = run(project, updateHit(hit.id, { pitch: -3, fadeOut: 20 }), setHitSource(hit.id, snare.id, 0));
     expect(project.hits[hit.id]).toMatchObject({ breakId: snare.id, slot: 0, pitch: -3, fadeOut: 20 });
@@ -163,7 +168,7 @@ describe('swapping a break in a loop', () => {
   function twoBreaks() {
     let { project, id: amenId } = amen(4);
     project = run(project, addSample({ name: 'think.wav', audio: constantAudio(2) }));
-    const thinkId = Object.values(project.breaks).find((b) => b.name === 'think.wav')!.id;
+    const thinkId = Object.values(project.breaks).find((b) => b.name === 'think 1')!.id;
     project = run(project, setMarkersAfterBreak(thinkId, 2), createPad('Mine'), createLoop('L', 'main', 1));
     const loop = Object.values(project.loops).find((l) => l.name === 'L')!.id;
     const mine = Object.values(project.pads).find((p) => p.name === 'Mine')!.id;
@@ -198,7 +203,7 @@ describe('swapping a break in a loop', () => {
   it('a one-shot is a break with one slot: swapping to it keeps slot 01 and silences the rest', () => {
     let { project, amenId, loop } = twoBreaks();
     project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
-    const snare = Object.values(project.breaks).find((b) => b.name === 'snare.wav')!;
+    const snare = Object.values(project.breaks).find((b) => b.name === 'snare 1')!;
     const swapped = run(project, swapBreak(loop, amenId, snare.id));
     const steps = swapped.loops[loop]!.steps;
     expect(steps[0]!.padId).toBe(snare.pads[0]);
@@ -304,7 +309,7 @@ describe('cloning a break', () => {
     const replaced = run(p0, setHitSource(slotHit(p0, id, 2).id, id, 0), updateHit(slotHit(p0, id, 2).id, { pitch: 5 }));
     const project = run(replaced, cloneBreak(id));
     const copy = Object.values(project.breaks).find((b) => b.id !== id)!;
-    expect(copy).toMatchObject({ name: 'amen copy', sampleId: brk0.sampleId, bars: 1, markers: brk0.markers });
+    expect(copy).toMatchObject({ name: 'amen 1 copy', sampleId: brk0.sampleId, bars: 1, markers: brk0.markers });
     expect(copy.pads).toHaveLength(brk0.pads.length);
     expect(copy.pads.some((p) => brk0.pads.includes(p))).toBe(false);
     expect(copy.parent).not.toBe(brk0.parent);
@@ -313,10 +318,10 @@ describe('cloning a break', () => {
     const third = slotHit(project, copy.id, 2);
     expect(third).toMatchObject({ breakId: copy.id, slot: 0, pitch: 5 });
     expect(third.id).not.toBe(slotHit(project, id, 2).id);
-    expect(project.pads[copy.pads[0]!]!.name).toBe('amen copy 01');
+    expect(project.pads[copy.pads[0]!]!.name).toBe('amen 1 copy 01');
 
     const loop = project.loops[copy.loop!]!;
-    expect(loop.name).toBe('amen copy');
+    expect(loop.name).toBe('amen 1 copy');
     expect(loop.steps.filter((s) => s.padId !== null).map((s) => s.padId)).toEqual(copy.pads.slice(0, 4));
 
     // Changing the copy leaves the original alone.
@@ -390,5 +395,68 @@ describe('removing a break', () => {
     expect(gone.loops[other.id]!.steps[1]!.padId).toBe(mine.id);
     expect(gone.pads[mine.id]!.members).toEqual([]);
     expect(gone.song.clips.map((c) => c.ref)).toEqual([other.id]);
+  });
+});
+
+describe('files, trims, slices and breaks', () => {
+  it('an imported file is trim 1, its break is named without the extension, and its slice after the trim', () => {
+    const { project, id } = amen(4);
+    const brk = project.breaks[id]!;
+    const sample = project.samples[brk.sampleId]!;
+    expect(sample).toMatchObject({ name: 'amen.wav', trim: 1 });
+    expect(trimName(sample)).toBe('amen trim 1');
+    expect(sliceName(project, brk)).toBe('amen slice 1');
+    expect(brk.name).toBe('amen 1');
+    expect(project.hits[brk.parent!]!.name).toBe('amen 1');
+  });
+
+  it('a new trim of the same file is a row of its own, the old break untouched', () => {
+    const { project, id } = amen(4);
+    const sample = project.samples[project.breaks[id]!.sampleId]!;
+    const next = run(project, addTrim(sample.id));
+    const added = Object.values(next.breaks).find((b) => b.id !== id)!;
+    const trim = next.samples[added.sampleId]!;
+    expect(trim).toMatchObject({ name: 'amen.wav', audioId: sample.audioId, trim: 2, offset: 0 });
+    expect(added).toMatchObject({ name: 'amen 2', bars: null });
+    expect(Object.keys(next.audio)).toHaveLength(1);
+    expect(next.breaks[id]).toEqual(project.breaks[id]);
+  });
+
+  it('a slice becomes a one-shot: a new trim over just that slice', () => {
+    const { project, id } = amen(4);
+    const sample = project.samples[project.breaks[id]!.sampleId]!;
+    const next = run(project, sliceToOneShot(id, 2));
+    const shot = Object.values(next.breaks).find((b) => b.id !== id)!;
+    expect(next.samples[shot.sampleId]).toMatchObject({ trim: 2, offset: sample.offset + 1, duration: 0.5 });
+    expect(shot).toMatchObject({ name: 'amen 2', bars: null });
+  });
+
+  it('renaming a break renames its parent, its slot pads and hits, and its loop; file, trim and slice stay', () => {
+    const { project, id } = amen(4);
+    const next = run(project, renameBreak(id, 'think'));
+    const brk = next.breaks[id]!;
+    expect(brk.name).toBe('think');
+    expect(next.hits[brk.parent!]!.name).toBe('think');
+    expect(next.pads[brk.pads[6]!]!.name).toBe('think 07');
+    expect(slotHit(next, id, 1).name).toBe('think 02');
+    expect(next.loops[brk.loop!]!.name).toBe('think');
+    expect(trimName(next.samples[brk.sampleId]!)).toBe('amen trim 1');
+    expect(sliceName(next, brk)).toBe('amen slice 1');
+    expect(renameBreak(id, ' ')(next, ctx).ok).toBe(false);
+  });
+
+  it('an older project numbers its trims and names breaks named as their file as new ones are', () => {
+    const { project, id } = amen(4);
+    const brk = project.breaks[id]!;
+    const sample = project.samples[brk.sampleId]!;
+    const { trim: _trim, ...untrimmed } = sample;
+    void _trim;
+    // Saved before trims: the break was named as its file, its slots without the extension.
+    const old = run(project, renameBreak(id, 'amen'));
+    const saved = { ...old, breaks: { [id]: { ...old.breaks[id]!, name: 'amen.wav' } }, samples: { [sample.id]: untrimmed as typeof sample } };
+    const upgraded = upgradeProject(saved);
+    expect(upgraded.samples[sample.id]!.trim).toBe(1);
+    expect(upgraded.breaks[id]!.name).toBe('amen 1');
+    expect(upgraded.pads[brk.pads[0]!]!.name).toBe('amen 1 01');
   });
 });

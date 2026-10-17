@@ -22,6 +22,8 @@ export interface Sample {
   readonly duration: number;
   /** Which channels play: everything plays in stereo, so Left, Right and Mono are the same in both. */
   readonly channel: SampleChannel;
+  /** Its number among the trims of its file, from 1: "amen trim 2". Never changes. */
+  readonly trim: number;
 }
 
 /** Stereo as the file is; Left or Right that channel in both; Mono the two averaged in both. */

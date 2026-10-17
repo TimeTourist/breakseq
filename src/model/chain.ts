@@ -2,8 +2,9 @@ import type { Command, CommandContext, Usage } from './command';
 import { invalid, notFound, ok, sequence } from './command';
 import { findUsages } from './references';
 import type { SliceGrid } from './breaks';
-import { MIN_SLICE, baseName, breakBpm, breakSequence, ensureSlots, gridMarkers, markerGrid, padSlot, slotHit, slotName } from './breaks';
+import { MIN_SLICE, baseName, breakBpm, breakSequence, defaultBreakName, ensureSlots, gridMarkers, markerGrid, padSlot, sliceWindow, slotHit, slotName } from './breaks';
 import { emptyStep } from './project';
+import { renameBreakIn } from './names';
 import type { AudioData, Break, Id, Loop, Pad, Project, Sample, SampleChannel, Step } from './types';
 import { STEPS_PER_BAR } from './types';
 
@@ -23,7 +24,7 @@ function addAudio(project: Project, { name, audio }: NewSample, ctx: CommandCont
   const length = audio.channels[0]?.length ?? 0;
   if (length === 0 || audio.sampleRate <= 0) return 'Audio is empty';
   const audioId = ctx.newId();
-  const sample: Sample = { id: ctx.newId(), name, audioId, offset: 0, duration: length / audio.sampleRate, channel: 'stereo' };
+  const sample: Sample = { id: ctx.newId(), name, audioId, offset: 0, duration: length / audio.sampleRate, channel: 'stereo', trim: 1 };
   return { project: { ...project, audio: { ...project.audio, [audioId]: audio }, samples: { ...project.samples, [sample.id]: sample } }, sample };
 }
 
@@ -37,12 +38,67 @@ export const addSample =
     const added = addAudio(project, file, ctx);
     if (typeof added === 'string') return invalid(added);
     const { sample } = added;
-    const brk: Break = { id: ctx.newId(), name: sample.name, sampleId: sample.id, bars: null, markers: [0], pads: [], parent: null, loop: null };
+    const brk = oneShotOn(sample, ctx);
     const next = ensureSlots(setBreakIn(added.project, brk), brk.id, 1, ctx.newId);
     const cues = file.cues ?? [];
     if (cues.length === 0) return ok(next);
     const bars = guessBars(sample.duration);
     return setBreak(brk.id, bars, cleanMarkers(cues.map((c) => c / sample.duration), sample.duration))(next, ctx);
+  };
+
+/** A one-shot break over a whole trim, named after it ("amen 2"). */
+const oneShotOn = (sample: Sample, ctx: CommandContext): Break => ({
+  id: ctx.newId(),
+  name: defaultBreakName(sample),
+  sampleId: sample.id,
+  bars: null,
+  markers: [0],
+  pads: [],
+  parent: null,
+  loop: null,
+});
+
+/** A new trim of a file another sample already trims, as a one-shot over it: no need to import the file again. */
+function addTrimIn(project: Project, of: Sample, window: { offset: number; duration: number } | null, ctx: CommandContext): { project: Project; brk: Break } | string {
+  const audio = project.audio[of.audioId];
+  if (audio === undefined) return 'The file is missing';
+  const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
+  const trim = Math.max(0, ...Object.values(project.samples).filter((s) => s.audioId === of.audioId).map((s) => s.trim)) + 1;
+  const sample: Sample = { id: ctx.newId(), name: of.name, audioId: of.audioId, offset: window?.offset ?? 0, duration: window?.duration ?? length, channel: of.channel, trim };
+  const brk = oneShotOn(sample, ctx);
+  const next = ensureSlots(setBreakIn({ ...project, samples: { ...project.samples, [sample.id]: sample } }, brk), brk.id, 1, ctx.newId);
+  return { project: next, brk: next.breaks[brk.id]! };
+}
+
+/** A new trim of a sample's file, the whole file, as a one-shot of its own: "amen trim 2", break "amen 2". */
+export const addTrim =
+  (sampleId: Id): Command =>
+  (project, ctx) => {
+    const of = project.samples[sampleId];
+    if (of === undefined) return notFound(sampleId);
+    const added = addTrimIn(project, of, null, ctx);
+    return typeof added === 'string' ? invalid(added) : ok(added.project);
+  };
+
+/** A slice of a break made a one-shot of its own: a new trim of the file over just that slice. The break stays as it is. */
+export const sliceToOneShot =
+  (breakId: Id, slot: number): Command =>
+  (project, ctx) => {
+    const brk = project.breaks[breakId];
+    const of = brk === undefined ? undefined : project.samples[brk.sampleId];
+    if (brk === undefined || of === undefined) return notFound(breakId);
+    const window = sliceWindow(project, brk, slot);
+    if (window === null) return invalid('The break has no such slice');
+    const added = addTrimIn(project, of, { offset: of.offset + window.start, duration: window.end - window.start }, ctx);
+    return typeof added === 'string' ? invalid(added) : ok(added.project);
+  };
+
+export const renameBreak =
+  (breakId: Id, name: string): Command =>
+  (project) => {
+    if (project.breaks[breakId] === undefined) return notFound(breakId);
+    if (name.trim() === '') return invalid('A break needs a name');
+    return ok(renameBreakIn(project, breakId, name));
   };
 
 /** Markers within a break of `duration` seconds, as parts: the first at 0, ones too close dropped. */

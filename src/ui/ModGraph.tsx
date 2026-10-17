@@ -60,7 +60,7 @@ export function StepGraph({ effect, seed }: { effect: StepEffect; seed: number }
 /** A hit's short name: a slice's number ("amen 07" → "07"), else the start of its name. */
 const shortName = (name: string) => {
   const base = baseName(name);
-  return /\s(\d+)$/.exec(base)?.[1] ?? (base.length > 6 ? `${base.slice(0, 5)}…` : base);
+  return /\s(\d{2,})$/.exec(base)?.[1] ?? (base.length > 6 ? `${base.slice(0, 5)}…` : base);
 };
 
 /**

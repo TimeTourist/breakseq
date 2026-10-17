@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, replaceSample, replaceSampleWithFile, sampleAudio, setBreakBars, setGrid, setMarkers, holds, slicePlaces, unlikelyBpm } from '../model';
-import { decodeAudioFile, detectTransients } from '../engine';
-import { useApp, useProject, useRun, useSeal, useSelect } from './context';
+import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, sampleAudio, setBreakBars, setGrid, setMarkers, holds, sliceName, slicePlaces, sliceToOneShot, unlikelyBpm } from '../model';
+import { detectTransients } from '../engine';
+import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
+import { BreakOrigin } from './BreakOrigin';
 import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
 import { Waveform } from './Waveform';
 
@@ -32,7 +33,8 @@ export function SliceView() {
   const [loopBreak, setLoopBreak] = useState(true);
   const playhead = useAuditionPlayhead(playingBreak);
   const box = useRef<HTMLDivElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const open = useOpen();
+  const [made, setMade] = useState<{ name: string; hit: string } | null>(null);
 
   // Leaving the view stops whatever is being auditioned.
   useEffect(() => () => services.player.stopAudition(), [services]);
@@ -92,22 +94,14 @@ export function SliceView() {
     setError(run(setMarkers(brk.id, toParts(detectTransients(audio, sample.offset, duration, value))), mergeKey));
   };
 
-  /** Plays a new file under the break: its markers keep their steps. */
-  const replaceWithFile = async (file: File) => {
-    try {
-      setError(run(replaceSampleWithFile(brk.id, { name: file.name, audio: decodeAudioFile(await file.arrayBuffer()) })));
-    } catch (e) {
-      setError(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
   return (
     <main className="view">
       <div className="view-head row">
         <div className="stack-tight">
           <h1>
-            Slice <span className="mono muted title-file">{brk.name}</span>
+            Slice <span className="mono muted title-file">{sliceName(project, brk)}</span>
           </h1>
+          <BreakOrigin brk={brk} parts={['break', 'trim', 'file']} />
           <p className="muted row">
             <label className="field inline">
               <input
@@ -140,6 +134,11 @@ export function SliceView() {
           >
             ← Trim
           </button>
+          {brk.parent !== null && (
+            <button type="button" title="The break, its parent, in Hits" onClick={() => open({ hit: brk.parent, pad: null }, 'hits')}>
+              Hits →
+            </button>
+          )}
           {audio !== undefined && (
             <>
               <PlayMode
@@ -329,51 +328,40 @@ export function SliceView() {
             >
               Remove marker
             </button>
+            <button
+              type="button"
+              title="A one-shot of this slice: a new trim of the file over just the slice. The break stays as it is."
+              onClick={() => {
+                const before = store.getState().history.present.breaks;
+                const failed = run(sliceToOneShot(brk.id, current));
+                setError(failed);
+                const now = store.getState().history.present;
+                const shot = Object.values(now.breaks).find((b) => !(b.id in before));
+                const hit = shot === undefined ? undefined : now.pads[shot.pads[0] ?? '']?.members[0];
+                setMade(shot === undefined || hit === undefined ? null : { name: shot.name, hit });
+              }}
+            >
+              Slice → one-shot
+            </button>
           </div>
+          {made !== null && (
+            <p className="small">
+              Made the one-shot <span className="mono">{made.name}</span>{' '}
+              <button type="button" className="link-text small" onClick={() => open({ hit: made.hit, pad: null }, 'hits')}>
+                Hits →
+              </button>
+            </p>
+          )}
           <p className="muted small">
             Drag a marker, or select it and use ←/→ (Shift: 10 ms). Double-click the waveform to add one.
           </p>
-        </section>
-
-        <section className="panel stack grow-1" aria-label="Sample">
-          <h2 className="label">Sample</h2>
-          <p className="muted">
-            The sound under the markers. Replace it and every slot plays the new sound at the same steps. Changes here and to
-            the markers are heard straight away wherever the break plays.
-          </p>
-          <div className="row">
-            <label className="field">
-              Plays
-              <select aria-label="Sample under the break" value={sample.id} onChange={(e) => setError(run(replaceSample(brk.id, e.target.value)))}>
-                {Object.values(project.samples).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" className="self-end" onClick={() => fileInput.current?.click()}>
-              Replace sample…
-            </button>
-            <input
-              ref={fileInput}
-              type="file"
-              hidden
-              accept=".wav,.aif,.aiff,.aifc,audio/wav,audio/aiff"
-              aria-label="New sample file"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file !== undefined) void replaceWithFile(file);
-                e.target.value = '';
-              }}
-            />
-          </div>
           {error !== null && (
             <p className="error" role="alert">
               {error}
             </p>
           )}
         </section>
+
       </div>
     </main>
   );

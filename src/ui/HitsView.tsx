@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Hit, HitDist, HitFilter, HitStretch, Id, Pad, Project, StretchMode } from '../model';
 import {
   cloneBreak,
+  renameBreak,
+  replaceSample,
+  replaceSampleWithFile,
+  trimName,
   addPadMember,
   addVariant,
   MAX_CUTOFF,
@@ -29,7 +33,9 @@ import {
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import type { Selection } from './store';
 import { PlayMode } from './AuditionPlayhead';
+import { BreakOrigin } from './BreakOrigin';
 import { DeleteBreak } from './DeleteBreak';
+import { decodeAudioFile } from '../engine';
 import { PlayIcon } from './icons';
 import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages, replacedBy } from './labels';
 import { Slider } from './Slider';
@@ -99,6 +105,7 @@ export function HitsView() {
   /** Slot pads past their break's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
   const [replacing, setReplacing] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const newPad = () => {
     const before = store.getState().history.present.pads;
@@ -173,7 +180,7 @@ export function HitsView() {
                       }}
                       onClick={() => open({ pad: p.id, hit: m }, 'hits')}
                     >
-                      {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
+                      {baseName(h.name).replace(/^.*\s(\d{2,})$/, '$1')}
                       {by !== null && `→${by}`}
                       {h.direction === 'reverse' ? ' ◂' : ''}
                     </button>
@@ -598,6 +605,8 @@ export function HitsView() {
             ? brk.name
             : `slot ${String(hit.slot + 1).padStart(2, '0')} of ${brk.name}`;
     const parent = parentHit(project, hit);
+    /** The hit that is its break: a parent, or a one-shot's own hit. */
+    const ownsBreak = brk !== undefined && (isParentHit(project, hit) || (brk.bars === null && hit.variantOf === null && hit.name === brk.name));
     // A parent stands for the break's slices: as many as it has markers.
     const children = isParentHit(project, hit) ? (brk?.markers.length ?? 0) : 0;
     /** A slice's own value, and what it plays at with its parent's added. */
@@ -610,7 +619,17 @@ export function HitsView() {
             <label className="sr-only" htmlFor="hit-name">
               Hit name
             </label>
-            <input id="hit-name" className="title-input mono" value={hit.name} onChange={(e) => edit({ name: e.target.value }, 'name')} onBlur={seal} />
+            <input
+              id="hit-name"
+              className="title-input mono"
+              value={hit.name}
+              onChange={(e) =>
+                // A break is its parent (a one-shot its hit): renaming it renames the break, everywhere.
+                ownsBreak && brk !== undefined ? onError(run(renameBreak(brk.id, e.target.value), `break:${brk.id}:name`)) : edit({ name: e.target.value }, 'name')
+              }
+              onBlur={seal}
+            />
+            {ownsBreak && brk !== undefined && <BreakOrigin brk={brk} parts={['slice', 'trim', 'file']} />}
             <p className="muted">
               {source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}
               {window === null && brk !== undefined && ` · silent: ${brk.name} has ${brk.markers.length} slices`}
@@ -660,20 +679,56 @@ export function HitsView() {
             {brk !== undefined && (isParentHit(project, hit) || (brk.bars === null && hit.variantOf === null)) && (
               <DeleteBreak brk={brk} onError={onError} onDeleted={() => open({ hit: null, pad: null }, 'hits')} links />
             )}
-            <button
-              type="button"
-              disabled={usages.length > 0}
-              title={usages.length > 0 ? 'In use: remove it from its pads first' : undefined}
-              onClick={() => {
-                const failed = run(remove('hit', hit.id));
-                if (failed === null) open({ hit: null }, 'hits');
-                else onError(failed);
-              }}
-            >
-              Delete hit
-            </button>
+            {!ownsBreak && (
+              <button
+                type="button"
+                disabled={usages.length > 0}
+                title={usages.length > 0 ? 'In use: remove it from its pads first' : undefined}
+                onClick={() => {
+                  const failed = run(remove('hit', hit.id));
+                  if (failed === null) open({ hit: null }, 'hits');
+                  else onError(failed);
+                }}
+              >
+                Delete hit
+              </button>
+            )}
           </div>
         </div>
+
+        {isParentHit(project, hit) && brk !== undefined && sample !== undefined && (
+          <div className="row">
+            <label className="field inline">
+              <span className="muted">Plays</span>
+              <select aria-label="Trim under the break" value={sample.id} onChange={(e) => onError(run(replaceSample(brk.id, e.target.value)))}>
+                {Object.values(project.samples).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {trimName(s)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" title="Another file under the break: its markers keep their steps" onClick={() => fileInput.current?.click()}>
+              Replace with file…
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              hidden
+              accept=".wav,.aif,.aiff,.aifc,audio/wav,audio/aiff"
+              aria-label="New file under the break"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file === undefined) return;
+                void file
+                  .arrayBuffer()
+                  .then((data) => onError(run(replaceSampleWithFile(brk.id, { name: file.name, audio: decodeAudioFile(data) }))))
+                  .catch((err: unknown) => onError(`${file.name}: ${err instanceof Error ? err.message : String(err)}`));
+              }}
+            />
+          </div>
+        )}
 
         {replacing && !isParentHit(project, hit) && replacePanel(hit)}
 

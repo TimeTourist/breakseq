@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Break, Project } from '../model';
-import { addSample, bpmOf, guessBars, replaceProject, setBreak, unlikelyBpm } from '../model';
+import { addSample, addTrim, bpmOf, guessBars, replaceProject, setBreak, trimName, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun, useSelect } from './context';
+import { BreakOrigin } from './BreakOrigin';
 import { DeleteBreak } from './DeleteBreak';
 import { timestamp } from './services';
 import { TrimEditor } from './TrimEditor';
@@ -184,16 +185,32 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                     >
                       <td>
                         <div className="row nowrap">
-                          <span className="mono grow ellipsis">{brk.name}</span>
+                          <span className="mono grow ellipsis" title={`${sample.name}, ${trimName(sample)}`}>
+                            {sample.name} <span className="muted small">trim {sample.trim}</span>
+                          </span>
                           <DeleteBreak brk={brk} onError={(e) => setErrors(e === null ? [] : [e])} onDeleted={() => trimming === brk.id && setTrimming(null)} />
                           <button
                             type="button"
                             className="small-button"
                             aria-expanded={trimming === brk.id}
-                            aria-label={`Trim ${brk.name}`}
+                            aria-label={`Trim ${trimName(sample)}`}
                             onClick={() => setTrimming(trimming === brk.id ? null : brk.id)}
                           >
                             Trim
+                          </button>
+                          <button
+                            type="button"
+                            className="small-button"
+                            aria-label={`New trim of ${sample.name}`}
+                            title="Another trim of the same file, on a row of its own: no need to import it again"
+                            onClick={() => {
+                              const before = store.getState().history.present.breaks;
+                              if (run(addTrim(sample.id)) !== null) return;
+                              const added = Object.values(store.getState().history.present.breaks).find((b) => !(b.id in before));
+                              if (added !== undefined) setTrimming(added.id);
+                            }}
+                          >
+                            + Trim
                           </button>
                         </div>
                       </td>
@@ -221,7 +238,12 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                           </span>
                         )}
                       </td>
-                      <td>{creates(project, brk)}</td>
+                      <td>
+                        <div className="stack-tight">
+                          <span>{creates(project, brk)}</span>
+                          <BreakOrigin brk={brk} parts={['break']} />
+                        </div>
+                      </td>
                       <td className="next">
                         {brk.bars === null ? (
                           <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'hits' })}>

@@ -75,7 +75,7 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name });
 describe('Trim in Import', () => {
   it('the start and end fields set the window, and one edit is one undo step', async () => {
     const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
-    fireEvent.click(button('Trim amen.wav'));
+    fireEvent.click(button('Trim amen trim 1'));
 
     fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '25' } });
     fireEvent.blur(screen.getByLabelText('Start ms'));
@@ -102,7 +102,7 @@ describe('Markers in Slice', () => {
     fireEvent.click(screen.getByRole('button', { name: '← Trim' }));
     const id = Object.keys(store.getState().history.present.breaks)[0]!;
     expect(store.getState()).toMatchObject({ view: 'import', trimming: id });
-    expect(screen.getByRole('button', { name: 'Trim amen.wav' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Trim amen trim 1' }).getAttribute('aria-expanded')).toBe('true');
   });
 
   it('←/→ nudges the selected marker by 1 ms, Shift by 10 ms', async () => {
@@ -137,7 +137,7 @@ describe('Markers in Slice', () => {
     const store = await sliceSetup();
     expect(screen.queryByRole('button', { name: 'Apply slices' })).toBeNull();
     expect(brk(store).pads).toHaveLength(16);
-    expect(Object.values(store.getState().history.present.loops).map((l) => l.name)).toEqual(['amen']);
+    expect(Object.values(store.getState().history.present.loops).map((l) => l.name)).toEqual(['amen 1']);
 
     fireEvent.click(button('Play slice 2'));
     fireEvent.click(button('Remove marker'));
@@ -154,7 +154,7 @@ describe('Playing while trimming', () => {
     if (!asBreak.ok) throw new Error('setBreak failed');
     await setup(asBreak.project, 'import');
     const player = fakeServices().player;
-    fireEvent.click(button('Trim amen.wav'));
+    fireEvent.click(button('Trim amen trim 1'));
 
     fireEvent.click(button('Play trimmed'));
     expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(true);
@@ -168,8 +168,47 @@ describe('Playing while trimming', () => {
 
   it('a one-shot loops by default, as everything does', async () => {
     await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'import');
-    fireEvent.click(button('Trim snare.wav'));
+    fireEvent.click(button('Trim snare trim 1'));
     fireEvent.click(button('Play trimmed'));
     expect(vi.mocked(fakeServices().player.audition).mock.calls.at(-1)?.[4]).toBe(true);
+  });
+});
+
+describe('files, trims and breaks in the GUI', () => {
+  async function sliced() {
+    const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const result = setBreak(Object.keys(project.breaks)[0]!, 1)(project, ctx);
+    if (!result.ok) throw new Error('setBreak failed');
+    return result.project;
+  }
+
+  it('Import makes a new trim of a file on a row of its own, with its Trim open', async () => {
+    const store = await setup(await sliced(), 'import');
+    fireEvent.click(screen.getByRole('button', { name: 'New trim of amen.wav' }));
+    const breaks = Object.values(store.getState().history.present.breaks);
+    expect(breaks.map((b) => b.name)).toEqual(['amen 1', 'amen 2']);
+    expect(screen.getByRole('button', { name: 'Trim amen trim 2' }).getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('Hits renames the break from its parent, and shows its slice, trim and file as links', async () => {
+    const project = await sliced();
+    const brk = Object.values(project.breaks)[0]!;
+    const store = createStore({ ...initialState(project), view: 'hits', selection: { ...initialState(project).selection, hit: brk.parent } });
+    render(<App store={store} services={fakeServices()} />);
+    await act(async () => {});
+    fireEvent.change(screen.getByLabelText('Hit name'), { target: { value: 'think' } });
+    expect(store.getState().history.present.breaks[brk.id]!.name).toBe('think');
+    fireEvent.click(screen.getByRole('button', { name: 'amen slice 1' }));
+    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: brk.id });
+  });
+
+  it('Slice has no Replace sample; Hits → opens the break, and Slice → one-shot makes a one-shot of the slice', async () => {
+    const store = await setup(await sliced(), 'slice');
+    expect(screen.queryByRole('button', { name: 'Replace sample…' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Slice → one-shot' }));
+    expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen 1', 'amen 2']);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Hits →' })[0]!);
+    const brk = Object.values(store.getState().history.present.breaks)[0]!;
+    expect(store.getState()).toMatchObject({ view: 'hits', selection: { hit: brk.parent } });
   });
 });

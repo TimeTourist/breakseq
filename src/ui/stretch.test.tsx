@@ -59,7 +59,7 @@ async function setup(project: Project, view: 'hits' | 'mods', selection: Partial
 describe('stretch in the GUI', () => {
   it('Hits sets a hit to Fit to tempo, and Factor shows its slider; a one-shot cannot fit', async () => {
     const sampled = apply(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
-    const amen = Object.values(sampled.breaks).find((b) => b.name === 'amen.wav')!;
+    const amen = Object.values(sampled.breaks).find((b) => b.name === 'amen 1')!;
     const project = apply(sampled, setBreak(amen.id, 1));
     const parent = project.breaks[amen.id]!.parent!;
     const store = await setup(project, 'hits', { hit: parent });
