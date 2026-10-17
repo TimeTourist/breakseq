@@ -122,18 +122,36 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     checked={!shelfHidden.includes(key)}
                     onChange={(e) => store.dispatch({ type: 'shelfShown', group: key, shown: e.target.checked })}
                   />
-                  <span className="label grow ellipsis">{group.name}</span>
+                  <span
+                  className="label grow ellipsis"
+                  title={group.breakId === undefined ? undefined : 'Double-click to edit in Hits'}
+                  onDoubleClick={(e) => {
+                    const parent = group.breakId === undefined ? null : project.breaks[group.breakId]?.parent;
+                    if (parent == null) return;
+                    e.preventDefault();
+                    open({ hit: parent, pad: null }, 'hits');
+                  }}
+                >
+                  {group.name}
+                </span>
                   <span className="muted small">{group.items.length}</span>
                 </label>
               </div>
               {opened && group.items.map((p) => (
                 <div key={p.id} className={`pad-row${silent.has(p.id) ? ' silent' : ''}`}>
-                  <span className="pad-row-name mono">{padLabel(p)}</span>
+                  <span className="pad-row-name mono" title="Double-click to edit in Hits" onDoubleClick={() => open({ pad: p.id, hit: null }, 'hits')}>
+                  {padLabel(p)}
+                </span>
                   {p.members.map((m, i) => {
                     const h = project.hits[m];
                     const by = h === undefined ? null : replacedBy(project, p.id, h);
                     return h === undefined ? null : (
-                      <span key={m} className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`} title={h.name}>
+                      <span
+                      key={m}
+                      className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`}
+                      title={`${h.name} · double-click to edit in Hits`}
+                      onDoubleClick={() => open({ pad: p.id, hit: m }, 'hits')}
+                    >
                         {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
                         {by !== null && `→${by}`}
                         {h.direction === 'reverse' ? ' ◂' : ''}
@@ -384,7 +402,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     className="chip parent-chip"
                     aria-pressed={shelfBreak === group.breakId}
                     aria-label={`Break ${group.name}: lay out all its slices`}
-                    title="The whole break: lays out all its slices from the step"
+                    title="The whole break: lays out all its slices from the step. Double-click to edit it in Hits"
+                    onDoubleClick={() => {
+                      const parent = project.breaks[group.breakId!]?.parent;
+                      if (parent != null) open({ hit: parent, pad: null }, 'hits');
+                    }}
                     onClick={() => {
                       setShelfBreak(shelfBreak === group.breakId ? null : (group.breakId ?? null));
                       setShelfPad(null);
@@ -413,7 +435,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onDoubleClick={() => open({ pad: p.id, hit: null }, 'hits')}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
-                    title={silent.has(p.id) ? `${p.name}: silent, the break has fewer slices` : `${p.name} · ${lengthText(padSteps(project, p))}`}
+                    title={silent.has(p.id) ? `${p.name}: silent, the break has fewer slices` : `${p.name} · ${lengthText(padSteps(project, p))} · double-click to edit in Hits`}
                     style={{ color: HIT_COLOR, boxShadow: `inset 0 -3px 0 ${HIT_COLOR}` }}
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);

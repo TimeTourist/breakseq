@@ -124,3 +124,23 @@ describe('a click in the shelf', () => {
     expect(screen.getByRole('button', { name: 'Pad hat' }).getAttribute('aria-pressed')).toBe('true');
   });
 });
+
+describe('from Loops to Hits', () => {
+  it('a double-click on a pad in the shelf, or on a hit in Show in Pads, opens it in Hits', async () => {
+    const { project, loop, pad } = hats();
+    const store = await setup(project, 'loops', { loop: loop.id });
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Pad hat' }));
+    expect(store.getState().view).toBe('hits');
+    expect(store.getState().selection.pad).toBe(pad.id);
+
+    store.dispatch({ type: 'view', view: 'loops' });
+    await act(async () => {});
+    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
+    fireEvent.click(chooser.getByRole('button', { name: 'Expand all' }));
+    const row = chooser.getByText('hat').closest('.pad-row')!;
+    const chip = within(row as HTMLElement).getByText('h2');
+    fireEvent.doubleClick(chip);
+    expect(store.getState().view).toBe('hits');
+    expect(store.getState().selection).toMatchObject({ pad: pad.id, hit: pad.members[1] });
+  });
+});
