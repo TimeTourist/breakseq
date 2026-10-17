@@ -8,7 +8,6 @@ import { createProject } from '../model';
 import { useApp, useSelect } from './context';
 import type { RememberedFolder } from './folders';
 import type { Take } from './playback';
-import type { MidiSaved } from './services';
 import { useSnapshots } from './snapshots';
 import type { BackupInfo } from './backups';
 import { BACKUP_KEEP, backupTime, summaryText } from './backups';
@@ -31,7 +30,7 @@ interface ProjectViewProps {
   readonly onExport: () => void;
   readonly canExport: boolean;
   /** Exports the song as MIDI and a WAV of its sounds in slots; resolves to how many sounds. */
-  readonly onExportMidi: () => Promise<MidiSaved>;
+  readonly onExportMidi: () => Promise<number>;
   /** Plays a take in the place of the song, until Stop. */
   readonly onPlayTake: (take: Take) => void;
   /** Backups of the autosave, newest first; null when there are none to keep. */
@@ -283,7 +282,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
         </div>
         <div className="row">
           <span className="muted small grow">
-            Or as MIDI and a WAV of its sounds, one per slot from C1 up, each slot a note long at the song's tempo: split the WAV on that note (it says which), play the MIDI, and it sounds like the song.
+            Or as MIDI and a WAV of its sounds, one per slot from C1 up, for a sampler like Dr. Octo Rex or Digitakt: slice the WAV, play the MIDI, and it sounds like the song.
           </span>
           <button
             type="button"
@@ -292,8 +291,8 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
             onClick={() =>
               void attempt(async () => {
                 setMidiDone(null);
-                const { pieces, note, bpm } = await onExportMidi();
-                setMidiDone(`Saved a MIDI file and a WAV with ${pieces} sound${pieces === 1 ? '' : 's'}, one every ${note} at ${bpm} BPM: split the WAV on ${note}.`);
+                const pieces = await onExportMidi();
+                setMidiDone(`Saved a MIDI file and a WAV with ${pieces} sound${pieces === 1 ? '' : 's'}.`);
               })
             }
           >

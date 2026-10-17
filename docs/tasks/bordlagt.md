@@ -95,3 +95,7 @@ New example i Mods ritar bara om exempelgrafen. Den skulle kunna slumpa om det s
 ## Spelknappen i Hits
 
 Hits har en egen ▶ vid paden eller den valda hitten, som gör samma sak som Play i toppen. Enligt regeln att en spelknapp i en flik bara behövs när det är oklart vad Play i toppen spelar kunde den tas bort och ersättas av en text bredvid Once/Loop ("Play: pad eight 1 01"). Den lilla ▶ på varje rad i en pad spelar en hit en gång och berörs inte. Användaren vill titta på det som finns först. (Bordlagt 2026-10-17.)
+
+## Bit-WAV:en i MIDI-exporten och Reason
+
+Reason läser inte cue-markörerna i bit-WAV:en utan gissar på transienter, så det blir för många slices (och en kort slice i början). Rutorna är lika långa som det längsta ljudet, och antalet rundas upp till 4, 8, 16, 32 eller 64, vilket kan ge flera sekunder tomt i slutet. Idéer: rutor i hela 1/16 i låtens tempo så att varje ljud börjar på Reasons rutnät, och bara lika många rutor som ljud. Användaren fick det att fungera i Reason och lät det vara. (Bordlagt 2026-10-17.)

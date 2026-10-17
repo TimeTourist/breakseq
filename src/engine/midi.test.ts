@@ -4,7 +4,7 @@ import { addSample, createLoop, createMod, createProject, setBpm, setBreak, setS
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
 import type { Trigger } from './generate';
-import { FIRST_NOTE, MAX_PIECES, MIDI_PPQ, MidiExportError, encodeMidi, midiPlan, slotNote } from './midi';
+import { FIRST_NOTE, MAX_PIECES, MIDI_PPQ, MidiExportError, encodeMidi, midiPlan, slotCount } from './midi';
 import type { Tape } from './tape';
 
 const ctx = sequentialIds();
@@ -89,11 +89,8 @@ describe('MIDI plan', () => {
     expect(() => midiPlan(project, { triggers: many, tapes: [] })).toThrow(MidiExportError);
   });
 
-  it('a slot is the shortest note at the tempo that holds the longest sound: 1/16 … 1 bar, then 2, 4 … bars', () => {
-    // At 60 BPM a 1/16 is 0.25 s.
-    expect([0.1, 0.25, 0.3, 0.6, 1.1, 2.5, 4, 4.1, 9].map((s) => slotNote(s, 60).name)).toEqual(['1/16', '1/16', '1/8', '1/4', '1/2', '1 bar', '1 bar', '2 bars', '4 bars']);
-    // At 170 BPM a 1/4 is 0.353 s.
-    expect(slotNote(0.3, 170)).toEqual({ steps: 4, name: '1/4' });
+  it('slots round up to a grid a sampler can split evenly', () => {
+    expect([1, 3, 4, 5, 16, 17, 33, 64, 65, 92].map(slotCount)).toEqual([4, 4, 4, 8, 16, 32, 64, 64, 65, 92]);
   });
 });
 

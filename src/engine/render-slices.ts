@@ -1,9 +1,8 @@
 import type { AudioData, Project } from '../model';
-import { stepDuration } from '../model';
 import { encodeWav, normalizeGain, peakOf } from './codec';
 import type { Trigger } from './generate';
 import type { MidiPlan, Piece } from './midi';
-import { encodeMidi, midiPlan, slotNote } from './midi';
+import { encodeMidi, midiPlan, slotCount } from './midi';
 import { scheduleHit } from './render';
 import type { Tape } from './tape';
 
@@ -25,27 +24,19 @@ async function pieceAudio(project: Project, piece: Piece, song: AudioBuffer, sam
   return [buffer.getChannelData(0).slice(), buffer.getChannelData(1).slice()];
 }
 
-/**
- * The pieces laid out in equal slots, one per piece, with a cue at every slot.
- * A slot is a note length at the song's tempo that holds the longest piece and
- * a gap (see `slotNote`), so the slots lie on the song's grid.
- */
+/** The pieces laid out in equal slots, the longest piece plus a gap each, with a cue at every slot. */
 export async function renderSlices(
   project: Project,
   plan: MidiPlan,
   song: AudioBuffer,
   sampleRate: number,
-): Promise<{ readonly audio: AudioData; readonly cues: readonly number[]; readonly note: string }> {
+): Promise<{ readonly audio: AudioData; readonly cues: readonly number[] }> {
   const pieces = await Promise.all(plan.pieces.map((p) => pieceAudio(project, p, song, sampleRate)));
-  const longest = Math.max(1, ...pieces.map((p) => p[0]!.length)) / sampleRate;
-  const note = slotNote(longest + SLOT_GAP, project.song.bpm);
-  const slot = note.steps * stepDuration(project.song.bpm);
-  // Slots are placed in seconds and rounded each, so they do not drift off the grid.
-  const cues = pieces.map((_, i) => Math.round(i * slot * sampleRate));
-  const length = Math.max(1, Math.round(pieces.length * slot * sampleRate));
-  const channels = [new Float32Array(length), new Float32Array(length)];
-  pieces.forEach((piece, i) => piece.forEach((data, c) => channels[c]!.set(data, cues[i]!)));
-  return { audio: { sampleRate, channels }, cues, note: note.name };
+  const slot = Math.max(1, ...pieces.map((p) => p[0]!.length)) + Math.round(SLOT_GAP * sampleRate);
+  const count = slotCount(pieces.length);
+  const channels = [new Float32Array(slot * count), new Float32Array(slot * count)];
+  pieces.forEach((piece, i) => piece.forEach((data, c) => channels[c]!.set(data, i * slot)));
+  return { audio: { sampleRate, channels }, cues: Array.from({ length: count }, (_, i) => i * slot) };
 }
 
 /**
@@ -57,7 +48,7 @@ export async function midiExport(
   project: Project,
   take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[]; readonly buffer: AudioBuffer },
   sampleRate: number,
-): Promise<{ readonly midi: Uint8Array; readonly wav: Uint8Array; readonly pieces: number; readonly note: string }> {
+): Promise<{ readonly midi: Uint8Array; readonly wav: Uint8Array; readonly pieces: number }> {
   const plan = midiPlan(project, take);
   const slices = await renderSlices(project, plan, take.buffer, sampleRate);
   const songChannels = Array.from({ length: take.buffer.numberOfChannels }, (_, i) => take.buffer.getChannelData(i));
@@ -66,6 +57,5 @@ export async function midiExport(
     midi: encodeMidi(project.song.bpm, plan.notes),
     wav: encodeWav(slices.audio, { gain, cues: slices.cues }),
     pieces: plan.pieces.length,
-    note: slices.note,
   };
 }

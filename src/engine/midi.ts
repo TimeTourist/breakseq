@@ -1,5 +1,5 @@
 import type { Hit, Project } from '../model';
-import { effectiveHit, hitColour, hitStretch, stepDuration } from '../model';
+import { effectiveHit, hitColour, hitStretch } from '../model';
 import type { Trigger } from './generate';
 import { playedStretch } from './generate';
 import type { Tape } from './tape';
@@ -15,6 +15,8 @@ import type { Tape } from './tape';
 export const FIRST_NOTE = 36;
 /** From C1 to G9, the highest MIDI note. */
 export const MAX_PIECES = 128 - FIRST_NOTE;
+/** Grid sizes a sampler can split a file into evenly. */
+export const SLOT_GRIDS = [4, 8, 16, 32, 64] as const;
 export const MIDI_VELOCITY = 100;
 /** Ticks per quarter note. */
 export const MIDI_PPQ = 960;
@@ -122,16 +124,9 @@ export function midiPlan(project: Project, take: { readonly triggers: readonly T
   return { pieces, notes };
 }
 
-/**
- * How long each slot of the WAV is: the shortest of 1/16, 1/8, 1/4, 1/2 and 1
- * bar (then 2, 4 … bars) at the song's tempo that holds `seconds`, so every
- * sound starts on the grid and splitting on that note gives one per sound.
- */
-export function slotNote(seconds: number, bpm: number): { readonly steps: number; readonly name: string } {
-  let steps = 1;
-  while (steps * stepDuration(bpm) < seconds) steps *= 2;
-  const name = steps < 16 ? `1/${16 / steps}` : steps === 16 ? '1 bar' : `${steps / 16} bars`;
-  return { steps, name };
+/** How many equal slots the WAV has for `count` pieces: up to a grid size, or exactly `count` past the largest. */
+export function slotCount(count: number): number {
+  return SLOT_GRIDS.find((g) => g >= count) ?? count;
 }
 
 /** A variable-length quantity, as MIDI writes delta times. */
