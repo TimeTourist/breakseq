@@ -103,3 +103,7 @@ Reason läser inte cue-markörerna i bit-WAV:en utan gissar på transienter, så
 ## Fler spår
 
 Flera loopar som spelar samtidigt, var och en med egen röst (till exempel en kick eller ett andra break över breaket). Användaren ser det som feature creep: Breakseq ska göra komplicerade breaks som importeras i en riktig DAW (Reason, Digitakt 2), och där läggs lager. Reverb och delay klarar sig utan spår, med svansen bredvid rösten (fas 21). (Bordlagt 2026-10-17.)
+
+## Rita i exemplet i Mods
+
+Rita värdena direkt i exempelgrafen för en stegeffekt: dra över staplarna så blir effekten en List med ett värde per intervall i dess rate (16, 4 eller 1 över en takt). Kräver en fast skala per mål medan man ritar (pitch −12 till +12 i hela halvtoner, volym −24 till 0 dB, pan ±100 %, reverb och delay 0–100 %, ratchet 1–8, direction F/R). Öppet: om Ramp, Random och Cycle blir en List när man ritar, och om mönster längre än en takt ska gå att rita. (Bordlagt 2026-10-17.)
