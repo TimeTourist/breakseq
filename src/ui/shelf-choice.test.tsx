@@ -111,3 +111,16 @@ describe('how long what is dragged from the shelf is', () => {
     expect(document.querySelector('.hold.landing')).toBeNull();
   });
 });
+
+describe('a click in the shelf', () => {
+  it('plays the pad’s first hit, and selects it', async () => {
+    const { project, loop, pad } = hats();
+    const store = createStore({ ...initialState(project), view: 'loops', selection: { ...initialState(project).selection, loop: loop.id } });
+    const s = services();
+    render(<App store={store} services={s} />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Pad hat' }));
+    expect(s.player.playHit).toHaveBeenCalledWith(expect.anything(), pad.members[0]);
+    expect(screen.getByRole('button', { name: 'Pad hat' }).getAttribute('aria-pressed')).toBe('true');
+  });
+});

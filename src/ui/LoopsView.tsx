@@ -28,7 +28,7 @@ interface LoopsViewProps {
 
 export function LoopsView({ playhead }: LoopsViewProps) {
   const project = useProject();
-  const { store } = useApp();
+  const { services, store } = useApp();
   const run = useRun();
   const seal = useSeal();
   const open = useOpen();
@@ -332,6 +332,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onClick={() => {
                       setShelfBreak(shelfBreak === group.breakId ? null : (group.breakId ?? null));
                       setShelfPad(null);
+                      const parent = project.breaks[group.breakId!]?.parent;
+                      if (parent != null) services.player.playHit(project, parent);
                     }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData(BREAK_MIME, group.breakId!);
@@ -360,6 +362,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);
                       setShelfBreak(null);
+                      if (p.members[0] !== undefined) services.player.playHit(project, p.members[0]);
                     }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData(PAD_MIME, p.id);
