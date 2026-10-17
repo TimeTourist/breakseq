@@ -29,7 +29,7 @@ import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './conte
 import type { Selection } from './store';
 import { PlayMode } from './AuditionPlayhead';
 import { PlayIcon } from './icons';
-import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages } from './labels';
+import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages, replacedBy } from './labels';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
@@ -85,18 +85,6 @@ export function HitsView() {
   const { pad, hit, picked, parent: parentOpen } = hitsOpen(project, selection);
   const hitsLoop = useSelect((s) => s.hitsLoop);
   const folded = useSelect((s) => s.folded);
-  /** The break and slot each slot pad belongs to. */
-  const slotOf = new Map(Object.values(project.breaks).flatMap((b) => b.pads.map((id, slot) => [id, { brk: b, slot }] as const)));
-  /** Where a hit in a slot pad plays from, when it is not that slot: "07", "Think 07", or a one-shot's name. */
-  const replacedBy = (padId: Id, h: Hit): string | null => {
-    const home = slotOf.get(padId);
-    if (home === undefined || (h.breakId === home.brk.id && h.slot === home.slot)) return null;
-    const source = project.breaks[h.breakId];
-    if (source === undefined) return null;
-    if (h.slot === null || source.bars === null) return source.name;
-    const number = String(h.slot + 1).padStart(2, '0');
-    return h.breakId === home.brk.id ? number : `${source.name} ${number}`;
-  };
   const playing = parentOpen
     ? `${project.breaks[hit?.breakId ?? '']?.name ?? 'the break'} as laid out, with its pads`
     : picked
@@ -157,7 +145,7 @@ export function HitsView() {
                 </button>
                 {p.members.map((m, i) => {
                   const h = project.hits[m];
-                  const by = h === undefined ? null : replacedBy(p.id, h);
+                  const by = h === undefined ? null : replacedBy(project, p.id, h);
                   return h === undefined ? null : (
                     <button
                       key={m}

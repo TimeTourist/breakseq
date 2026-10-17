@@ -2188,3 +2188,13 @@ input[type='search'] {
   max-width: 520px;
   margin: 16px;
 }
+
+/* The list under the pad shelf in Loops that chooses what the shelf shows. */
+.shelf-choice {
+  gap: 8px;
+  cursor: pointer;
+}
+
+.hit-chip.static {
+  cursor: default;
+}
