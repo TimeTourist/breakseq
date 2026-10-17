@@ -69,7 +69,7 @@ describe('a break', () => {
     expect(brk.pads[0]).toBe(start.breaks[id]!.pads[0]);
     expect(project.pads[brk.pads[0]!]!.name).toBe('amen 01');
     expect(bpmOf(project, brk)).toBeCloseTo(120);
-    expect(Object.values(project.loops).map((l) => l.name)).toEqual(['M1']);
+    expect(Object.values(project.loops).map((l) => l.name)).toEqual(['amen']);
 
     const again = run(project, setBreak(id, null), setBreak(id, 1));
     expect(Object.values(again.loops)).toHaveLength(1);

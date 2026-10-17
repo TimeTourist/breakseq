@@ -96,13 +96,13 @@ describe('Song', () => {
     dropOn('Main', 16, LOOP_MIME, m1.id);
 
     expect(clips(store)).toEqual([['main', 16, 16]]);
-    fireEvent.keyDown(clip(/^M1, 2\.1\.1, 1 bar/), { key: 'Delete' });
+    fireEvent.keyDown(clip(/^amen, 2\.1\.1, 1 bar/), { key: 'Delete' });
     expect(clips(store)).toEqual([]);
   });
 
   it('places a selected loop by clicking the lane, and undo takes it back', async () => {
     const store = await setup(withM1(), 'song');
-    fireEvent.click(screen.getByRole('button', { name: 'M1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'amen' }));
     clickLane('Main', 0);
     expect(clips(store)).toEqual([['main', 0, 16]]);
 
@@ -116,9 +116,9 @@ describe('Song', () => {
   it('←/→ move a selected clip a step, Shift a beat', async () => {
     const store = await setup(withM1(), 'song');
     dropOn('Main', 8, LOOP_MIME, Object.keys(store.getState().history.present.loops)[0]!);
-    const m1 = clip(/^M1, /);
+    const m1 = clip(/^amen, /);
     fireEvent.keyDown(m1, { key: 'ArrowRight' });
-    fireEvent.keyDown(clip(/^M1, /), { key: 'ArrowLeft', shiftKey: true });
+    fireEvent.keyDown(clip(/^amen, /), { key: 'ArrowLeft', shiftKey: true });
     expect(clips(store)).toEqual([['main', 5, 16]]);
   });
 });
