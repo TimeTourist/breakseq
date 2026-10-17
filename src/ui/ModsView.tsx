@@ -36,9 +36,9 @@ const DEFAULTS: Record<StepTarget, { rate: ModRate; shape: ModShape }> = {
   stretch: { rate: 'beat', shape: { kind: 'ramp', from: 1, to: 4 } },
   dist: { rate: 'step', shape: { kind: 'ramp', from: 0, to: 1 } },
   filter: { rate: 'step', shape: { kind: 'ramp', from: 200, to: 8000 } },
-  // A throw now and then: some hits get a lot of it.
-  reverb: { rate: 'step', shape: { kind: 'random', min: 60, max: 100, chance: 25, whole: true } },
-  delay: { rate: 'step', shape: { kind: 'random', min: 50, max: 80, chance: 25, whole: true } },
+  // A throw: every hit under the clip goes in.
+  reverb: { rate: 'bar', shape: { kind: 'list', values: [100] } },
+  delay: { rate: 'bar', shape: { kind: 'list', values: [80] } },
   tempo: { rate: 'bar', shape: { kind: 'list', values: [1 / 3] } },
 };
 

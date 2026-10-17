@@ -120,4 +120,13 @@ describe('reverb and delay in the GUI', () => {
     expect(effects.find((e) => e.target === 'reverb')).toMatchObject({ reverb: { size: 0.2 } });
     expect(effects.find((e) => e.target === 'delay')).toMatchObject({ delay: { steps: 1, feedback: 0.4 } });
   });
+
+  it('a new Reverb effect is a throw: every hit under the clip goes in', async () => {
+    const project = apply(createProject(), createMod('m', []));
+    const mod = Object.values(project.mods)[0]!;
+    const store = await setup(project, 'mods', { mod: mod.id });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'reverb' } });
+    expect(store.getState().history.present.mods[mod.id]!.effects[0]).toMatchObject({ target: 'reverb', shape: { kind: 'list', values: [100] } });
+  });
 });
+

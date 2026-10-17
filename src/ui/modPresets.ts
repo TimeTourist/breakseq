@@ -128,4 +128,19 @@ export const MOD_PRESETS: readonly ModPreset[] = [
     does: 'Each hit stretched to twice its length in short metallic grains',
     effects: () => [step({ target: 'stretch', rate: 'bar', shape: { kind: 'list', values: [2] }, stretch: { grain: 12, combine: 'multiply' } })],
   },
+  {
+    name: 'Reverb throw',
+    does: 'Every hit under it into a large hall, ringing out after it',
+    effects: () => [step({ target: 'reverb', rate: 'bar', shape: { kind: 'list', values: [100] }, reverb: { size: 0.85 } })],
+  },
+  {
+    name: 'Delay throw',
+    does: 'Every hit under it echoing at 3/16, dying away slowly',
+    effects: () => [step({ target: 'delay', rate: 'bar', shape: { kind: 'list', values: [80] }, delay: { steps: 3, feedback: 0.7 } })],
+  },
+  {
+    name: 'Random verb',
+    does: 'Now and then a hit into the reverb, about one in four',
+    effects: () => [step({ target: 'reverb', rate: 'step', shape: { kind: 'random', min: 60, max: 100, chance: 25, whole: true }, reverb: { size: 0.6 } })],
+  },
 ];
