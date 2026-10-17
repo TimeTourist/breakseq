@@ -106,8 +106,19 @@ export function HitsView() {
     }
   };
 
+  /** The breaks whose pads fold: those with a parent. */
+  const foldable = groups.flatMap((g) => (g.breakId !== undefined && project.breaks[g.breakId]?.parent != null ? [g.breakId] : []));
+  const allOpen = foldable.every((id) => !folded.includes(id));
   const sidebar = (
     <aside className="sidebar" aria-label="Breaks and pads">
+      {foldable.length > 0 && (
+        <div className="row spread">
+          <h2 className="label">Breaks</h2>
+          <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'fold', breakIds: foldable, folded: allOpen })}>
+            {allOpen ? 'Collapse all' : 'Expand all'}
+          </button>
+        </div>
+      )}
       {groups.map((group) => {
         const parentId = group.breakId === undefined ? null : (project.breaks[group.breakId]?.parent ?? null);
         const parent = parentId === null ? undefined : project.hits[parentId];
@@ -120,7 +131,7 @@ export function HitsView() {
                 className="icon-button small fold"
                 aria-expanded={!folded.includes(group.breakId ?? '')}
                 aria-label={`${folded.includes(group.breakId ?? '') ? 'Show' : 'Hide'} the pads of ${group.name}`}
-                onClick={() => store.dispatch({ type: 'fold', breakId: group.breakId ?? '', folded: !folded.includes(group.breakId ?? '') })}
+                onClick={() => store.dispatch({ type: 'fold', breakIds: [group.breakId ?? ''], folded: !folded.includes(group.breakId ?? '') })}
               >
                 {folded.includes(group.breakId ?? '') ? '▸' : '▾'}
               </button>

@@ -154,6 +154,15 @@ describe('the Hits list', () => {
     expect(within(list).getAllByRole('button', { name: /^Pad amen/ }).length).toBeGreaterThan(0);
   });
 
+  it('collapses and expands every break at once', async () => {
+    await setup(split(), { view: 'hits' });
+    const list = screen.getByLabelText('Breaks and pads');
+    fireEvent.click(within(list).getByRole('button', { name: 'Collapse all' }));
+    expect(within(list).queryAllByRole('button', { name: /^Pad amen/ })).toHaveLength(0);
+    fireEvent.click(within(list).getByRole('button', { name: 'Expand all' }));
+    expect(within(list).getAllByRole('button', { name: /^Pad amen/ }).length).toBeGreaterThan(0);
+  });
+
   it('shows a replaced slice as 04→02', async () => {
     const p0 = split();
     const p = split(setHitSource(memberOf(p0, 3), brkOf(p0).id, 1));

@@ -69,7 +69,7 @@ export type Action =
   | { readonly type: 'songCursor'; readonly step: number }
   | { readonly type: 'clipboard'; readonly clip: Clip | null }
   | { readonly type: 'hitsLoop'; readonly loop: boolean }
-  | { readonly type: 'fold'; readonly breakId: Id; readonly folded: boolean }
+  | { readonly type: 'fold'; readonly breakIds: readonly Id[]; readonly folded: boolean }
   | { readonly type: 'trimming'; readonly breakId: Id | null }
   | { readonly type: 'shelfShown'; readonly group: string; readonly shown: boolean }
   | { readonly type: 'shelfOpen'; readonly groups: readonly string[]; readonly open: boolean };
@@ -125,8 +125,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'hitsLoop':
       return { state: { ...state, hitsLoop: action.loop }, error: null };
     case 'fold': {
-      const others = state.folded.filter((id) => id !== action.breakId);
-      return { state: { ...state, folded: action.folded ? [...others, action.breakId] : others }, error: null };
+      const others = state.folded.filter((id) => !action.breakIds.includes(id));
+      return { state: { ...state, folded: action.folded ? [...others, ...action.breakIds] : others }, error: null };
     }
     case 'trimming':
       return { state: { ...state, trimming: action.breakId }, error: null };
