@@ -437,10 +437,9 @@ p {
   gap: 12px;
 }
 
-/* A trim's Delete and Trim, one over the other. */
+/* A trim's Delete and Trim, side by side. */
 .sources .trim-actions {
   display: flex;
-  flex-direction: column;
   gap: 4px;
 }
 
