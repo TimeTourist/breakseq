@@ -110,7 +110,7 @@ describe('removal', () => {
     const brk = only(project.breaks);
     project = run(project, ctx, setBreak(brk.id, 1));
     const result = remove('pad', project.breaks[brk.id]!.pads[0]!)(project, ctx);
-    expect(result.ok || result.error).toMatchObject({ kind: 'in-use', usages: expect.arrayContaining([{ kind: 'break', id: brk.id, name: 'amen.wav' }]) });
+    expect(result.ok || result.error).toMatchObject({ kind: 'in-use', usages: expect.arrayContaining([{ kind: 'break', id: brk.id, name: 'amen 1' }]) });
     expect(remove('hit', project.breaks[brk.id]!.parent!)(project, ctx).ok).toBe(false);
   });
 
@@ -126,7 +126,7 @@ describe('removal', () => {
     expect(padResult.ok || padResult.error).toEqual({
       kind: 'in-use',
       usages: [
-        { kind: 'break', id: only(project.breaks).id, name: 'Snare' },
+        { kind: 'break', id: only(project.breaks).id, name: 'Snare 1' },
         { kind: 'loop', id: loop.id, name: 'Beat' },
       ],
     });

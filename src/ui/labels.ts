@@ -9,7 +9,7 @@ export const HIT_COLOR = '#C9C4B8';
 /** A short label for a pad chip: a slice's number ("amen 07" → "07"), otherwise the start of its name. */
 export function padLabel(pad: Pad): string {
   const name = baseName(pad.name);
-  const number = pad.auto ? /\s(\d+)$/.exec(name)?.[1] : undefined;
+  const number = pad.auto ? /\s(\d{2,})$/.exec(name)?.[1] : undefined;
   return number ?? (name.length > 8 ? `${name.slice(0, 7)}…` : name);
 }
 

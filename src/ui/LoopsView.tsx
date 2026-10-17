@@ -156,7 +156,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       onClick={() => services.player.playHit(project, m)}
                       onDoubleClick={() => open({ pad: p.id, hit: m }, 'hits')}
                     >
-                        {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
+                        {baseName(h.name).replace(/^.*\s(\d{2,})$/, '$1')}
                         {by !== null && `→${by}`}
                         {h.direction === 'reverse' ? ' ◂' : ''}
                       </span>
@@ -290,9 +290,20 @@ export function LoopsView({ playhead }: LoopsViewProps) {
         {loopBreaks(project, loop).length > 0 && swappable.length > 1 && (
           <div className="row break-swaps" aria-label="Breaks in the loop">
             {loopBreaks(project, loop).map((b) => (
-              <label key={b.id} className="field inline">
+              <div key={b.id} className="field inline">
                 <span className="muted">Break</span>
-                <span className="mono">{b.name}</span>→
+                <button
+                  type="button"
+                  className="link-text mono"
+                  title="Open the break in Hits"
+                  onClick={() => {
+                    const hit = b.parent ?? project.pads[b.pads[0] ?? '']?.members[0];
+                    if (hit !== undefined) open({ hit, pad: null }, 'hits');
+                  }}
+                >
+                  {b.name}
+                </button>
+                →
                 <select
                   aria-label={`Swap ${b.name} for`}
                   value=""
@@ -309,7 +320,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       </option>
                     ))}
                 </select>
-              </label>
+              </div>
             ))}
           </div>
         )}

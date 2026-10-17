@@ -1,5 +1,7 @@
 import type { Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, Pad, Project, Sample, Song, SongRow, Step, StepTarget, SwapEffect, TapeEffect } from './types';
 import { NO_DIST, NO_FILTER, NO_STRETCH, STEPS_PER_BAR } from './types';
+import { defaultBreakName } from './breaks';
+import { renameBreakIn } from './names';
 import { breaksFromSamples } from './upgrade-breaks';
 
 // A new song starts at 170 BPM and 8 bars.
@@ -72,7 +74,30 @@ export function upgradeProject(project: Project): Project {
   const upgraded: Project & { tags?: unknown } = { ...project, samples, hits, pads, loops, mods, song };
   delete upgraded.tags;
   // Breaks became their own objects, taking the samples' break fields (and tag fields) with them.
-  return (project as { breaks?: unknown }).breaks === undefined ? breaksFromSamples(upgraded) : upgraded;
+  const withBreaks = (project as { breaks?: unknown }).breaks === undefined ? breaksFromSamples(upgraded) : upgraded;
+  return namedTrims(withBreaks);
+}
+
+/**
+ * Samples became trims of their file, numbered per file, and a break named as
+ * its file ("amen.wav") is named as a new one would be ("amen 1").
+ */
+function namedTrims(project: Project): Project {
+  const counts = new Map<Id, number>();
+  const samples = Object.fromEntries(
+    Object.entries(project.samples).map(([id, sample]): [Id, Sample] => {
+      if (typeof (sample as { trim?: number }).trim === 'number') return [id, sample];
+      const trim = (counts.get(sample.audioId) ?? 0) + 1;
+      counts.set(sample.audioId, trim);
+      return [id, { ...sample, trim }];
+    }),
+  );
+  let next: Project = { ...project, samples };
+  for (const brk of Object.values(next.breaks)) {
+    const sample = next.samples[brk.sampleId];
+    if (sample !== undefined && brk.name === sample.name) next = renameBreakIn(next, brk.id, defaultBreakName(sample));
+  }
+  return next;
 }
 
 /** An effect as an older version may have saved it. */

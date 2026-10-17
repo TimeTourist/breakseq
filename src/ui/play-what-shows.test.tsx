@@ -184,9 +184,9 @@ describe('Clone break in Hits', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clone break' }));
     const breaks = Object.values(store.getState().history.present.breaks);
     const copy = breaks.find((b) => b.id !== brk.id)!;
-    expect(copy.name).toBe('amen copy');
+    expect(copy.name).toBe('amen 1 copy');
     expect(store.getState().selection.hit).toBe(copy.parent);
-    expect(screen.getByRole('button', { name: /^Undo: add break amen copy/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Undo: add break amen 1 copy/ })).toBeTruthy();
   });
 });
 
@@ -198,9 +198,9 @@ describe('Delete break', () => {
     expect(screen.getByRole('button', { name: 'Song' })).toBeTruthy();
     const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
     window.confirm = confirm;
-    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen.wav' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1' }));
     expect(store.getState().history.present.breaks[brk.id]).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen.wav' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1' }));
     expect(store.getState().history.present.breaks[brk.id]).toBeUndefined();
     expect(store.getState().history.present.song.clips).toEqual([]);
     expect(confirm).toHaveBeenCalledTimes(2);
@@ -211,8 +211,8 @@ describe('Delete break', () => {
     const { store } = await setup(p, { view: 'import' });
     const confirm = vi.fn();
     window.confirm = confirm;
-    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen copy' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1 copy' }));
     expect(confirm).not.toHaveBeenCalled();
-    expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen.wav']);
+    expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen 1']);
   });
 });

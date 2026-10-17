@@ -45,7 +45,7 @@ export function breaksFromSamples(project: Project): Project {
   const toFill: { breakId: Id; count: number }[] = [];
 
   for (const s of old.filter((x) => x.sliceOf == null)) {
-    samples[s.id] = { id: s.id, name: s.name, audioId: s.audioId, offset: s.offset, duration: s.duration, channel: 'stereo' };
+    samples[s.id] = { id: s.id, name: s.name, audioId: s.audioId, offset: s.offset, duration: s.duration, channel: 'stereo', trim: 1 };
     const breakId = `${s.id}-break`;
     const info = s.break;
     if (info === null) {

@@ -41,6 +41,18 @@ export function bpmOf(project: Project, brk: Break): number | null {
   return brk.bars === null || sample === undefined ? null : breakBpm(sample.duration, brk.bars);
 }
 
+/** A sample is a trim of a file: "amen trim 2". The file keeps its own name ("amen.wav"). */
+export const trimName = (sample: Sample): string => `${baseName(sample.name)} trim ${sample.trim}`;
+
+/** A break's slicing, named after the trim it slices: "amen slice 2". */
+export const sliceName = (project: Project, brk: Break): string => {
+  const sample = breakSample(project, brk);
+  return sample === undefined ? baseName(brk.name) : `${baseName(sample.name)} slice ${sample.trim}`;
+};
+
+/** The name a new break gets: its file without the extension, and its trim's number ("amen 2"). */
+export const defaultBreakName = (sample: Sample): string => `${baseName(sample.name)} ${sample.trim}`;
+
 /** Where a slot's slice lies in the break's sample, in seconds from its start; null past the last slice. */
 export function sliceWindow(project: Project, brk: Break, slot: number | null): Region | null {
   const sample = breakSample(project, brk);

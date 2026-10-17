@@ -143,7 +143,7 @@ describe('Double-click opens the editor', () => {
     expect(state().selection.pad).toBe(pad.id);
 
     // In Hits, a hit of the pad opens it for editing.
-    fireEvent.click(within(screen.getByRole('list', { name: 'Hits in this pad' })).getByRole('button', { name: 'snare' }));
+    fireEvent.click(within(screen.getByRole('list', { name: 'Hits in this pad' })).getByRole('button', { name: 'snare 1' }));
     expect(state().selection.hit).toBe(hit.id);
     expect(screen.getByLabelText('Hit name')).toHaveProperty('value', hit.name);
 

@@ -19,7 +19,7 @@ function run(project: Project, ...commands: Command[]): Project {
 /** A one-bar break of 2 s in 16 slices (120 BPM), M1 in a one-bar song at 120 BPM, and a 0.05 s snare. */
 function song() {
   const start = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.05) }));
-  const amen = Object.values(start.breaks).find((b) => b.name === 'amen.wav')!;
+  const amen = Object.values(start.breaks).find((b) => b.name === 'amen 1')!;
   const project = run(start, setBreak(amen.id, 1), setBpm(120));
   const m1 = Object.values(project.loops)[0]!;
   const snarePad = Object.values(project.pads).find((p) => p.name.startsWith('snare'))!;
@@ -33,7 +33,7 @@ describe('MIDI plan', () => {
     const { project } = song();
     const plan = midiPlan(project, take(project));
     expect(plan.pieces.map((p) => (p.kind === 'hit' ? nameOf(project, p.trigger) : 'tape'))).toEqual(
-      Array.from({ length: 16 }, (_, i) => `amen ${String(i + 1).padStart(2, '0')}`),
+      Array.from({ length: 16 }, (_, i) => `amen 1 ${String(i + 1).padStart(2, '0')}`),
     );
     expect(plan.notes.map((n) => n.piece)).toEqual(Array.from({ length: 16 }, (_, i) => i));
     expect(plan.notes[3]!.time).toBeCloseTo(3 * stepDuration(120));
@@ -51,8 +51,8 @@ describe('MIDI plan', () => {
     const names = plan.pieces.map((x) => (x.kind === 'hit' ? `${nameOf(p, x.trigger)}${x.trigger.pitch === 0 ? '' : ` +${x.trigger.pitch}`}` : 'tape'));
     // Slice 03 is not heard (slice 01 is on its step); beats 2 and 4 (0 5 0 5) are only heard pitched up.
     expect(names).toEqual([
-      'amen 01', 'amen 02', 'amen 04', 'amen 09', 'amen 10', 'amen 11', 'amen 12',
-      'amen 05 +5', 'amen 06 +5', 'amen 07 +5', 'amen 08 +5', 'amen 13 +5', 'amen 14 +5', 'amen 15 +5', 'amen 16 +5',
+      'amen 1 01', 'amen 1 02', 'amen 1 04', 'amen 1 09', 'amen 1 10', 'amen 1 11', 'amen 1 12',
+      'amen 1 05 +5', 'amen 1 06 +5', 'amen 1 07 +5', 'amen 1 08 +5', 'amen 1 13 +5', 'amen 1 14 +5', 'amen 1 15 +5', 'amen 1 16 +5',
     ]);
     expect(plan.notes[2]!.piece).toBe(0);
   });
@@ -62,12 +62,12 @@ describe('MIDI plan', () => {
     const next = run(project, createLoop('S', 'main', 1));
     const loop = Object.keys(next.loops).find((k) => !(k in project.loops))!;
     // Snare on steps 1 and 2: the first rings 0.05 s, shorter than a step; the break plays after.
-    const p = run(next, setStep(loop, 0, { padId: snarePad.id }), setStep(loop, 1, { padId: Object.values(next.pads).find((x) => x.name === 'amen 05')!.id }), setSongCell('main', 0, loop));
+    const p = run(next, setStep(loop, 0, { padId: snarePad.id }), setStep(loop, 1, { padId: Object.values(next.pads).find((x) => x.name === 'amen 1 05')!.id }), setSongCell('main', 0, loop));
     const plan = midiPlan(p, take(p));
-    expect(plan.pieces.map((x) => (x.kind === 'hit' ? nameOf(p, x.trigger) : 'tape'))).toEqual(['amen 05', 'snare']);
+    expect(plan.pieces.map((x) => (x.kind === 'hit' ? nameOf(p, x.trigger) : 'tape'))).toEqual(['amen 1 05', 'snare 1']);
     expect(plan.notes[0]).toMatchObject({ piece: 1, time: 0 });
     expect(plan.notes[0]!.length).toBeCloseTo(0.05);
-    // amen 05 is 0.125 s long and nothing cuts it.
+    // amen 1 05 is 0.125 s long and nothing cuts it.
     expect(plan.notes[1]!.length).toBeCloseTo(0.125);
   });
 

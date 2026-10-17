@@ -187,7 +187,7 @@ describe('Effects', () => {
     pick('Shuffle pick', 'reverse');
     expect(effect()).toEqual({ target: 'swap', rate: 'step', mode: { kind: 'shuffle', pick: { kind: 'reverse' } } });
     const boxes = [...screen.getByRole('img', { name: 'What Swap does to each step' }).querySelectorAll('text')].map((t) => t.textContent);
-    expect([boxes[0], boxes[4], boxes[8], boxes[12]]).toEqual(['d', 'c', 'b', 'a']);
+    expect([boxes[0], boxes[4], boxes[8], boxes[12]]).toEqual(['d 1', 'c 1', 'b 1', 'a 1']);
     expect(boxes[1]).toBe('');
 
     pick('Shuffle pick', 'rotate');

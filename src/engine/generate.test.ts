@@ -78,7 +78,7 @@ function firstHitPerBar(project: Project): (string | undefined)[] {
   const triggers = generateTriggers(project, () => 0);
   return Array.from({ length: project.song.bars }, (_, bar) => {
     const first = triggers.find((t) => t.bar === bar);
-    return first === undefined ? undefined : project.hits[first.hitId]?.name;
+    return first === undefined ? undefined : project.hits[first.hitId]?.name.replace(/ 1$/, '');
   });
 }
 

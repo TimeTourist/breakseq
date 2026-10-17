@@ -167,7 +167,7 @@ describe('Song transport', () => {
 describe('copying clips', () => {
   it('Ctrl+D puts a copy right after the selected clip, and again after that', async () => {
     const { store } = await setup(song());
-    fireEvent.click(screen.getByRole('button', { name: /^amen, 1\.1\.1/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^amen 1, 1\.1\.1/ }));
     press('d', { ctrlKey: true });
     press('d', { ctrlKey: true });
     expect(clips(store)).toEqual([
@@ -179,7 +179,7 @@ describe('copying clips', () => {
 
   it('Ctrl+C and Ctrl+V paste at the cursor, after the clip is gone too', async () => {
     const { store } = await setup(song());
-    const m1 = screen.getByRole('button', { name: /^amen, 1\.1\.1/ });
+    const m1 = screen.getByRole('button', { name: /^amen 1, 1\.1\.1/ });
     fireEvent.click(m1);
     press('c', { ctrlKey: true });
     fireEvent.keyDown(m1, { key: 'Delete' });

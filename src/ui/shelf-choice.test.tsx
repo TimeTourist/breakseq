@@ -138,7 +138,7 @@ describe('from Loops to Hits', () => {
     const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
     fireEvent.click(chooser.getByRole('button', { name: 'Expand all' }));
     const row = chooser.getByText('hat').closest('.pad-row')!;
-    const chip = within(row as HTMLElement).getByText('h2');
+    const chip = within(row as HTMLElement).getByText('h2 1');
     fireEvent.doubleClick(chip);
     expect(store.getState().view).toBe('hits');
     expect(store.getState().selection).toMatchObject({ pad: pad.id, hit: pad.members[1] });
@@ -155,7 +155,7 @@ describe('a click in Show in Pads', () => {
     const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
     fireEvent.click(chooser.getByRole('button', { name: 'Expand all' }));
     const row = chooser.getByText('hat').closest('.pad-row')!;
-    fireEvent.click(within(row as HTMLElement).getByText('h2'));
+    fireEvent.click(within(row as HTMLElement).getByText('h2 1'));
     expect(s.player.playHit).toHaveBeenLastCalledWith(expect.anything(), pad.members[1]);
   });
 });

@@ -34,7 +34,7 @@ function hats(choice: PadChoice, bars = 2) {
   return { project, pad, loop, hits };
 }
 
-const names = (project: Project, rng = sequenceRng([0])) => generateTriggers(project, rng).map((t) => project.hits[t.hitId]!.name);
+const names = (project: Project, rng = sequenceRng([0])) => generateTriggers(project, rng).map((t) => project.hits[t.hitId]!.name.replace(/ 1$/, ''));
 
 describe("the pad's choice", () => {
   it('Top plays member 1, as before', () => {
