@@ -135,8 +135,11 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
     setFolder({ folder: f, active: info, saved: savedText, snapshots: list });
   };
 
-  /** Asks first when work would be lost: save it, throw it away, or stop. */
-  const guarded = (what: string, go: () => Promise<void>) => {
+  /**
+   * Asks first when work would be lost: save it, throw it away, or stop.
+   * Going back to the active snapshot has nothing to save first.
+   */
+  const guarded = (what: string, go: () => Promise<void>, offerSave = true) => {
     if (!unsaved) {
       void attempt(go);
       return;
@@ -145,7 +148,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
     setAsk({
       question: canSave ? `You have changes that are not in “${active.name}”. ${what}?` : `Your work is not in a snapshot yet. ${what} anyway?`,
       answers: [
-        ...(canSave
+        ...(canSave && offerSave
           ? [
               {
                 label: 'Save first',
@@ -179,15 +182,20 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
       }
     });
 
+  /** Loads a snapshot; the active one loads as it was saved, throwing away the changes since. */
   const load = (info: SnapshotInfo) =>
-    guarded(`Load “${info.name}”`, async () => {
-      if (folder === null) return;
-      const project = await loadSnapshot(folder, info.file);
-      store.dispatch({ type: 'load', project });
-      await writeManifest(folder, info.file);
-      setFolder({ active: info, saved: comparable(project) });
-      await refresh(folder);
-    });
+    guarded(
+      `Load “${info.name}”`,
+      async () => {
+        if (folder === null) return;
+        const project = await loadSnapshot(folder, info.file);
+        store.dispatch({ type: 'load', project });
+        await writeManifest(folder, info.file);
+        setFolder({ active: info, saved: comparable(project) });
+        await refresh(folder);
+      },
+      info.file !== active?.file,
+    );
 
   const open = () =>
     guarded('Open another project', async () => {
@@ -315,11 +323,15 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
                 <button type="button" disabled={busy} aria-label={`Export ${s.name}`} onClick={() => renderSnapshot(s, (take) => services.exportWav(take, s.name))}>
                   Export
                 </button>
-                {!isActive && (
-                  <button type="button" disabled={busy} aria-label={`Load ${s.name}`} onClick={() => load(s)}>
-                    Load
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-label={`Load ${s.name}`}
+                  title={isActive ? 'Load it as it was saved, without the changes since' : undefined}
+                  onClick={() => load(s)}
+                >
+                  Load
+                </button>
               </div>
             );
           })}

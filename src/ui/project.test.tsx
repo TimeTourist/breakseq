@@ -133,6 +133,23 @@ describe('Project', () => {
     expect(new TextDecoder().decode((await folder.read(hek.file))!)).not.toContain('Unsaved');
   });
 
+  it('Load on the active snapshot goes back to it as saved, asking first without Save first', async () => {
+    const folder = memoryFolder('Amen');
+    const store = await setup(build(createLoop('basic', 'main', 1)), [folder]);
+    await click('New');
+    await answer('Keep the current work');
+    await act(async () => {
+      store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Unsaved') });
+    });
+    await click('Load Start');
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('not in “Start”');
+    expect(within(dialog).queryByRole('button', { name: 'Save first' })).toBeNull();
+    await answer('Discard changes');
+    expect(loopName(store)).toBe('basic');
+    expect(store.getState().history.past).toHaveLength(0);
+  });
+
   it('Save first, then load: the changes go into the active snapshot before the other one loads', async () => {
     const folder = memoryFolder('Amen');
     const store = await setup(build(createLoop('basic', 'main', 1)), [folder]);
