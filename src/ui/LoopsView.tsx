@@ -90,6 +90,62 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           + New loop
         </button>
       </section>
+      <section className="stack-tight" aria-label="Choose what shows">
+        <div className="row spread">
+          <h2 className="label" title="Tick what you want to drag from">Show in Pads</h2>
+          <button
+            type="button"
+            className="link-text small"
+            onClick={() => store.dispatch({ type: 'shelfOpen', groups: groups.map(groupKey), open: !allOpen })}
+          >
+            {allOpen ? 'Collapse all' : 'Expand all'}
+          </button>
+        </div>
+        {groups.map((group) => {
+          const key = groupKey(group);
+          const opened = shelfOpen.includes(key);
+          return (
+            <div key={key} className="stack-tight">
+              <div className="row nowrap fold-head">
+                <button
+                  type="button"
+                  className="icon-button small fold"
+                  aria-expanded={opened}
+                  aria-label={`${opened ? 'Hide' : 'Show'} the pads of ${group.name}`}
+                  onClick={() => store.dispatch({ type: 'shelfOpen', groups: [key], open: !opened })}
+                >
+                  {opened ? '▾' : '▸'}
+                </button>
+                <label className="row nowrap grow shelf-choice">
+                  <input
+                    type="checkbox"
+                    checked={!shelfHidden.includes(key)}
+                    onChange={(e) => store.dispatch({ type: 'shelfShown', group: key, shown: e.target.checked })}
+                  />
+                  <span className="label grow ellipsis">{group.name}</span>
+                  <span className="muted small">{group.items.length}</span>
+                </label>
+              </div>
+              {opened && group.items.map((p) => (
+                <div key={p.id} className={`pad-row${silent.has(p.id) ? ' silent' : ''}`}>
+                  <span className="pad-row-name mono">{padLabel(p)}</span>
+                  {p.members.map((m, i) => {
+                    const h = project.hits[m];
+                    const by = h === undefined ? null : replacedBy(project, p.id, h);
+                    return h === undefined ? null : (
+                      <span key={m} className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`} title={h.name}>
+                        {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
+                        {by !== null && `→${by}`}
+                        {h.direction === 'reverse' ? ' ◂' : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </section>
     </aside>
   );
 
@@ -100,7 +156,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
         <main className="view">
           <div className="view-head">
             <h1>Loops</h1>
-            <p className="muted">No loops yet. Slice a break to get M1, or make a new loop.</p>
+            <p className="muted">No loops yet. Slice a break to get its loop, or make a new loop.</p>
           </div>
         </main>
       </div>
@@ -313,7 +369,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           </div>
           <div className="shelf">
           {groups.length > 0 && groups.every((g) => shelfHidden.includes(groupKey(g))) && (
-            <p className="muted small">Nothing ticked under Show in Pads.</p>
+            <p className="muted small">Nothing ticked under Show in Pads, to the left.</p>
           )}
           {groups.filter((group) => !shelfHidden.includes(groupKey(group))).map((group) => (
             <div key={group.breakId ?? group.name} className="shelf-group">
@@ -381,63 +437,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </div>
           ))}
           </div>
-        </section>
-
-        <section className="panel stack-tight" aria-label="Choose what shows">
-          <div className="row spread">
-            <h2 className="label">Show in Pads · tick what you want to drag from</h2>
-            <button
-              type="button"
-              className="link-text small"
-              onClick={() => store.dispatch({ type: 'shelfOpen', groups: groups.map(groupKey), open: !allOpen })}
-            >
-              {allOpen ? 'Collapse all' : 'Expand all'}
-            </button>
-          </div>
-          {groups.map((group) => {
-            const key = groupKey(group);
-            const opened = shelfOpen.includes(key);
-            return (
-              <div key={key} className="stack-tight">
-                <div className="row nowrap fold-head">
-                  <button
-                    type="button"
-                    className="icon-button small fold"
-                    aria-expanded={opened}
-                    aria-label={`${opened ? 'Hide' : 'Show'} the pads of ${group.name}`}
-                    onClick={() => store.dispatch({ type: 'shelfOpen', groups: [key], open: !opened })}
-                  >
-                    {opened ? '▾' : '▸'}
-                  </button>
-                  <label className="row nowrap grow shelf-choice">
-                    <input
-                      type="checkbox"
-                      checked={!shelfHidden.includes(key)}
-                      onChange={(e) => store.dispatch({ type: 'shelfShown', group: key, shown: e.target.checked })}
-                    />
-                    <span className="label grow ellipsis">{group.name}</span>
-                    <span className="muted small">{group.items.length}</span>
-                  </label>
-                </div>
-                {opened && group.items.map((p) => (
-                  <div key={p.id} className={`pad-row${silent.has(p.id) ? ' silent' : ''}`}>
-                    <span className="pad-row-name mono">{padLabel(p)}</span>
-                    {p.members.map((m, i) => {
-                      const h = project.hits[m];
-                      const by = h === undefined ? null : replacedBy(project, p.id, h);
-                      return h === undefined ? null : (
-                        <span key={m} className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`} title={h.name}>
-                          {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
-                          {by !== null && `→${by}`}
-                          {h.direction === 'reverse' ? ' ◂' : ''}
-                        </span>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
         </section>
       </main>
 
