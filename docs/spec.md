@@ -60,10 +60,12 @@ Appen har sex vyer i arbetsordning, nåbara via flikar och tangenterna 1–6. Va
 - *Slices* heter "slice" med två siffror överallt (slice 01, Marker 01, Plays slice 01 of amen 1).
 - *Sidomenyerna* i Hits, Loops och Mods har samma ordning: rubrik, + New …, listan, sedan eventuell extra sektion.
 - *Reglage* ser likadana ut överallt: etikett och värde ovanför. Sifferfält har etiketten till vänster och samma höjd.
-- *Hörs i låten*: det som hörs i Song, hela vägen ned (loopen ligger i Song, paden på ett steg i den, hitten i paden, och breaket och dess förälder genom hitten), har "♪ Song" vid sitt namn, och ett klick öppnar Song. I sidomenyerna står ett ♪ vid det som hörs. Annars visas inte var något används; Delete säger det när det behövs.
+- *Hörs i låten*: det som hörs i Song, hela vägen ned (loopen ligger i Song, paden på ett steg i den, hitten i paden, och breaket och dess förälder genom hitten), har "♪ Song" vid sitt namn, och ett klick öppnar Song. I sidomenyerna står ett ♪ vid det som hörs. Det som bara hörs för att en mod byter till det (Swap, Pad member) räknas inte, eftersom det ofta beror på slumpen. Annars visas inte var något används; Delete säger det när det behövs.
 - *Siffror*: längder står i ms, tempo med två decimaler, och takter som "1 bar" och "2 bars".
 - *Huvudet* är detsamma i Hits, Loops och Mods: namnet, under det en rad med info, länkar och inställningar, och knapparna till höger.
 - *Hjälptext* står inte i rubriker; rubriker är namn ("Pads", "Loops and mods"), och hjälpen står i en liten grå rad sist i sin panel. Ett tomt läge länkar till fliken där man gör det som saknas (← Import, ← Slice, ← Loops, ← Mods).
+- *Av och på* (Loop i Song) markeras som ett valt segment.
+- *Knappar säger vad de gör*: −1 ms och +1 ms flyttar en markör; pilar betyder att man hoppar till en annan flik. New example ritar om ett exempel i Mods, New take slumpar om det som spelas i Song.
 - *Chips*: länkchips har accentfärg, och bara det som går att dra har dra-markören.
 - *Spelknappar i flikar* finns bara där det inte är klart vad Play i toppen spelar.
 

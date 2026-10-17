@@ -114,7 +114,7 @@ describe('Mods', () => {
       drawn().forEach((v) => expect(Number(v)).toBeGreaterThanOrEqual(1));
       drawn().forEach((v) => expect(Number(v)).toBeLessThanOrEqual(4));
       examples.add(drawn().join(','));
-      fireEvent.click(button('Another example'));
+      fireEvent.click(button('New example'));
     }
     expect(examples.size).toBeGreaterThan(1);
 
