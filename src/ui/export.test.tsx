@@ -8,7 +8,7 @@ import { memoryFolder, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { FolderService } from './folders';
 import type { Player, Take } from './playback';
-import type { MidiSaved, Services } from './services';
+import type { Services } from './services';
 import { createStore, initialState } from './store';
 
 afterEach(() => {
@@ -50,7 +50,7 @@ function makeServices(folder: ReturnType<typeof memoryFolder> | null) {
       Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [], loop: Object.values(project.loops)[0]?.name } as NamedTake),
   );
   const exportWav = vi.fn();
-  const exportMidi = vi.fn<(project: Project, take: Take) => Promise<MidiSaved>>(() => Promise.resolve({ pieces: 23, note: '1/4', bpm: 170 }));
+  const exportMidi = vi.fn<(project: Project, take: Take) => Promise<number>>(() => Promise.resolve(23));
   const services: Services = { storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() }, player, renderSong, renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }), exportWav, exportMidi, download: vi.fn(), rng: () => () => 0, folders };
   return { services, player, exportWav, exportMidi };
 }
@@ -103,7 +103,7 @@ describe('export in Project', () => {
     await click('Export MIDI + slices');
     expect(exportMidi).toHaveBeenCalledTimes(1);
     expect(loopOf(exportMidi.mock.calls[0]![1])).toBe('M1');
-    expect(screen.getByRole('status').textContent).toBe(`Saved a MIDI file and a WAV with 23 sounds, one every 1/4 at 170 BPM: split the WAV on 1/4.`);
+    expect(screen.getByRole('status').textContent).toBe('Saved a MIDI file and a WAV with 23 sounds.');
 
     exportMidi.mockRejectedValueOnce(new Error('The song has 93 different sounds'));
     await click('Export MIDI + slices');

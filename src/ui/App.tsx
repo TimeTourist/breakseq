@@ -323,7 +323,7 @@ function Shell() {
           onExport={() => {
             if (songTake !== null) services.exportWav(songTake);
           }}
-          onExportMidi={() => (songTake === null ? Promise.resolve({ pieces: 0, note: '', bpm: 0 }) : services.exportMidi(store.getState().history.present, songTake))}
+          onExportMidi={() => (songTake === null ? Promise.resolve(0) : services.exportMidi(store.getState().history.present, songTake))}
           backups={services.backups === undefined ? null : backups}
           onRestore={restore}
           onPlayTake={(snapshotTake) => {
