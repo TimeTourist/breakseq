@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject } from '../model';
+import { addSample, createProject, cueMarkers, setBreak } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Take } from './playback';
@@ -56,8 +56,10 @@ async function open(project: Project, hitId: string) {
 
 describe('slice lines on the parent in Hits', () => {
   const amen = () => {
-    // A file with cues is a break sliced at them.
-    return apply(createProject(), addSample({ name: 'Amen', audio: constantAudio(1), cues: [0.25, 0.5, 0.75] }));
+    // Sliced at the file's cues.
+    const added = apply(createProject(), addSample({ name: 'Amen', audio: constantAudio(1), cues: [0.25, 0.5, 0.75] }));
+    const brk = Object.values(added.breaks)[0]!;
+    return apply(added, setBreak(brk.id, 1, cueMarkers(added.samples[brk.sampleId]!)!));
   };
 
   it('shows a line where each slice starts', async () => {

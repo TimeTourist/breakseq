@@ -13,24 +13,34 @@ export { MIN_SLICE, baseName, breakBpm, gridMarkers };
 export interface NewSample {
   readonly name: string;
   readonly audio: AudioData;
-  /** Cue markers from the file, in seconds. A file with cues becomes a break sliced at them. */
+  /** Cue markers from the file, in seconds. A file with cues becomes a break, not sliced: Slice offers them. */
   readonly cues?: readonly number[];
 }
 
 const setBreakIn = (project: Project, brk: Break): Project => ({ ...project, breaks: { ...project.breaks, [brk.id]: brk } });
 
 /** Adds the audio and a sample for it, without a break. */
-function addAudio(project: Project, { name, audio }: NewSample, ctx: CommandContext): { project: Project; sample: Sample } | string {
+function addAudio(project: Project, { name, audio, cues = [] }: NewSample, ctx: CommandContext): { project: Project; sample: Sample } | string {
   const length = audio.channels[0]?.length ?? 0;
   if (length === 0 || audio.sampleRate <= 0) return 'Audio is empty';
   const audioId = ctx.newId();
-  const sample: Sample = { id: ctx.newId(), name, audioId, offset: 0, duration: length / audio.sampleRate, channel: 'stereo', trim: 1 };
+  const sample: Sample = {
+    id: ctx.newId(),
+    name,
+    audioId,
+    offset: 0,
+    duration: length / audio.sampleRate,
+    channel: 'stereo',
+    trim: 1,
+    ...(cues.length > 0 ? { cues: [...cues].sort((x, y) => x - y) } : {}),
+  };
   return { project: { ...project, audio: { ...project.audio, [audioId]: audio }, samples: { ...project.samples, [sample.id]: sample } }, sample };
 }
 
 /**
  * Adds an imported file: its sample, and a one-shot break over it with one pad
- * playing the whole sample. A file with cue markers becomes a break sliced at them.
+ * playing the whole sample. A file with cue markers becomes a break, not
+ * sliced: its cues are kept for Slice to offer.
  */
 export const addSample =
   (file: NewSample): Command =>
@@ -38,13 +48,39 @@ export const addSample =
     const added = addAudio(project, file, ctx);
     if (typeof added === 'string') return invalid(added);
     const { sample } = added;
-    const brk = oneShotOn(sample, ctx);
-    const next = ensureSlots(setBreakIn(added.project, brk), brk.id, 1, ctx.newId);
-    const cues = file.cues ?? [];
-    if (cues.length === 0) return ok(next);
-    const bars = guessBars(sample.duration);
-    return setBreak(brk.id, bars, cleanMarkers(cues.map((c) => c / sample.duration), sample.duration))(next, ctx);
+    const brk: Break = { ...oneShotOn(sample, ctx), ...(sample.cues === undefined ? {} : { unsliced: true as const }) };
+    return ok(ensureSlots(setBreakIn(added.project, brk), brk.id, 1, ctx.newId));
   };
+
+/** A break as it is once sliced, or made a one-shot again: no longer waiting to be sliced. */
+function withoutUnsliced(brk: Break): Break {
+  const { unsliced, ...rest } = brk;
+  void unsliced;
+  return rest;
+}
+
+/**
+ * Marks a one-shot as a break to slice, or back: nothing is made or guessed
+ * until it is sliced in Slice (`setBreak` with its bars). A sliced break goes
+ * back to a one-shot with `setBreak(id, null)`.
+ */
+export const markBreak =
+  (breakId: Id, asBreak: boolean): Command =>
+  (project) => {
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    if (brk.bars !== null) return invalid('The break is already sliced');
+    return ok(setBreakIn(project, asBreak ? { ...brk, unsliced: true } : withoutUnsliced(brk)));
+  };
+
+/** Whether a break is marked Break but not sliced yet. */
+export const isUnsliced = (brk: Break): boolean => brk.bars === null && brk.unsliced === true;
+
+/** The file's cue markers within a trim, as markers of it (parts, the first at 0); null when none fall inside it. */
+export function cueMarkers(sample: Sample): number[] | null {
+  const inside = (sample.cues ?? []).map((c) => (c - sample.offset) / sample.duration).filter((m) => m > 0 && m < 1);
+  return inside.length === 0 ? null : cleanMarkers(inside, sample.duration);
+}
 
 /** A one-shot break over a whole trim, named after it ("amen 2"). */
 const oneShotOn = (sample: Sample, ctx: CommandContext): Break => ({
@@ -64,7 +100,16 @@ function addTrimIn(project: Project, of: Sample, window: { offset: number; durat
   if (audio === undefined) return 'The file is missing';
   const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
   const trim = Math.max(0, ...Object.values(project.samples).filter((s) => s.audioId === of.audioId).map((s) => s.trim)) + 1;
-  const sample: Sample = { id: ctx.newId(), name: of.name, audioId: of.audioId, offset: window?.offset ?? 0, duration: window?.duration ?? length, channel: of.channel, trim };
+  const sample: Sample = {
+    id: ctx.newId(),
+    name: of.name,
+    audioId: of.audioId,
+    offset: window?.offset ?? 0,
+    duration: window?.duration ?? length,
+    channel: of.channel,
+    trim,
+    ...(of.cues === undefined ? {} : { cues: of.cues }),
+  };
   const brk = oneShotOn(sample, ctx);
   const next = ensureSlots(setBreakIn({ ...project, samples: { ...project.samples, [sample.id]: sample } }, brk), brk.id, 1, ctx.newId);
   return { project: next, brk: next.breaks[brk.id]! };
@@ -160,7 +205,7 @@ export const setBreak =
     const brk = project.breaks[breakId];
     if (brk === undefined) return notFound(breakId);
     if (bars !== null && (!Number.isInteger(bars) || bars < 1)) return invalid('A break must be a whole number of bars');
-    if (bars === null) return ok(setBreakIn(project, { ...brk, bars: null, markers: [0] }));
+    if (bars === null) return ok(setBreakIn(project, { ...withoutUnsliced(brk), bars: null, markers: [0] }));
 
     const grid = brk.bars === null ? 16 : markerGrid(brk.markers, brk.bars);
     const nextMarkers = markers ?? (grid === null ? brk.markers : gridMarkers(bars, grid));
@@ -173,7 +218,7 @@ export const setBreak =
       next = { ...next, hits: { ...next.hits, [hit.id]: hit } };
       parent = hit.id;
     }
-    next = ensureSlots(setBreakIn(next, { ...brk, bars, markers: nextMarkers, parent }), breakId, nextMarkers.length, ctx.newId);
+    next = ensureSlots(setBreakIn(next, { ...withoutUnsliced(brk), bars, markers: nextMarkers, parent }), breakId, nextMarkers.length, ctx.newId);
     const updated = next.breaks[breakId]!;
 
     if (brk.loop === null) {

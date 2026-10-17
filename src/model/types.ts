@@ -24,6 +24,8 @@ export interface Sample {
   readonly channel: SampleChannel;
   /** Its number among the trims of its file, from 1: "amen trim 2". Never changes. */
   readonly trim: number;
+  /** Cue markers in the file, in seconds from its start: offered in Slice. Absent when it has none. */
+  readonly cues?: readonly number[];
 }
 
 /** Stereo as the file is; Left or Right that channel in both; Mono the two averaged in both. */
@@ -52,6 +54,11 @@ export interface Break {
   readonly parent: Id | null;
   /** The loop made for the break the first time it became one, or null. */
   readonly loop: Id | null;
+  /**
+   * Marked Break in Import but not sliced yet (bars is null): it plays as a
+   * one-shot until it is sliced in Slice. Nothing is guessed or made before that.
+   */
+  readonly unsliced?: true;
 }
 
 export type Direction = 'forward' | 'reverse';

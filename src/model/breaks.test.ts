@@ -5,6 +5,9 @@ import {
   addClip,
   addPadMember,
   addTrim,
+  cueMarkers,
+  isUnsliced,
+  markBreak,
   renameBreak,
   sliceName,
   sliceToOneShot,
@@ -159,12 +162,58 @@ describe('a break', () => {
     expect(project.loops[m1]!.steps.filter((s) => s.padId !== null)).toHaveLength(5);
   });
 
-  it('a file with cues imports as a break with its bars guessed and markers at the cues', () => {
-    const project = run(createProject(), addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0, 0.4, 0.85] }));
+  it('a file with cues imports as a break, not sliced: nothing guessed or made, its cues kept for Slice', () => {
+    const project = run(createProject(), addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0.85, 0, 0.4] }));
     const brk = Object.values(project.breaks)[0]!;
+    expect(brk).toMatchObject({ bars: null, markers: [0], parent: null, loop: null, unsliced: true });
+    expect(isUnsliced(brk)).toBe(true);
+    expect(brk.pads).toHaveLength(1);
+    expect(Object.keys(project.loops)).toHaveLength(0);
+    const sample = project.samples[brk.sampleId]!;
+    expect(sample.cues).toEqual([0, 0.4, 0.85]);
+    expect(cueMarkers(sample)!.map((m) => +(m * 1.7).toFixed(3))).toEqual([0, 0.4, 0.85]);
+  });
+
+  it('sliced at its cues, it gets its slices, parent and loop, and is no longer unsliced', () => {
+    let project = run(createProject(), addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0, 0.4, 0.85] }));
+    const id = Object.values(project.breaks)[0]!.id;
+    project = run(project, setBreak(id, 1, cueMarkers(project.samples[project.breaks[id]!.sampleId]!)!));
+    const brk = project.breaks[id]!;
     expect(brk.bars).toBe(1);
-    expect(brk.markers.map((m) => +(m * 1.7).toFixed(3))).toEqual([0, 0.4, 0.85]);
     expect(brk.pads).toHaveLength(3);
+    expect(brk.parent).not.toBeNull();
+    expect(brk.loop).not.toBeNull();
+    expect(isUnsliced(brk)).toBe(false);
+    expect('unsliced' in brk).toBe(false);
+  });
+
+  it('cue markers are those inside the trim, as parts of it; none inside gives null', () => {
+    const sample = { id: 's', name: 'a.wav', audioId: 'a', offset: 1, duration: 2, channel: 'stereo' as const, trim: 2, cues: [0.5, 1.5, 2, 3.5] };
+    expect(cueMarkers(sample)).toEqual([0, 0.25, 0.5]);
+    expect(cueMarkers({ ...sample, cues: [0.2, 3.2] })).toBeNull();
+    const { cues: _, ...none } = sample;
+    void _;
+    expect(cueMarkers(none)).toBeNull();
+  });
+
+  it('Break in Import only marks a one-shot: no bars guessed, no slices, pads or loop', () => {
+    let project = run(createProject(), addSample({ name: 'long.wav', audio: constantAudio(16) }));
+    const id = Object.values(project.breaks)[0]!.id;
+    const before = project;
+    project = run(project, markBreak(id, true));
+    expect(project.breaks[id]).toMatchObject({ bars: null, unsliced: true, pads: before.breaks[id]!.pads, parent: null, loop: null });
+    expect(project.pads).toEqual(before.pads);
+    expect(project.hits).toEqual(before.hits);
+    expect(breakTakes(project, id)).toEqual(['1 hit']);
+    // One-shot again: back as it was.
+    expect(run(project, markBreak(id, false)).breaks[id]).toEqual(before.breaks[id]);
+  });
+
+  it('a new trim keeps the file\'s cues', () => {
+    let project = run(createProject(), addSample({ name: 'cued.wav', audio: constantAudio(2), cues: [0.5, 1] }));
+    const sample = Object.values(project.samples)[0]!;
+    project = run(project, addTrim(sample.id));
+    expect(Object.values(project.samples).map((s) => s.cues)).toEqual([[0.5, 1], [0.5, 1]]);
   });
 });
 
