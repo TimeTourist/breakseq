@@ -299,10 +299,10 @@ export function SliceView() {
           </div>
           <div className="row">
             <button type="button" aria-label="Nudge marker left" disabled={current === 0} onClick={() => moveMarker(current, (markers[current] ?? 0) - 0.001)}>
-              ←
+              −1 ms
             </button>
             <button type="button" aria-label="Nudge marker right" disabled={current === 0} onClick={() => moveMarker(current, (markers[current] ?? 0) + 0.001)}>
-              →
+              +1 ms
             </button>
             <button
               type="button"

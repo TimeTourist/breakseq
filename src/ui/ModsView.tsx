@@ -314,7 +314,7 @@ export function ModsView() {
                   rolls its own.
                 </p>
                 <button type="button" className="push" onClick={() => setExampleSeed((s) => s + 1)}>
-                  Another example
+                  New example
                 </button>
               </div>
             </>
@@ -340,7 +340,7 @@ export function ModsView() {
                 </p>
                 {effect.shape.kind === 'random' && (
                   <button type="button" className="push" onClick={() => setExampleSeed((s) => s + 1)}>
-                    Another example
+                    New example
                   </button>
                 )}
               </div>

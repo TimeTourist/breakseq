@@ -1671,10 +1671,16 @@ input[type='search'] {
 }
 
 /* The song's loop, marked by a drag in the ruler: dim while off. */
+/* On or off, marked as a selected segment is. */
+.loop-toggle {
+  color: var(--muted);
+}
+
 .loop-toggle[aria-pressed='true'] {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-bg);
+  color: var(--text);
+  font-weight: 600;
+  border-color: var(--text);
+  background: var(--selected);
 }
 
 /* The loop's ends in the ruler, as Trim's handles; grey while the loop is off. */

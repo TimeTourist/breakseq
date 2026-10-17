@@ -87,3 +87,7 @@ Mitt förslag: komplementet först.
 En ny installation börjar med tom autospar, men snapshots ligger kvar i mappen. En VST-plugin kräver en ny motor, men `generate` är förberedd för det.
 
 Förslag: PWA tillsammans med GitHub Pages först, och Tauri senare om en fil ska delas ut.
+
+## Exemplet i Mods visar det som hörs
+
+New example i Mods ritar bara om exempelgrafen. Den skulle kunna slumpa om det som spelas också, så att grafen visar exakt vad som hörs. Kräver att exemplet och renderingen delar slumptal. (Bordlagt 2026-10-17.)
