@@ -192,11 +192,13 @@ describe('Clone break in Hits', () => {
 });
 
 describe('Delete break', () => {
-  it('in Hits says where the break is used, and asks before deleting it anyway', async () => {
+  it('in Hits marks a break heard in the song, and asks before deleting it anyway', async () => {
     const p = split();
     const brk = brkOf(p);
     const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, hit: brk.parent } });
-    expect(screen.getByRole('button', { name: 'Song' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '♪ Song' }));
+    expect(store.getState().view).toBe('song');
+    act(() => void store.dispatch({ type: 'view', view: 'hits' }));
     const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
     window.confirm = confirm;
     fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1' }));
@@ -249,14 +251,14 @@ describe('the same controls everywhere, in Hits', () => {
     expect(screen.getByLabelText('Start ms')).toHaveProperty('value', '10');
   });
 
-  it('Delete hit says where the hit is used, and asks before taking it out of there', async () => {
+  it('Delete hit asks first, naming where the hit is used, and takes it out of there', async () => {
     const p = split();
     const hit = memberOf(p, 1);
     const pad = brkOf(p).pads[1]!;
     const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad, hit } });
-    expect(screen.getByRole('button', { name: `pad ${p.pads[pad]!.name}` })).toBeTruthy();
     window.confirm = vi.fn(() => false);
     fireEvent.click(screen.getByRole('button', { name: `Delete hit ${p.hits[hit]!.name}` }));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining(`pad ${p.pads[pad]!.name}`));
     expect(store.getState().history.present.hits[hit]).toBeDefined();
     window.confirm = vi.fn(() => true);
     fireEvent.click(screen.getByRole('button', { name: `Delete hit ${p.hits[hit]!.name}` }));

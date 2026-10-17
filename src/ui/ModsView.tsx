@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { EffectTarget, Id, Mod, ModEffect, ModFilter, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
 import { DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_STRETCH, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
 import { Delete } from './DeleteButton';
+import { InSong, InSongMark, useHeard } from './InSong';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { StepGraph, SwapGraph, TapeGraph } from './ModGraph';
 import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
@@ -55,6 +56,7 @@ export const effectsLabel = (mod: Mod) => (mod.effects.length === 0 ? 'no effect
 export function ModsView() {
   const project = useProject();
   const { store } = useApp();
+  const heard = useHeard();
   const run = useRun();
   const seal = useSeal();
   const open = useOpen();
@@ -91,6 +93,7 @@ export function ModsView() {
             onClick={() => open({ mod: m.id }, 'mods')}
           >
             <span className="mono mod-name grow ellipsis">{m.name}</span>
+            <InSongMark heard={heard.mods.has(m.id)} />
             <span className="muted small ellipsis">{effectsLabel(m)}</span>
           </button>
         ))}
@@ -122,7 +125,6 @@ export function ModsView() {
     );
   }
 
-  const usedIn = project.song.clips.filter((c) => c.ref === mod.id && (c.row === 'modA' || c.row === 'modB')).length;
   const taken = mod.effects.map((e) => e.target);
   const effect = mod.effects.find((e) => e.target === selectedTarget) ?? mod.effects[0];
   /** Swaps the effect being edited for a new one on another target, in its place. */
@@ -206,14 +208,19 @@ export function ModsView() {
           <label className="sr-only" htmlFor="mod-name">
             Mod name
           </label>
-          <input
-            id="mod-name"
-            className="title-input mono mod-name"
-            value={mod.name}
-            onChange={(e) => setError(run(renameMod(mod.id, e.target.value), `mod:${mod.id}:name`))}
-            onBlur={seal}
-          />
-          <span className="muted">{effectsLabel(mod)}</span>
+          <div className="stack-tight grow">
+            <input
+              id="mod-name"
+              className="title-input mono mod-name"
+              value={mod.name}
+              onChange={(e) => setError(run(renameMod(mod.id, e.target.value), `mod:${mod.id}:name`))}
+              onBlur={seal}
+            />
+            <p className="muted row">
+              <InSong heard={heard.mods.has(mod.id)} />
+              {effectsLabel(mod)} · Play tries it on {previewId === null ? 'a loop (make one first)' : project.loops[previewId]?.name}, over the whole loop.
+            </p>
+          </div>
           <div className="row push">
             <button
               type="button"
@@ -236,7 +243,6 @@ export function ModsView() {
             <Delete kind="mod" id={mod.id} name={mod.name} onError={setError} onDeleted={() => open({ mod: null }, 'mods')} />
           </div>
         </div>
-        <p className="muted small">Play tries the mod on {previewId === null ? 'a loop (make one first)' : project.loops[previewId]?.name}, over the whole loop.</p>
 
         {error !== null && (
           <p className="error" role="alert">
@@ -340,11 +346,6 @@ export function ModsView() {
               </div>
             </>
           )}
-        </section>
-
-        <section className="panel row">
-          <span className="label">Used in</span>
-          <span className="muted small">{usedIn === 0 ? 'Not in the song. Drag it onto Mod A or Mod B in Song.' : `${usedIn} clip${usedIn === 1 ? '' : 's'} in the song`}</span>
         </section>
       </main>
     </div>

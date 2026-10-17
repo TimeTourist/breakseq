@@ -34,11 +34,12 @@ import type { Selection } from './store';
 import { BreakOrigin } from './BreakOrigin';
 import { DeleteBreak } from './DeleteBreak';
 import { Delete } from './DeleteButton';
+import { InSong, InSongMark, useHeard } from './InSong';
 import { PlayControls } from './PlayControls';
 import { RegionHandle } from './RegionHandle';
 import { decodeAudioFile } from '../engine';
 import { PlayIcon } from './icons';
-import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, padGroups, padLabel, padUsages, replacedBy } from './labels';
+import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, padGroups, padLabel, replacedBy } from './labels';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
@@ -100,6 +101,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
   const [error, setError] = useState<string | null>(null);
 
   const { pad, hit, picked, parent: parentOpen } = hitsOpen(project, selection);
+  const heard = useHeard();
   const hitsLoop = useSelect((s) => s.hitsLoop);
   const unfolded = useSelect((s) => s.unfolded);
   const isFolded = (id: Id | undefined) => !unfolded.includes(id ?? '');
@@ -177,6 +179,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                 onClick={() => open({ hit: parent.id, pad: null }, 'hits')}
               >
                 <span className="label grow ellipsis">{group.name}</span>
+                <InSongMark heard={heard.breaks.has(group.breakId ?? '')} />
                 <span className="badge">parent</span>
               </button>
               </div>
@@ -187,6 +190,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
               <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}${silent.has(p.id) ? ' silent' : ''}`} title={silent.has(p.id) ? 'Silent: the break has fewer slices than this pad' : undefined}>
                 <button type="button" className="pad-row-name mono" aria-label={`Pad ${p.name}`} onClick={() => open({ pad: p.id, hit: null }, 'hits')}>
                   {padLabel(p)}
+                  <InSongMark heard={heard.pads.has(p.id)} />
                 </button>
                 {p.members.map((m, i) => {
                   const h = project.hits[m];
@@ -226,6 +230,11 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
           <div className="view-head">
             <h1>Hits</h1>
             <p className="muted">No hits yet. Every imported sample gets one, in a pad of its own.</p>
+          <div className="row nav-row">
+            <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'import' })}>
+              ← Import
+            </button>
+          </div>
           </div>
         </main>
       </div>
@@ -254,7 +263,6 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
    */
   function padPanel(pad: Pad, hitId: Id | null) {
     const onError = setError;
-    const usages = padUsages(project, pad.id);
     const query = search.trim().toLowerCase();
     const available = Object.values(project.hits).filter(
       (h) => !pad.members.includes(h.id) && !isParentHit(project, h) && (query === '' || h.name.toLowerCase().includes(query)),
@@ -274,7 +282,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
             onChange={(e) => onError(run(renamePad(pad.id, e.target.value), `pad:${pad.id}:name`))}
             onBlur={seal}
           />
-          <span className="muted small">A step lock goes first, then a mod, then the pad's own choice.</span>
+          <InSong heard={heard.pads.has(pad.id)} />
           <div className="row push">
             {!picked && pad.members.length > 0 && playControls('pad')}
             <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} onDeleted={() => open({ pad: null, hit: null }, 'hits')} />
@@ -361,18 +369,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
           </div>
         </details>
 
-        <div className="row">
-          <span className="label">Used in</span>
-          {usages.length === 0 ? (
-            <span className="muted small">No loops</span>
-          ) : (
-            usages.map(({ loop, steps }) => (
-              <button key={loop.id} type="button" className="link-chip mono" onClick={() => open({ loop: loop.id, step: null }, 'loops')}>
-                {loop.name} · {steps} {steps === 1 ? 'step' : 'steps'}
-              </button>
-            ))
-          )}
-        </div>
+        <p className="muted small">A step lock goes first, then a mod, then the pad's own choice.</p>
       </section>
     );
   }
@@ -662,7 +659,10 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
               }
               onBlur={seal}
             />
-            {ownsBreak && brk !== undefined && <BreakOrigin brk={brk} parts={['slice', 'trim', 'file']} />}
+            <div className="row nav-row">
+              {ownsBreak && brk !== undefined && <BreakOrigin brk={brk} parts={['slice', 'trim', 'file']} />}
+              <InSong heard={ownsBreak && brk !== undefined ? heard.breaks.has(brk.id) : heard.hits.has(hit.id)} />
+            </div>
             <p className="muted">
               {source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}
               {window === null && brk !== undefined && ` · silent: ${brk.name} has ${brk.markers.length} slices`}

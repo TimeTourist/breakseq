@@ -263,10 +263,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
       <div className="view-head row">
         <div className="stack-tight">
           <h1>Song</h1>
-          <p className="muted">
-            Drop loops and mods on a lane; drag clips to move them (Ctrl: copy) and their edges to resize. A fill takes over
-            the main for its length. Click the ruler to play from there; drag in it to mark a loop, and its handles to move its ends.{rendering ? ' Rendering…' : ''}
-          </p>
+          {rendering && <p className="muted">Rendering…</p>}
         </div>
         <div className="row push">
           <label className="field">
@@ -396,10 +393,17 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
       )}
 
       <section className="panel stack">
-        <h2 className="label">Drag onto a lane, or select and click a lane</h2>
+        <h2 className="label">Loops and mods</h2>
         <div className="row">
           <span className="muted small library-label">Loops</span>
-          {loops.length === 0 && <span className="muted small">No loops yet. Slice a break to get M1.</span>}
+          {loops.length === 0 && (
+            <span className="muted small">
+              No loops yet.{' '}
+              <button type="button" className="link-text small" onClick={() => open({}, 'loops')}>
+                ← Loops
+              </button>
+            </span>
+          )}
           {loops.map((loop) => (
             <button
               key={loop.id}
@@ -421,7 +425,14 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
         </div>
         <div className="row">
           <span className="muted small library-label">Mods</span>
-          {mods.length === 0 && <span className="muted small">None yet: make them in Mods.</span>}
+          {mods.length === 0 && (
+            <span className="muted small">
+              No mods yet.{' '}
+              <button type="button" className="link-text small" onClick={() => open({}, 'mods')}>
+                ← Mods
+              </button>
+            </span>
+          )}
           {mods.map((mod) => (
             <button
               key={mod.id}
@@ -441,10 +452,12 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
             </button>
           ))}
         </div>
-        <span className="muted small">
-          Click a clip to select it: Delete removes it, ←/→ moves it a step (Shift: a beat), Ctrl+C copies it, Ctrl+D puts a copy right
-          after it. Ctrl+V pastes at the playhead. Space plays and stops.
-        </span>
+        <p className="muted small">
+          Drag a loop or mod onto a lane, or select it and click a lane; double-click it to edit. Drag clips to move them (Ctrl: copy)
+          and their edges to resize; a fill takes over the main for its length. Click a clip to select it: Delete removes it, ←/→
+          moves it a step (Shift: a beat), Ctrl+C copies it, Ctrl+D puts a copy right after it, Ctrl+V pastes at the playhead. Click
+          the ruler to play from there; drag in it to mark a loop, and its handles to move its ends. Space plays and stops.
+        </p>
       </section>
     </main>
   );

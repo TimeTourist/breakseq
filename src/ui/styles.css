@@ -287,6 +287,16 @@ p {
   gap: 16px;
 }
 
+/* The same head in every tab: the name with its info under it, and its buttons to the right. */
+.view-head.row > .stack-tight {
+  flex: 1 1 0;
+  min-width: 240px;
+}
+
+.view-head.row > .stack-tight .row {
+  flex-wrap: wrap;
+}
+
 .title-file {
   font-size: 18px;
   font-weight: 400;
@@ -713,6 +723,11 @@ p {
   min-height: 36px;
   font-weight: 600;
   color: var(--accent);
+  cursor: pointer;
+}
+
+/* Only what can be dragged looks it. */
+.chip[draggable='true'] {
   cursor: grab;
 }
 
@@ -842,7 +857,7 @@ p {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -886,6 +901,11 @@ p {
 }
 
 .title-input {
+  /* As wide as the name, the same in every tab. */
+  field-sizing: content;
+  min-width: 6ch;
+  max-width: 100%;
+  align-self: flex-start;
   font-size: 22px;
   font-weight: 600;
   min-height: 44px;
@@ -905,6 +925,7 @@ p {
 .link-chip {
   min-height: 36px;
   font-size: 14px;
+  color: var(--accent);
   background: var(--raised);
   border-color: var(--raised);
 }
@@ -1594,8 +1615,8 @@ input[type='search'] {
 }
 
 .parent-chip {
-  height: 40px;
-  min-height: 40px;
+  height: 36px;
+  min-height: 36px;
   font-weight: 600;
   color: var(--text);
   border-style: dashed;
@@ -1622,10 +1643,7 @@ input[type='search'] {
   margin-left: 6px;
 }
 
-.field.inline input {
-  width: 56px;
-  min-height: 32px;
-}
+
 
 /* Song timeline */
 
@@ -2207,10 +2225,13 @@ input[type='search'] {
 }
 
 /* Delete break, with where the break is used next to it. */
-.delete-button {
-  gap: 6px;
+/* Heard in the song: a link to Song by a name, a mark in lists. */
+.in-song {
+  white-space: nowrap;
 }
 
-.delete-button .in-use {
-  margin-left: 0;
+.in-song-mark {
+  color: var(--accent);
+  font-size: 12px;
+  flex: none;
 }

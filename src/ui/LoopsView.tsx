@@ -7,6 +7,7 @@ import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './conte
 import { CHOICE_LABEL, HIT_COLOR, lengthText, padGroups, padLabel, padSteps, replacedBy } from './labels';
 import { LoopLength } from './LoopLength';
 import { Delete } from './DeleteButton';
+import { InSong, InSongMark, useHeard } from './InSong';
 import type { Selection } from './store';
 
 export const PAD_MIME = 'application/x-breakseq-pad';
@@ -30,6 +31,7 @@ interface LoopsViewProps {
 export function LoopsView({ playhead }: LoopsViewProps) {
   const project = useProject();
   const { services, store } = useApp();
+  const heard = useHeard();
   const run = useRun();
   const seal = useSeal();
   const open = useOpen();
@@ -85,6 +87,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             onClick={() => open({ loop: l.id, step: null }, 'loops')}
           >
             <span className={`mono loop-name ${l.kind}`}>{l.name}</span>
+            <InSongMark heard={heard.loops.has(l.id)} />
             <span className="grow" />
             <span className="muted small">{l.kind}</span>
             <span className="mono muted small">{lengthText(l.steps.length)}</span>
@@ -180,6 +183,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           <div className="view-head">
             <h1>Loops</h1>
             <p className="muted">No loops yet. Slice a break to get its loop, or make a new loop.</p>
+          <div className="row nav-row">
+            <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'slice' })}>
+              ← Slice
+            </button>
+          </div>
           </div>
         </main>
       </div>
@@ -247,21 +255,26 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           <label className="sr-only" htmlFor="loop-name">
             Loop name
           </label>
-          <input
-            id="loop-name"
-            className={`title-input mono loop-name ${loop.kind}`}
-            value={loop.name}
-            onChange={(e) => setError(run(renameLoop(loop.id, e.target.value), `loop:${loop.id}:name`))}
-            onBlur={seal}
-          />
-          <div className="segmented" role="group" aria-label="Tag as">
-            {(['main', 'fill'] as const).map((k) => (
-              <button key={k} type="button" aria-pressed={loop.kind === k} onClick={() => setError(run(setLoopKind(loop.id, k)))}>
-                {k === 'main' ? 'Main' : 'Fill'}
-              </button>
-            ))}
+          <div className="stack-tight grow">
+            <input
+              id="loop-name"
+              className={`title-input mono loop-name ${loop.kind}`}
+              value={loop.name}
+              onChange={(e) => setError(run(renameLoop(loop.id, e.target.value), `loop:${loop.id}:name`))}
+              onBlur={seal}
+            />
+            <div className="row">
+              <div className="segmented" role="group" aria-label="Tag as">
+                {(['main', 'fill'] as const).map((k) => (
+                  <button key={k} type="button" aria-pressed={loop.kind === k} onClick={() => setError(run(setLoopKind(loop.id, k)))}>
+                    {k === 'main' ? 'Main' : 'Fill'}
+                  </button>
+                ))}
+              </div>
+              <LoopLength loop={loop} onError={setError} />
+              <InSong heard={heard.loops.has(loop.id)} />
+            </div>
           </div>
-          <LoopLength loop={loop} onError={setError} />
           <div className="row push">
             <button type="button" disabled={range === null && step?.padId == null} onClick={clearSelected}>
               {range === null ? 'Clear step' : `Clear ${range.to - range.from + 1} steps`}
@@ -384,7 +397,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
 
         <section className="panel stack-tight">
           <div className="row spread">
-            <h2 className="label">Pads · drag onto a step, or select one and click steps</h2>
+            <h2 className="label">Pads</h2>
             <button type="button" className="link-text small" onClick={() => open({}, 'hits')}>
               Build pads in Hits →
             </button>
@@ -463,6 +476,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </div>
           ))}
           </div>
+          <p className="muted small">Drag a pad onto a step, or select it and click steps. A click plays it once; a double-click edits it in Hits.</p>
         </section>
       </main>
 
