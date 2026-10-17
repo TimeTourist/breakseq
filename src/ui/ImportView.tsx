@@ -237,7 +237,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                     {trimming === brk.id && (
                       <tr>
                         <td colSpan={5} className="trim-cell" ref={trimCell}>
-                          <TrimEditor sample={sample} loopFirst={brk.bars !== null} played={playheadSeconds} />
+                          <TrimEditor sample={sample} played={playheadSeconds} />
                         </td>
                       </tr>
                     )}

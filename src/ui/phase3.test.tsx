@@ -59,7 +59,8 @@ function build(...commands: Command[]): Project {
 }
 
 async function setup(project: Project, view: View): Promise<Store> {
-  const store = createStore({ ...initialState(project), view });
+  // The Hits list unfolded, to reach its pads.
+  const store = createStore({ ...initialState(project), view, unfolded: Object.keys(project.breaks) });
   render(<App store={store} services={fakeServices()} />);
   await act(async () => {});
   return store;

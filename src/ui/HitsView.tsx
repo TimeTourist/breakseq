@@ -86,7 +86,8 @@ export function HitsView() {
 
   const { pad, hit, picked, parent: parentOpen } = hitsOpen(project, selection);
   const hitsLoop = useSelect((s) => s.hitsLoop);
-  const folded = useSelect((s) => s.folded);
+  const unfolded = useSelect((s) => s.unfolded);
+  const isFolded = (id: Id | undefined) => !unfolded.includes(id ?? '');
   const playing = parentOpen
     ? `${project.breaks[hit?.breakId ?? '']?.name ?? 'the break'} as laid out, with its pads`
     : picked
@@ -110,7 +111,7 @@ export function HitsView() {
 
   /** The breaks whose pads fold: those with a parent. */
   const foldable = groups.flatMap((g) => (g.breakId !== undefined && project.breaks[g.breakId]?.parent != null ? [g.breakId] : []));
-  const allOpen = foldable.every((id) => !folded.includes(id));
+  const allOpen = foldable.every((id) => !isFolded(id));
   const sidebar = (
     <aside className="sidebar" aria-label="Breaks and pads">
       {foldable.length > 0 && (
@@ -131,11 +132,11 @@ export function HitsView() {
               <button
                 type="button"
                 className="icon-button small fold"
-                aria-expanded={!folded.includes(group.breakId ?? '')}
-                aria-label={`${folded.includes(group.breakId ?? '') ? 'Show' : 'Hide'} the pads of ${group.name}`}
-                onClick={() => store.dispatch({ type: 'fold', breakIds: [group.breakId ?? ''], folded: !folded.includes(group.breakId ?? '') })}
+                aria-expanded={!isFolded(group.breakId)}
+                aria-label={`${isFolded(group.breakId) ? 'Show' : 'Hide'} the pads of ${group.name}`}
+                onClick={() => store.dispatch({ type: 'fold', breakIds: [group.breakId ?? ''], folded: !isFolded(group.breakId) })}
               >
-                {folded.includes(group.breakId ?? '') ? '▸' : '▾'}
+                {isFolded(group.breakId) ? '▸' : '▾'}
               </button>
               <button
                 type="button"
@@ -151,7 +152,7 @@ export function HitsView() {
             ) : (
               <h2 className="label">{group.name}</h2>
             )}
-            {!folded.includes(group.breakId ?? '') && group.items.map((p) => (
+            {(parent === undefined || !isFolded(group.breakId)) && group.items.map((p) => (
               <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}${silent.has(p.id) ? ' silent' : ''}`} title={silent.has(p.id) ? 'Silent: the break has fewer slices than this slot' : undefined}>
                 <button type="button" className="pad-row-name mono" aria-label={`Pad ${p.name}`} onClick={() => open({ pad: p.id, hit: null }, 'hits')}>
                   {padLabel(p)}

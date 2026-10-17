@@ -116,26 +116,29 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                 >
                   {opened ? '▾' : '▸'}
                 </button>
-                <label className="row nowrap grow shelf-choice">
+                <div className="row nowrap grow shelf-choice">
                   <input
                     type="checkbox"
+                    aria-label={`Show ${group.name} in Pads`}
                     checked={!shelfHidden.includes(key)}
                     onChange={(e) => store.dispatch({ type: 'shelfShown', group: key, shown: e.target.checked })}
                   />
                   <span
-                  className="label grow ellipsis"
-                  title={group.breakId === undefined ? undefined : 'Double-click to edit in Hits'}
-                  onDoubleClick={(e) => {
-                    const parent = group.breakId === undefined ? null : project.breaks[group.breakId]?.parent;
-                    if (parent == null) return;
-                    e.preventDefault();
-                    open({ hit: parent, pad: null }, 'hits');
-                  }}
-                >
-                  {group.name}
-                </span>
+                    className="label grow ellipsis"
+                    title={group.breakId === undefined ? undefined : 'Click to play it once, double-click to edit it in Hits'}
+                    onClick={() => {
+                      const parent = group.breakId === undefined ? null : project.breaks[group.breakId]?.parent;
+                      if (parent != null) services.player.playHit(project, parent);
+                    }}
+                    onDoubleClick={() => {
+                      const parent = group.breakId === undefined ? null : project.breaks[group.breakId]?.parent;
+                      if (parent != null) open({ hit: parent, pad: null }, 'hits');
+                    }}
+                  >
+                    {group.name}
+                  </span>
                   <span className="muted small">{group.items.length}</span>
-                </label>
+                </div>
               </div>
               {opened && group.items.map((p) => (
                 <div key={p.id} className={`pad-row${silent.has(p.id) ? ' silent' : ''}`}>
@@ -149,7 +152,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       <span
                       key={m}
                       className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`}
-                      title={`${h.name} · double-click to edit in Hits`}
+                      title={`${h.name} · click to play it once, double-click to edit it in Hits`}
+                      onClick={() => services.player.playHit(project, m)}
                       onDoubleClick={() => open({ pad: p.id, hit: m }, 'hits')}
                     >
                         {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
