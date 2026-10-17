@@ -199,7 +199,11 @@ describe('files, trims and breaks in the GUI', () => {
     await act(async () => {});
     fireEvent.change(screen.getByLabelText('Hit name'), { target: { value: 'think' } });
     expect(store.getState().history.present.breaks[brk.id]!.name).toBe('think');
-    fireEvent.click(screen.getByRole('button', { name: 'amen slice 1' }));
+    // ← Trim ← Slice and the file, the full names in their titles.
+    const origin = screen.getByRole('button', { name: '← Slice' }).closest('.origin')!;
+    expect([...origin.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['← Trim', '← Slice', 'amen.wav']);
+    expect(screen.getByRole('button', { name: '← Slice' }).title).toBe('Open amen slice 1 in Slice');
+    fireEvent.click(screen.getByRole('button', { name: '← Slice' }));
     expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: brk.id });
   });
 
