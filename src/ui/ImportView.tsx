@@ -1,20 +1,28 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Break, Project } from '../model';
-import { addSample, addTrim, bpmOf, guessBars, setBreak, trimName, unlikelyBpm } from '../model';
+import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, guessBars, removeFile, setBreak, sliceName, trimName, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues } from '../engine';
-import { useApp, useProject, useRun, useSelect } from './context';
-import { BreakOrigin } from './BreakOrigin';
+import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import { DeleteBreak } from './DeleteBreak';
+import { DeleteButton } from './DeleteButton';
+import { CropIcon, NewCropIcon } from './icons';
 import { TrimEditor } from './TrimEditor';
 import { InSong, useHeard } from './InSong';
 
 /** Every break, in import order: each imported file is one, a one-shot being a break with one slot. */
 export const sources = (project: Project): Break[] => Object.values(project.breaks);
 
-function creates(project: Project, brk: Break): string {
-  if (brk.bars === null) return '1 hit · 1 pad';
-  const loop = brk.loop === null ? undefined : project.loops[brk.loop];
-  return `${brk.markers.length} slices · ${brk.markers.length} pads${loop === undefined ? '' : ` · loop ${loop.name}`}`;
+/** The breaks grouped by file, files in import order and each file's trims in trim order. */
+function files(project: Project): [string, Break[]][] {
+  const order = [...new Set(sources(project).flatMap((b) => project.samples[b.sampleId]?.audioId ?? []))];
+  return order.map((audioId) => [audioId, fileBreaks(project, audioId)]);
+}
+
+/** A long file name shortened in the middle, keeping its start and its end with the extension. */
+export function middleEllipsis(name: string, max = 32): string {
+  if (name.length <= max) return name;
+  const tail = Math.floor((max - 1) / 3);
+  return `${name.slice(0, max - 1 - tail)}…${name.slice(-tail)}`;
 }
 
 interface ImportViewProps {
@@ -27,6 +35,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const run = useRun();
   const { store } = useApp();
   const heard = useHeard();
+  const open = useOpen();
   const input = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -122,116 +131,153 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
               <thead>
                 <tr>
                   <th>File</th>
+                  <th>Trim</th>
                   <th>Type</th>
                   <th>Length</th>
                   <th>Creates</th>
-                  <th>
-                    <span className="sr-only">Next</span>
-                  </th>
                 </tr>
               </thead>
-              <tbody>
-                {sources(project).map((brk) => {
-                  const sample = project.samples[brk.sampleId];
-                  if (sample === undefined) return null;
-                  const bpm = bpmOf(project, brk);
-                  return (
-                    <Fragment key={brk.id}>
-                    <tr
-                      title={brk.bars === null ? 'Double-click to edit the hit' : 'Double-click to slice'}
-                      onDoubleClick={(e) => {
-                        if ((e.target as HTMLElement).closest('button, input') !== null) return;
-                        if (brk.bars !== null) goSlice(brk.id);
-                        else goHit(brk.id);
-                      }}
-                    >
-                      <td>
-                        <div className="row nowrap">
-                          <span className="mono grow ellipsis" title={`${sample.name}, ${trimName(sample)}`}>
-                            {sample.name} <span className="muted small">trim {sample.trim}</span>
-                          </span>
-                          <DeleteBreak brk={brk} onError={(e) => setErrors(e === null ? [] : [e])} onDeleted={() => trimming === brk.id && setTrimming(null)} />
-                          <button
-                            type="button"
-                            className="small-button"
-                            aria-expanded={trimming === brk.id}
-                            aria-label={`Trim ${trimName(sample)}`}
-                            onClick={() => setTrimming(trimming === brk.id ? null : brk.id)}
-                          >
-                            Trim
-                          </button>
-                          <button
-                            type="button"
-                            className="small-button"
-                            aria-label={`New trim of ${sample.name}`}
-                            title="Another trim of the same file, on a row of its own: no need to import it again"
-                            onClick={() => {
-                              const before = store.getState().history.present.breaks;
-                              if (run(addTrim(sample.id)) !== null) return;
-                              const added = Object.values(store.getState().history.present.breaks).find((b) => !(b.id in before));
-                              if (added !== undefined) setTrimming(added.id);
-                            }}
-                          >
-                            + New trim
-                          </button>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="segmented" role="group" aria-label={`Type of ${brk.name}`}>
-                          <button
-                            type="button"
-                            aria-pressed={brk.bars !== null}
-                            onClick={() => run(setBreak(brk.id, brk.bars ?? guessBars(sample.duration)))}
-                          >
-                            Break
-                          </button>
-                          <button type="button" aria-pressed={brk.bars === null} onClick={() => run(setBreak(brk.id, null))}>
-                            One-shot
-                          </button>
-                        </div>
-                      </td>
-                      <td className="mono muted">
-                        {bpm === null ? (
-                          `${Math.round(sample.duration * 1000)} ms`
-                        ) : (
-                          <span className="bars" title="Bars are set in Slice">
-                            {brk.bars} bar{brk.bars === 1 ? '' : 's'} · {bpm.toFixed(2)} BPM
-                            {unlikelyBpm(bpm) && <span className="warn-text">check bars in Slice</span>}
-                          </span>
+              {files(project).map(([audioId, breaks]) => (
+                <tbody key={audioId} className="file-group">
+                  {breaks.map((brk, i) => {
+                    const sample = project.samples[brk.sampleId];
+                    if (sample === undefined) return null;
+                    const bpm = bpmOf(project, brk);
+                    const loop = brk.loop === null ? undefined : project.loops[brk.loop];
+                    const hit = brk.parent ?? project.pads[brk.pads[0] ?? '']?.members[0];
+                    return (
+                      <Fragment key={brk.id}>
+                        <tr
+                          title={brk.bars === null ? 'Double-click to edit the hit' : 'Double-click to slice'}
+                          onDoubleClick={(e) => {
+                            if ((e.target as HTMLElement).closest('button, input') !== null) return;
+                            if (brk.bars !== null) goSlice(brk.id);
+                            else goHit(brk.id);
+                          }}
+                        >
+                          <td className="file">
+                            {i === 0 && (
+                              <div className="row nowrap">
+                                <DeleteButton
+                                  icon
+                                  label="Delete file"
+                                  name={sample.name}
+                                  usages={fileUsages(project, audioId)}
+                                  goes={breaks.map((b) => `${b.bars === null ? 'one-shot' : 'break'} ${b.name} (${breakTakes(project, b.id).join(', ')})`)}
+                                  onDelete={() => run(removeFile(audioId))}
+                                  onDeleted={() => trimming !== null && breaks.some((b) => b.id === trimming) && setTrimming(null)}
+                                  onError={(e) => setErrors(e === null ? [] : [e])}
+                                />
+                                <button
+                                  type="button"
+                                  className="icon-button small"
+                                  aria-label={`New trim of ${sample.name}`}
+                                  title="New trim: another trim of the same file, on a row of its own"
+                                  onClick={() => {
+                                    const before = store.getState().history.present.breaks;
+                                    if (run(addTrim(sample.id)) !== null) return;
+                                    const added = Object.values(store.getState().history.present.breaks).find((b) => !(b.id in before));
+                                    if (added !== undefined) setTrimming(added.id);
+                                  }}
+                                >
+                                  <NewCropIcon />
+                                </button>
+                                <span className="mono" title={sample.name}>
+                                  {middleEllipsis(sample.name)}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div className="row nowrap trim-of">
+                              <span className="mono">{sample.trim}</span>
+                              <div className="trim-actions">
+                                <DeleteBreak icon brk={brk} onError={(e) => setErrors(e === null ? [] : [e])} onDeleted={() => trimming === brk.id && setTrimming(null)} />
+                                <button
+                                  type="button"
+                                  className="icon-button small"
+                                  aria-expanded={trimming === brk.id}
+                                  aria-label={`Trim ${trimName(sample)}`}
+                                  title={trimming === brk.id ? 'Close the Trim' : 'Trim: set where the sample starts and ends'}
+                                  onClick={() => setTrimming(trimming === brk.id ? null : brk.id)}
+                                >
+                                  <CropIcon />
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="segmented" role="group" aria-label={`Type of ${brk.name}`}>
+                              <button
+                                type="button"
+                                aria-pressed={brk.bars !== null}
+                                onClick={() => run(setBreak(brk.id, brk.bars ?? guessBars(sample.duration)))}
+                              >
+                                Break
+                              </button>
+                              <button type="button" aria-pressed={brk.bars === null} onClick={() => run(setBreak(brk.id, null))}>
+                                One-shot
+                              </button>
+                            </div>
+                          </td>
+                          <td className="mono muted">
+                            {bpm === null ? (
+                              `${Math.round(sample.duration * 1000)} ms`
+                            ) : (
+                              <span className="bars" title="Bars are set in Slice">
+                                {brk.bars} bar{brk.bars === 1 ? '' : 's'} · {bpm.toFixed(2)} BPM
+                                {unlikelyBpm(bpm) && <span className="warn-text">check bars in Slice</span>}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="row creates">
+                              {brk.bars === null ? (
+                                <span>
+                                  1 hit · 1 pad{' '}
+                                  <button type="button" className="link-text small" title={`Hit ${brk.name}, in Hits`} onClick={() => goHit(brk.id)}>
+                                    Hits →
+                                  </button>
+                                </span>
+                              ) : (
+                                <>
+                                  <span>
+                                    {brk.markers.length} slices{' '}
+                                    <button type="button" className="link-text small" title={`${sliceName(project, brk)}, in Slice`} onClick={() => goSlice(brk.id)}>
+                                      Slice →
+                                    </button>
+                                  </span>
+                                  <span>
+                                    {brk.markers.length} pads{' '}
+                                    {hit !== undefined && (
+                                      <button type="button" className="link-text small" title={`Break ${brk.name}, in Hits`} onClick={() => open({ hit, pad: null }, 'hits')}>
+                                        Hits →
+                                      </button>
+                                    )}
+                                  </span>
+                                  {loop !== undefined && (
+                                    <button type="button" className="link-text small" title={`Loop ${loop.name}, in Loops`} onClick={() => open({ loop: loop.id, step: null }, 'loops')}>
+                                      Loops →
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                              <InSong heard={heard.breaks.has(brk.id)} />
+                            </div>
+                          </td>
+                        </tr>
+                        {trimming === brk.id && (
+                          <tr>
+                            <td colSpan={5} className="trim-cell" ref={trimCell}>
+                              <TrimEditor sample={sample} played={playheadSeconds} />
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td>
-                        <div className="stack-tight">
-                          <span>{creates(project, brk)}</span>
-                          <div className="row nav-row">
-                            <BreakOrigin brk={brk} parts={['break']} />
-                            <InSong heard={heard.breaks.has(brk.id)} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="next">
-                        {brk.bars === null ? (
-                          <button type="button" className="link-text small" onClick={() => goHit(brk.id)}>
-                            Hits →
-                          </button>
-                        ) : (
-                          <button type="button" className="link-text small" onClick={() => goSlice(brk.id)}>
-                            Slice →
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                    {trimming === brk.id && (
-                      <tr>
-                        <td colSpan={5} className="trim-cell" ref={trimCell}>
-                          <TrimEditor sample={sample} played={playheadSeconds} />
-                        </td>
-                      </tr>
-                    )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              ))}
             </table>
           </div>
         )}

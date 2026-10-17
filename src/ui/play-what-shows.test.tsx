@@ -209,14 +209,28 @@ describe('Delete break', () => {
     expect(confirm).toHaveBeenCalledTimes(2);
   });
 
-  it('in Import removes a break nothing else uses', async () => {
+  it('in Import asks even for a break nothing else uses, listing what goes with it', async () => {
     const p = split(cloneBreak(brkOf(split()).id));
     const { store } = await setup(p, { view: 'import' });
-    const confirm = vi.fn();
+    const confirm = vi.fn().mockReturnValue(true);
     window.confirm = confirm;
     fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1 copy' }));
-    expect(confirm).not.toHaveBeenCalled();
+    expect(confirm.mock.calls[0]?.[0]).toMatch(/^Delete amen 1 copy\?\nGoes with it: \d+ pads, \d+ hits, loop amen 1 copy\./);
+    expect(confirm.mock.calls[0]?.[0]).not.toMatch(/Goes silent/);
     expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen 1']);
+  });
+
+  it('Delete file in Import takes every trim of the file, after asking', async () => {
+    const p = split(cloneBreak(brkOf(split()).id));
+    const { store } = await setup(p, { view: 'import' });
+    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    window.confirm = confirm;
+    fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
+    expect(Object.keys(store.getState().history.present.breaks)).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
+    expect(confirm.mock.calls[0]?.[0]).toMatch(/^Delete amen\.wav\?\nGoes with it: break amen 1 \(16 pads, 17 hits, loop amen 1\), break amen 1 copy \(/);
+    expect(store.getState().history.present.breaks).toEqual({});
+    expect(store.getState().history.present.audio).toEqual({});
   });
 });
 

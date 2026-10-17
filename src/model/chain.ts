@@ -208,6 +208,16 @@ function breakParts(project: Project, brk: Break) {
   return { pads, hits, loop: brk.loop !== null && project.loops[brk.loop] !== undefined ? brk.loop : null, inOtherPads };
 }
 
+/** What goes with a break when it is removed, said in words: "4 pads, 5 hits, loop amen 1". */
+export function breakTakes(project: Project, breakId: Id): string[] {
+  const brk = project.breaks[breakId];
+  if (brk === undefined) return [];
+  const { pads, hits, loop } = breakParts(project, brk);
+  const count = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;
+  const own = loop === null ? undefined : project.loops[loop];
+  return [count(pads.size, 'pad'), count(hits.size, 'hit'), ...(own === undefined ? [] : [`loop ${own.name}`])];
+}
+
 /**
  * Where a break is used outside itself, which goes silent when it is removed:
  * loops other than its own that play its pads, its own loop in the song, and
@@ -269,6 +279,36 @@ export const removeBreak =
       loops,
       song: loop === null || !project.song.clips.some((c) => c.ref === loop) ? project.song : { ...project.song, clips: project.song.clips.filter((c) => c.ref !== loop) },
     });
+  };
+
+/** The breaks on trims of a file, in trim order. */
+export const fileBreaks = (project: Project, audioId: Id): Break[] =>
+  Object.values(project.breaks)
+    .filter((b) => project.samples[b.sampleId]?.audioId === audioId)
+    .sort((a, b) => (project.samples[a.sampleId]?.trim ?? 0) - (project.samples[b.sampleId]?.trim ?? 0));
+
+/** Where a file's breaks are used outside the file, which goes silent when it is removed. */
+export function fileUsages(project: Project, audioId: Id): Usage[] {
+  const breaks = fileBreaks(project, audioId);
+  const own = new Set(breaks.flatMap((b) => [...b.pads, ...(b.loop === null ? [] : [b.loop])]));
+  const seen = new Set<string>();
+  return breaks
+    .flatMap((b) => breakUsages(project, b.id))
+    .filter((u) => {
+      const key = `${u.kind}:${u.id ?? ''}`;
+      if ((u.id !== null && own.has(u.id)) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+/** Removes a file with every trim of it, as `removeBreak` does each: one undo step. */
+export const removeFile =
+  (audioId: Id): Command =>
+  (project, ctx) => {
+    const breaks = fileBreaks(project, audioId);
+    if (breaks.length === 0) return notFound(audioId);
+    return sequence(...breaks.map((b) => removeBreak(b.id)))(project, ctx);
   };
 
 /**

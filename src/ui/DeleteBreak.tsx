@@ -1,5 +1,5 @@
 import type { Break } from '../model';
-import { breakUsages, removeBreak } from '../model';
+import { breakTakes, breakUsages, removeBreak } from '../model';
 import { useProject, useRun } from './context';
 import { DeleteButton } from './DeleteButton';
 
@@ -8,10 +8,12 @@ interface DeleteBreakProps {
   /** After the break is gone, as when the view showed it. */
   readonly onDeleted?: () => void;
   readonly onError: (error: string | null) => void;
+  /** As an icon, in tight rows. */
+  readonly icon?: boolean;
 }
 
 /** Removes a break with everything only it uses; where it is used goes silent. */
-export function DeleteBreak({ brk, onDeleted, onError }: DeleteBreakProps) {
+export function DeleteBreak({ brk, onDeleted, onError, icon = false }: DeleteBreakProps) {
   const project = useProject();
   const run = useRun();
   return (
@@ -19,10 +21,11 @@ export function DeleteBreak({ brk, onDeleted, onError }: DeleteBreakProps) {
       label={brk.bars === null ? 'Delete one-shot' : 'Delete break'}
       name={brk.name}
       usages={breakUsages(project, brk.id)}
-      takes="its pads, hits and own loop go with it"
+      goes={breakTakes(project, brk.id)}
       onDelete={() => run(removeBreak(brk.id))}
       onDeleted={onDeleted}
       onError={onError}
+      icon={icon}
     />
   );
 }
