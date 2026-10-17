@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Break, Project } from '../model';
 import { addSample, bpmOf, guessBars, replaceProject, setBreak, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
@@ -35,6 +35,9 @@ export function ImportView() {
   const [dragging, setDragging] = useState(false);
   const trimming = useSelect((s) => s.trimming);
   const setTrimming = (breakId: string | null) => store.dispatch({ type: 'trimming', breakId });
+  // A Trim opened from elsewhere, as from Slice, is brought into view.
+  const trimCell = useRef<HTMLTableCellElement>(null);
+  useEffect(() => trimCell.current?.scrollIntoView?.({ block: 'nearest' }), [trimming]);
 
   const importFiles = async (files: readonly File[]) => {
     const failed: string[] = [];
@@ -228,7 +231,7 @@ export function ImportView() {
                     </tr>
                     {trimming === brk.id && (
                       <tr>
-                        <td colSpan={5} className="trim-cell">
+                        <td colSpan={5} className="trim-cell" ref={trimCell}>
                           <TrimEditor sample={sample} loopFirst={brk.bars !== null} />
                         </td>
                       </tr>
