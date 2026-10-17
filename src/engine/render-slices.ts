@@ -4,6 +4,7 @@ import type { Trigger } from './generate';
 import type { MidiPlan, Piece } from './midi';
 import { encodeMidi, midiPlan, slotCount } from './midi';
 import { scheduleHit } from './render';
+import { encodeRex } from './rex';
 import type { Tape } from './tape';
 
 /** Silence after the longest piece in its slot, so every piece starts after a gap. */
@@ -58,4 +59,31 @@ export async function midiExport(
     wav: encodeWav(slices.audio, { gain, cues: slices.cues }),
     pieces: plan.pieces.length,
   };
+}
+
+/** The shortest slice in a REX file, in frames: a silent piece still gets a slice of its own, so the notes after it stay. */
+const MIN_REX_SLICE = 256;
+
+/**
+ * The MIDI file and a REX2 file for a take: the same pieces as the WAV of
+ * slices, one REX slice each, laid one after another, so MIDI note C1 and up
+ * plays them in Dr. Octo Rex. Levels as the slices WAV.
+ */
+export async function rexExport(
+  project: Project,
+  take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[]; readonly buffer: AudioBuffer },
+  sampleRate: number,
+): Promise<{ readonly midi: Uint8Array; readonly rex: Uint8Array; readonly pieces: number }> {
+  const plan = midiPlan(project, take);
+  const pieces = await Promise.all(plan.pieces.map((p) => pieceAudio(project, p, take.buffer, sampleRate)));
+  const songChannels = Array.from({ length: take.buffer.numberOfChannels }, (_, i) => take.buffer.getChannelData(i));
+  const gain = Math.min(normalizeGain(peakOf(songChannels)), normalizeGain(peakOf(pieces.flat())));
+  const slices = pieces.map(([l, r]): [Float32Array, Float32Array] => {
+    const length = Math.max(MIN_REX_SLICE, l!.length);
+    const out: [Float32Array, Float32Array] = [new Float32Array(length), new Float32Array(length)];
+    l!.forEach((v, i) => (out[0][i] = v * gain));
+    (r ?? l)!.forEach((v, i) => (out[1][i] = v * gain));
+    return out;
+  });
+  return { midi: encodeMidi(project.song.bpm, plan.notes), rex: encodeRex({ sampleRate, bpm: project.song.bpm, slices }), pieces: plan.pieces.length };
 }

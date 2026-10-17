@@ -42,6 +42,7 @@ function fakeServices(): Services & { rendered: Project[] } {
     },
     exportWav: vi.fn(),
     exportMidi: vi.fn(),
+    exportRex: vi.fn(),
     download: vi.fn(),
     rng: () => () => 0,
   };

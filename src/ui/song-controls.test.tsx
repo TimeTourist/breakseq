@@ -42,6 +42,7 @@ function services() {
     renderSong: vi.fn(() => Promise.resolve(take)),
     exportWav: vi.fn(),
     exportMidi: vi.fn(),
+    exportRex: vi.fn(),
     download: vi.fn(),
     rng: () => () => 0,
   };

@@ -51,19 +51,20 @@ function makeServices(folder: ReturnType<typeof memoryFolder> | null) {
   );
   const exportWav = vi.fn();
   const exportMidi = vi.fn<(project: Project, take: Take) => Promise<number>>(() => Promise.resolve(23));
-  const services: Services = { storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() }, player, renderSong, renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }), exportWav, exportMidi, download: vi.fn(), rng: () => () => 0, folders };
-  return { services, player, exportWav, exportMidi };
+  const exportRex = vi.fn<(project: Project, take: Take) => Promise<number>>(() => Promise.resolve(5));
+  const services: Services = { storage: { load: () => Promise.resolve(null), save: () => Promise.resolve() }, player, renderSong, renderPreview: () => Promise.resolve({ buffer: { duration: 1 } as AudioBuffer, triggers: [], tapes: [] }), exportWav, exportMidi, exportRex, download: vi.fn(), rng: () => () => 0, folders };
+  return { services, player, exportWav, exportMidi, exportRex };
 }
 
 async function setup(project: Project, folder: ReturnType<typeof memoryFolder> | null) {
-  const { services, player, exportWav, exportMidi } = makeServices(folder);
+  const { services, player, exportWav, exportMidi, exportRex } = makeServices(folder);
   const store = createStore({ ...initialState(project), view: 'project' });
   render(<App store={store} services={services} />);
   // Let the first render of the song finish (it waits a short debounce).
   await act(async () => {
     await new Promise((r) => setTimeout(r, 400));
   });
-  return { store, player, exportWav, exportMidi };
+  return { store, player, exportWav, exportMidi, exportRex };
 }
 
 const click = async (name: string | RegExp) => {
@@ -108,6 +109,14 @@ describe('export in Project', () => {
     exportMidi.mockRejectedValueOnce(new Error('The song has 93 different sounds'));
     await click('Export MIDI + slices');
     expect(screen.getByRole('alert').textContent).toContain('93 different sounds');
+  });
+
+  it('Export MIDI + REX exports the song as a MIDI file and a REX file for Dr. Octo Rex', async () => {
+    const { exportRex } = await setup(build(createLoop('M1', 'main', 1)), null);
+    await click('Export MIDI + REX');
+    expect(exportRex).toHaveBeenCalledTimes(1);
+    expect(loopOf(exportRex.mock.calls[0]![1])).toBe('M1');
+    expect(screen.getByRole('status').textContent).toBe('Saved a MIDI file and a REX file with 5 sounds.');
   });
 
   it('Export WAV in Project exports the song as it is now', async () => {

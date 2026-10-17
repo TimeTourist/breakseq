@@ -88,6 +88,7 @@ function services() {
     renderPreview: vi.fn(() => Promise.resolve(take(0.5))),
     exportWav: vi.fn(),
     exportMidi: vi.fn(),
+    exportRex: vi.fn(),
     download: vi.fn(),
     rng: () => () => 0,
   };

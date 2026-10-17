@@ -8,5 +8,6 @@ export { effectPreview, isDiscrete } from './mods';
 export * from './swap';
 export * from './midi';
 export * from './render-slices';
+export * from './rex';
 export * from './project-folder';
 export * from './preview';
