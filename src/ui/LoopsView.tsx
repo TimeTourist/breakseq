@@ -4,7 +4,7 @@ import type { Id, LoopKind, Project } from '../model';
 import { STEPS_PER_BAR, baseName, createLoop, holds, holdsIn, loopBreaks, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { CHOICE_LABEL, HIT_COLOR, lengthText, loopUsage, padGroups, padLabel } from './labels';
+import { CHOICE_LABEL, HIT_COLOR, lengthText, loopUsage, padGroups, padLabel, replacedBy } from './labels';
 import { LoopLength } from './LoopLength';
 import type { Selection } from './store';
 
@@ -18,6 +18,9 @@ export function currentLoopId(project: Project, selection: Selection): Id | null
   return Object.keys(project.loops)[0] ?? null;
 }
 
+/** What the shelf's hide and fold remember a group by: its break, or its name ("One-shots", "Built"). */
+const groupKey = (group: { readonly name: string; readonly breakId?: Id }): string => group.breakId ?? group.name;
+
 interface LoopsViewProps {
   /** The trigger under the playhead while the loop plays. */
   readonly playhead: Trigger | null;
@@ -30,6 +33,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const seal = useSeal();
   const open = useOpen();
   const selection = useSelect((s) => s.selection);
+  const shelfHidden = useSelect((s) => s.shelfHidden);
+  const shelfOpen = useSelect((s) => s.shelfOpen);
   const [shelfPad, setShelfPad] = useState<Id | null>(null);
   const [shelfBreak, setShelfBreak] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +49,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   /** Slot pads past their break's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
   const swappable = Object.values(project.breaks);
+  const groups = padGroups(project);
+  const allOpen = groups.length > 0 && groups.every((g) => shelfOpen.includes(groupKey(g)));
 
   const newLoop = (kind: LoopKind) => {
     const before = store.getState().history.present.loops;
@@ -294,7 +301,10 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </button>
           </div>
           <div className="shelf">
-          {padGroups(project).map((group) => (
+          {groups.length > 0 && groups.every((g) => shelfHidden.includes(groupKey(g))) && (
+            <p className="muted small">Nothing ticked under Show in Pads.</p>
+          )}
+          {groups.filter((group) => !shelfHidden.includes(groupKey(group))).map((group) => (
             <div key={group.breakId ?? group.name} className="shelf-group">
               <span className="muted small shelf-label ellipsis" title={group.name}>
                 {group.name}
@@ -347,6 +357,63 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </div>
           ))}
           </div>
+        </section>
+
+        <section className="panel stack-tight" aria-label="Choose what shows">
+          <div className="row spread">
+            <h2 className="label">Show in Pads · tick what you want to drag from</h2>
+            <button
+              type="button"
+              className="link-text small"
+              onClick={() => store.dispatch({ type: 'shelfOpen', groups: groups.map(groupKey), open: !allOpen })}
+            >
+              {allOpen ? 'Collapse all' : 'Expand all'}
+            </button>
+          </div>
+          {groups.map((group) => {
+            const key = groupKey(group);
+            const opened = shelfOpen.includes(key);
+            return (
+              <div key={key} className="stack-tight">
+                <div className="row nowrap fold-head">
+                  <button
+                    type="button"
+                    className="icon-button small fold"
+                    aria-expanded={opened}
+                    aria-label={`${opened ? 'Hide' : 'Show'} the pads of ${group.name}`}
+                    onClick={() => store.dispatch({ type: 'shelfOpen', groups: [key], open: !opened })}
+                  >
+                    {opened ? '▾' : '▸'}
+                  </button>
+                  <label className="row nowrap grow shelf-choice">
+                    <input
+                      type="checkbox"
+                      checked={!shelfHidden.includes(key)}
+                      onChange={(e) => store.dispatch({ type: 'shelfShown', group: key, shown: e.target.checked })}
+                    />
+                    <span className="label grow ellipsis">{group.name}</span>
+                    <span className="muted small">{group.items.length}</span>
+                  </label>
+                </div>
+                {opened && group.items.map((p) => (
+                  <div key={p.id} className={`pad-row${silent.has(p.id) ? ' silent' : ''}`}>
+                    <span className="pad-row-name mono">{padLabel(p)}</span>
+                    {p.members.map((m, i) => {
+                      const h = project.hits[m];
+                      const by = h === undefined ? null : replacedBy(project, p.id, h);
+                      return h === undefined ? null : (
+                        <span key={m} className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`} title={h.name}>
+                          {baseName(h.name).replace(/^.*\s(\d+)$/, '$1')}
+                          {by !== null && `→${by}`}
+                          {h.direction === 'reverse' ? ' ◂' : ''}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </section>
       </main>
 

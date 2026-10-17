@@ -1,4 +1,4 @@
-import type { Id, Pad, PadChoice, Project } from '../model';
+import type { Hit, Id, Pad, PadChoice, Project } from '../model';
 import { STEPS_PER_BAR, baseName, isParentPad, slotHeard } from '../model';
 
 /** Hits have no colour of their own for now: every hit is drawn in this one. */
@@ -44,6 +44,19 @@ export function padGroups(project: Project, filter: (pad: Pad) => boolean = () =
     ...(oneShots.length > 0 ? [{ name: 'One-shots', items: oneShots }] : []),
     ...(built.length > 0 ? [{ name: 'Built', items: built }] : []),
   ];
+}
+
+/** Where a hit in a slot pad plays from, when it is not that slot: "07", "Think 07", or a one-shot's name. */
+export function replacedBy(project: Project, padId: Id, hit: Hit): string | null {
+  const home = Object.values(project.breaks).find((b) => b.pads.includes(padId));
+  if (home === undefined) return null;
+  const slot = home.pads.indexOf(padId);
+  if (hit.breakId === home.id && hit.slot === slot) return null;
+  const source = project.breaks[hit.breakId];
+  if (source === undefined) return null;
+  if (hit.slot === null || source.bars === null) return source.name;
+  const number = String(hit.slot + 1).padStart(2, '0');
+  return hit.breakId === home.id ? number : `${source.name} ${number}`;
 }
 
 /** Pads a hit is in, with its member number in each. */
