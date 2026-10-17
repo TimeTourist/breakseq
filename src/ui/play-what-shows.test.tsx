@@ -191,6 +191,10 @@ describe('Clone break in Hits', () => {
   });
 });
 
+/** The open Delete dialog, its text, and Cancel or Delete in it. */
+const deleteDialog = () => screen.getByRole('alertdialog');
+const answer = (yes: boolean) => fireEvent.click(within(deleteDialog()).getByRole('button', { name: yes ? 'Delete' : 'Cancel' }));
+
 describe('Delete break', () => {
   it('in Hits marks a break heard in the song, and asks before deleting it anyway', async () => {
     const p = split();
@@ -199,36 +203,47 @@ describe('Delete break', () => {
     fireEvent.click(screen.getByRole('button', { name: '♪ Song' }));
     expect(store.getState().view).toBe('song');
     act(() => void store.dispatch({ type: 'view', view: 'hits' }));
-    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
-    window.confirm = confirm;
     fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1' }));
+    expect(within(deleteDialog()).getByText('Song')).toBeTruthy();
+    answer(false);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(store.getState().history.present.breaks[brk.id]).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1' }));
+    answer(true);
     expect(store.getState().history.present.breaks[brk.id]).toBeUndefined();
     expect(store.getState().history.present.song.clips).toEqual([]);
-    expect(confirm).toHaveBeenCalledTimes(2);
   });
 
   it('in Import asks even for a break nothing else uses, listing what goes with it', async () => {
     const p = split(cloneBreak(brkOf(split()).id));
     const { store } = await setup(p, { view: 'import' });
-    const confirm = vi.fn().mockReturnValue(true);
-    window.confirm = confirm;
     fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1 copy' }));
-    expect(confirm.mock.calls[0]?.[0]).toMatch(/^Delete amen 1 copy\?\nGoes with it: \d+ pads, \d+ hits, loop amen 1 copy\./);
-    expect(confirm.mock.calls[0]?.[0]).not.toMatch(/Goes silent/);
+    const dialog = deleteDialog();
+    expect(dialog.getAttribute('aria-label')).toBe('Delete amen 1 copy?');
+    expect(within(dialog).getByText('loop amen 1 copy')).toBeTruthy();
+    expect(within(dialog).queryByText('Goes silent in')).toBeNull();
+    answer(true);
     expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen 1']);
+  });
+
+  it('Escape closes the dialog without deleting', async () => {
+    const p = split();
+    const { store } = await setup(p, { view: 'import' });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1' }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(Object.keys(store.getState().history.present.breaks)).toHaveLength(1);
   });
 
   it('Delete file in Import takes every trim of the file, after asking', async () => {
     const p = split(cloneBreak(brkOf(split()).id));
     const { store } = await setup(p, { view: 'import' });
-    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
-    window.confirm = confirm;
     fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
+    answer(false);
     expect(Object.keys(store.getState().history.present.breaks)).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
-    expect(confirm.mock.calls[0]?.[0]).toMatch(/^Delete amen\.wav\?\nGoes with it: break amen 1 \(16 pads, 17 hits, loop amen 1\), break amen 1 copy \(/);
+    expect(within(deleteDialog()).getByText('break amen 1 (16 pads, 17 hits, loop amen 1)')).toBeTruthy();
+    answer(true);
     expect(store.getState().history.present.breaks).toEqual({});
     expect(store.getState().history.present.audio).toEqual({});
   });
@@ -270,12 +285,12 @@ describe('the same controls everywhere, in Hits', () => {
     const hit = memberOf(p, 1);
     const pad = brkOf(p).pads[1]!;
     const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad, hit } });
-    window.confirm = vi.fn(() => false);
     fireEvent.click(screen.getByRole('button', { name: `Delete hit ${p.hits[hit]!.name}` }));
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining(`pad ${p.pads[pad]!.name}`));
+    expect(within(deleteDialog()).getByText(`pad ${p.pads[pad]!.name}`)).toBeTruthy();
+    answer(false);
     expect(store.getState().history.present.hits[hit]).toBeDefined();
-    window.confirm = vi.fn(() => true);
     fireEvent.click(screen.getByRole('button', { name: `Delete hit ${p.hits[hit]!.name}` }));
+    answer(true);
     expect(store.getState().history.present.hits[hit]).toBeUndefined();
     expect(store.getState().history.present.pads[pad]!.members).toEqual([]);
   });

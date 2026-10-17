@@ -162,7 +162,11 @@ p {
 
 /* Header */
 
+/* Always at the top, over what scrolls under it. */
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2229,6 +2233,34 @@ input[type='search'] {
 .dialog {
   max-width: 520px;
   margin: 16px;
+}
+
+.confirm-delete {
+  min-width: min(360px, calc(100vw - 32px));
+}
+
+.confirm-delete h2 {
+  margin: 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.confirm-delete ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.confirm-buttons {
+  justify-content: flex-end;
+}
+
+button.danger {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
 }
 
 /* The list under the pad shelf in Loops that chooses what the shelf shows. */

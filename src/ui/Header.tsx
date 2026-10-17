@@ -36,7 +36,9 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
   const bpm = useProject().song.bpm;
   const run = useRun();
   const [draft, setDraft] = useState(String(bpm));
-  useEffect(() => setDraft(String(bpm)), [bpm]);
+  useEffect(() => {
+    setDraft(String(bpm));
+  }, [bpm]);
 
   const commitBpm = () => {
     const value = Number(draft);

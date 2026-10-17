@@ -212,3 +212,45 @@ describe('files, trims and breaks in the GUI', () => {
     expect(store.getState()).toMatchObject({ view: 'hits', selection: { hit: brk.parent } });
   });
 });
+
+describe('the open Trim in Import', () => {
+  it('opens and closes again and again, even where scrolling returns a promise', async () => {
+    // Newer browsers' scroll methods return a promise; an effect that returned one crashed the app.
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => Promise.resolve() as unknown as void);
+    const scrollIntoView = vi.fn(() => Promise.resolve());
+    Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView'];
+    await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
+    for (let i = 0; i < 4; i++) fireEvent.click(button('Trim amen trim 1'));
+    expect(button('Trim amen trim 1').getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(button('Trim amen trim 1'));
+    expect(button('Trim amen trim 1').getAttribute('aria-expanded')).toBe('true');
+    scrollBy.mockRestore();
+  });
+
+  it('closes on a click outside it, but not on a click in it or in the header', async () => {
+    const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
+    fireEvent.click(button('Trim amen trim 1'));
+    fireEvent.pointerDown(screen.getByLabelText('Start ms'));
+    fireEvent.pointerDown(document.querySelector('.header')!);
+    expect(store.getState().trimming).not.toBeNull();
+    fireEvent.pointerDown(screen.getByRole('heading', { name: 'Import' }));
+    expect(store.getState().trimming).toBeNull();
+  });
+});
+
+describe('Creates in Import', () => {
+  it('counts the slices, pads and the loops that play the break, own loop first', async () => {
+    const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const id = Object.keys(project.breaks)[0]!;
+    const sliced = setBreak(id, 1)(project, ctx);
+    if (!sliced.ok) throw new Error('setBreak failed');
+    const brk = sliced.project.breaks[id]!;
+    const store = await setup(sliced.project, 'import');
+    const row = screen.getByRole('button', { name: 'Slice →' }).closest('tr')!;
+    expect(row.textContent).toContain('16 Slice →');
+    expect(row.textContent).toContain('16 Hits →');
+    expect(row.textContent).toContain('1 Loops →');
+    fireEvent.click(screen.getByRole('button', { name: 'Loops →' }));
+    expect(store.getState()).toMatchObject({ view: 'loops', selection: { loop: brk.loop } });
+  });
+});
