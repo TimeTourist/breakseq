@@ -15,6 +15,9 @@ const COLLECTIONS = [
  * button: "change hit Amen-break 05", "add 64 samples", "change the song".
  */
 export function describeChange(before: Project, after: Project): string {
+  // A removed break takes its sample, pads and hits with it: it is the break that goes.
+  const removedBreaks = Object.keys(before.breaks).filter((id) => !(id in after.breaks));
+  if (removedBreaks.length === 1) return `remove break ${baseName(before.breaks[removedBreaks[0]!]!.name)}`;
   for (const [key, noun] of COLLECTIONS) {
     const a = before[key] as Readonly<Record<string, { name: string }>>;
     const b = after[key] as Readonly<Record<string, { name: string }>>;

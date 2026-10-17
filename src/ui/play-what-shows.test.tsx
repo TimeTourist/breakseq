@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addClip, addSample, createProject, setBpm, setBreak, setHitSource, setMarkers } from '../model';
+import { addClip, addSample, cloneBreak, createProject, setBpm, setBreak, setHitSource, setMarkers } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -184,5 +184,32 @@ describe('Clone break in Hits', () => {
     expect(copy.name).toBe('amen copy');
     expect(store.getState().selection.hit).toBe(copy.parent);
     expect(screen.getByRole('button', { name: /^Undo: add break amen copy/ })).toBeTruthy();
+  });
+});
+
+describe('Delete break', () => {
+  it('in Hits says where the break is used, and asks before deleting it anyway', async () => {
+    const p = split();
+    const brk = brkOf(p);
+    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, hit: brk.parent } });
+    expect(screen.getByRole('button', { name: 'Song' })).toBeTruthy();
+    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    window.confirm = confirm;
+    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen.wav' }));
+    expect(store.getState().history.present.breaks[brk.id]).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen.wav' }));
+    expect(store.getState().history.present.breaks[brk.id]).toBeUndefined();
+    expect(store.getState().history.present.song.clips).toEqual([]);
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
+
+  it('in Import removes a break nothing else uses', async () => {
+    const p = split(cloneBreak(brkOf(split()).id));
+    const { store } = await setup(p, { view: 'import' });
+    const confirm = vi.fn();
+    window.confirm = confirm;
+    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen copy' }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen.wav']);
   });
 });

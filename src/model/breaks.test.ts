@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Command, Hit, Project } from './index';
 import {
+  addClip,
+  addPadMember,
   addSample,
   bpmOf,
   breakSequence,
+  breakUsages,
   cloneBreak,
+  removeBreak,
   createLoop,
   createPad,
   createProject,
@@ -324,5 +328,67 @@ describe('cloning a break', () => {
     const start = run(createProject(), addSample({ name: 'kick.wav', audio: constantAudio(0.2) }));
     const id = Object.keys(start.breaks)[0]!;
     expect(cloneBreak(id)(start, ctx).ok).toBe(false);
+  });
+});
+
+describe('removing a break', () => {
+  it('takes its parent, pads, hits, own loop and sample with it', () => {
+    const { project: p0, id } = amen(4);
+    const project = run(p0, cloneBreak(id));
+    const copy = Object.values(project.breaks).find((b) => b.id !== id)!;
+    const gone = run(project, removeBreak(copy.id));
+    expect(gone.breaks[copy.id]).toBeUndefined();
+    expect(copy.pads.some((p) => p in gone.pads)).toBe(false);
+    expect(Object.values(gone.hits).some((h) => h.breakId === copy.id)).toBe(false);
+    expect(gone.loops[copy.loop!]).toBeUndefined();
+    // The original still plays the sample.
+    expect(gone.samples[copy.sampleId]).toBeDefined();
+
+    const last = run(gone, removeBreak(id));
+    expect(Object.keys(last.breaks)).toHaveLength(0);
+    expect(Object.keys(last.samples)).toHaveLength(0);
+    expect(Object.keys(last.audio)).toHaveLength(0);
+    expect(Object.keys(last.hits)).toHaveLength(0);
+    expect(Object.keys(last.pads)).toHaveLength(0);
+  });
+
+  it('says where a break is used: in another loop, its loop in the song, or a hit lent to another pad', () => {
+    const { project, id } = amen(4);
+    const brk = project.breaks[id]!;
+    expect(breakUsages(project, id)).toEqual([]);
+
+    const looped = run(project, createLoop('L', 'main', 1));
+    const other = Object.values(looped.loops).find((l) => l.name === 'L')!;
+    const inLoop = run(looped, setStep(other.id, 0, { padId: brk.pads[0]! }));
+    expect(breakUsages(inLoop, id)).toEqual([{ kind: 'loop', id: other.id, name: 'L' }]);
+
+    const inSong = run(project, addClip('main', brk.loop!, 0));
+    expect(breakUsages(inSong, id).map((u) => u.kind)).toEqual(['song']);
+
+    const lent = run(project, createPad('mine', []));
+    const mine = Object.values(lent.pads).find((p) => p.name === 'mine')!;
+    const withHit = run(lent, addPadMember(mine.id, slotHit(lent, id, 1).id));
+    expect(breakUsages(withHit, id)).toEqual([{ kind: 'pad', id: mine.id, name: 'mine' }]);
+  });
+
+  it('removed anyway, it goes silent where it was used', () => {
+    const { project, id } = amen(4);
+    const brk = project.breaks[id]!;
+    const looped = run(project, createLoop('L', 'main', 1), createPad('mine', []));
+    const other = Object.values(looped.loops).find((l) => l.name === 'L')!;
+    const mine = Object.values(looped.pads).find((p) => p.name === 'mine')!;
+    const used = run(
+      looped,
+      setStep(other.id, 0, { padId: brk.pads[0]! }),
+      setStep(other.id, 1, { padId: mine.id }),
+      addPadMember(mine.id, slotHit(looped, id, 1).id),
+      addClip('main', brk.loop!, 0),
+      addClip('main', other.id, 16),
+    );
+    const gone = run(used, removeBreak(id));
+    expect(gone.loops[other.id]!.steps[0]!.padId).toBeNull();
+    expect(gone.loops[other.id]!.steps[1]!.padId).toBe(mine.id);
+    expect(gone.pads[mine.id]!.members).toEqual([]);
+    expect(gone.song.clips.map((c) => c.ref)).toEqual([other.id]);
   });
 });

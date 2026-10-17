@@ -29,6 +29,7 @@ import {
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import type { Selection } from './store';
 import { PlayMode } from './AuditionPlayhead';
+import { DeleteBreak } from './DeleteBreak';
 import { PlayIcon } from './icons';
 import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages, replacedBy } from './labels';
 import { Slider } from './Slider';
@@ -654,6 +655,9 @@ export function HitsView() {
               >
                 Clone break
               </button>
+            )}
+            {brk !== undefined && (isParentHit(project, hit) || (brk.bars === null && hit.variantOf === null)) && (
+              <DeleteBreak brk={brk} onError={onError} onDeleted={() => open({ hit: null, pad: null }, 'hits')} links />
             )}
             <button
               type="button"
