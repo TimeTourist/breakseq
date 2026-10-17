@@ -15,6 +15,9 @@ import {
   breakUsages,
   cloneBreak,
   removeBreak,
+  removeFile,
+  fileBreaks,
+  fileUsages,
   createLoop,
   createPad,
   createProject,
@@ -458,5 +461,30 @@ describe('files, trims, slices and breaks', () => {
     expect(upgraded.samples[sample.id]!.trim).toBe(1);
     expect(upgraded.breaks[id]!.name).toBe('amen 1');
     expect(upgraded.pads[brk.pads[0]!]!.name).toBe('amen 1 01');
+  });
+});
+
+describe('removing a file', () => {
+  it('takes every trim of it in one step, and leaves other files', () => {
+    const { project: p0, id } = amen(4);
+    const sampleId = p0.breaks[id]!.sampleId;
+    const audioId = p0.samples[sampleId]!.audioId;
+    const project = run(p0, addTrim(sampleId), addSample({ name: 'kick.wav', audio: constantAudio(0.2) }));
+    expect(fileBreaks(project, audioId).map((b) => b.name)).toEqual(['amen 1', 'amen 2']);
+
+    const gone = run(project, removeFile(audioId));
+    expect(Object.values(gone.breaks).map((b) => b.name)).toEqual(['kick 1']);
+    expect(gone.audio[audioId]).toBeUndefined();
+    expect(Object.values(gone.samples).map((s) => s.name)).toEqual(['kick.wav']);
+  });
+
+  it('says where it is used outside the file, each place once', () => {
+    const { project: p0, id } = amen(4);
+    const brk = p0.breaks[id]!;
+    const audioId = p0.samples[brk.sampleId]!.audioId;
+    const looped = run(p0, addTrim(brk.sampleId), createLoop('L', 'main', 1));
+    const loop = Object.values(looped.loops).find((l) => l.name === 'L')!;
+    const project = run(looped, setStep(loop.id, 0, { padId: brk.pads[0]! }), setStep(loop.id, 1, { padId: brk.pads[1]! }));
+    expect(fileUsages(project, audioId)).toEqual([{ kind: 'loop', id: loop.id, name: 'L' }]);
   });
 });

@@ -420,8 +420,33 @@ p {
   background: #131518;
 }
 
-.sources .next {
-  text-align: right;
+/* One file a group: its name only on the first trim, a line only under the last. */
+.sources tbody.file-group tr:not(:last-child) > td {
+  border-bottom-color: transparent;
+}
+
+.sources tbody.file-group:not(:last-child) tr:last-child > td {
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.sources td.file .mono {
+  white-space: nowrap;
+}
+
+.sources .trim-of {
+  gap: 12px;
+}
+
+/* A trim's Delete and Trim, one over the other. */
+.sources .trim-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sources .creates {
+  gap: 4px 16px;
+  flex-wrap: wrap;
 }
 
 .bars {
@@ -1367,13 +1392,14 @@ input[type='search'] {
 
 /* Buttons in rows, lists and tables: 36 px, as segments and small icons. Actions on their own are 44 px. */
 .small-button,
-.sources td button:not(.link-text) {
+.sources td button:not(.link-text):not(.icon-button) {
   min-height: 36px;
   padding: 0 10px;
   font-size: 13px;
 }
 
-.small-button[aria-expanded='true'] {
+.small-button[aria-expanded='true'],
+.icon-button[aria-expanded='true'] {
   border-color: var(--accent);
   color: var(--accent);
 }

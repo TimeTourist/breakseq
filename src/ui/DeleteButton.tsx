@@ -1,6 +1,7 @@
 import type { Usage } from '../model';
 import { findUsages, removeAnyway } from '../model';
 import { useProject, useRun } from './context';
+import { TrashIcon } from './icons';
 
 interface DeleteButtonProps {
   /** What the button reads: "Delete pad". */
@@ -15,32 +16,45 @@ interface DeleteButtonProps {
   readonly onDelete: () => string | null;
   readonly onDeleted?: (() => void) | undefined;
   readonly onError: (error: string | null) => void;
-  /** What else goes with it, for the button's title. */
-  readonly takes?: string;
+  /** What else goes with it, listed in the question: "4 pads", "loop amen 1". */
+  readonly goes?: readonly string[];
+  /** A trash icon instead of the label, which is then its tooltip: in tight rows. */
+  readonly icon?: boolean;
+}
+
+/** What Delete asks, every time: what goes, and where it goes silent. */
+export function deleteQuestion(name: string, goes: readonly string[], where: string): string {
+  return [
+    `Delete ${name}?`,
+    ...(goes.length > 0 ? [`Goes with it: ${goes.join(', ')}.`] : []),
+    ...(where !== '' ? [`Goes silent in: ${where}.`] : []),
+    'Ctrl+Z brings it back.',
+  ].join('\n');
 }
 
 export const usageText = (u: Usage) => (u.kind === 'song' ? 'Song' : `${u.kind} ${u.name}`);
 
 /**
- * Delete, the same everywhere: deleting something that is used asks first,
- * naming where, and it goes silent there.
+ * Delete, the same everywhere: it always asks first, listing what goes with
+ * it and where it goes silent.
  */
-export function DeleteButton({ label, name, usages, blocked, onDelete, onDeleted, onError, takes }: DeleteButtonProps) {
+export function DeleteButton({ label, name, usages, blocked, onDelete, onDeleted, onError, goes = [], icon = false }: DeleteButtonProps) {
   const where = usages.map(usageText).join(', ');
   return (
     <button
       type="button"
+      className={icon ? 'icon-button small' : undefined}
       aria-label={`${label} ${name}`}
       disabled={blocked !== undefined}
-      title={blocked ?? (usages.length > 0 ? `In use by ${where}: it goes silent there` : `${label}${takes === undefined ? '' : `: ${takes}`}`)}
+      title={blocked ?? [label, ...(goes.length > 0 ? [`Goes with it: ${goes.join(', ')}`] : []), ...(usages.length > 0 ? [`Goes silent in: ${where}`] : [])].join('. ')}
       onClick={() => {
-        if (usages.length > 0 && !window.confirm(`${name} is used by ${where}. Delete it anyway? It goes silent there.`)) return;
+        if (!window.confirm(deleteQuestion(name, goes, where))) return;
         const failed = onDelete();
         onError(failed);
         if (failed === null) onDeleted?.();
       }}
     >
-      {label}
+      {icon ? <TrashIcon /> : label}
     </button>
   );
 }
