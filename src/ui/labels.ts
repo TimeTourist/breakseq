@@ -1,5 +1,6 @@
 import type { Hit, Id, Pad, PadChoice, Project } from '../model';
-import { STEPS_PER_BAR, baseName, isParentPad, slotHeard } from '../model';
+import { STEPS_PER_BAR, baseName, isParentPad, slotHeard, slotStep } from '../model';
+import { hitSeconds } from '../engine';
 
 /** Hits have no colour of their own for now: every hit is drawn in this one. */
 export const HIT_COLOR = '#C9C4B8';
@@ -57,6 +58,29 @@ export function replacedBy(project: Project, padId: Id, hit: Hit): string | null
   if (hit.slot === null || source.bars === null) return source.name;
   const number = String(hit.slot + 1).padStart(2, '0');
   return hit.breakId === home.id ? number : `${source.name} ${number}`;
+}
+
+/**
+ * How many 1/16 steps a hit takes when placed: a slice the steps from where it
+ * lands on its break's grid to where the next slice lands (as Slice shows it),
+ * anything else its sound in the song's tempo, rounded up. At least one step.
+ */
+export function hitSteps(project: Project, hit: Hit): number {
+  const brk = project.breaks[hit.breakId];
+  if (brk !== undefined && brk.bars !== null && hit.slot !== null && hit.slot < brk.markers.length) {
+    const steps = brk.bars * STEPS_PER_BAR;
+    const at = slotStep(brk.markers[hit.slot]!, steps);
+    const next = brk.markers.map((m) => slotStep(m, steps)).find((s) => s > at) ?? steps;
+    return Math.max(1, next - at);
+  }
+  const step = 60 / project.song.bpm / 4;
+  return Math.max(1, Math.ceil(hitSeconds(project, hit) / step - 1e-9));
+}
+
+/** How many steps a pad takes when placed: those of its first hit. */
+export function padSteps(project: Project, pad: Pad): number {
+  const hit = pad.members[0] === undefined ? undefined : project.hits[pad.members[0]];
+  return hit === undefined ? 1 : hitSteps(project, hit);
 }
 
 /** Pads a hit is in, with its member number in each. */
