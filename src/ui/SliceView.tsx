@@ -4,7 +4,9 @@ import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, sampleAudio, setBreakBars,
 import { detectTransients } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { BreakOrigin } from './BreakOrigin';
-import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
+import { useAuditionPlayhead } from './AuditionPlayhead';
+import { PlayControls } from './PlayControls';
+import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
 const GRIDS: readonly SliceGrid[] = [4, 8, 16];
@@ -50,9 +52,11 @@ export function SliceView() {
           <h1>Slice</h1>
           <p className="muted">No break to slice yet. Import a file and mark it as Break.</p>
         </div>
-        <button type="button" className="self-start" onClick={() => store.dispatch({ type: 'view', view: 'import' })}>
-          ← Import
-        </button>
+        <div className="row nav-row">
+          <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'import' })}>
+            ← Import
+          </button>
+        </div>
       </main>
     );
   }
@@ -98,10 +102,26 @@ export function SliceView() {
     <main className="view">
       <div className="view-head row">
         <div className="stack-tight">
-          <h1>
-            Slice <span className="mono muted title-file">{sliceName(project, brk)}</span>
-          </h1>
-          <BreakOrigin brk={brk} parts={['break', 'trim', 'file']} />
+          <h1 className="mono">{sliceName(project, brk)}</h1>
+          <div className="row nav-row">
+            <BreakOrigin brk={brk} parts={['break', 'trim', 'file']} />
+            <button
+              type="button"
+              className="link-text small"
+              title="Trim the start and end of the sample, and pick its channel, in Import"
+              onClick={() => {
+                store.dispatch({ type: 'trimming', breakId: brk.id });
+                store.dispatch({ type: 'view', view: 'import' });
+              }}
+            >
+              ← Trim
+            </button>
+            {brk.parent !== null && (
+              <button type="button" className="link-text small" title="The break, its parent, in Hits" onClick={() => open({ hit: brk.parent, pad: null }, 'hits')}>
+                Hits →
+              </button>
+            )}
+          </div>
           <p className="muted row">
             <label className="field inline">
               <input
@@ -124,45 +144,24 @@ export function SliceView() {
           </p>
         </div>
         <div className="row push">
-          <button
-            type="button"
-            title="Trim the start and end of the sample, and pick its channel, in Import"
-            onClick={() => {
-              store.dispatch({ type: 'trimming', breakId: brk.id });
-              store.dispatch({ type: 'view', view: 'import' });
-            }}
-          >
-            ← Trim
-          </button>
-          {brk.parent !== null && (
-            <button type="button" title="The break, its parent, in Hits" onClick={() => open({ hit: brk.parent, pad: null }, 'hits')}>
-              Hits →
-            </button>
-          )}
           {audio !== undefined && (
-            <>
-              <PlayMode
-                loop={loopBreak}
-                onChange={(next) => {
-                  setLoopBreak(next);
-                  if (playingBreak) services.player.audition(audio, sample.offset, duration, () => setPlayingBreak(false), next);
-                }}
-              />
-              <button
-                type="button"
-                aria-pressed={playingBreak}
-                onClick={() => {
-                  if (playingBreak) {
-                    services.player.stopAudition();
-                    return;
-                  }
-                  setPlayingBreak(true);
-                  services.player.audition(audio, sample.offset, duration, () => setPlayingBreak(false), loopBreak);
-                }}
-              >
-                {playingBreak ? 'Stop break' : 'Play break'}
-              </button>
-            </>
+            <PlayControls
+              what="break"
+              playing={playingBreak}
+              loop={loopBreak}
+              onLoop={(next) => {
+                setLoopBreak(next);
+                if (playingBreak) services.player.audition(audio, sample.offset, duration, () => setPlayingBreak(false), next);
+              }}
+              onToggle={() => {
+                if (playingBreak) {
+                  services.player.stopAudition();
+                  return;
+                }
+                setPlayingBreak(true);
+                services.player.audition(audio, sample.offset, duration, () => setPlayingBreak(false), loopBreak);
+              }}
+            />
           )}
           {breaks.length > 1 && (
             <label className="field">
@@ -196,19 +195,7 @@ export function SliceView() {
             </button>
           </div>
           {transients && (
-            <label className="field sensitivity">
-              Sensitivity
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={sensitivity}
-                onChange={(e) => detect(Number(e.target.value), `transients:${brk.id}`)}
-                onPointerUp={seal}
-                onKeyUp={seal}
-              />
-              <span className="mono">{sensitivity}</span>
-            </label>
+            <Slider label="Sensitivity" value={sensitivity} min={0} max={100} step={1} format={String} onChange={(v) => detect(v, `transients:${brk.id}`)} onCommit={seal} />
           )}
         </div>
       </div>
@@ -234,7 +221,7 @@ export function SliceView() {
                   type="button"
                   className={`slice-segment${i === current ? ' selected' : ''}`}
                   style={{ left: `${(m / duration) * 100}%`, width: `${((ends[i]! - m) / duration) * 100}%` }}
-                  aria-label={`Play slice ${i + 1}`}
+                  aria-label={`Play slice ${String(i + 1).padStart(2, '0')}`}
                   onClick={() => {
                     setSelected(i);
                     services.player.audition(audio, sample.offset + m, ends[i]! - m);
@@ -249,7 +236,7 @@ export function SliceView() {
                   type="button"
                   className={`marker${i === current ? ' selected' : ''}${i === 0 ? ' fixed' : ''}`}
                   style={{ left: `${(m / duration) * 100}%` }}
-                  aria-label={`Marker ${i + 1} at ${position(m, stepTime)}`}
+                  aria-label={`Marker ${String(i + 1).padStart(2, '0')} at ${position(m, stepTime)}`}
                   aria-pressed={i === current}
                   onFocus={() => setSelected(i)}
                   onPointerDown={(e) => {
@@ -274,7 +261,8 @@ export function SliceView() {
             </div>
             <div className="slice-steps" style={{ gridTemplateColumns: `repeat(${places.length}, minmax(0, 1fr))` }} aria-label="Where the slices land on the 1/16 grid">
               {places.map((p, i) => {
-                const label = `Step ${position(i * stepTime, stepTime)}: ${p.slice === null ? 'empty' : `slice ${p.slice + 1}`}${p.dropped.length > 0 ? `; ${p.dropped.length + 1} slices here, ${p.dropped.map((d) => `slice ${d + 1}`).join(' and ')} dropped` : ''}`;
+                const two = (n: number) => String(n + 1).padStart(2, '0');
+                const label = `Step ${position(i * stepTime, stepTime)}: ${p.slice === null ? 'empty' : `slice ${two(p.slice)}`}${p.dropped.length > 0 ? `; ${p.dropped.length + 1} slices here, ${p.dropped.map((d) => `slice ${two(d)}`).join(' and ')} dropped` : ''}`;
                 return (
                   <div
                     key={i}
@@ -326,7 +314,7 @@ export function SliceView() {
                 if (run(setMarkers(brk.id, toParts(markers.filter((_, i) => i !== current)))) === null) setSelected(current - 1);
               }}
             >
-              Remove marker
+              Delete marker
             </button>
             <button
               type="button"
@@ -341,7 +329,7 @@ export function SliceView() {
                 setMade(shot === undefined || hit === undefined ? null : { name: shot.name, hit });
               }}
             >
-              Slice → one-shot
+              Make one-shot
             </button>
           </div>
           {made !== null && (

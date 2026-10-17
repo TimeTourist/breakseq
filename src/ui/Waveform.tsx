@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { AudioData } from '../model';
+import { HIT_COLOR } from './labels';
 
 interface WaveformProps {
   readonly audio: AudioData;
@@ -7,11 +8,11 @@ interface WaveformProps {
   readonly offset: number;
   readonly duration: number;
   readonly height: number;
-  readonly color?: string;
 }
 
-/** Min/max per pixel column, drawn on a canvas sized to its box. */
-export function Waveform({ audio, offset, duration, height, color = '#6f757c' }: WaveformProps) {
+/** Min/max per pixel column, drawn on a canvas sized to its box, in the one colour every waveform has. */
+export function Waveform({ audio, offset, duration, height }: WaveformProps) {
+  const color = HIT_COLOR;
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {

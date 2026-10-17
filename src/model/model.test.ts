@@ -21,6 +21,7 @@ import {
   createProject,
   redo,
   remove,
+  removeAnyway,
   removePadMember,
   setBreak,
   addClip,
@@ -135,6 +136,37 @@ describe('removal', () => {
       kind: 'in-use',
       usages: [{ kind: 'song', id: null, name: 'Song' }],
     });
+  });
+  it('removing anyway leaves silence where it was used, but not from a break', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
+    const hit = only(project.hits);
+    project = run(project, ctx, duplicateHit(hit.id), createPad('Mine'), createLoop('Beat', 'main', 1));
+    const copy = Object.values(project.hits).find((h) => h.variantOf === hit.id)!;
+    const mine = Object.values(project.pads).find((p) => p.name === 'Mine')!;
+    const loop = only(project.loops);
+    project = run(project, ctx, addPadMember(mine.id, copy.id), setStep(loop.id, 0, { padId: mine.id, memberId: copy.id }), setStep(loop.id, 1, { padId: mine.id }), setSongCell('main', 0, loop.id));
+
+    const noHit = run(project, ctx, removeAnyway('hit', copy.id));
+    expect(noHit.pads[mine.id]!.members).toEqual([]);
+    expect(noHit.loops[loop.id]!.steps[0]).toMatchObject({ padId: mine.id, memberId: null });
+
+    const noPad = run(project, ctx, removeAnyway('pad', mine.id));
+    expect(noPad.loops[loop.id]!.steps.slice(0, 2).map((s) => s.padId)).toEqual([null, null]);
+
+    const noLoop = run(project, ctx, removeAnyway('loop', loop.id));
+    expect(noLoop.song.clips).toEqual([]);
+
+    expect(removeAnyway('hit', hit.id)(project, ctx).ok).toBe(true);
+  });
+
+  it("removing anyway still keeps a break's pads and parent", () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
+    const brk = only(project.breaks);
+    project = run(project, ctx, setBreak(brk.id, 1));
+    expect(removeAnyway('pad', project.breaks[brk.id]!.pads[0]!)(project, ctx).ok).toBe(false);
+    expect(removeAnyway('hit', project.breaks[brk.id]!.parent!)(project, ctx).ok).toBe(false);
   });
 });
 

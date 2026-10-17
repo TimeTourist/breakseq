@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { Sample, SampleChannel } from '../model';
 import { sampleAudio, setSampleChannel, trimSample } from '../model';
 import { useApp, useProject, useRun, useSeal } from './context';
-import { PlayMode, useAuditionPlayhead } from './AuditionPlayhead';
+import { useAuditionPlayhead } from './AuditionPlayhead';
+import { PlayControls } from './PlayControls';
+import { RegionHandle } from './RegionHandle';
 import { Waveform } from './Waveform';
 
 const ms = (seconds: number) => Math.round(seconds * 1000);
@@ -63,37 +65,30 @@ export function TrimEditor({
     return rect === undefined ? 0 : Math.max(0, Math.min(length, ((clientX - rect.left) / rect.width) * length));
   };
 
-  /** Dragging a handle moves that end; one drag is one undo step. */
+  /** One end of the trim: dragged, or moved with ←/→ (Shift: 10 ms). */
   const handle = (which: 'start' | 'end') => (
-    <button
-      type="button"
-      className={`trim-handle ${which}`}
-      style={{ left: `${((which === 'start' ? start : end) / length) * 100}%` }}
-      aria-label={`${which === 'start' ? 'Start' : 'End'} at ${ms(which === 'start' ? start : end)} ms`}
-      onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
-      onPointerMove={(e) => {
-        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-        const t = at(e.clientX);
+    <RegionHandle
+      which={which}
+      left={`${((which === 'start' ? start : end) / length) * 100}%`}
+      label={`${which === 'start' ? 'Start' : 'End'} at ${ms(which === 'start' ? start : end)} ms`}
+      onDrag={(x) => {
+        const t = at(x);
         if (which === 'start') trim(Math.min(t, end - 0.001), end);
         else trim(start, Math.max(t, start + 0.001));
       }}
-      onPointerUp={seal}
-      onKeyDown={(e) => {
-        const delta = (e.shiftKey ? 10 : 1) / 1000;
-        const move = e.key === 'ArrowLeft' ? -delta : e.key === 'ArrowRight' ? delta : 0;
-        if (move === 0) return;
-        e.preventDefault();
+      onNudge={(direction, big) => {
+        const move = (direction * (big ? 10 : 1)) / 1000;
         if (which === 'start') trim(start + move, end);
         else trim(start, end + move);
       }}
-      onKeyUp={seal}
+      onDone={seal}
     />
   );
 
   return (
     <div className="trim stack-tight">
       <div className="trim-wave" ref={box}>
-        <Waveform audio={audio} offset={0} duration={length} height={120} color="#9aa0a6" />
+        <Waveform audio={audio} offset={0} duration={length} height={120} />
         <div className="region-shade" style={{ left: 0, width: `${(start / length) * 100}%` }} />
         <div className="region-shade" style={{ left: `${(end / length) * 100}%`, right: 0 }} />
         {playhead !== null && <div className="playhead" style={{ left: `${(playhead / length) * 100}%` }} />}
@@ -144,16 +139,16 @@ export function TrimEditor({
           ))}
         </div>
         <div className="row push">
-          <PlayMode
+          <PlayControls
+            what="trim"
+            playing={playing}
+            onToggle={() => (playing ? services.player.stopAudition() : play(loop))}
             loop={loop}
-            onChange={(next) => {
+            onLoop={(next) => {
               setLoop(next);
               if (playing) play(next);
             }}
           />
-          <button type="button" aria-pressed={playing} onClick={() => (playing ? services.player.stopAudition() : play(loop))}>
-            {playing ? 'Stop' : 'Play trimmed'}
-          </button>
           <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>
             Reset
           </button>

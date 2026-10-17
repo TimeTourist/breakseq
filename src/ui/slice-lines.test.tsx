@@ -82,6 +82,6 @@ describe('slice lines on the parent in Hits', () => {
     fireEvent.doubleClick(screen.getByLabelText(/^Slice 03:/));
     await act(async () => {});
     expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: brk.id });
-    expect(screen.getByRole('button', { name: /^Marker 3 at/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /^Marker 03 at/ }).getAttribute('aria-pressed')).toBe('true');
   });
 });

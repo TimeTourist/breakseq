@@ -5,6 +5,7 @@ import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, pasteCli
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
 import { HIT_COLOR, lengthText } from './labels';
+import { RegionHandle } from './RegionHandle';
 import { TARGET_LABELS } from './modText';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
@@ -122,29 +123,18 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
         ),
       );
     return (
-      <button
-        type="button"
-        className={`trim-handle loop-handle${on ? '' : ' off'}`}
-        style={{ left: (which === 'start' ? start : end) * STEP_PX }}
-        aria-label={`Loop ${which} at ${position(which === 'start' ? start : end)}`}
+      <RegionHandle
+        which={which}
+        className={`loop-handle${on ? '' : ' off'}`}
+        left={`${(which === 'start' ? start : end) * STEP_PX}px`}
+        label={`Loop ${which} at ${position(which === 'start' ? start : end)}`}
         title="Drag to move this end of the loop, or focus it and use ←/→ (Shift: a beat)"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          e.currentTarget.setPointerCapture(e.pointerId);
+        onDrag={(x, handle) => {
+          const el = handle.closest('.timeline') as HTMLElement | null;
+          if (el !== null) set(boundaryAt({ clientX: x }, el));
         }}
-        onPointerMove={(e) => {
-          const el = e.currentTarget.closest('.timeline') as HTMLElement | null;
-          if (el !== null && e.currentTarget.hasPointerCapture(e.pointerId)) set(boundaryAt(e, el));
-        }}
-        onPointerUp={seal}
-        onKeyDown={(e) => {
-          const by = (e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0) * (e.shiftKey ? 4 : 1);
-          if (by === 0) return;
-          e.preventDefault();
-          e.stopPropagation();
-          set((which === 'start' ? start : end) + by);
-        }}
-        onKeyUp={seal}
+        onNudge={(direction, big) => set((which === 'start' ? start : end) + direction * (big ? 4 : 1))}
+        onDone={seal}
       />
     );
   };
@@ -395,7 +385,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
           )}
           {loopHandle('start')}
           {loopHandle('end')}
-          {playheadStep !== null && <span className="timeline-playhead" style={{ left: playheadStep * STEP_PX }} />}
+          {playheadStep !== null && <span className="playhead" style={{ left: playheadStep * STEP_PX }} />}
         </div>
       </div>
 

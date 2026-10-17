@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PlayIcon } from './icons';
 import type { Folder, SnapshotInfo } from '../engine';
 import { comparable, listSnapshots, loadSnapshot, readManifest, saveSnapshot, writeManifest } from '../engine';
 import type { Project } from '../model';
@@ -305,8 +306,8 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
                 {isActive && <span className="badge">active</span>}
                 {isActive && changed && <span className="badge warn" title="The work has changes that are not in this snapshot">changed</span>}
                 {rendering === s.file && <span className="muted small">Rendering…</span>}
-                <button type="button" disabled={busy} aria-label={`Play ${s.name}`} onClick={() => renderSnapshot(s, onPlayTake)}>
-                  Play
+                <button type="button" className="icon-button" disabled={busy} aria-label={`Play ${s.name}`} onClick={() => renderSnapshot(s, onPlayTake)}>
+                  <PlayIcon />
                 </button>
                 <button type="button" disabled={busy} aria-label={`Export ${s.name}`} onClick={() => renderSnapshot(s, (take) => services.exportWav(take, s.name))}>
                   Export

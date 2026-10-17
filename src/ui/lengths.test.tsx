@@ -90,6 +90,6 @@ describe('hit lengths', () => {
     const strip = screen.getByLabelText('Where the slices land on the 1/16 grid');
     const clashes = strip.querySelectorAll('.slice-step.clash');
     expect(clashes).toHaveLength(1);
-    expect(clashes[0]!.getAttribute('aria-label')).toBe('Step 1.1.3: slice 2; 2 slices here, slice 3 dropped');
+    expect(clashes[0]!.getAttribute('aria-label')).toBe('Step 1.1.3: slice 02; 2 slices here, slice 03 dropped');
   });
 });

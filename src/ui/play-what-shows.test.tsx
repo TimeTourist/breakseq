@@ -65,6 +65,7 @@ describe('what Play plays', () => {
 function services() {
   const take = (seconds: number): Take => ({ buffer: { duration: seconds } as AudioBuffer, triggers: [], tapes: [] });
   let playing = false;
+  let position: number | null = null;
   const player = {
     play: vi.fn(() => void (playing = true)),
     replace: vi.fn(),
@@ -73,7 +74,7 @@ function services() {
     stop: vi.fn(() => void (playing = false)),
     isPlaying: () => playing,
     currentTrigger: () => null,
-    currentPosition: () => null,
+    currentPosition: () => (playing ? position : null),
     audition: vi.fn(),
     stopAudition: vi.fn(),
     setAuditionRegion: vi.fn(),
@@ -90,7 +91,7 @@ function services() {
     download: vi.fn(),
     rng: () => () => 0,
   };
-  return { services: s, player, end: () => void (playing = false) };
+  return { services: s, player, end: () => void (playing = false), at: (seconds: number) => void (position = seconds) };
 }
 
 const settle = () =>
@@ -214,5 +215,52 @@ describe('Delete break', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1 copy' }));
     expect(confirm).not.toHaveBeenCalled();
     expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen 1']);
+  });
+});
+
+describe('the same controls everywhere, in Hits', () => {
+  it('▶ next to the picked hit plays what Space plays, and its playhead runs through the region', async () => {
+    const p = split();
+    const hit = memberOf(p, 1);
+    const { store, player, at } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad: brkOf(p).pads[1]!, hit } });
+    act(() => void store.dispatch({ type: 'run', command: (q) => ({ ok: true, project: { ...q, hits: { ...q.hits, [hit]: { ...q.hits[hit]!, region: { start: 0.2, end: 0.6 } } } } }) }));
+    await settle();
+    const hitPanel = screen.getByRole('region', { name: 'Hit' });
+    expect(within(hitPanel).getByRole('group', { name: 'Play mode' })).toBeTruthy();
+    // Halfway through the 0.5 s take is halfway through the region.
+    at(0.25);
+    fireEvent.click(within(hitPanel).getByRole('button', { name: 'Play hit' }));
+    expect(player.play).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect((hitPanel.querySelector('.playhead') as HTMLElement | null)?.style.left).toBe('40%');
+    fireEvent.click(within(hitPanel).getByRole('button', { name: 'Stop hit' }));
+    expect(player.stop).toHaveBeenCalled();
+  });
+
+  it('the region is set with handles, as in Trim: ←/→ moves an end by 1 ms, Shift by 10 ms', async () => {
+    const p = split();
+    const hit = memberOf(p, 1);
+    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad: brkOf(p).pads[1]!, hit } });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Start at 0 ms' }), { key: 'ArrowRight', shiftKey: true });
+    // The slice is 0.5 s long: 10 ms is a 50th of it.
+    expect(store.getState().history.present.hits[hit]!.region.start).toBeCloseTo(0.02);
+    expect(screen.getByLabelText('Start ms')).toHaveProperty('value', '10');
+  });
+
+  it('Delete hit says where the hit is used, and asks before taking it out of there', async () => {
+    const p = split();
+    const hit = memberOf(p, 1);
+    const pad = brkOf(p).pads[1]!;
+    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad, hit } });
+    expect(screen.getByRole('button', { name: `pad ${p.pads[pad]!.name}` })).toBeTruthy();
+    window.confirm = vi.fn(() => false);
+    fireEvent.click(screen.getByRole('button', { name: `Delete hit ${p.hits[hit]!.name}` }));
+    expect(store.getState().history.present.hits[hit]).toBeDefined();
+    window.confirm = vi.fn(() => true);
+    fireEvent.click(screen.getByRole('button', { name: `Delete hit ${p.hits[hit]!.name}` }));
+    expect(store.getState().history.present.hits[hit]).toBeUndefined();
+    expect(store.getState().history.present.pads[pad]!.members).toEqual([]);
   });
 });
