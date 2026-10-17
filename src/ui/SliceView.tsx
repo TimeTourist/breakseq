@@ -130,6 +130,16 @@ export function SliceView() {
           </p>
         </div>
         <div className="row push">
+          <button
+            type="button"
+            title="Trim the start and end of the sample, and pick its channel, in Import"
+            onClick={() => {
+              store.dispatch({ type: 'trimming', breakId: brk.id });
+              store.dispatch({ type: 'view', view: 'import' });
+            }}
+          >
+            ← Trim
+          </button>
           {audio !== undefined && (
             <>
               <PlayMode

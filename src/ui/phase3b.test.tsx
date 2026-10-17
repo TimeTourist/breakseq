@@ -97,6 +97,14 @@ describe('Markers in Slice', () => {
     return setup(result.project, 'slice');
   }
 
+  it('← Trim opens the break’s Trim in Import', async () => {
+    const store = await sliceSetup();
+    fireEvent.click(screen.getByRole('button', { name: '← Trim' }));
+    const id = Object.keys(store.getState().history.present.breaks)[0]!;
+    expect(store.getState()).toMatchObject({ view: 'import', trimming: id });
+    expect(screen.getByRole('button', { name: 'Trim amen.wav' }).getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('←/→ nudges the selected marker by 1 ms, Shift by 10 ms', async () => {
     const store = await sliceSetup();
     const before = markers(store)[2]!;
