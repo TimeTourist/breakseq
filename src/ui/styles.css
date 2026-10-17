@@ -2298,3 +2298,19 @@ button.danger:hover:not(:disabled) {
   font-size: 12px;
   flex: none;
 }
+
+/* A cue marker of the file, shown in Slice before the break is sliced at them. */
+.cue-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.sidebar .badge {
+  white-space: nowrap;
+  flex-shrink: 0;
+}

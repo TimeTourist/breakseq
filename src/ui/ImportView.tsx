@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Break, Loop, Project } from '../model';
-import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, guessBars, removeFile, setBreak, sliceName, trimName, unlikelyBpm } from '../model';
+import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, isUnsliced, markBreak, removeFile, setBreak, sliceName, trimName, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import { DeleteBreak } from './DeleteBreak';
@@ -89,7 +89,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
       try {
         const bytes = await file.arrayBuffer();
         const audio = decodeAudioFile(bytes);
-        // A WAV with cue markers becomes a break sliced at them.
+        // A WAV with cue markers becomes a break, not sliced: Slice offers its cues.
         const error = run(addSample({ name: file.name, audio, cues: readCues(bytes) }));
         if (error !== null) failed.push(`${file.name}: ${error}`);
       } catch (e) {
@@ -134,7 +134,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
           <path d="M18 24V6M11 13l7-7 7 7M6 24v6h24v-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <div className="dropzone-title">Drop WAV or AIFF files here</div>
-        <div className="small">WAV files with cue markers keep their slices</div>
+        <div className="small">WAV files with cue markers keep them for Slice</div>
         <button type="button" onClick={() => input.current?.click()}>
           Browse files
         </button>
@@ -184,14 +184,15 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                     const loops = breakLoops(project, brk);
                     const loop = loops[0];
                     const hit = brk.parent ?? project.pads[brk.pads[0] ?? '']?.members[0];
+                    const unsliced = isUnsliced(brk);
                     return (
                       <Fragment key={brk.id}>
                         <tr
                           data-trim-open={trimming === brk.id || undefined}
-                          title={brk.bars === null ? 'Double-click to edit the hit' : 'Double-click to slice'}
+                          title={brk.bars === null && !unsliced ? 'Double-click to edit the hit' : 'Double-click to slice'}
                           onDoubleClick={(e) => {
                             if ((e.target as HTMLElement).closest('button, input') !== null) return;
-                            if (brk.bars !== null) goSlice(brk.id);
+                            if (brk.bars !== null || unsliced) goSlice(brk.id);
                             else goHit(brk.id);
                           }}
                         >
@@ -203,7 +204,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                   label="Delete file"
                                   name={sample.name}
                                   usages={fileUsages(project, audioId)}
-                                  goes={breaks.map((b) => `${b.bars === null ? 'one-shot' : 'break'} ${b.name} (${breakTakes(project, b.id).join(', ')})`)}
+                                  goes={breaks.map((b) => `${b.bars === null && !isUnsliced(b) ? 'one-shot' : 'break'} ${b.name} (${breakTakes(project, b.id).join(', ')})`)}
                                   onDelete={() => run(removeFile(audioId))}
                                   onDeleted={() => trimming !== null && breaks.some((b) => b.id === trimming) && setTrimming(null)}
                                   onError={(e) => setErrors(e === null ? [] : [e])}
@@ -260,12 +261,21 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                             <div className="segmented" role="group" aria-label={`Type of ${brk.name}`}>
                               <button
                                 type="button"
-                                aria-pressed={brk.bars !== null}
-                                onClick={() => run(setBreak(brk.id, brk.bars ?? guessBars(sample.duration)))}
+                                aria-pressed={brk.bars !== null || unsliced}
+                                onClick={() => {
+                                  if (brk.bars === null && !unsliced) run(markBreak(brk.id, true));
+                                }}
                               >
                                 Break
                               </button>
-                              <button type="button" aria-pressed={brk.bars === null} onClick={() => run(setBreak(brk.id, null))}>
+                              <button
+                                type="button"
+                                aria-pressed={brk.bars === null && !unsliced}
+                                onClick={() => {
+                                  if (unsliced) run(markBreak(brk.id, false));
+                                  else if (brk.bars !== null) run(setBreak(brk.id, null));
+                                }}
+                              >
                                 One-shot
                               </button>
                             </div>
@@ -282,7 +292,11 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                           </td>
                           <td>
                             <div className="row creates">
-                              {brk.bars === null ? (
+                              {unsliced ? (
+                                <button type="button" className="link-text small" title={`Slice ${brk.name} in Slice: set its bars and how to slice it`} onClick={() => goSlice(brk.id)}>
+                                  Create Slices →
+                                </button>
+                              ) : brk.bars === null ? (
                                 <span>
                                   1 hit{' '}
                                   <button type="button" className="link-text small" title={`Hit ${brk.name}, in Hits`} onClick={() => goHit(brk.id)}>

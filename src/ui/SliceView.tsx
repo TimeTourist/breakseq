@@ -1,17 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
-import type { SliceGrid } from '../model';
-import { MIN_SLICE, STEPS_PER_BAR, bpmOf, markerGrid, sampleAudio, setBreakBars, setGrid, setMarkers, holds, sliceName, slicePlaces, sliceToOneShot, unlikelyBpm } from '../model';
+import type { Break, Sample, SliceGrid } from '../model';
+import {
+  MIN_SLICE,
+  STEPS_PER_BAR,
+  breakBpm,
+  bpmOf,
+  cueMarkers,
+  gridMarkers,
+  isUnsliced,
+  markerGrid,
+  sampleAudio,
+  setBreak,
+  setBreakBars,
+  setGrid,
+  setMarkers,
+  holds,
+  sliceName,
+  slicePlaces,
+  sliceToOneShot,
+  unlikelyBpm,
+} from '../model';
 import { detectTransients } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { BreakOrigin } from './BreakOrigin';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
 import { Slider } from './Slider';
-import { InSong, useHeard } from './InSong';
+import { InSong, InSongMark, useHeard } from './InSong';
 import { Waveform } from './Waveform';
 
 const GRIDS: readonly SliceGrid[] = [4, 8, 16];
 const ms = (seconds: number) => Math.round(seconds * 1000);
+const SENSITIVITY = 60;
+
+/** How a break is sliced: at the file's cue markers, an equal grid, or the transients found. */
+type SliceBy = 'cues' | SliceGrid | 'transients';
+
+const sameMarkers = (a: readonly number[], b: readonly number[] | null) => b !== null && a.length === b.length && a.every((m, i) => Math.abs(m - b[i]!) < 1e-9);
 
 /** A time as bar.beat.sixteenth, 1-based, with the rest in ms when it is off the grid. */
 function position(time: number, stepTime: number): string {
@@ -31,7 +56,7 @@ export function SliceView() {
   const [selected, setSelected] = useState(() => store.getState().sliceSelected);
   const [error, setError] = useState<string | null>(null);
   const [playingBreak, setPlayingBreak] = useState(false);
-  const [sensitivity, setSensitivity] = useState(60);
+  const [sensitivity, setSensitivity] = useState(SENSITIVITY);
   const [transients, setTransients] = useState(false);
   const [loopBreak, setLoopBreak] = useState(true);
   const playhead = useAuditionPlayhead(playingBreak);
@@ -43,11 +68,12 @@ export function SliceView() {
   // Leaving the view stops whatever is being auditioned.
   useEffect(() => () => services.player.stopAudition(), [services]);
 
-  const breaks = Object.values(project.breaks).filter((b) => b.bars !== null);
+  // Breaks, sliced or marked Break in Import and waiting to be.
+  const breaks = Object.values(project.breaks).filter((b) => b.bars !== null || isUnsliced(b));
   const brk = breaks.find((b) => b.id === target) ?? breaks[0];
   const sample = brk === undefined ? undefined : project.samples[brk.sampleId];
 
-  if (brk === undefined || brk.bars === null || sample === undefined) {
+  if (brk === undefined || sample === undefined) {
     return (
       <main className="view">
         <div className="view-head">
@@ -60,6 +86,53 @@ export function SliceView() {
           </button>
         </div>
       </main>
+    );
+  }
+
+  const sidebar = (
+    <aside className="sidebar narrow" aria-label="Breaks">
+      <h2 className="label">Breaks</h2>
+      {breaks.map((b) => (
+        <button
+          key={b.id}
+          type="button"
+          className="list-item break-head"
+          aria-current={b.id === brk.id ? 'true' : undefined}
+          onClick={() => {
+            setSelected(0);
+            setTransients(false);
+            store.dispatch({ type: 'sliceTarget', breakId: b.id });
+          }}
+        >
+          <span className="label grow ellipsis">{b.name}</span>
+          <InSongMark heard={heard.breaks.has(b.id)} />
+          {isUnsliced(b) && <span className="badge">not sliced</span>}
+        </button>
+      ))}
+    </aside>
+  );
+
+  const toTrim = () => {
+    store.dispatch({ type: 'trimming', breakId: brk.id });
+    store.dispatch({ type: 'view', view: 'import' });
+  };
+
+  if (brk.bars === null) {
+    return (
+      <div className="split">
+        {sidebar}
+        <Unsliced
+          key={brk.id}
+          brk={brk}
+          sample={sample}
+          toTrim={toTrim}
+          onSliced={(by) => {
+            setSelected(0);
+            setTransients(by === 'transients');
+            setSensitivity(SENSITIVITY);
+          }}
+        />
+      </div>
     );
   }
 
@@ -90,6 +163,7 @@ export function SliceView() {
     if (run(setMarkers(brk.id, toParts(next))) === null) setSelected(next.indexOf(time));
   };
   const grid = markerGrid(brk.markers, bars);
+  const cues = cueMarkers(sample);
 
   /** Markers on the hits found at this sensitivity. Moving a marker by hand makes them your own. */
   const detect = (value: number, mergeKey?: string) => {
@@ -101,6 +175,8 @@ export function SliceView() {
   };
 
   return (
+    <div className="split">
+    {sidebar}
     <main className="view">
       <div className="view-head row">
         <div className="stack-tight">
@@ -112,10 +188,7 @@ export function SliceView() {
               type="button"
               className="link-text small"
               title="Trim the start and end of the sample, and pick its channel, in Import"
-              onClick={() => {
-                store.dispatch({ type: 'trimming', breakId: brk.id });
-                store.dispatch({ type: 'view', view: 'import' });
-              }}
+              onClick={toTrim}
             >
               ← Trim
             </button>
@@ -166,19 +239,21 @@ export function SliceView() {
               }}
             />
           )}
-          {breaks.length > 1 && (
-            <label className="field">
-              Break
-              <select value={brk.id} onChange={(e) => store.dispatch({ type: 'sliceTarget', breakId: e.target.value })}>
-                {breaks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <div className="segmented" role="group" aria-label="Equal grid">
+          <div className="segmented" role="group" aria-label="Slice by">
+            {cues !== null && (
+              <button
+                type="button"
+                aria-pressed={!transients && sameMarkers(brk.markers, cues)}
+                title="At the cue markers in the WAV file"
+                onClick={() => {
+                  setSelected(0);
+                  setTransients(false);
+                  setError(run(setMarkers(brk.id, cues)));
+                }}
+              >
+                Cue markers
+              </button>
+            )}
             {GRIDS.map((g) => (
               <button
                 key={g}
@@ -354,6 +429,144 @@ export function SliceView() {
         </section>
 
       </div>
+    </main>
+    </div>
+  );
+}
+
+interface UnslicedProps {
+  readonly brk: Break;
+  readonly sample: Sample;
+  readonly toTrim: () => void;
+  /** After it is sliced, and how. */
+  readonly onSliced: (by: SliceBy) => void;
+}
+
+/**
+ * A break marked Break in Import and not sliced yet: nothing is made until its
+ * bars and how to slice it are both chosen, then its slices, pads, parent and
+ * loop are made in one undo step. The file's cue markers, if it has any, are
+ * chosen to start with.
+ */
+function Unsliced({ brk, sample, toTrim, onSliced }: UnslicedProps) {
+  const project = useProject();
+  const { services } = useApp();
+  const run = useRun();
+  const heard = useHeard();
+  const cues = cueMarkers(sample);
+  const [bars, setBars] = useState<number | null>(null);
+  const [by, setBy] = useState<SliceBy | null>(cues === null ? null : 'cues');
+  const [error, setError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [loop, setLoop] = useState(true);
+  const playhead = useAuditionPlayhead(playing);
+  const audio = sampleAudio(project, sample);
+  const duration = sample.duration;
+
+  const slice = (bars: number | null, by: SliceBy | null) => {
+    if (bars === null || by === null) return;
+    const markers =
+      by === 'cues'
+        ? cues
+        : by === 'transients'
+          ? audio === undefined
+            ? null
+            : detectTransients(audio, sample.offset, duration, SENSITIVITY).map((m) => m / duration)
+          : gridMarkers(bars, by);
+    if (markers === null) return;
+    const failed = run(setBreak(brk.id, bars, markers));
+    setError(failed);
+    if (failed === null) onSliced(by);
+  };
+
+  return (
+    <main className="view">
+      <div className="view-head row">
+        <div className="stack-tight">
+          <h1 className="mono">{brk.name}</h1>
+          <div className="row nav-row">
+            <BreakOrigin brk={brk} parts={['file']} />
+            <InSong heard={heard.breaks.has(brk.id)} />
+            <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, in Import" onClick={toTrim}>
+              ← Trim
+            </button>
+          </div>
+          <p className="muted">Not sliced yet: set its bars and how to slice it. Nothing is made before that.</p>
+          <p className="muted row">
+            <label className="field">
+              Bars
+              <input
+                type="number"
+                min={1}
+                max={64}
+                aria-label="Bars in the break"
+                placeholder="–"
+                value={bars ?? ''}
+                onChange={(e) => {
+                  const next = Math.round(Number(e.target.value));
+                  const value = e.target.value === '' || next < 1 ? null : next;
+                  setBars(value);
+                  slice(value, by);
+                }}
+              />
+            </label>
+            {bars !== null && `${breakBpm(duration, bars).toFixed(2)} BPM`}
+          </p>
+        </div>
+        <div className="row push">
+          {audio !== undefined && (
+            <PlayControls
+              what="break"
+              playing={playing}
+              loop={loop}
+              onLoop={(next) => {
+                setLoop(next);
+                if (playing) services.player.audition(audio, sample.offset, duration, () => setPlaying(false), next);
+              }}
+              onToggle={() => {
+                if (playing) {
+                  services.player.stopAudition();
+                  return;
+                }
+                setPlaying(true);
+                services.player.audition(audio, sample.offset, duration, () => setPlaying(false), loop);
+              }}
+            />
+          )}
+          <div className="segmented" role="group" aria-label="Slice by">
+            {cues !== null && (
+              <button type="button" aria-pressed={by === 'cues'} title="At the cue markers in the WAV file" onClick={() => (setBy('cues'), slice(bars, 'cues'))}>
+                Cue markers
+              </button>
+            )}
+            {GRIDS.map((g) => (
+              <button key={g} type="button" aria-pressed={by === g} onClick={() => (setBy(g), slice(bars, g))}>
+                1/{g}
+              </button>
+            ))}
+            <button type="button" aria-pressed={by === 'transients'} disabled={audio === undefined} onClick={() => (setBy('transients'), slice(bars, 'transients'))}>
+              Transients
+            </button>
+          </div>
+        </div>
+      </div>
+      {audio !== undefined && (
+        <div className="table-scroll slice-box">
+          <div className="slice-canvas" style={{ minWidth: 1000 }}>
+            <div className="slice-area">
+              <Waveform audio={audio} offset={sample.offset} duration={duration} height={200} />
+              {by === 'cues' &&
+                cues?.map((m, i) => <div key={i} className="cue-line" style={{ left: `${m * 100}%` }} aria-hidden="true" />)}
+              {playhead !== null && <div className="playhead" style={{ left: `${((playhead - sample.offset) / duration) * 100}%` }} />}
+            </div>
+          </div>
+        </div>
+      )}
+      {error !== null && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
     </main>
   );
 }

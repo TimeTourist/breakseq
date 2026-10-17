@@ -1,5 +1,5 @@
 import type { Break } from '../model';
-import { breakTakes, breakUsages, removeBreak } from '../model';
+import { breakTakes, breakUsages, isUnsliced, removeBreak } from '../model';
 import { useProject, useRun } from './context';
 import { DeleteButton } from './DeleteButton';
 
@@ -18,7 +18,7 @@ export function DeleteBreak({ brk, onDeleted, onError, icon = false }: DeleteBre
   const run = useRun();
   return (
     <DeleteButton
-      label={brk.bars === null ? 'Delete one-shot' : 'Delete break'}
+      label={brk.bars === null && !isUnsliced(brk) ? 'Delete one-shot' : 'Delete break'}
       name={brk.name}
       usages={breakUsages(project, brk.id)}
       goes={breakTakes(project, brk.id)}
