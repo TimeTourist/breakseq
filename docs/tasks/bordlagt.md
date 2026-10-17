@@ -99,3 +99,7 @@ Hits har en egen ▶ vid paden eller den valda hitten, som gör samma sak som Pl
 ## Bit-WAV:en i MIDI-exporten och Reason
 
 Reason läser inte cue-markörerna i bit-WAV:en utan gissar på transienter, så det blir för många slices (och en kort slice i början). Rutorna är lika långa som det längsta ljudet, och antalet rundas upp till 4, 8, 16, 32 eller 64, vilket kan ge flera sekunder tomt i slutet. Idéer: rutor i hela 1/16 i låtens tempo så att varje ljud börjar på Reasons rutnät, och bara lika många rutor som ljud. Rutor på rutnätet byggdes och togs bort igen: de gick inte att använda i REX. Användaren fick det att fungera i Reason med slice och lite pill, och exporten är som förut. (Bordlagt 2026-10-17.)
+
+## Fler spår
+
+Flera loopar som spelar samtidigt, var och en med egen röst (till exempel en kick eller ett andra break över breaket). Användaren ser det som feature creep: Breakseq ska göra komplicerade breaks som importeras i en riktig DAW (Reason, Digitakt 2), och där läggs lager. Reverb och delay klarar sig utan spår, med svansen bredvid rösten (fas 21). (Bordlagt 2026-10-17.)
