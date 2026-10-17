@@ -1,5 +1,6 @@
-import type { Command, CommandContext } from './command';
+import type { Command, CommandContext, Usage } from './command';
 import { invalid, notFound, ok, sequence } from './command';
+import { findUsages } from './references';
 import type { SliceGrid } from './breaks';
 import { MIN_SLICE, baseName, breakBpm, breakSequence, ensureSlots, gridMarkers, markerGrid, padSlot, slotHit, slotName } from './breaks';
 import { emptyStep } from './project';
@@ -138,6 +139,81 @@ function renameSlot(project: Project, brk: Break, slot: number): Project {
     hits: hit === undefined || hit.name !== plain ? project.hits : { ...project.hits, [hit.id]: { ...hit, name } },
   };
 }
+
+/** What a break takes with it when removed: its parent and slot pads, their hits, hits of its slices, and its own loop. */
+function breakParts(project: Project, brk: Break) {
+  const pads = new Set(brk.pads);
+  const inOtherPads = new Set(Object.values(project.pads).filter((p) => !pads.has(p.id)).flatMap((p) => p.members));
+  const hits = new Set([
+    ...(brk.parent === null ? [] : [brk.parent]),
+    ...Object.values(project.hits).filter((h) => h.breakId === brk.id).map((h) => h.id),
+    ...brk.pads.flatMap((p) => project.pads[p]?.members ?? []).filter((h) => !inOtherPads.has(h)),
+  ]);
+  return { pads, hits, loop: brk.loop !== null && project.loops[brk.loop] !== undefined ? brk.loop : null, inOtherPads };
+}
+
+/**
+ * Where a break is used outside itself, which goes silent when it is removed:
+ * loops other than its own that play its pads, its own loop in the song, and
+ * other pads with a hit of its slices.
+ */
+export function breakUsages(project: Project, breakId: Id): Usage[] {
+  const brk = project.breaks[breakId];
+  if (brk === undefined) return [];
+  const { pads, hits, loop, inOtherPads } = breakParts(project, brk);
+  const lent = [...hits].filter((h) => inOtherPads.has(h));
+  return [
+    ...Object.values(project.loops)
+      .filter((l) => l.id !== loop && l.steps.some((s) => s.padId !== null && pads.has(s.padId)))
+      .map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),
+    ...(loop === null ? [] : findUsages(project, 'loop', loop)),
+    ...Object.values(project.pads)
+      .filter((p) => !pads.has(p.id) && p.members.some((m) => lent.includes(m)))
+      .map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name })),
+  ];
+}
+
+/**
+ * Removes a break with everything that only it uses: its parent, slot pads and
+ * their hits, and its own loop; its sample too when no other break plays it.
+ * Where it was used (see `breakUsages`) goes silent: steps with its pads are
+ * emptied, clips of its loop leave the song, and its hits leave other pads.
+ */
+export const removeBreak =
+  (breakId: Id): Command =>
+  (project) => {
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    const { pads, hits, loop } = breakParts(project, brk);
+    const keep = <T,>(record: Readonly<Record<Id, T>>, gone: (id: Id) => boolean) =>
+      Object.fromEntries(Object.entries(record).filter(([id]) => !gone(id))) as Record<Id, T>;
+    const breaks = keep(project.breaks, (id) => id === breakId);
+    const sampleUsed = Object.values(breaks).some((b) => b.sampleId === brk.sampleId);
+    const sample = project.samples[brk.sampleId];
+    const samples = sampleUsed ? project.samples : keep(project.samples, (id) => id === brk.sampleId);
+    const audioUsed = sample === undefined || Object.values(samples).some((s) => s.audioId === sample.audioId);
+    const otherPads = keep(project.pads, (id) => pads.has(id));
+    const loops = Object.fromEntries(
+      Object.entries(keep(project.loops, (id) => id === loop)).map(([id, l]): [Id, Loop] => [
+        id,
+        l.steps.some((s) => (s.padId !== null && pads.has(s.padId)) || (s.memberId !== null && hits.has(s.memberId)))
+          ? { ...l, steps: l.steps.map((s) => (s.padId !== null && pads.has(s.padId) ? emptyStep : s.memberId !== null && hits.has(s.memberId) ? { ...s, memberId: null } : s)) }
+          : l,
+      ]),
+    );
+    return ok({
+      ...project,
+      breaks,
+      samples,
+      audio: audioUsed ? project.audio : keep(project.audio, (id) => id === sample.audioId),
+      pads: Object.fromEntries(
+        Object.entries(otherPads).map(([id, p]): [Id, Pad] => [id, p.members.some((m) => hits.has(m)) ? { ...p, members: p.members.filter((m) => !hits.has(m)) } : p]),
+      ),
+      hits: keep(project.hits, (id) => hits.has(id)),
+      loops,
+      song: loop === null || !project.song.clips.some((c) => c.ref === loop) ? project.song : { ...project.song, clips: project.song.clips.filter((c) => c.ref !== loop) },
+    });
+  };
 
 /**
  * A sliced break copied whole, to change apart from the original: the same

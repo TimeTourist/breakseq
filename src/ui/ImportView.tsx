@@ -3,6 +3,7 @@ import type { Break, Project } from '../model';
 import { addSample, bpmOf, guessBars, replaceProject, setBreak, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
 import { useApp, useProject, useRun, useSelect } from './context';
+import { DeleteBreak } from './DeleteBreak';
 import { timestamp } from './services';
 import { TrimEditor } from './TrimEditor';
 
@@ -176,6 +177,7 @@ export function ImportView() {
                       <td>
                         <div className="row nowrap">
                           <span className="mono grow ellipsis">{brk.name}</span>
+                          <DeleteBreak brk={brk} onError={(e) => setErrors(e === null ? [] : [e])} onDeleted={() => trimming === brk.id && setTrimming(null)} />
                           <button
                             type="button"
                             className="small-button"

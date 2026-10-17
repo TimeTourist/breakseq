@@ -2212,3 +2212,12 @@ input[type='search'] {
   font-size: 0.8em;
   font-weight: 400;
 }
+
+/* Delete break, with where the break is used next to it. */
+.delete-break {
+  gap: 6px;
+}
+
+.delete-break .in-use {
+  margin-left: 0;
+}
