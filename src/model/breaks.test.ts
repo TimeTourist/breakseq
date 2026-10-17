@@ -16,6 +16,7 @@ import {
   cloneBreak,
   removeBreak,
   removeFile,
+  breakTakes,
   fileBreaks,
   fileUsages,
   createLoop,
@@ -486,5 +487,15 @@ describe('removing a file', () => {
     const loop = Object.values(looped.loops).find((l) => l.name === 'L')!;
     const project = run(looped, setStep(loop.id, 0, { padId: brk.pads[0]! }), setStep(loop.id, 1, { padId: brk.pads[1]! }));
     expect(fileUsages(project, audioId)).toEqual([{ kind: 'loop', id: loop.id, name: 'L' }]);
+  });
+});
+
+describe('what goes with a break', () => {
+  it('is its pads, hits and loop, and a one-shot is just its hit', () => {
+    const { project, id } = amen(4);
+    // Slots once made stay, silent: four markers after the first sixteen still leave sixteen pads.
+    expect(breakTakes(project, id)).toEqual(['16 pads', '17 hits', 'loop amen 1']);
+    const shot = run(createProject(), addSample({ name: 'kick.wav', audio: constantAudio(0.2) }));
+    expect(breakTakes(shot, Object.keys(shot.breaks)[0]!)).toEqual(['1 hit']);
   });
 });

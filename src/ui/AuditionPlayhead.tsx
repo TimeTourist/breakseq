@@ -24,16 +24,11 @@ interface PlayModeProps {
   readonly onChange: (loop: boolean) => void;
 }
 
-/** Once or Loop, for auditions. */
+/** Loop on or off, for auditions: one toggle, as Loop in Song. Off plays once. */
 export function PlayMode({ loop, onChange }: PlayModeProps) {
   return (
-    <div className="segmented" role="group" aria-label="Play mode">
-      <button type="button" aria-pressed={!loop} onClick={() => onChange(false)}>
-        Once
-      </button>
-      <button type="button" aria-pressed={loop} onClick={() => onChange(true)}>
-        Loop
-      </button>
-    </div>
+    <button type="button" className="loop-toggle" aria-pressed={loop} title={loop ? 'Looping: click to play once' : 'Plays once: click to loop'} onClick={() => onChange(!loop)}>
+      Loop
+    </button>
   );
 }

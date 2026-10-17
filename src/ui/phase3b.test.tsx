@@ -147,7 +147,7 @@ describe('Markers in Slice', () => {
 });
 
 describe('Playing while trimming', () => {
-  it('a break plays looped by default, follows the trim while it plays, and Once restarts it once', async () => {
+  it('a break plays looped by default, follows the trim while it plays, and Loop off restarts it once', async () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
     const id = Object.keys(project.breaks)[0]!;
     const asBreak = setBreak(id, 1)(project, ctx);
@@ -162,7 +162,8 @@ describe('Playing while trimming', () => {
     fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '100' } });
     expect(player.setAuditionRegion).toHaveBeenCalledWith(0.1, expect.closeTo(1.9, 6));
 
-    fireEvent.click(button('Once'));
+    fireEvent.click(button('Loop'));
+    expect(button('Loop').getAttribute('aria-pressed')).toBe('false');
     expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(false);
   });
 
@@ -252,5 +253,29 @@ describe('Creates in Import', () => {
     expect(row.textContent).toContain('1 Loops →');
     fireEvent.click(screen.getByRole('button', { name: 'Loops →' }));
     expect(store.getState()).toMatchObject({ view: 'loops', selection: { loop: brk.loop } });
+  });
+});
+
+describe('two trims and a file in Import', () => {
+  it('a press on another Trim opens that one, closing the first', async () => {
+    const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const store = await setup(project, 'import');
+    fireEvent.click(button('New trim of amen.wav'));
+    fireEvent.click(button('Trim amen trim 1'));
+    fireEvent.pointerDown(button('Trim amen trim 2'));
+    fireEvent.click(button('Trim amen trim 2'));
+    const second = Object.values(store.getState().history.present.breaks).find((b) => b.name === 'amen 2')!;
+    expect(store.getState().trimming).toBe(second.id);
+  });
+
+  it('▶ on the file plays the whole file once, and ■ stops it', async () => {
+    await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
+    const player = fakeServices().player;
+    fireEvent.click(button('Play amen.wav'));
+    expect(vi.mocked(player.audition).mock.calls.at(-1)?.slice(1, 3)).toEqual([0, 2]);
+    expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(false);
+    fireEvent.click(button('Stop amen.wav'));
+    expect(player.stopAudition).toHaveBeenCalled();
+    expect(button('Play amen.wav')).toBeTruthy();
   });
 });

@@ -6,14 +6,14 @@ interface PlayControlsProps {
   readonly what: string;
   readonly playing: boolean;
   readonly onToggle: () => void;
-  /** Once or Loop, to the left of the button; left out where there is no choice. */
+  /** Loop on or off, to the left of the button; left out where there is no choice. */
   readonly loop?: boolean;
   readonly onLoop?: (loop: boolean) => void;
   readonly disabled?: boolean;
   readonly title?: string;
 }
 
-/** Once/Loop and ▶/■, the same everywhere something can be played. */
+/** Loop and ▶/■, the same everywhere something can be played. */
 export function PlayControls({ what, playing, onToggle, loop, onLoop, disabled = false, title }: PlayControlsProps) {
   return (
     <div className="row nowrap play-controls">

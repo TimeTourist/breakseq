@@ -208,11 +208,13 @@ function breakParts(project: Project, brk: Break) {
   return { pads, hits, loop: brk.loop !== null && project.loops[brk.loop] !== undefined ? brk.loop : null, inOtherPads };
 }
 
-/** What goes with a break when it is removed, said in words: "4 pads, 5 hits, loop amen 1". */
+/** What goes with a break when it is removed, said in words: "4 pads, 5 hits, loop amen 1", or a one-shot's "1 hit". */
 export function breakTakes(project: Project, breakId: Id): string[] {
   const brk = project.breaks[breakId];
   if (brk === undefined) return [];
   const { pads, hits, loop } = breakParts(project, brk);
+  // A one-shot is its hit: its pad is not seen as one.
+  if (brk.bars === null && pads.size <= 1 && hits.size <= 1 && loop === null) return ['1 hit'];
   const count = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;
   const own = loop === null ? undefined : project.loops[loop];
   return [count(pads.size, 'pad'), count(hits.size, 'hit'), ...(own === undefined ? [] : [`loop ${own.name}`])];

@@ -5,7 +5,7 @@ import { decodeAudioFile, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import { DeleteBreak } from './DeleteBreak';
 import { DeleteButton } from './DeleteButton';
-import { CropIcon, NewCropIcon } from './icons';
+import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
 import { TrimEditor } from './TrimEditor';
 import { InSong, useHeard } from './InSong';
 
@@ -41,21 +41,38 @@ interface ImportViewProps {
 export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const project = useProject();
   const run = useRun();
-  const { store } = useApp();
+  const { store, services } = useApp();
   const heard = useHeard();
   const open = useOpen();
   const input = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const trimming = useSelect((s) => s.trimming);
+  // The file whose ▶ plays it whole, once.
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  useEffect(() => {
+    if (previewing === null) return;
+    return () => services.player.stopAudition();
+  }, [previewing, services]);
+  const preview = (audioId: string) => {
+    const audio = project.audio[audioId];
+    if (previewing === audioId || audio === undefined) {
+      services.player.stopAudition();
+      setPreviewing(null);
+      return;
+    }
+    setPreviewing(audioId);
+    services.player.audition(audio, 0, (audio.channels[0]?.length ?? 0) / audio.sampleRate, () => setPreviewing((p) => (p === audioId ? null : p)), false);
+  };
   const setTrimming = (breakId: string | null) => store.dispatch({ type: 'trimming', breakId });
   // A Trim opened from elsewhere, as from Slice, is brought into view.
   const trimCell = useRef<HTMLTableCellElement>(null);
-  // A click anywhere but the open Trim, its row, the header or a dialog closes it.
+  // A click anywhere but the open Trim, its row, the header, a dialog or a button in the table closes it.
+  // The table's buttons do their own thing: closing on the press would move the rows under the click.
   useEffect(() => {
     if (trimming === null) return;
     const onDown = (e: PointerEvent) => {
-      if (e.target instanceof Element && e.target.closest('[data-trim-open], .header, .dialog-backdrop') !== null) return;
+      if (e.target instanceof Element && e.target.closest('[data-trim-open], .header, .dialog-backdrop, .sources button') !== null) return;
       store.dispatch({ type: 'trimming', breakId: null });
     };
     document.addEventListener('pointerdown', onDown);
@@ -200,6 +217,16 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                 <button
                                   type="button"
                                   className="icon-button small"
+                                  aria-label={`${previewing === audioId ? 'Stop' : 'Play'} ${sample.name}`}
+                                  aria-pressed={previewing === audioId}
+                                  title="The whole file, once"
+                                  onClick={() => preview(audioId)}
+                                >
+                                  {previewing === audioId ? <StopIcon /> : <PlayIcon />}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-button small"
                                   aria-label={`New trim of ${sample.name}`}
                                   title="New trim: another trim of the same file, on a row of its own"
                                   onClick={() => {
@@ -263,7 +290,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                             <div className="row creates">
                               {brk.bars === null ? (
                                 <span>
-                                  1 hit · 1 pad{' '}
+                                  1 hit{' '}
                                   <button type="button" className="link-text small" title={`Hit ${brk.name}, in Hits`} onClick={() => goHit(brk.id)}>
                                     Hits →
                                   </button>
