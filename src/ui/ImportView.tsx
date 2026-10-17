@@ -61,6 +61,12 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     setErrors(failed);
   };
 
+  /** A one-shot's own hit, open in Hits. */
+  const goHit = (id: string) => {
+    const hit = project.pads[project.breaks[id]?.pads[0] ?? '']?.members[0];
+    if (hit !== undefined) store.dispatch({ type: 'select', selection: { hit, pad: null }, view: 'hits' });
+  };
+
   const goSlice = (id: string) => {
     store.dispatch({ type: 'sliceTarget', breakId: id });
     store.dispatch({ type: 'view', view: 'slice' });
@@ -177,10 +183,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                       onDoubleClick={(e) => {
                         if ((e.target as HTMLElement).closest('button, input') !== null) return;
                         if (brk.bars !== null) goSlice(brk.id);
-                        else {
-                          const hit = project.pads[brk.pads[0] ?? '']?.members[0];
-                          if (hit !== undefined) store.dispatch({ type: 'select', selection: { hit }, view: 'hits' });
-                        }
+                        else goHit(brk.id);
                       }}
                     >
                       <td>
@@ -246,11 +249,11 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                       </td>
                       <td className="next">
                         {brk.bars === null ? (
-                          <button type="button" onClick={() => store.dispatch({ type: 'view', view: 'hits' })}>
+                          <button type="button" className="link-text small" onClick={() => goHit(brk.id)}>
                             Hits →
                           </button>
                         ) : (
-                          <button type="button" onClick={() => goSlice(brk.id)}>
+                          <button type="button" className="link-text small" onClick={() => goSlice(brk.id)}>
                             Slice →
                           </button>
                         )}

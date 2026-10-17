@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { EffectTarget, Id, Mod, ModEffect, ModFilter, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
-import { DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_STRETCH, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, remove, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
+import { DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_STRETCH, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
+import { Delete } from './DeleteButton';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { StepGraph, SwapGraph, TapeGraph } from './ModGraph';
 import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
@@ -78,6 +79,9 @@ export function ModsView() {
     <aside className="sidebar narrow" aria-label="Mods">
       <section className="stack-tight">
         <h2 className="label">Mods</h2>
+        <button type="button" className="dashed" onClick={() => newMod(null, [])}>
+          + New mod
+        </button>
         {Object.values(project.mods).map((m) => (
           <button
             key={m.id}
@@ -90,9 +94,6 @@ export function ModsView() {
             <span className="muted small ellipsis">{effectsLabel(m)}</span>
           </button>
         ))}
-        <button type="button" className="dashed" onClick={() => newMod(null, [])}>
-          + New mod
-        </button>
       </section>
       <section className="stack-tight">
         <h2 className="label">Start from</h2>
@@ -232,18 +233,7 @@ export function ModsView() {
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              disabled={usedIn > 0}
-              title={usedIn > 0 ? 'In use: take it out of the song first' : undefined}
-              onClick={() => {
-                const failed = run(remove('mod', mod.id));
-                if (failed === null) open({ mod: null }, 'mods');
-                else setError(failed);
-              }}
-            >
-              Delete
-            </button>
+            <Delete kind="mod" id={mod.id} name={mod.name} onError={setError} onDeleted={() => open({ mod: null }, 'mods')} />
           </div>
         </div>
         <p className="muted small">Play tries the mod on {previewId === null ? 'a loop (make one first)' : project.loops[previewId]?.name}, over the whole loop.</p>

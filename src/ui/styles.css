@@ -709,8 +709,8 @@ p {
 
 .chip {
   min-width: 44px;
-  height: 40px;
-  min-height: 40px;
+  height: 36px;
+  min-height: 36px;
   font-weight: 600;
   color: var(--accent);
   cursor: grab;
@@ -1344,10 +1344,12 @@ input[type='search'] {
 
 /* Trim */
 
-.small-button {
-  min-height: 32px;
+/* Buttons in rows, lists and tables: 36 px, as segments and small icons. Actions on their own are 44 px. */
+.small-button,
+.sources td button:not(.link-text) {
+  min-height: 36px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .small-button[aria-expanded='true'] {
@@ -1702,7 +1704,6 @@ input[type='search'] {
 /* The loop shown over the lanes while it is on. */
 .region-shade.song-shade {
   z-index: 1;
-  background: rgb(12 13 15 / 0.6);
 }
 
 .ruler-bar {
@@ -1852,15 +1853,6 @@ input[type='search'] {
   background: rgb(236 233 226 / 0.25);
 }
 
-.timeline-playhead {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--text);
-  pointer-events: none;
-  z-index: 2;
-}
 
 /* Mods: each effect reads as a sentence; its words are its controls. */
 
@@ -2089,15 +2081,21 @@ input[type='search'] {
 }
 
 .icon-button.fold {
-  width: 28px;
-  min-height: 28px;
-  height: 28px;
+  width: 36px;
+  min-height: 36px;
+  height: 36px;
   flex: none;
 }
 
-/* What Play plays in Hits, and whether it loops. */
-.hits-play {
-  margin-bottom: 12px;
+/* Once/Loop and ▶, together wherever something plays. */
+.play-controls {
+  gap: 8px;
+}
+
+/* Where a thing comes from, and the tabs it continues in: links under its name. */
+.nav-row {
+  gap: 4px 14px;
+  flex-wrap: wrap;
 }
 
 .member.current {
@@ -2209,10 +2207,10 @@ input[type='search'] {
 }
 
 /* Delete break, with where the break is used next to it. */
-.delete-break {
+.delete-button {
   gap: 6px;
 }
 
-.delete-break .in-use {
+.delete-button .in-use {
   margin-left: 0;
 }

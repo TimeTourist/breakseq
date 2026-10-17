@@ -108,7 +108,7 @@ describe('Markers in Slice', () => {
   it('←/→ nudges the selected marker by 1 ms, Shift by 10 ms', async () => {
     const store = await sliceSetup();
     const before = markers(store)[2]!;
-    const marker = button(/^Marker 3 at/);
+    const marker = button(/^Marker 03 at/);
     fireEvent.focus(marker);
 
     fireEvent.keyDown(marker, { key: 'ArrowRight' });
@@ -117,9 +117,9 @@ describe('Markers in Slice', () => {
     expect(markers(store)[2]).toBeCloseTo(before + 0.001 - 0.01, 6);
   });
 
-  it('Add marker splits the selected slice, and Remove marker takes it out again', async () => {
+  it('Add marker splits the selected slice, and Delete marker takes it out again', async () => {
     const store = await sliceSetup();
-    fireEvent.click(button('Play slice 4'));
+    fireEvent.click(button('Play slice 04'));
     const [a, b] = [markers(store)[3]!, markers(store)[4]!];
 
     fireEvent.click(button('Add marker'));
@@ -127,7 +127,7 @@ describe('Markers in Slice', () => {
     expect(markers(store)[4]).toBeCloseTo((a + b) / 2);
     expect(brk(store).pads).toHaveLength(17);
 
-    fireEvent.click(button('Remove marker'));
+    fireEvent.click(button('Delete marker'));
     expect(markers(store)).toHaveLength(16);
     // The 17th pad stays, silent.
     expect(brk(store).pads).toHaveLength(17);
@@ -139,8 +139,8 @@ describe('Markers in Slice', () => {
     expect(brk(store).pads).toHaveLength(16);
     expect(Object.values(store.getState().history.present.loops).map((l) => l.name)).toEqual(['amen 1']);
 
-    fireEvent.click(button('Play slice 2'));
-    fireEvent.click(button('Remove marker'));
+    fireEvent.click(button('Play slice 02'));
+    fireEvent.click(button('Delete marker'));
     expect(screen.queryByRole('alert')).toBeNull();
     expect(markers(store)).toHaveLength(15);
   });
@@ -156,7 +156,7 @@ describe('Playing while trimming', () => {
     const player = fakeServices().player;
     fireEvent.click(button('Trim amen trim 1'));
 
-    fireEvent.click(button('Play trimmed'));
+    fireEvent.click(button('Play trim'));
     expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(true);
 
     fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '100' } });
@@ -169,7 +169,7 @@ describe('Playing while trimming', () => {
   it('a one-shot loops by default, as everything does', async () => {
     await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'import');
     fireEvent.click(button('Trim snare trim 1'));
-    fireEvent.click(button('Play trimmed'));
+    fireEvent.click(button('Play trim'));
     expect(vi.mocked(fakeServices().player.audition).mock.calls.at(-1)?.[4]).toBe(true);
   });
 });
@@ -202,10 +202,10 @@ describe('files, trims and breaks in the GUI', () => {
     expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: brk.id });
   });
 
-  it('Slice has no Replace sample; Hits → opens the break, and Slice → one-shot makes a one-shot of the slice', async () => {
+  it('Slice has no Replace sample; Hits → opens the break, and Make one-shot makes a one-shot of the slice', async () => {
     const store = await setup(await sliced(), 'slice');
     expect(screen.queryByRole('button', { name: 'Replace sample…' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Slice → one-shot' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Make one-shot' }));
     expect(Object.values(store.getState().history.present.breaks).map((b) => b.name)).toEqual(['amen 1', 'amen 2']);
     fireEvent.click(screen.getAllByRole('button', { name: 'Hits →' })[0]!);
     const brk = Object.values(store.getState().history.present.breaks)[0]!;

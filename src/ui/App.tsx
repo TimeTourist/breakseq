@@ -302,7 +302,18 @@ function Shell() {
       />
       {view === 'import' && <ImportView playheadSeconds={playingKey?.startsWith('sample:') === true ? playhead.seconds : null} />}
       {view === 'slice' && <SliceView />}
-      {view === 'hits' && <HitsView />}
+      {view === 'hits' && (
+        <HitsView
+          transport={{
+            playing: playing && playingKey !== 'snapshot',
+            onToggle: () => toggle.current(),
+            played:
+              playing && playingKey !== null && playhead.seconds !== null && shown?.key === playingKey
+                ? { key: playingKey, seconds: playhead.seconds, duration: shown.take.buffer.duration }
+                : null,
+          }}
+        />
+      )}
       {view === 'loops' && <LoopsView playhead={playhead.trigger} />}
       {view === 'mods' && <ModsView />}
       {view === 'project' && (

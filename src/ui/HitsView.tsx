@@ -19,7 +19,6 @@ import {
   isParentPad,
   movePadMember,
   parentHit,
-  remove,
   removePadMember,
   sampleAudio,
   renamePad,
@@ -32,12 +31,14 @@ import {
 } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import type { Selection } from './store';
-import { PlayMode } from './AuditionPlayhead';
 import { BreakOrigin } from './BreakOrigin';
 import { DeleteBreak } from './DeleteBreak';
+import { Delete } from './DeleteButton';
+import { PlayControls } from './PlayControls';
+import { RegionHandle } from './RegionHandle';
 import { decodeAudioFile } from '../engine';
 import { PlayIcon } from './icons';
-import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, HIT_COLOR, hitUsages, padGroups, padLabel, padUsages, replacedBy } from './labels';
+import { CHOICE_LABEL, DIST_MODES, FILTER_TYPES, padGroups, padLabel, padUsages, replacedBy } from './labels';
 import { Slider } from './Slider';
 import { Waveform } from './Waveform';
 
@@ -80,7 +81,15 @@ export function hitsOpen(project: Project, selection: Pick<Selection, 'pad' | 'h
  * with its parent as heading and its pads in order, then one-shots and pads
  * built by hand. On the right the open pad's hits, and the hit being edited.
  */
-export function HitsView() {
+/** The main Play while it plays what Hits shows: where it is in the take, and how long the take is. */
+export interface HitsPlay {
+  readonly playing: boolean;
+  readonly onToggle: () => void;
+  /** The key of what plays (see subjectOf), with seconds into its take and the take's length. */
+  readonly played: { readonly key: string; readonly seconds: number; readonly duration: number } | null;
+}
+
+export function HitsView({ transport }: { readonly transport: HitsPlay }) {
   const project = useProject();
   const { services, store } = useApp();
   const run = useRun();
@@ -94,18 +103,30 @@ export function HitsView() {
   const hitsLoop = useSelect((s) => s.hitsLoop);
   const unfolded = useSelect((s) => s.unfolded);
   const isFolded = (id: Id | undefined) => !unfolded.includes(id ?? '');
-  const playing = parentOpen
+  const playsText = parentOpen
     ? `${project.breaks[hit?.breakId ?? '']?.name ?? 'the break'} as laid out, with its pads`
     : picked
       ? (hit?.name ?? '')
       : pad === undefined
         ? 'nothing'
         : `pad ${pad.name}, as it picks (${CHOICE_LABEL[pad.choice]})`;
+  /** Once/Loop and ▶, next to what the main Play plays here: the pad, or the hit picked in it. */
+  const playControls = (what: string) => (
+    <PlayControls
+      what={what}
+      playing={transport.playing}
+      onToggle={transport.onToggle}
+      loop={hitsLoop}
+      onLoop={(loop) => store.dispatch({ type: 'hitsLoop', loop })}
+      title={`Plays ${playsText} · Space plays and stops`}
+    />
+  );
   const groups = padGroups(project);
   /** Slot pads past their break's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
   const [replacing, setReplacing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const wave = useRef<HTMLDivElement>(null);
 
   const newPad = () => {
     const before = store.getState().history.present.pads;
@@ -121,14 +142,17 @@ export function HitsView() {
   const allOpen = foldable.every((id) => !isFolded(id));
   const sidebar = (
     <aside className="sidebar" aria-label="Breaks and pads">
-      {foldable.length > 0 && (
-        <div className="row spread">
-          <h2 className="label">Breaks</h2>
+      <div className="row spread">
+        <h2 className="label">Pads</h2>
+        {foldable.length > 0 && (
           <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'fold', breakIds: foldable, folded: allOpen })}>
             {allOpen ? 'Collapse all' : 'Expand all'}
           </button>
-        </div>
-      )}
+        )}
+      </div>
+      <button type="button" className="dashed" onClick={newPad}>
+        + New pad
+      </button>
       {groups.map((group) => {
         const parentId = group.breakId === undefined ? null : (project.breaks[group.breakId]?.parent ?? null);
         const parent = parentId === null ? undefined : project.hits[parentId];
@@ -160,7 +184,7 @@ export function HitsView() {
               <h2 className="label">{group.name}</h2>
             )}
             {(parent === undefined || !isFolded(group.breakId)) && group.items.map((p) => (
-              <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}${silent.has(p.id) ? ' silent' : ''}`} title={silent.has(p.id) ? 'Silent: the break has fewer slices than this slot' : undefined}>
+              <div key={p.id} className={`pad-row${p.id === pad?.id ? ' current' : ''}${silent.has(p.id) ? ' silent' : ''}`} title={silent.has(p.id) ? 'Silent: the break has fewer slices than this pad' : undefined}>
                 <button type="button" className="pad-row-name mono" aria-label={`Pad ${p.name}`} onClick={() => open({ pad: p.id, hit: null }, 'hits')}>
                   {padLabel(p)}
                 </button>
@@ -191,9 +215,6 @@ export function HitsView() {
           </section>
         );
       })}
-      <button type="button" className="dashed" onClick={newPad}>
-        + New pad
-      </button>
     </aside>
   );
 
@@ -215,10 +236,6 @@ export function HitsView() {
     <div className="split">
       {sidebar}
       <main className="view">
-        <div className="row hits-play">
-          <PlayMode loop={hitsLoop} onChange={(loop) => store.dispatch({ type: 'hitsLoop', loop })} />
-          <span className="muted small ellipsis">Play (Space) plays {playing}</span>
-        </div>
         {error !== null && (
           <p className="error" role="alert">
             {error}
@@ -259,27 +276,8 @@ export function HitsView() {
           />
           <span className="muted small">A step lock goes first, then a mod, then the pad's own choice.</span>
           <div className="row push">
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Preview pad"
-              disabled={pad.members.length === 0}
-              onClick={() => pad.members[0] !== undefined && services.player.playHit(project, pad.members[0])}
-            >
-              <PlayIcon />
-            </button>
-            <button
-              type="button"
-              disabled={usages.length > 0}
-              title={usages.length > 0 ? 'In use: take it out of its loops first' : undefined}
-              onClick={() => {
-                const failed = run(remove('pad', pad.id));
-                if (failed === null) open({ pad: null, hit: null }, 'hits');
-                else onError(failed);
-              }}
-            >
-              Delete pad
-            </button>
+            {!picked && pad.members.length > 0 && playControls('pad')}
+            <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} onDeleted={() => open({ pad: null, hit: null }, 'hits')} />
           </div>
         </div>
 
@@ -406,13 +404,13 @@ export function HitsView() {
         </select>
         {brk !== undefined && brk.bars !== null && (
           <select
-            aria-label="Slot the hit plays"
+            aria-label="Slice the hit plays"
             value={hit.slot === null ? 'whole' : String(hit.slot)}
             onChange={(e) => setError(run(setHitSource(hit.id, brk.id, e.target.value === 'whole' ? null : Number(e.target.value))))}
           >
             {Array.from({ length: slots }, (_, i) => (
               <option key={i} value={i}>
-                Slot {String(i + 1).padStart(2, '0')}
+                Slice {String(i + 1).padStart(2, '0')}
                 {i >= brk.markers.length ? ' (silent)' : ''}
               </option>
             ))}
@@ -588,7 +586,6 @@ export function HitsView() {
     const brk = project.breaks[hit.breakId];
     const sample = brk === undefined ? undefined : project.samples[brk.sampleId];
     const audio = sample === undefined ? undefined : sampleAudio(project, sample);
-    const usages = hitUsages(project, hit.id);
     const source = hit.variantOf === null ? undefined : project.hits[hit.variantOf];
     const edit = (patch: Partial<Omit<Hit, 'id' | 'breakId' | 'slot'>>, field: string) => onError(run(updateHit(hit.id, patch), `hit:${hit.id}:${field}`));
     // The slice the hit plays, in seconds of its sample; the region is a part of it.
@@ -596,6 +593,42 @@ export function HitsView() {
     const duration = window === null ? 0 : window.end - window.start;
     const region = { start: hit.region.start * duration, end: hit.region.end * duration };
     const toPart = (seconds: number) => (duration > 0 ? seconds / duration : 0);
+    const setStart = (seconds: number) => edit({ region: { start: Math.max(0, Math.min(toPart(seconds), hit.region.end - toPart(0.001))), end: hit.region.end } }, 'start');
+    const setEnd = (seconds: number) => edit({ region: { start: hit.region.start, end: Math.min(1, Math.max(toPart(seconds), hit.region.start + toPart(0.001))) } }, 'end');
+    /** One end of the region, as Trim's: dragged, or moved with ←/→ (Shift: 10 ms). */
+    const handle = (which: 'start' | 'end') => (
+      <RegionHandle
+        which={which}
+        left={`${(which === 'start' ? hit.region.start : hit.region.end) * 100}%`}
+        label={`${which === 'start' ? 'Start' : 'End'} at ${ms(which === 'start' ? region.start : region.end)} ms`}
+        onDrag={(x) => {
+          const rect = wave.current?.getBoundingClientRect();
+          if (rect === undefined || rect.width === 0) return;
+          const t = Math.max(0, Math.min(1, (x - rect.left) / rect.width)) * duration;
+          if (which === 'start') setStart(t);
+          else setEnd(t);
+        }}
+        onNudge={(direction, big) => {
+          const delta = (direction * (big ? 10 : 1)) / 1000;
+          if (which === 'start') setStart(region.start + delta);
+          else setEnd(region.end + delta);
+        }}
+        onDone={seal}
+      />
+    );
+    // Where the main Play is, as a part of the waveform: through the region for the hit, through the whole break for a parent.
+    const played = transport.played;
+    const through = played === null || played.duration <= 0 ? null : Math.min(1, Math.max(0, played.seconds / played.duration));
+    const playhead =
+      through === null || played === null
+        ? null
+        : isParentHit(project, hit) && played.key.startsWith(`break:${hit.breakId}:`)
+          ? through
+          : played.key.startsWith(`hit:${hit.id}:`)
+            ? hit.direction === 'reverse'
+              ? hit.region.end - through * (hit.region.end - hit.region.start)
+              : hit.region.start + through * (hit.region.end - hit.region.start)
+            : null;
     const what =
       brk === undefined
         ? 'a missing break'
@@ -603,7 +636,7 @@ export function HitsView() {
           ? `all of ${brk.name}`
           : brk.bars === null
             ? brk.name
-            : `slot ${String(hit.slot + 1).padStart(2, '0')} of ${brk.name}`;
+            : `slice ${String(hit.slot + 1).padStart(2, '0')} of ${brk.name}`;
     const parent = parentHit(project, hit);
     /** The hit that is its break: a parent, or a one-shot's own hit. */
     const ownsBreak = brk !== undefined && (isParentHit(project, hit) || (brk.bars === null && hit.variantOf === null && hit.name === brk.name));
@@ -638,9 +671,7 @@ export function HitsView() {
             </p>
           </div>
           <div className="row push">
-            <button type="button" className="icon-button" aria-label="Preview hit" onClick={() => services.player.playHit(project, hit.id)}>
-              <PlayIcon />
-            </button>
+            {(picked || parentOpen) && playControls(parentOpen ? 'break' : 'hit')}
             {!isParentHit(project, hit) && (
               <button type="button" aria-expanded={replacing} onClick={() => setReplacing(!replacing)}>
                 Replace…
@@ -677,22 +708,9 @@ export function HitsView() {
               </button>
             )}
             {brk !== undefined && (isParentHit(project, hit) || (brk.bars === null && hit.variantOf === null)) && (
-              <DeleteBreak brk={brk} onError={onError} onDeleted={() => open({ hit: null, pad: null }, 'hits')} links />
+              <DeleteBreak brk={brk} onError={onError} onDeleted={() => open({ hit: null, pad: null }, 'hits')} />
             )}
-            {!ownsBreak && (
-              <button
-                type="button"
-                disabled={usages.length > 0}
-                title={usages.length > 0 ? 'In use: remove it from its pads first' : undefined}
-                onClick={() => {
-                  const failed = run(remove('hit', hit.id));
-                  if (failed === null) open({ hit: null }, 'hits');
-                  else onError(failed);
-                }}
-              >
-                Delete hit
-              </button>
-            )}
+            {!ownsBreak && <Delete kind="hit" id={hit.id} name={hit.name} onError={onError} onDeleted={() => open({ hit: null }, 'hits')} />}
           </div>
         </div>
 
@@ -734,16 +752,11 @@ export function HitsView() {
 
         {audio !== undefined && sample !== undefined && window !== null && duration > 0 && (
           <div className="panel wave-panel">
-            <div className="row spread mono small muted">
-              <span>
-                Region {ms(region.start)}–{ms(region.end)} ms of {ms(duration)} ms
-              </span>
-              {hit.direction === 'reverse' && <span>plays reversed</span>}
-            </div>
-            <div className="wave-region">
-              <Waveform audio={audio} offset={sample.offset + window.start} duration={duration} height={180} color={HIT_COLOR} />
+            <div className="wave-region" ref={wave}>
+              <Waveform audio={audio} offset={sample.offset + window.start} duration={duration} height={180} />
               <div className="region-shade" style={{ left: 0, width: `${hit.region.start * 100}%` }} />
               <div className="region-shade" style={{ left: `${hit.region.end * 100}%`, right: 0 }} />
+              {playhead !== null && <div className="playhead" style={{ left: `${playhead * 100}%` }} />}
               {/* The parent shows where its slices are; a double-click edits one in Slice, where markers are moved. */}
               {isParentHit(project, hit) &&
                 brk !== undefined &&
@@ -769,31 +782,27 @@ export function HitsView() {
                     </button>
                   );
                 })}
+              {handle('start')}
+              {handle('end')}
             </div>
+            <div className="row">
+              <label className="field">
+                Start ms
+                <input type="number" min={0} max={ms(region.end) - 1} value={ms(region.start)} onChange={(e) => setStart(Number(e.target.value) / 1000)} onBlur={seal} />
+              </label>
+              <label className="field">
+                End ms
+                <input type="number" min={ms(region.start) + 1} max={ms(duration)} value={ms(region.end)} onChange={(e) => setEnd(Number(e.target.value) / 1000)} onBlur={seal} />
+              </label>
+              <span className="mono muted small">
+                {ms(region.end - region.start)} ms of {ms(duration)} ms{hit.direction === 'reverse' ? ' · plays reversed' : ''}
+              </span>
+            </div>
+            <p className="muted small">Drag the handles, or focus one and use ←/→ (Shift: 10 ms).</p>
           </div>
         )}
 
         <div className="slider-grid">
-          <Slider
-            label="Region start"
-            value={ms(region.start)}
-            min={0}
-            max={ms(duration)}
-            step={1}
-            format={(v) => `${v} ms`}
-            onChange={(v) => edit({ region: { start: Math.min(toPart(v / 1000), hit.region.end - toPart(0.001)), end: hit.region.end } }, 'start')}
-            onCommit={seal}
-          />
-          <Slider
-            label="Region end"
-            value={ms(region.end)}
-            min={0}
-            max={ms(duration)}
-            step={1}
-            format={(v) => `${v} ms`}
-            onChange={(v) => edit({ region: { start: hit.region.start, end: Math.max(toPart(v / 1000), hit.region.start + toPart(0.001)) } }, 'end')}
-            onCommit={seal}
-          />
           <div className="panel stack-tight">
             <span className="label">Direction</span>
             <div className="segmented full" role="group" aria-label="Direction">

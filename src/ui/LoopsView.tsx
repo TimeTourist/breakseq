@@ -1,11 +1,12 @@
 import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, holds, holdsIn, loopBreaks, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
+import { STEPS_PER_BAR, baseName, createLoop, holds, holdsIn, loopBreaks, moveSteps, placeBreak, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { CHOICE_LABEL, HIT_COLOR, lengthText, loopUsage, padGroups, padLabel, padSteps, replacedBy } from './labels';
+import { CHOICE_LABEL, HIT_COLOR, lengthText, padGroups, padLabel, padSteps, replacedBy } from './labels';
 import { LoopLength } from './LoopLength';
+import { Delete } from './DeleteButton';
 import type { Selection } from './store';
 
 export const PAD_MIME = 'application/x-breakseq-pad';
@@ -72,6 +73,9 @@ export function LoopsView({ playhead }: LoopsViewProps) {
     <aside className="sidebar narrow" aria-label="Loops">
       <section className="stack-tight">
         <h2 className="label">Loops</h2>
+        <button type="button" className="dashed" onClick={() => newLoop('main')}>
+          + New loop
+        </button>
         {loops.map((l) => (
           <button
             key={l.id}
@@ -86,9 +90,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             <span className="mono muted small">{lengthText(l.steps.length)}</span>
           </button>
         ))}
-        <button type="button" className="dashed" onClick={() => newLoop('main')}>
-          + New loop
-        </button>
       </section>
       <section className="stack-tight" aria-label="Choose what shows">
         <div className="row spread">
@@ -188,7 +189,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const selectedStep = selection.step !== null && selection.step < loop.steps.length ? selection.step : null;
   const step = selectedStep === null ? undefined : loop.steps[selectedStep];
   const stepPad = step?.padId == null ? undefined : project.pads[step.padId];
-  const usedInSong = loopUsage(project, loop.id);
 
   const range =
     selectedStep === null || rangeEnd === null || rangeEnd >= loop.steps.length
@@ -266,18 +266,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             <button type="button" disabled={range === null && step?.padId == null} onClick={clearSelected}>
               {range === null ? 'Clear step' : `Clear ${range.to - range.from + 1} steps`}
             </button>
-            <button
-              type="button"
-              disabled={usedInSong > 0}
-              title={usedInSong > 0 ? 'In use: take it out of the song first' : undefined}
-              onClick={() => {
-                const failed = run(remove('loop', loop.id));
-                if (failed === null) open({ loop: null, step: null }, 'loops');
-                else setError(failed);
-              }}
-            >
-              Delete loop
-            </button>
+            <Delete kind="loop" id={loop.id} name={loop.name} onError={setError} onDeleted={() => open({ loop: null, step: null }, 'loops')} />
           </div>
         </div>
 
@@ -495,7 +484,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     {stepPad.name}
                   </span>
                   <button type="button" className="link-text small" onClick={() => open({ pad: stepPad.id, hit: null }, 'hits')}>
-                    Edit in Hits →
+                    Hits →
                   </button>
                 </div>
               )}

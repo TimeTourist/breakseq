@@ -395,6 +395,37 @@ export const remove =
     return ok({ ...project, [key]: without<unknown>(project[key], id) });
   };
 
+/**
+ * Removes a pad, hit, loop or mod even where it is used, which goes silent:
+ * steps with the pad are emptied, the hit leaves its pads and step locks, and
+ * clips of the loop or mod leave the song. A break's own pads and parent stay;
+ * they go with the break (see removeBreak).
+ */
+export const removeAnyway =
+  (kind: Exclude<ReferableKind, 'sample'>, id: Id): Command =>
+  (project) => {
+    const key = collection[kind];
+    if (project[key][id] === undefined) return notFound(id);
+    const owners = findUsages(project, kind, id).filter((u) => u.kind === 'break');
+    if (owners.length > 0) return fail({ kind: 'in-use', usages: owners });
+    const rest: Project = { ...project, [key]: without<unknown>(project[key], id) };
+    const steps = (change: (s: Step) => Step): Record<Id, Loop> =>
+      Object.fromEntries(Object.entries(rest.loops).map(([lid, l]): [Id, Loop] => [lid, l.steps.some((s) => change(s) !== s) ? { ...l, steps: l.steps.map(change) } : l]));
+    switch (kind) {
+      case 'pad':
+        return ok({ ...rest, loops: steps((s) => (s.padId === id ? emptyStep : s)) });
+      case 'hit':
+        return ok({
+          ...rest,
+          pads: Object.fromEntries(Object.entries(rest.pads).map(([pid, p]): [Id, Pad] => [pid, p.members.includes(id) ? { ...p, members: p.members.filter((m) => m !== id) } : p])),
+          loops: steps((s) => (s.memberId === id ? { ...s, memberId: null } : s)),
+        });
+      case 'loop':
+      case 'mod':
+        return ok({ ...rest, song: { ...rest.song, clips: rest.song.clips.filter((c) => c.ref !== id) } });
+    }
+  };
+
 /** Swaps in a whole project, as when opening a project file. Undo brings the old one back. */
 export const replaceProject =
   (next: Project): Command =>
