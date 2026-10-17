@@ -47,5 +47,5 @@ export function useDropTargets() {
       },
     };
   };
-  return { bind, isOver: (key: string) => over === key, clear: () => setOver(null) };
+  return { bind, over, isOver: (key: string) => over === key, clear: () => setOver(null) };
 }

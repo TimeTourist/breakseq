@@ -2198,3 +2198,17 @@ input[type='search'] {
 .hit-chip.static {
   cursor: default;
 }
+
+/* Where what is dragged from the pad shelf lands, and what it writes over. */
+.hold.landing {
+  z-index: 2;
+  border: 2px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.chip-steps {
+  margin-left: 2px;
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 400;
+}

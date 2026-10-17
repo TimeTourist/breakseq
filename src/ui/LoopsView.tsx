@@ -4,7 +4,7 @@ import type { Id, LoopKind, Project } from '../model';
 import { STEPS_PER_BAR, baseName, createLoop, holds, holdsIn, loopBreaks, moveSteps, placeBreak, remove, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
 import { STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { CHOICE_LABEL, HIT_COLOR, lengthText, loopUsage, padGroups, padLabel, replacedBy } from './labels';
+import { CHOICE_LABEL, HIT_COLOR, lengthText, loopUsage, padGroups, padLabel, padSteps, replacedBy } from './labels';
 import { LoopLength } from './LoopLength';
 import type { Selection } from './store';
 
@@ -39,6 +39,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const [shelfBreak, setShelfBreak] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
   const drops = useDropTargets();
+  /** How many steps what is dragged from the shelf takes, to show where it lands. */
+  const [dragSteps, setDragSteps] = useState<number | null>(null);
   // The other end of a Shift-click range; the selected step is the first end.
   const [rangeEnd, setRangeEnd] = useState<number | null>(null);
   const loopId = currentLoopId(project, selection);
@@ -46,10 +48,15 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   /** How much of each step the sounds cover: a hit's own step, and its tail over the steps after it. */
   // Each hit holds the steps up to the next one, drawn as one box.
   const held = loop === undefined ? [] : holds(loop.steps.map((s) => s.padId != null));
+  /** Where what is dragged from the shelf would land, up to the loop's end. */
+  const overStep = drops.over?.startsWith('step:') === true ? Number(drops.over.slice('step:'.length)) : null;
+  const landing =
+    loop === undefined || dragSteps === null || overStep === null ? null : { start: overStep, length: Math.min(dragSteps, loop.steps.length - overStep) };
   /** Slot pads past their break's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
   const swappable = Object.values(project.breaks);
   const groups = padGroups(project);
+  const breakSteps = (id: Id) => (project.breaks[id]?.bars ?? 1) * STEPS_PER_BAR;
   const allOpen = groups.length > 0 && groups.every((g) => shelfOpen.includes(groupKey(g)));
 
   const newLoop = (kind: LoopKind) => {
@@ -287,6 +294,10 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                 {holdsIn(held, bar * STEPS_PER_BAR, (bar + 1) * STEPS_PER_BAR).map((h) => (
                   <span key={`hold-${h.start}`} className="hold" style={{ gridColumn: `${h.start - bar * STEPS_PER_BAR + 2} / span ${h.length}`, gridRow: 1 }} aria-hidden="true" />
                 ))}
+                {landing !== null &&
+                  holdsIn([landing], bar * STEPS_PER_BAR, (bar + 1) * STEPS_PER_BAR).map((h) => (
+                    <span key="landing" className="hold landing" style={{ gridColumn: `${h.start - bar * STEPS_PER_BAR + 2} / span ${h.length}`, gridRow: 1 }} aria-hidden="true" />
+                  ))}
               </div>
               </Fragment>
             ))}
@@ -325,9 +336,14 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onDragStart={(e) => {
                       e.dataTransfer.setData(BREAK_MIME, group.breakId!);
                       e.dataTransfer.effectAllowed = 'copy';
+                      setDragSteps(breakSteps(group.breakId!));
+                    }}
+                    onDragEnd={() => {
+                      setDragSteps(null);
+                      drops.clear();
                     }}
                   >
-                    {baseName(group.name)} ▸ all
+                    {baseName(group.name)} ▸ all <span className="chip-steps">{lengthText(breakSteps(group.breakId!))}</span>
                   </button>
                 )}
                 {group.items.map((p) => (
@@ -339,7 +355,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onDoubleClick={() => open({ pad: p.id, hit: null }, 'hits')}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
-                    title={silent.has(p.id) ? `${p.name}: silent, the break has fewer slices` : p.name}
+                    title={silent.has(p.id) ? `${p.name}: silent, the break has fewer slices` : `${p.name} · ${lengthText(padSteps(project, p))}`}
                     style={{ color: HIT_COLOR, boxShadow: `inset 0 -3px 0 ${HIT_COLOR}` }}
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);
@@ -348,9 +364,14 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onDragStart={(e) => {
                       e.dataTransfer.setData(PAD_MIME, p.id);
                       e.dataTransfer.effectAllowed = 'copy';
+                      setDragSteps(padSteps(project, p));
+                    }}
+                    onDragEnd={() => {
+                      setDragSteps(null);
+                      drops.clear();
                     }}
                   >
-                    {padLabel(p)}
+                    {padLabel(p)} <span className="chip-steps">·{padSteps(project, p)}</span>
                   </button>
                 ))}
               </div>

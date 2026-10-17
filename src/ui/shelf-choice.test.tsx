@@ -92,3 +92,22 @@ describe('choosing what the pad shelf in Loops shows', () => {
     expect(chooser.queryByText('hat')).toBeNull();
   });
 });
+
+describe('how long what is dragged from the shelf is', () => {
+  it('shows a pad’s steps on its chip, and where it lands while dragged over a step', async () => {
+    const { project, loop } = hats();
+    const steps = Math.ceil(0.1 / (60 / project.song.bpm / 4) - 1e-9);
+    await setup(project, 'loops', { loop: loop.id });
+    const chip = screen.getByRole('button', { name: 'Pad hat' });
+    expect(chip.textContent).toBe(`hat ·${steps}`);
+
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? '', get types() { return [...data.keys()]; }, effectAllowed: 'all', dropEffect: 'copy' };
+    fireEvent.dragStart(chip, { dataTransfer });
+    fireEvent.dragOver(screen.getByRole('button', { name: 'Bar 1, step 3: empty' }), { dataTransfer });
+    const landing = document.querySelector('.hold.landing') as HTMLElement;
+    expect(landing.style.gridColumn).toBe(`4 / span ${steps}`);
+    fireEvent.dragEnd(chip, { dataTransfer });
+    expect(document.querySelector('.hold.landing')).toBeNull();
+  });
+});
