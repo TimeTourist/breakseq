@@ -257,7 +257,7 @@ describe('the same controls everywhere, in Hits', () => {
     act(() => void store.dispatch({ type: 'run', command: (q) => ({ ok: true, project: { ...q, hits: { ...q.hits, [hit]: { ...q.hits[hit]!, region: { start: 0.2, end: 0.6 } } } } }) }));
     await settle();
     const hitPanel = screen.getByRole('region', { name: 'Hit' });
-    expect(within(hitPanel).getByRole('group', { name: 'Play mode' })).toBeTruthy();
+    expect(within(hitPanel).getByRole('button', { name: 'Loop' }).getAttribute('aria-pressed')).not.toBeNull();
     // Halfway through the 0.5 s take is halfway through the region.
     at(0.25);
     fireEvent.click(within(hitPanel).getByRole('button', { name: 'Play hit' }));
