@@ -4,6 +4,7 @@ import type { Project } from '../model';
 import { stepDuration } from '../model';
 import type { BackupInfo } from './backups';
 import { backupDue, summarize } from './backups';
+import { followBrowserHistory } from './browserHistory';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
 import { HitsView } from './HitsView';
@@ -349,6 +350,8 @@ function Shell() {
 
 export function App({ store, services }: { readonly store: Store; readonly services: Services }) {
   const value = useMemo(() => ({ store, services }), [store, services]);
+  // Browser Back and Forward go between tabs.
+  useEffect(() => followBrowserHistory(store), [store]);
   return (
     <AppContext.Provider value={value}>
       <Shell />

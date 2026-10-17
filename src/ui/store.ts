@@ -18,6 +18,11 @@ export interface Selection {
   readonly previewLoop: Id | null;
 }
 
+/** Where one is in the app: the tab and what is open in it. Browser Back and Forward go between places. */
+export type Place = Pick<AppState, 'view' | 'selection' | 'sliceTarget' | 'trimming'>;
+
+export const placeOf = ({ view, selection, sliceTarget, trimming }: AppState): Place => ({ view, selection, sliceTarget, trimming });
+
 /** The project folder open in Project, and which snapshot the work was last saved to. */
 export interface ProjectFolderState {
   readonly folder: Folder | null;
@@ -62,6 +67,7 @@ export type Action =
   | { readonly type: 'undo' }
   | { readonly type: 'redo' }
   | { readonly type: 'view'; readonly view: View }
+  | { readonly type: 'place'; readonly place: Place }
   | { readonly type: 'sliceTarget'; readonly breakId: string | null; readonly slice?: number }
   /** Swaps in a project and starts a new undo history, as a loaded snapshot does. */
   | { readonly type: 'load'; readonly project: Project }
@@ -112,6 +118,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, history: redo(state.history) }, error: null };
     case 'view':
       return { state: { ...state, view: action.view }, error: null };
+    case 'place':
+      return { state: { ...state, ...action.place }, error: null };
     case 'sliceTarget':
       return { state: { ...state, sliceTarget: action.breakId, sliceSelected: action.slice ?? 0 }, error: null };
     case 'load':
