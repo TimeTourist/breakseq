@@ -172,3 +172,17 @@ describe('the Hits list', () => {
     expect(chip.className).toContain('replaced');
   });
 });
+
+describe('Clone break in Hits', () => {
+  it('copies the open parent’s break and opens the copy', async () => {
+    const p = split();
+    const brk = brkOf(p);
+    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, hit: brk.parent } });
+    fireEvent.click(screen.getByRole('button', { name: 'Clone break' }));
+    const breaks = Object.values(store.getState().history.present.breaks);
+    const copy = breaks.find((b) => b.id !== brk.id)!;
+    expect(copy.name).toBe('amen copy');
+    expect(store.getState().selection.hit).toBe(copy.parent);
+    expect(screen.getByRole('button', { name: /^Undo: add break amen copy/ })).toBeTruthy();
+  });
+});

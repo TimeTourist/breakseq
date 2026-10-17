@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Hit, HitDist, HitFilter, HitStretch, Id, Pad, Project, StretchMode } from '../model';
 import {
+  cloneBreak,
   addPadMember,
   addVariant,
   MAX_CUTOFF,
@@ -637,6 +638,21 @@ export function HitsView() {
                 }}
               >
                 Variant
+              </button>
+            )}
+            {children > 0 && brk !== undefined && (
+              <button
+                type="button"
+                title="A copy of the whole break, with its own pads, hits and loop, to change apart from this one"
+                onClick={() => {
+                  const before = store.getState().history.present.breaks;
+                  if (run(cloneBreak(brk.id)) === null) {
+                    const copy = Object.values(store.getState().history.present.breaks).find((b) => !(b.id in before));
+                    if (copy?.parent != null) open({ hit: copy.parent, pad: null }, 'hits');
+                  }
+                }}
+              >
+                Clone break
               </button>
             )}
             <button
