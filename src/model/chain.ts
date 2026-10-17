@@ -62,7 +62,7 @@ function withoutUnsliced(brk: Break): Break {
 /**
  * Marks a one-shot as a break to slice, or back: nothing is made or guessed
  * until it is sliced in Slice (`setBreak` with its bars). A sliced break goes
- * back to a one-shot with `setBreak(id, null)`.
+ * back to a one-shot with `makeOneShot`.
  */
 export const markBreak =
   (breakId: Id, asBreak: boolean): Command =>
@@ -241,28 +241,55 @@ function renameSlot(project: Project, brk: Break, slot: number): Project {
   };
 }
 
-/** What a break takes with it when removed: its parent and slot pads, their hits, hits of its slices, and its own loop. */
-function breakParts(project: Project, brk: Break) {
-  const pads = new Set(brk.pads);
+/**
+ * What a break takes with it when removed: its parent and slot pads, their
+ * hits, hits of its slices, and its own loop. Made a one-shot, it keeps slot
+ * 01's pad with its hits, and hits that play slot 01 or the whole break.
+ */
+function breakParts(project: Project, brk: Break, toOneShot = false) {
+  const kept = toOneShot ? brk.pads.slice(0, 1) : [];
+  const keptHits = new Set(kept.flatMap((p) => project.pads[p]?.members ?? []));
+  const pads = new Set(brk.pads.filter((p) => !kept.includes(p)));
   const inOtherPads = new Set(Object.values(project.pads).filter((p) => !pads.has(p.id)).flatMap((p) => p.members));
+  const ofBreak = Object.values(project.hits).filter((h) => h.breakId === brk.id && !(toOneShot && h.id !== brk.parent && (h.slot === 0 || h.slot === null)));
+  // Hits of later slices go even from slot 01's pad, where they would be silent.
   const hits = new Set([
     ...(brk.parent === null ? [] : [brk.parent]),
-    ...Object.values(project.hits).filter((h) => h.breakId === brk.id).map((h) => h.id),
-    ...brk.pads.flatMap((p) => project.pads[p]?.members ?? []).filter((h) => !inOtherPads.has(h)),
+    ...ofBreak.map((h) => h.id),
+    ...[...pads].flatMap((p) => project.pads[p]?.members ?? []).filter((h) => !inOtherPads.has(h) && !keptHits.has(h)),
   ]);
-  return { pads, hits, loop: brk.loop !== null && project.loops[brk.loop] !== undefined ? brk.loop : null, inOtherPads };
+  return { pads, hits, loop: brk.loop !== null && project.loops[brk.loop] !== undefined ? brk.loop : null, inOtherPads, kept: new Set(kept) };
+}
+
+const count = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;
+
+/** What goes, in words: "4 pads", "5 hits", "loop amen 1". */
+function takesText(project: Project, { pads, hits, loop }: ReturnType<typeof breakParts>): string[] {
+  const own = loop === null ? undefined : project.loops[loop];
+  return [...(pads.size > 0 ? [count(pads.size, 'pad')] : []), ...(hits.size > 0 ? [count(hits.size, 'hit')] : []), ...(own === undefined ? [] : [`loop ${own.name}`])];
 }
 
 /** What goes with a break when it is removed, said in words: "4 pads, 5 hits, loop amen 1", or a one-shot's "1 hit". */
 export function breakTakes(project: Project, breakId: Id): string[] {
   const brk = project.breaks[breakId];
   if (brk === undefined) return [];
-  const { pads, hits, loop } = breakParts(project, brk);
+  const parts = breakParts(project, brk);
+  const { pads, hits, loop } = parts;
   // A one-shot is its hit: its pad is not seen as one.
   if (brk.bars === null && pads.size <= 1 && hits.size <= 1 && loop === null) return ['1 hit'];
-  const count = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;
-  const own = loop === null ? undefined : project.loops[loop];
-  return [count(pads.size, 'pad'), count(hits.size, 'hit'), ...(own === undefined ? [] : [`loop ${own.name}`])];
+  return [count(pads.size, 'pad'), count(hits.size, 'hit'), ...takesText(project, { ...parts, pads: new Set(), hits: new Set() })];
+}
+
+/** What goes when a sliced break is made a one-shot: all but slot 01's pad and hit, and its own loop. */
+export function oneShotTakes(project: Project, breakId: Id): string[] {
+  const brk = project.breaks[breakId];
+  return brk === undefined || brk.bars === null ? [] : takesText(project, breakParts(project, brk, true));
+}
+
+/** Where a sliced break made a one-shot is used with what goes, which goes silent there. */
+export function oneShotUsages(project: Project, breakId: Id): Usage[] {
+  const brk = project.breaks[breakId];
+  return brk === undefined || brk.bars === null ? [] : usagesOf(project, breakParts(project, brk, true));
 }
 
 /**
@@ -272,8 +299,10 @@ export function breakTakes(project: Project, breakId: Id): string[] {
  */
 export function breakUsages(project: Project, breakId: Id): Usage[] {
   const brk = project.breaks[breakId];
-  if (brk === undefined) return [];
-  const { pads, hits, loop, inOtherPads } = breakParts(project, brk);
+  return brk === undefined ? [] : usagesOf(project, breakParts(project, brk));
+}
+
+function usagesOf(project: Project, { pads, hits, loop, inOtherPads, kept }: ReturnType<typeof breakParts>): Usage[] {
   const lent = [...hits].filter((h) => inOtherPads.has(h));
   return [
     ...Object.values(project.loops)
@@ -281,7 +310,7 @@ export function breakUsages(project: Project, breakId: Id): Usage[] {
       .map((l): Usage => ({ kind: 'loop', id: l.id, name: l.name })),
     ...(loop === null ? [] : findUsages(project, 'loop', loop)),
     ...Object.values(project.pads)
-      .filter((p) => !pads.has(p.id) && p.members.some((m) => lent.includes(m)))
+      .filter((p) => !pads.has(p.id) && !kept.has(p.id) && p.members.some((m) => lent.includes(m)))
       .map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name })),
   ];
 }
@@ -292,19 +321,58 @@ export function breakUsages(project: Project, breakId: Id): Usage[] {
  * Where it was used (see `breakUsages`) goes silent: steps with its pads are
  * emptied, clips of its loop leave the song, and its hits leave other pads.
  */
+const keep = <T,>(record: Readonly<Record<Id, T>>, gone: (id: Id) => boolean) =>
+  Object.fromEntries(Object.entries(record).filter(([id]) => !gone(id))) as Record<Id, T>;
+
 export const removeBreak =
   (breakId: Id): Command =>
   (project) => {
     const brk = project.breaks[breakId];
     if (brk === undefined) return notFound(breakId);
-    const { pads, hits, loop } = breakParts(project, brk);
-    const keep = <T,>(record: Readonly<Record<Id, T>>, gone: (id: Id) => boolean) =>
-      Object.fromEntries(Object.entries(record).filter(([id]) => !gone(id))) as Record<Id, T>;
     const breaks = keep(project.breaks, (id) => id === breakId);
     const sampleUsed = Object.values(breaks).some((b) => b.sampleId === brk.sampleId);
     const sample = project.samples[brk.sampleId];
     const samples = sampleUsed ? project.samples : keep(project.samples, (id) => id === brk.sampleId);
     const audioUsed = sample === undefined || Object.values(samples).some((s) => s.audioId === sample.audioId);
+    return ok({
+      ...dropParts(project, breakParts(project, brk)),
+      breaks,
+      samples,
+      audio: audioUsed ? project.audio : keep(project.audio, (id) => id === sample.audioId),
+    });
+  };
+
+/**
+ * A sliced break made a one-shot again: its slicing goes, as `removeBreak`
+ * would take it (parent, the pads after slot 01 and their hits, its own loop),
+ * and where those were used goes silent. Slot 01's pad and hit stay and play
+ * the whole sample, named after the break again.
+ */
+export const makeOneShot =
+  (breakId: Id): Command =>
+  (project) => {
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    if (brk.bars === null) return invalid('It is already a one-shot');
+    const next = dropParts(project, breakParts(project, brk, true));
+    const shot: Break = { ...withoutUnsliced(brk), bars: null, markers: [0], pads: brk.pads.slice(0, 1), parent: null, loop: null };
+    return ok(plainSlot(setBreakIn(next, shot), shot, slotName(brk, 0)));
+  };
+
+/** Slot 01's pad and hit named after the break again, if they still have the slot's name. */
+function plainSlot(project: Project, brk: Break, slot: string): Project {
+  const pad = project.pads[brk.pads[0] ?? ''];
+  const hit = pad === undefined ? undefined : project.hits[pad.members[0] ?? ''];
+  const plain = baseName(brk.name);
+  return {
+    ...project,
+    pads: pad === undefined || pad.name !== slot ? project.pads : { ...project.pads, [pad.id]: { ...pad, name: plain } },
+    hits: hit === undefined || hit.name !== slot ? project.hits : { ...project.hits, [hit.id]: { ...hit, name: plain } },
+  };
+}
+
+/** Removes pads, hits and a loop, silencing where they were used: steps emptied, clips out of the song, hits out of other pads. */
+function dropParts(project: Project, { pads, hits, loop }: ReturnType<typeof breakParts>): Project {
     const otherPads = keep(project.pads, (id) => pads.has(id));
     const loops = Object.fromEntries(
       Object.entries(keep(project.loops, (id) => id === loop)).map(([id, l]): [Id, Loop] => [
@@ -314,19 +382,16 @@ export const removeBreak =
           : l,
       ]),
     );
-    return ok({
+    return {
       ...project,
-      breaks,
-      samples,
-      audio: audioUsed ? project.audio : keep(project.audio, (id) => id === sample.audioId),
       pads: Object.fromEntries(
         Object.entries(otherPads).map(([id, p]): [Id, Pad] => [id, p.members.some((m) => hits.has(m)) ? { ...p, members: p.members.filter((m) => !hits.has(m)) } : p]),
       ),
       hits: keep(project.hits, (id) => hits.has(id)),
       loops,
       song: loop === null || !project.song.clips.some((c) => c.ref === loop) ? project.song : { ...project.song, clips: project.song.clips.filter((c) => c.ref !== loop) },
-    });
-  };
+    };
+}
 
 /** The breaks on trims of a file, in trim order. */
 export const fileBreaks = (project: Project, audioId: Id): Break[] =>

@@ -29,10 +29,17 @@ interface ConfirmDeleteProps {
   readonly goes: readonly string[];
   readonly usages: readonly Usage[];
   readonly onAnswer: (yes: boolean) => void;
+  /** The question, for other changes that take things with them: "Make amen 1 a one-shot?". */
+  readonly question?: string;
+  /** The button that does it. */
+  readonly action?: string;
 }
 
-/** What Delete asks, every time, in a dialog: what goes with it, and where it goes silent. */
-export function ConfirmDelete({ name, goes, usages, onAnswer }: ConfirmDeleteProps) {
+/**
+ * What Delete asks, every time, in a dialog: what goes with it, and where it
+ * goes silent. Other changes that take things with them ask the same way.
+ */
+export function ConfirmDelete({ name, goes, usages, onAnswer, question = `Delete ${name}?`, action = 'Delete' }: ConfirmDeleteProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -44,8 +51,8 @@ export function ConfirmDelete({ name, goes, usages, onAnswer }: ConfirmDeletePro
   }, [onAnswer]);
   return createPortal(
     <div className="dialog-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onAnswer(false)}>
-      <div className="dialog panel stack confirm-delete" role="alertdialog" aria-modal="true" aria-label={`Delete ${name}?`}>
-        <h2>Delete {name}?</h2>
+      <div className="dialog panel stack confirm-delete" role="alertdialog" aria-modal="true" aria-label={question}>
+        <h2>{question}</h2>
         {goes.length > 0 && (
           <div className="stack-tight">
             <span className="label">Goes with it</span>
@@ -72,7 +79,7 @@ export function ConfirmDelete({ name, goes, usages, onAnswer }: ConfirmDeletePro
             Cancel
           </button>
           <button type="button" className="danger" onClick={() => onAnswer(true)}>
-            Delete
+            {action}
           </button>
         </div>
       </div>
