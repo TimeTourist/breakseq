@@ -91,3 +91,7 @@ Förslag: PWA tillsammans med GitHub Pages först, och Tauri senare om en fil sk
 ## Exemplet i Mods visar det som hörs
 
 New example i Mods ritar bara om exempelgrafen. Den skulle kunna slumpa om det som spelas också, så att grafen visar exakt vad som hörs. Kräver att exemplet och renderingen delar slumptal. (Bordlagt 2026-10-17.)
+
+## Spelknappen i Hits
+
+Hits har en egen ▶ vid paden eller den valda hitten, som gör samma sak som Play i toppen. Enligt regeln att en spelknapp i en flik bara behövs när det är oklart vad Play i toppen spelar kunde den tas bort och ersättas av en text bredvid Once/Loop ("Play: pad eight 1 01"). Den lilla ▶ på varje rad i en pad spelar en hit en gång och berörs inte. Användaren vill titta på det som finns först. (Bordlagt 2026-10-17.)
