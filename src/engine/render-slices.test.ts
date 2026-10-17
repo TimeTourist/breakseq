@@ -7,7 +7,7 @@ import { constantAudio, sequentialIds } from '../test/fixtures';
 import { decodeAudioFile, readCues } from './codec';
 import { generateTake } from './generate';
 import { renderTake } from './render';
-import { SLOT_GAP, midiExport } from './render-slices';
+import { midiExport } from './render-slices';
 
 const SAMPLE_RATE = 44100;
 const ctx = sequentialIds();
@@ -20,7 +20,7 @@ function run(project: Project, ...commands: Command[]): Project {
 }
 
 describe('MIDI export', () => {
-  it('lays each sound in an equal slot, the longest plus a gap, with a cue at every slot and silence after each sound', async () => {
+  it('lays each sound in its own slot on the song\'s grid, a note long, with a cue at every slot and silence after each sound', async () => {
     // A 0.1 s and a 0.2 s one-shot, on steps 1 and 9 of a bar at 60 BPM (a step is 0.25 s).
     let project = run(createProject(), setBpm(60), addSample({ name: 'a.wav', audio: constantAudio(0.1) }), addSample({ name: 'b.wav', audio: constantAudio(0.2) }), createLoop('L', 'main', 1));
     const [a, b] = Object.values(project.pads);
@@ -28,15 +28,17 @@ describe('MIDI export', () => {
     project = run(project, setStep(loop.id, 0, { padId: a!.id }), setStep(loop.id, 8, { padId: b!.id }), setSongCell('main', 0, loop.id));
     const take = generateTake(project, () => 0);
     const buffer = await renderTake(take, project, SAMPLE_RATE);
-    const { wav, midi, pieces } = await midiExport(project, { ...take, buffer }, SAMPLE_RATE);
+    const { wav, midi, pieces, note } = await midiExport(project, { ...take, buffer }, SAMPLE_RATE);
 
     expect(pieces).toBe(2);
     expect(String.fromCharCode(...midi.slice(0, 4))).toBe('MThd');
-    const slot = Math.round(0.2 * SAMPLE_RATE) + Math.round(SLOT_GAP * SAMPLE_RATE);
+    // The longest, 0.2 s and a gap, fits a 1/16 at 60 BPM: 0.25 s.
+    expect(note).toBe('1/16');
+    const slot = 0.25 * SAMPLE_RATE;
     const audio = decodeAudioFile(wav);
-    // Two sounds round up to four slots.
-    expect(audio.channels[0]!.length).toBe(slot * 4);
-    expect(readCues(wav).map((s) => Math.round(s * SAMPLE_RATE))).toEqual([0, slot, slot * 2, slot * 3]);
+    // One slot per sound, no empty ones after.
+    expect(audio.channels[0]!.length).toBe(slot * 2);
+    expect(readCues(wav).map((s) => Math.round(s * SAMPLE_RATE))).toEqual([0, slot]);
     const at = (seconds: number, offset = 0) => audio.channels[0]![offset + Math.round(seconds * SAMPLE_RATE)]!;
     // Sound 1 for 0.1 s, then silence to the next slot; sound 2 for 0.2 s.
     expect(at(0.05)).toBeGreaterThan(0.1);
