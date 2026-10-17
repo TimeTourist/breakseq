@@ -1,6 +1,6 @@
 import type { AudioData, Project, Rng } from '../model';
 import type { HitRun } from '../engine';
-import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTake } from '../engine';
+import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTake, rexExport } from '../engine';
 import type { FolderService } from './folders';
 import { browserFolders } from './folders';
 import type { BackupStorage } from './backups';
@@ -22,6 +22,8 @@ export interface Services {
   readonly exportWav: (take: Take, name?: string) => void;
   /** Saves the song as a MIDI file and a WAV of its sounds in slots; says how many sounds. */
   readonly exportMidi: (project: Project, take: Take) => Promise<number>;
+  /** Saves the song as a MIDI file and a REX file of its sounds, one slice each; says how many sounds. */
+  readonly exportRex: (project: Project, take: Take) => Promise<number>;
   /** Hands the user a file to save. */
   readonly download: (name: string, bytes: Uint8Array, type: string) => void;
   /** Fresh randomness for each take. */
@@ -86,6 +88,14 @@ async function exportMidi(project: Project, take: Take): Promise<number> {
   return pieces;
 }
 
+async function exportRex(project: Project, take: Take): Promise<number> {
+  const { midi, rex, pieces } = await rexExport(project, take, EXPORT_SAMPLE_RATE);
+  const stamp = timestamp();
+  download(`breakseq-${stamp}.mid`, midi, 'audio/midi');
+  download(`breakseq-${stamp}.rx2`, rex, 'application/octet-stream');
+  return pieces;
+}
+
 export function browserServices(): Services {
   return {
     storage: indexedDbStorage(),
@@ -96,6 +106,7 @@ export function browserServices(): Services {
     renderPreview,
     exportWav,
     exportMidi,
+    exportRex,
     download,
     rng: () => Math.random,
   };

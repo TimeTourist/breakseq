@@ -31,6 +31,7 @@ interface ProjectViewProps {
   readonly canExport: boolean;
   /** Exports the song as MIDI and a WAV of its sounds in slots; resolves to how many sounds. */
   readonly onExportMidi: () => Promise<number>;
+  readonly onExportRex: () => Promise<number>;
   /** Plays a take in the place of the song, until Stop. */
   readonly onPlayTake: (take: Take) => void;
   /** Backups of the autosave, newest first; null when there are none to keep. */
@@ -44,7 +45,7 @@ interface ProjectViewProps {
  * export any of them without loading it, or load one. Save and New snapshot
  * are in the header. Undo works within a snapshot; loading one starts afresh.
  */
-export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, backups, onRestore }: ProjectViewProps) {
+export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, onPlayTake, backups, onRestore }: ProjectViewProps) {
   const { store, services } = useApp();
   const folders = services.folders;
   const { folder, active, changed, snapshots, setFolder, refresh, save } = useSnapshots();
@@ -297,6 +298,23 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
             }
           >
             Export MIDI + slices
+          </button>
+        </div>
+        <div className="row">
+          <span className="muted small grow">Or as MIDI and a REX file of its sounds, one slice each from C1 up: load the REX in Dr. Octo Rex, play the MIDI.</span>
+          <button
+            type="button"
+            className="push"
+            disabled={!canExport || busy}
+            onClick={() =>
+              void attempt(async () => {
+                setMidiDone(null);
+                const pieces = await onExportRex();
+                setMidiDone(`Saved a MIDI file and a REX file with ${pieces} sound${pieces === 1 ? '' : 's'}.`);
+              })
+            }
+          >
+            Export MIDI + REX
           </button>
         </div>
         {midiDone !== null && <p className="muted small" role="status">{midiDone}</p>}
