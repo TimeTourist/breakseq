@@ -7,6 +7,7 @@ import { BreakOrigin } from './BreakOrigin';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
 import { Slider } from './Slider';
+import { InSong, useHeard } from './InSong';
 import { Waveform } from './Waveform';
 
 const GRIDS: readonly SliceGrid[] = [4, 8, 16];
@@ -36,6 +37,7 @@ export function SliceView() {
   const playhead = useAuditionPlayhead(playingBreak);
   const box = useRef<HTMLDivElement>(null);
   const open = useOpen();
+  const heard = useHeard();
   const [made, setMade] = useState<{ name: string; hit: string } | null>(null);
 
   // Leaving the view stops whatever is being auditioned.
@@ -105,6 +107,7 @@ export function SliceView() {
           <h1 className="mono">{sliceName(project, brk)}</h1>
           <div className="row nav-row">
             <BreakOrigin brk={brk} parts={['break', 'trim', 'file']} />
+            <InSong heard={heard.breaks.has(brk.id)} />
             <button
               type="button"
               className="link-text small"
@@ -123,7 +126,8 @@ export function SliceView() {
             )}
           </div>
           <p className="muted row">
-            <label className="field inline">
+            <label className="field">
+              Bars
               <input
                 type="number"
                 min={1}
@@ -136,9 +140,8 @@ export function SliceView() {
                 }}
                 onBlur={seal}
               />
-              bars
             </label>
-            · {bpm.toFixed(2)} BPM
+            {bpm.toFixed(2)} BPM
             {unlikelyBpm(bpm) && <span className="warn-text">· check the bars: that tempo looks wrong</span>} · {markers.length} slices
             {grid === null ? ' · own markers' : ` · equal 1/${grid}`}
           </p>

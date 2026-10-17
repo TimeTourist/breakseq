@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PlayIcon } from './icons';
+import { ProjectFile } from './ProjectFile';
 import type { Folder, SnapshotInfo } from '../engine';
 import { comparable, listSnapshots, loadSnapshot, readManifest, saveSnapshot, writeManifest } from '../engine';
 import type { Project } from '../model';
@@ -264,9 +265,9 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
       )}
 
       <section className="panel stack-tight" aria-label="Export">
+        <h2 className="label">Export</h2>
         <div className="row">
-          <span className="label">Export</span>
-          <span className="muted small">The song as it is now, as you hear it: WAV, 44.1 kHz, 24 bit.</span>
+          <span className="muted small grow">The song as it is now, as you hear it: WAV, 44.1 kHz, 24 bit.</span>
           <button type="button" className="primary push" disabled={!canExport} onClick={onExport}>
             Export WAV
           </button>
@@ -292,6 +293,8 @@ export function ProjectView({ onExport, canExport, onExportMidi, onPlayTake, bac
         </div>
         {midiDone !== null && <p className="muted small" role="status">{midiDone}</p>}
       </section>
+
+      <ProjectFile />
 
       {folder !== null && (
         <section className="panel stack" aria-label="Snapshots">

@@ -1,12 +1,12 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Break, Project } from '../model';
-import { addSample, addTrim, bpmOf, guessBars, replaceProject, setBreak, trimName, unlikelyBpm } from '../model';
-import { decodeAudioFile, readCues, readProjectFile, writeProjectFile } from '../engine';
+import { addSample, addTrim, bpmOf, guessBars, setBreak, trimName, unlikelyBpm } from '../model';
+import { decodeAudioFile, readCues } from '../engine';
 import { useApp, useProject, useRun, useSelect } from './context';
 import { BreakOrigin } from './BreakOrigin';
 import { DeleteBreak } from './DeleteBreak';
-import { timestamp } from './services';
 import { TrimEditor } from './TrimEditor';
+import { InSong, useHeard } from './InSong';
 
 /** Every break, in import order: each imported file is one, a one-shot being a break with one slot. */
 export const sources = (project: Project): Break[] => Object.values(project.breaks);
@@ -25,18 +25,9 @@ interface ImportViewProps {
 export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const project = useProject();
   const run = useRun();
-  const { store, services } = useApp();
+  const { store } = useApp();
+  const heard = useHeard();
   const input = useRef<HTMLInputElement>(null);
-  const projectInput = useRef<HTMLInputElement>(null);
-  const [projectError, setProjectError] = useState<string | null>(null);
-
-  const openProject = async (file: File) => {
-    try {
-      setProjectError(run(replaceProject(readProjectFile(new Uint8Array(await file.arrayBuffer())))));
-    } catch (e) {
-      setProjectError(e instanceof Error ? e.message : String(e));
-    }
-  };
   const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const trimming = useSelect((s) => s.trimming);
@@ -121,38 +112,6 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
         </ul>
       )}
 
-      <section className="panel stack-tight" aria-label="Project file">
-        <h2 className="label">Project file</h2>
-        <p className="muted small">The whole project with its audio, as one .zip. Opening one replaces this project; undo brings it back.</p>
-        <div className="row">
-          <button
-            type="button"
-            onClick={() => services.download(`breakseq-project-${timestamp()}.zip`, writeProjectFile(project), 'application/zip')}
-          >
-            Save project
-          </button>
-          <button type="button" onClick={() => projectInput.current?.click()}>
-            Open project
-          </button>
-          <input
-            ref={projectInput}
-            type="file"
-            hidden
-            accept=".zip,application/zip"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file !== undefined) void openProject(file);
-              e.target.value = '';
-            }}
-          />
-        </div>
-        {projectError !== null && (
-          <p className="error" role="alert">
-            {projectError}
-          </p>
-        )}
-      </section>
-
       <section className="stack">
         <h2 className="label">Sources</h2>
         {sources(project).length === 0 ? (
@@ -213,7 +172,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                               if (added !== undefined) setTrimming(added.id);
                             }}
                           >
-                            + Trim
+                            + New trim
                           </button>
                         </div>
                       </td>
@@ -233,10 +192,10 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                       </td>
                       <td className="mono muted">
                         {bpm === null ? (
-                          `${sample.duration.toFixed(2)} s`
+                          `${Math.round(sample.duration * 1000)} ms`
                         ) : (
                           <span className="bars" title="Bars are set in Slice">
-                            {brk.bars} bars · {bpm.toFixed(1)} BPM
+                            {brk.bars} bar{brk.bars === 1 ? '' : 's'} · {bpm.toFixed(2)} BPM
                             {unlikelyBpm(bpm) && <span className="warn-text">check bars in Slice</span>}
                           </span>
                         )}
@@ -244,7 +203,10 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                       <td>
                         <div className="stack-tight">
                           <span>{creates(project, brk)}</span>
-                          <BreakOrigin brk={brk} parts={['break']} />
+                          <div className="row nav-row">
+                            <BreakOrigin brk={brk} parts={['break']} />
+                            <InSong heard={heard.breaks.has(brk.id)} />
+                          </div>
                         </div>
                       </td>
                       <td className="next">

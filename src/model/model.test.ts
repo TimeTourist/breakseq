@@ -20,6 +20,7 @@ import {
   createPad,
   createProject,
   redo,
+  heardInSong,
   remove,
   removeAnyway,
   removePadMember,
@@ -598,5 +599,28 @@ describe('moving steps', () => {
     expect(filled(run(project, ctx, moveSteps(loop, 5, 3, 9, true)))).toEqual([5, 7, 9, 11]);
     expect(filled(run(project, ctx, moveSteps(loop, 5, 3, 14, false)))).toEqual([14]);
     expect(moveSteps(loop, 15, 3, 0, false)(project, ctx).ok).toBe(false);
+  });
+});
+
+describe('heard in the song', () => {
+  it('follows the song down: loop in the song, pads on its steps, their hits, and the breaks with their parents', () => {
+    const ctx = sequentialIds();
+    let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }), addSample({ name: 'Snare', audio: constantAudio(0.2) }));
+    const amen = Object.values(project.breaks).find((b) => b.name === 'amen 1')!;
+    project = run(project, ctx, setBreak(amen.id, 1), createLoop('Beat', 'main', 1));
+    const beat = Object.values(project.loops).find((l) => l.name === 'Beat')!;
+    const slot = project.breaks[amen.id]!.pads[2]!;
+    expect(heardInSong(project).loops.size).toBe(0);
+
+    project = run(project, ctx, setStep(beat.id, 0, { padId: slot }), setSongCell('main', 0, beat.id));
+    const heard = heardInSong(project);
+    expect([...heard.loops]).toEqual([beat.id]);
+    expect([...heard.pads]).toEqual([slot]);
+    expect(heard.hits.has(project.pads[slot]!.members[0]!)).toBe(true);
+    expect(heard.hits.has(project.breaks[amen.id]!.parent!)).toBe(true);
+    expect([...heard.breaks]).toEqual([amen.id]);
+    // The snare is in no loop in the song.
+    const snare = Object.values(project.breaks).find((b) => b.name === 'Snare 1')!;
+    expect(heard.breaks.has(snare.id)).toBe(false);
   });
 });

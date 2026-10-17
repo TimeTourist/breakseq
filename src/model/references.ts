@@ -39,3 +39,42 @@ export function findUsages(project: Project, kind: ReferableKind, id: Id): Usage
       return songUsage(project, id, ['modA', 'modB']);
   }
 }
+
+/** What is heard in the song, all the way down: its loops and mods, the pads on their steps, those pads' hits, and their breaks. */
+export interface Heard {
+  readonly loops: ReadonlySet<Id>;
+  readonly mods: ReadonlySet<Id>;
+  readonly pads: ReadonlySet<Id>;
+  readonly hits: ReadonlySet<Id>;
+  readonly breaks: ReadonlySet<Id>;
+}
+
+/**
+ * The loops and mods with a clip in the song, the pads on those loops' steps,
+ * every hit in those pads (any of them can be picked) or locked on a step,
+ * and the breaks those hits play; a break's parent is heard with it.
+ */
+export function heardInSong(project: Project): Heard {
+  const clips = project.song.clips;
+  const loops = new Set(clips.filter((c) => c.row === 'main' || c.row === 'fill').map((c) => c.ref));
+  const mods = new Set(clips.filter((c) => c.row === 'modA' || c.row === 'modB').map((c) => c.ref));
+  const pads = new Set<Id>();
+  const hits = new Set<Id>();
+  for (const id of loops) {
+    for (const step of project.loops[id]?.steps ?? []) {
+      if (step.padId !== null) pads.add(step.padId);
+      if (step.memberId !== null) hits.add(step.memberId);
+    }
+  }
+  for (const id of pads) for (const m of project.pads[id]?.members ?? []) hits.add(m);
+  const breaks = new Set<Id>();
+  for (const id of hits) {
+    const hit = project.hits[id];
+    if (hit !== undefined) breaks.add(hit.breakId);
+  }
+  for (const id of breaks) {
+    const parent = project.breaks[id]?.parent;
+    if (parent != null) hits.add(parent);
+  }
+  return { loops, mods, pads, hits, breaks };
+}
