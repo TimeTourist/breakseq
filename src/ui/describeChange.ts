@@ -3,6 +3,7 @@ import { baseName } from '../model';
 
 const COLLECTIONS = [
   ['samples', 'sample'],
+  ['breaks', 'break'],
   ['hits', 'hit'],
   ['pads', 'pad'],
   ['loops', 'loop'],

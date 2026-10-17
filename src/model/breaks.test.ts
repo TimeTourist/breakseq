@@ -5,6 +5,7 @@ import {
   addSample,
   bpmOf,
   breakSequence,
+  cloneBreak,
   createLoop,
   createPad,
   createProject,
@@ -288,5 +289,40 @@ describe('placing a break in a loop', () => {
     expect([1, 5, 9, 13].map((i) => placed[i]!.padId)).toEqual(pads);
     expect([2, 3, 4, 6, 16].map((i) => placed[i]!.padId)).toEqual([null, null, null, null, null]);
     expect(placed[17]!.padId).toBe(other);
+  });
+});
+
+describe('cloning a break', () => {
+  it('copies the break whole, with its own parent, pads, hits and loop', () => {
+    const { project: p0, id } = amen(4);
+    const brk0 = p0.breaks[id]!;
+    // Slot 03 plays slot 01, and its hit is pitched.
+    const replaced = run(p0, setHitSource(slotHit(p0, id, 2).id, id, 0), updateHit(slotHit(p0, id, 2).id, { pitch: 5 }));
+    const project = run(replaced, cloneBreak(id));
+    const copy = Object.values(project.breaks).find((b) => b.id !== id)!;
+    expect(copy).toMatchObject({ name: 'amen copy', sampleId: brk0.sampleId, bars: 1, markers: brk0.markers });
+    expect(copy.pads).toHaveLength(brk0.pads.length);
+    expect(copy.pads.some((p) => brk0.pads.includes(p))).toBe(false);
+    expect(copy.parent).not.toBe(brk0.parent);
+    expect(project.hits[copy.parent!]!.breakId).toBe(copy.id);
+
+    const third = slotHit(project, copy.id, 2);
+    expect(third).toMatchObject({ breakId: copy.id, slot: 0, pitch: 5 });
+    expect(third.id).not.toBe(slotHit(project, id, 2).id);
+    expect(project.pads[copy.pads[0]!]!.name).toBe('amen copy 01');
+
+    const loop = project.loops[copy.loop!]!;
+    expect(loop.name).toBe('amen copy');
+    expect(loop.steps.filter((s) => s.padId !== null).map((s) => s.padId)).toEqual(copy.pads.slice(0, 4));
+
+    // Changing the copy leaves the original alone.
+    const changed = run(project, updateHit(third.id, { pitch: -3 }));
+    expect(slotHit(changed, id, 2).pitch).toBe(5);
+  });
+
+  it('only clones a sliced break', () => {
+    const start = run(createProject(), addSample({ name: 'kick.wav', audio: constantAudio(0.2) }));
+    const id = Object.keys(start.breaks)[0]!;
+    expect(cloneBreak(id)(start, ctx).ok).toBe(false);
   });
 });

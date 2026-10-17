@@ -93,9 +93,9 @@ function followLoop(before: Project, after: Project, breakId: Id): Project {
 /**
  * Makes a break a break of `bars` bars, or a one-shot with null. Markers on a
  * grid follow the new length; markers placed by hand stay, unless `markers` are
- * given. A break gets a parent and pads for its slots, and the first time, the
- * loop M1 playing them in order. After that M1 follows the break only while it
- * is exactly as the break laid it out.
+ * given. A break gets a parent and pads for its slots, and the first time, a
+ * loop named after it playing them in order. After that the loop follows the
+ * break only while it is exactly as the break laid it out.
  */
 export const setBreak =
   (breakId: Id, bars: number | null, markers?: readonly number[]): Command =>
@@ -138,6 +138,55 @@ function renameSlot(project: Project, brk: Break, slot: number): Project {
     hits: hit === undefined || hit.name !== plain ? project.hits : { ...project.hits, [hit.id]: { ...hit, name } },
   };
 }
+
+/**
+ * A sliced break copied whole, to change apart from the original: the same
+ * sample, bars and markers, a parent and slot pads of its own, and copies of
+ * every hit in them (an alternative from another break or a one-shot is copied
+ * too, still playing from there). The copy gets its own laid-out loop.
+ */
+export const cloneBreak =
+  (breakId: Id, name?: string): Command =>
+  (project, ctx) => {
+    const brk = project.breaks[breakId];
+    if (brk === undefined) return notFound(breakId);
+    if (brk.bars === null || brk.parent === null) return invalid('Only a sliced break can be cloned');
+    const id = ctx.newId();
+    const copyName = name ?? `${baseName(brk.name)} copy`;
+    const from = baseName(brk.name);
+    const renamed = (n: string) => (n.startsWith(from) ? `${baseName(copyName)}${n.slice(from.length)}` : n);
+    const hitIds = new Set([brk.parent, ...brk.pads.flatMap((p) => project.pads[p]?.members ?? [])]);
+    const newIds = new Map([...hitIds].map((h) => [h, ctx.newId()] as const));
+    const hits = { ...project.hits };
+    for (const [old, fresh] of newIds) {
+      const hit = project.hits[old];
+      if (hit === undefined) continue;
+      const own = hit.breakId === breakId;
+      hits[fresh] = {
+        ...hit,
+        id: fresh,
+        name: own ? renamed(hit.name) : hit.name,
+        breakId: own ? id : hit.breakId,
+        variantOf: hit.variantOf === null ? null : (newIds.get(hit.variantOf) ?? hit.variantOf),
+      };
+    }
+    const pads = { ...project.pads };
+    const padIds = brk.pads.map((old) => {
+      const pad = project.pads[old];
+      const fresh = ctx.newId();
+      pads[fresh] = {
+        ...(pad ?? { auto: true, choice: 'top' as const }),
+        id: fresh,
+        name: pad === undefined ? '' : renamed(pad.name),
+        members: (pad?.members ?? []).flatMap((m) => (newIds.has(m) ? [newIds.get(m)!] : [])),
+      };
+      return fresh;
+    });
+    const clone: Break = { ...brk, id, name: copyName, pads: padIds, parent: newIds.get(brk.parent)!, loop: null };
+    const next = setBreakIn({ ...project, hits, pads }, clone);
+    const loop: Loop = { id: ctx.newId(), name: baseName(copyName), kind: 'main', steps: laidOut(next, clone) };
+    return ok(setBreakIn({ ...next, loops: { ...next.loops, [loop.id]: loop } }, { ...clone, loop: loop.id }));
+  };
 
 /** Changes how many bars a break is: its BPM follows, and markers on a grid. */
 export const setBreakBars =
