@@ -2,7 +2,7 @@ import type { Command, CommandContext } from './command';
 import { invalid, notFound, ok, sequence } from './command';
 import type { SliceGrid } from './breaks';
 import { MIN_SLICE, baseName, breakBpm, breakSequence, ensureSlots, gridMarkers, markerGrid, padSlot, slotHit, slotName } from './breaks';
-import { emptyStep, nextLoopName } from './project';
+import { emptyStep } from './project';
 import type { AudioData, Break, Id, Loop, Pad, Project, Sample, SampleChannel, Step } from './types';
 import { STEPS_PER_BAR } from './types';
 
@@ -120,7 +120,7 @@ export const setBreak =
     const updated = next.breaks[breakId]!;
 
     if (brk.loop === null) {
-      const loop: Loop = { id: ctx.newId(), name: nextLoopName(next, 'main'), kind: 'main', steps: laidOut(next, updated) };
+      const loop: Loop = { id: ctx.newId(), name: baseName(brk.name), kind: 'main', steps: laidOut(next, updated) };
       return ok(setBreakIn({ ...next, loops: { ...next.loops, [loop.id]: loop } }, { ...updated, loop: loop.id }));
     }
     return ok(followLoop(project, next, breakId));

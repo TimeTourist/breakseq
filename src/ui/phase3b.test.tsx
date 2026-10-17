@@ -129,7 +129,7 @@ describe('Markers in Slice', () => {
     const store = await sliceSetup();
     expect(screen.queryByRole('button', { name: 'Apply slices' })).toBeNull();
     expect(brk(store).pads).toHaveLength(16);
-    expect(Object.values(store.getState().history.present.loops).map((l) => l.name)).toEqual(['M1']);
+    expect(Object.values(store.getState().history.present.loops).map((l) => l.name)).toEqual(['amen']);
 
     fireEvent.click(button('Play slice 2'));
     fireEvent.click(button('Remove marker'));
