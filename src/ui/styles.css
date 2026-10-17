@@ -1700,14 +1700,9 @@ input[type='search'] {
 }
 
 /* The loop shown over the lanes while it is on. */
-.timeline-loop {
-  position: absolute;
-  top: 22px;
-  bottom: 0;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-left: 1px dashed var(--accent);
-  border-right: 1px dashed var(--accent);
-  pointer-events: none;
+.region-shade.song-shade {
+  z-index: 1;
+  background: rgb(12 13 15 / 0.6);
 }
 
 .ruler-bar {

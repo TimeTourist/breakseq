@@ -133,7 +133,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerMove={(e) => {
-          const el = e.currentTarget.closest('.timeline-ruler') as HTMLElement | null;
+          const el = e.currentTarget.closest('.timeline') as HTMLElement | null;
           if (el !== null && e.currentTarget.hasPointerCapture(e.pointerId)) set(boundaryAt(e, el));
         }}
         onPointerUp={seal}
@@ -352,8 +352,6 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
                   title={`Loop ${loopText}${songLoop.on ? '' : ' (off)'}`}
                 />
               )}
-              {loopHandle('start')}
-              {loopHandle('end')}
               <span className="ruler-cursor" style={{ left: cursor * STEP_PX }} aria-label={`Play starts at ${position(cursor)}`} />
               {Array.from({ length: bars }, (_, bar) => (
                 <span key={bar} className="ruler-bar mono" style={{ left: bar * STEPS_PER_BAR * STEP_PX }}>
@@ -388,9 +386,15 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
               </div>
             </div>
           ))}
+          {/* As in Trim: what is outside the loop is shaded, and its ends are handles over the whole timeline. */}
           {songLoop?.on === true && (
-            <span className="timeline-loop" style={{ left: songLoop.start * STEP_PX, width: (songLoop.end - songLoop.start) * STEP_PX }} />
+            <>
+              <span className="region-shade song-shade" style={{ left: 0, width: songLoop.start * STEP_PX }} />
+              <span className="region-shade song-shade" style={{ left: songLoop.end * STEP_PX, width: (total - songLoop.end) * STEP_PX }} />
+            </>
           )}
+          {loopHandle('start')}
+          {loopHandle('end')}
           {playheadStep !== null && <span className="timeline-playhead" style={{ left: playheadStep * STEP_PX }} />}
         </div>
       </div>

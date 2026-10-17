@@ -15,7 +15,16 @@ const CHANNELS: [SampleChannel, string, string][] = [
 ];
 
 /** Start and end of an imported sample, as a window in its file, and which of its channels play. */
-export function TrimEditor({ sample, loopFirst }: { readonly sample: Sample; readonly loopFirst: boolean }) {
+export function TrimEditor({
+  sample,
+  loopFirst,
+  played = null,
+}: {
+  readonly sample: Sample;
+  readonly loopFirst: boolean;
+  /** Where Play (the one at the top) is in the trimmed sample, in seconds, while it plays it. */
+  readonly played?: number | null;
+}) {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
@@ -25,7 +34,7 @@ export function TrimEditor({ sample, loopFirst }: { readonly sample: Sample; rea
   const [playing, setPlaying] = useState(false);
   // Breaks are trimmed to loop; one-shots to play once.
   const [loop, setLoop] = useState(loopFirst);
-  const playhead = useAuditionPlayhead(playing);
+  const auditioned = useAuditionPlayhead(playing);
   // The file with the sample's channel choice, so what is shown and heard is what plays.
   const audio = sampleAudio(project, sample);
 
@@ -35,6 +44,7 @@ export function TrimEditor({ sample, loopFirst }: { readonly sample: Sample; rea
   if (audio === undefined) return null;
 
   const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
+  const playhead = auditioned ?? (played === null ? null : sample.offset + played);
   const start = sample.offset;
   const end = sample.offset + sample.duration;
   const trim = (from: number, to: number) => {
