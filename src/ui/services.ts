@@ -10,6 +10,13 @@ import type { Player, Take } from './playback';
 import { createPlayer } from './playback';
 
 /** Everything the UI does outside React. Tests pass fakes. */
+export interface MidiSaved {
+  readonly pieces: number;
+  /** The note every slot of the WAV is at the song's tempo: "1/4". */
+  readonly note: string;
+  readonly bpm: number;
+}
+
 export interface Services {
   readonly storage: ProjectStorage;
   /** Backups of the autosave; without it, Project shows none. */
@@ -21,7 +28,8 @@ export interface Services {
   /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
   readonly exportWav: (take: Take, name?: string) => void;
   /** Saves the song as a MIDI file and a WAV of its sounds in slots; says how many sounds. */
-  readonly exportMidi: (project: Project, take: Take) => Promise<number>;
+  /** Saves the MIDI file and the WAV of its sounds: how many, and the note its slots are, to split it on. */
+  readonly exportMidi: (project: Project, take: Take) => Promise<MidiSaved>;
   /** Hands the user a file to save. */
   readonly download: (name: string, bytes: Uint8Array, type: string) => void;
   /** Fresh randomness for each take. */
@@ -78,12 +86,12 @@ function exportWav(take: Take, name?: string): void {
   download(`breakseq-${part}${timestamp()}.wav`, encodeWav({ sampleRate: buffer.sampleRate, channels }), 'audio/wav');
 }
 
-async function exportMidi(project: Project, take: Take): Promise<number> {
-  const { midi, wav, pieces } = await midiExport(project, take, EXPORT_SAMPLE_RATE);
+async function exportMidi(project: Project, take: Take): Promise<MidiSaved> {
+  const { midi, wav, pieces, note } = await midiExport(project, take, EXPORT_SAMPLE_RATE);
   const stamp = timestamp();
   download(`breakseq-${stamp}.mid`, midi, 'audio/midi');
   download(`breakseq-${stamp}-slices.wav`, wav, 'audio/wav');
-  return pieces;
+  return { pieces, note, bpm: project.song.bpm };
 }
 
 export function browserServices(): Services {
