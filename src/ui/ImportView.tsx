@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import type { Break, Project } from '../model';
+import type { Break, Loop, Project } from '../model';
 import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, guessBars, removeFile, setBreak, sliceName, trimName, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
@@ -11,6 +11,14 @@ import { InSong, useHeard } from './InSong';
 
 /** Every break, in import order: each imported file is one, a one-shot being a break with one slot. */
 export const sources = (project: Project): Break[] => Object.values(project.breaks);
+
+/** The loops that play a break's pads, its own loop first. */
+export function breakLoops(project: Project, brk: Break): Loop[] {
+  const pads = new Set(brk.pads);
+  const own = brk.loop === null ? undefined : project.loops[brk.loop];
+  const others = Object.values(project.loops).filter((l) => l.id !== brk.loop && l.steps.some((st) => st.padId !== null && pads.has(st.padId)));
+  return [...(own === undefined ? [] : [own]), ...others];
+}
 
 /** The breaks grouped by file, files in import order and each file's trims in trim order. */
 function files(project: Project): [string, Break[]][] {
@@ -43,7 +51,26 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const setTrimming = (breakId: string | null) => store.dispatch({ type: 'trimming', breakId });
   // A Trim opened from elsewhere, as from Slice, is brought into view.
   const trimCell = useRef<HTMLTableCellElement>(null);
-  useEffect(() => trimCell.current?.scrollIntoView?.({ block: 'nearest' }), [trimming]);
+  // A click anywhere but the open Trim, its row, the header or a dialog closes it.
+  useEffect(() => {
+    if (trimming === null) return;
+    const onDown = (e: PointerEvent) => {
+      if (e.target instanceof Element && e.target.closest('[data-trim-open], .header, .dialog-backdrop') !== null) return;
+      store.dispatch({ type: 'trimming', breakId: null });
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [trimming, store]);
+  // Up and down only, below the header: the table scrolls sideways on its own. A block body, as an effect
+  // must not return what it calls (newer browsers' scroll methods return a promise, which React would call).
+  useEffect(() => {
+    const cell = trimCell.current;
+    if (cell === null) return;
+    const box = cell.getBoundingClientRect();
+    const top = (document.querySelector('.header')?.getBoundingClientRect().bottom ?? 0) + 8;
+    const by = box.bottom > window.innerHeight ? Math.min(box.bottom - window.innerHeight + 8, box.top - top) : box.top < top ? box.top - top : 0;
+    if (by !== 0) window.scrollBy({ top: by });
+  }, [trimming]);
 
   const importFiles = async (files: readonly File[]) => {
     const failed: string[] = [];
@@ -143,11 +170,13 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                     const sample = project.samples[brk.sampleId];
                     if (sample === undefined) return null;
                     const bpm = bpmOf(project, brk);
-                    const loop = brk.loop === null ? undefined : project.loops[brk.loop];
+                    const loops = breakLoops(project, brk);
+                    const loop = loops[0];
                     const hit = brk.parent ?? project.pads[brk.pads[0] ?? '']?.members[0];
                     return (
                       <Fragment key={brk.id}>
                         <tr
+                          data-trim-open={trimming === brk.id || undefined}
                           title={brk.bars === null ? 'Double-click to edit the hit' : 'Double-click to slice'}
                           onDoubleClick={(e) => {
                             if ((e.target as HTMLElement).closest('button, input') !== null) return;
@@ -256,9 +285,17 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                     )}
                                   </span>
                                   {loop !== undefined && (
-                                    <button type="button" className="link-text small" title={`Loop ${loop.name}, in Loops`} onClick={() => open({ loop: loop.id, step: null }, 'loops')}>
-                                      Loops →
-                                    </button>
+                                    <span>
+                                      {loops.length}{' '}
+                                      <button
+                                        type="button"
+                                        className="link-text small"
+                                        title={`Played in ${loops.map((l) => `loop ${l.name}`).join(', ')}: opens ${loop.name} in Loops`}
+                                        onClick={() => open({ loop: loop.id, step: null }, 'loops')}
+                                      >
+                                        Loops →
+                                      </button>
+                                    </span>
                                   )}
                                 </>
                               )}
@@ -267,7 +304,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                           </td>
                         </tr>
                         {trimming === brk.id && (
-                          <tr>
+                          <tr data-trim-open>
                             <td colSpan={5} className="trim-cell" ref={trimCell}>
                               <TrimEditor sample={sample} played={playheadSeconds} />
                             </td>

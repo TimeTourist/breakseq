@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Usage } from '../model';
 import { findUsages, removeAnyway } from '../model';
 import { useProject, useRun } from './context';
@@ -22,40 +24,99 @@ interface DeleteButtonProps {
   readonly icon?: boolean;
 }
 
-/** What Delete asks, every time: what goes, and where it goes silent. */
-export function deleteQuestion(name: string, goes: readonly string[], where: string): string {
-  return [
-    `Delete ${name}?`,
-    ...(goes.length > 0 ? [`Goes with it: ${goes.join(', ')}.`] : []),
-    ...(where !== '' ? [`Goes silent in: ${where}.`] : []),
-    'Ctrl+Z brings it back.',
-  ].join('\n');
+interface ConfirmDeleteProps {
+  readonly name: string;
+  readonly goes: readonly string[];
+  readonly usages: readonly Usage[];
+  readonly onAnswer: (yes: boolean) => void;
+}
+
+/** What Delete asks, every time, in a dialog: what goes with it, and where it goes silent. */
+export function ConfirmDelete({ name, goes, usages, onAnswer }: ConfirmDeleteProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onAnswer(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onAnswer]);
+  return createPortal(
+    <div className="dialog-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onAnswer(false)}>
+      <div className="dialog panel stack confirm-delete" role="alertdialog" aria-modal="true" aria-label={`Delete ${name}?`}>
+        <h2>Delete {name}?</h2>
+        {goes.length > 0 && (
+          <div className="stack-tight">
+            <span className="label">Goes with it</span>
+            <ul>
+              {goes.map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {usages.length > 0 && (
+          <div className="stack-tight">
+            <span className="label">Goes silent in</span>
+            <ul>
+              {usages.map((u) => (
+                <li key={`${u.kind}:${u.id ?? ''}`}>{usageText(u)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="muted small">Ctrl+Z brings it back.</p>
+        <div className="row confirm-buttons">
+          <button type="button" autoFocus onClick={() => onAnswer(false)}>
+            Cancel
+          </button>
+          <button type="button" className="danger" onClick={() => onAnswer(true)}>
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 export const usageText = (u: Usage) => (u.kind === 'song' ? 'Song' : `${u.kind} ${u.name}`);
 
 /**
- * Delete, the same everywhere: it always asks first, listing what goes with
- * it and where it goes silent.
+ * Delete, the same everywhere: it always asks first, in a dialog listing what
+ * goes with it and where it goes silent.
  */
 export function DeleteButton({ label, name, usages, blocked, onDelete, onDeleted, onError, goes = [], icon = false }: DeleteButtonProps) {
   const where = usages.map(usageText).join(', ');
+  const [asking, setAsking] = useState(false);
   return (
+    <>
     <button
       type="button"
       className={icon ? 'icon-button small' : undefined}
       aria-label={`${label} ${name}`}
       disabled={blocked !== undefined}
       title={blocked ?? [label, ...(goes.length > 0 ? [`Goes with it: ${goes.join(', ')}`] : []), ...(usages.length > 0 ? [`Goes silent in: ${where}`] : [])].join('. ')}
-      onClick={() => {
-        if (!window.confirm(deleteQuestion(name, goes, where))) return;
-        const failed = onDelete();
-        onError(failed);
-        if (failed === null) onDeleted?.();
-      }}
+      onClick={() => setAsking(true)}
     >
       {icon ? <TrashIcon /> : label}
     </button>
+    {asking && (
+      <ConfirmDelete
+        name={name}
+        goes={goes}
+        usages={usages}
+        onAnswer={(yes) => {
+          setAsking(false);
+          if (!yes) return;
+          const failed = onDelete();
+          onError(failed);
+          if (failed === null) onDeleted?.();
+        }}
+      />
+    )}
+    </>
   );
 }
 

@@ -24,7 +24,9 @@ export function LoopLength({ loop, onError }: { loop: Loop; onError: (error: str
   const seal = useSeal();
   const length = loop.steps.length;
   const [drafts, setDrafts] = useState(() => split(length).map(String));
-  useEffect(() => setDrafts(split(length).map(String)), [length, loop.id]);
+  useEffect(() => {
+    setDrafts(split(length).map(String));
+  }, [length, loop.id]);
 
   // Saved when you leave the fields or press Enter, so a length on the way (4 bars → 0 → 6/16) drops no steps.
   const commit = (leaving: boolean) => {
