@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Break, Loop, Project } from '../model';
-import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, isUnsliced, markBreak, removeFile, setBreak, sliceName, trimName, unlikelyBpm } from '../model';
+import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, isUnsliced, makeOneShot, markBreak, oneShotTakes, oneShotUsages, removeFile, sliceName, trimName, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import { DeleteBreak } from './DeleteBreak';
-import { DeleteButton } from './DeleteButton';
+import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
 import { TrimEditor } from './TrimEditor';
 import { InSong, useHeard } from './InSong';
@@ -44,6 +44,9 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const trimming = useSelect((s) => s.trimming);
   // The file whose ▶ plays it whole, once.
   const [previewing, setPreviewing] = useState<string | null>(null);
+  /** The sliced break One-shot is asking about. */
+  const [toOneShot, setToOneShot] = useState<string | null>(null);
+  const asked = toOneShot === null ? undefined : project.breaks[toOneShot];
   useEffect(() => {
     if (previewing === null) return;
     return () => services.player.stopAudition();
@@ -273,7 +276,8 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                 aria-pressed={brk.bars === null && !unsliced}
                                 onClick={() => {
                                   if (unsliced) run(markBreak(brk.id, false));
-                                  else if (brk.bars !== null) run(setBreak(brk.id, null));
+                                  // Its slicing goes: ask first, as Delete does.
+                                  else if (brk.bars !== null) setToOneShot(brk.id);
                                 }}
                               >
                                 One-shot
@@ -354,6 +358,19 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
           </div>
         )}
       </section>
+      {asked !== undefined && (
+        <ConfirmDelete
+          name={asked.name}
+          question={`Make ${asked.name} a one-shot?`}
+          action="Make one-shot"
+          goes={oneShotTakes(project, asked.id)}
+          usages={oneShotUsages(project, asked.id)}
+          onAnswer={(yes) => {
+            setToOneShot(null);
+            if (yes) run(makeOneShot(asked.id));
+          }}
+        />
+      )}
     </main>
   );
 }

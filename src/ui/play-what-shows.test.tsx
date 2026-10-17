@@ -130,12 +130,15 @@ describe('Play in each view', () => {
     const { player, end } = await setup(p, { view: 'hits', hitsLoop: false, selection: { ...initialState(p).selection, pad: brkOf(p).pads[1]!, hit: memberOf(p, 1) } });
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
+    // One button: Play is Stop while it plays.
+    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Stop' })).toHaveProperty('disabled', false);
     // Played out, it stops by itself.
     await act(async () => {
       end();
       await new Promise((r) => setTimeout(r, 50));
     });
-    expect(screen.getByRole('button', { name: 'Stop' })).toHaveProperty('disabled', true);
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Loop' }));
     await settle();

@@ -8,6 +8,9 @@ import {
   cueMarkers,
   isUnsliced,
   markBreak,
+  makeOneShot,
+  oneShotTakes,
+  oneShotUsages,
   renameBreak,
   sliceName,
   sliceToOneShot,
@@ -546,5 +549,44 @@ describe('what goes with a break', () => {
     expect(breakTakes(project, id)).toEqual(['16 pads', '17 hits', 'loop amen 1']);
     const shot = run(createProject(), addSample({ name: 'kick.wav', audio: constantAudio(0.2) }));
     expect(breakTakes(shot, Object.keys(shot.breaks)[0]!)).toEqual(['1 hit']);
+  });
+});
+
+describe('a sliced break made a one-shot', () => {
+  it('loses its slicing: parent, later pads and hits, its loop; slot 01 stays and plays the whole sample', () => {
+    const { project, id } = amen(4);
+    const before = project.breaks[id]!;
+    const first = before.pads[0]!;
+    // Slots made at 1/16 stay with the break, so 15 pads go with the parent's hit.
+    expect(oneShotTakes(project, id)).toEqual(['15 pads', '16 hits', 'loop amen 1']);
+    const after = run(project, makeOneShot(id));
+    const brk = after.breaks[id]!;
+    expect(brk).toMatchObject({ bars: null, markers: [0], pads: [first], parent: null, loop: null });
+    expect(Object.keys(after.loops)).toHaveLength(0);
+    expect(Object.keys(after.pads)).toEqual([first]);
+    const hit = after.hits[after.pads[first]!.members[0]!]!;
+    expect(hit).toMatchObject({ name: 'amen 1', slot: 0 });
+    expect(after.pads[first]!.name).toBe('amen 1');
+    expect(Object.keys(after.hits)).toHaveLength(1);
+    expect(breakTakes(after, id)).toEqual(['1 hit']);
+  });
+
+  it('where its slices were used goes silent, and is listed first', () => {
+    let { project, id } = amen(4);
+    project = run(project, createLoop('Mine', 'main', 1));
+    const mine = Object.values(project.loops).find((l) => l.name === 'Mine')!.id;
+    const [p1, p2] = project.breaks[id]!.pads;
+    project = run(project, setStep(mine, 0, { padId: p1! }), setStep(mine, 4, { padId: p2! }));
+    expect(oneShotUsages(project, id).map((u) => u.name)).toEqual(['Mine']);
+    const after = run(project, makeOneShot(id));
+    const steps = after.loops[mine]!.steps;
+    expect(steps[0]!.padId).toBe(p1);
+    expect(steps[4]!.padId).toBeNull();
+  });
+
+  it('a one-shot cannot be made one again', () => {
+    const start = run(createProject(), addSample({ name: 'hit.wav', audio: constantAudio(1) }));
+    const id = Object.keys(start.breaks)[0]!;
+    expect(makeOneShot(id)(start, ctx).ok).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, markBreak } from '../model';
+import { addSample, createProject, markBreak, setBreak } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -140,5 +140,31 @@ describe('a break is sliced in Slice, not in Import', () => {
     fireEvent.click(button('1/4'));
     expect(Object.values(project(store).breaks)[0]!.markers).toHaveLength(4);
     expect(pressed('Cue markers')).toBe('false');
+  });
+});
+
+describe('One-shot on a sliced break', () => {
+  const sliced = () =>
+    build(...oneShot('amen.wav', true), (p, c) => setBreak(Object.keys(p.breaks)[0]!, 1)(p, c));
+
+  it('asks first, listing what goes; Cancel leaves it sliced', async () => {
+    const store = await setup(sliced(), 'import');
+    fireEvent.click(button('One-shot'));
+    const dialog = screen.getByRole('alertdialog', { name: 'Make amen 1 a one-shot?' });
+    expect(dialog.textContent).toContain('15 pads');
+    expect(dialog.textContent).toContain('loop amen 1');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(Object.values(project(store).breaks)[0]!.bars).toBe(1);
+  });
+
+  it('Make one-shot leaves a one-shot of 1 hit', async () => {
+    const store = await setup(sliced(), 'import');
+    fireEvent.click(button('One-shot'));
+    fireEvent.click(screen.getByRole('button', { name: 'Make one-shot' }));
+    const brk = Object.values(project(store).breaks)[0]!;
+    expect(brk).toMatchObject({ bars: null, parent: null, loop: null });
+    expect(brk.pads).toHaveLength(1);
+    expect(screen.getByText('1 hit')).toBeTruthy();
   });
 });
