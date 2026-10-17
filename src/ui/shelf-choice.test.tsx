@@ -74,10 +74,10 @@ describe('choosing what the pad shelf in Loops shows', () => {
     expect(chooser.queryByText('hat')).toBeNull();
 
     expect(screen.getByRole('button', { name: 'Pad hat' })).toBeTruthy();
-    fireEvent.click(chooser.getByRole('checkbox', { name: /Built/ }));
+    fireEvent.click(chooser.getByRole('checkbox', { name: 'Show Built in Pads' }));
     expect(screen.queryByRole('button', { name: 'Pad hat' })).toBeNull();
     expect(store.getState().shelfHidden).toEqual(['Built']);
-    fireEvent.click(chooser.getByRole('checkbox', { name: /Built/ }));
+    fireEvent.click(chooser.getByRole('checkbox', { name: 'Show Built in Pads' }));
     expect(screen.getByRole('button', { name: 'Pad hat' })).toBeTruthy();
   });
 
@@ -142,5 +142,20 @@ describe('from Loops to Hits', () => {
     fireEvent.doubleClick(chip);
     expect(store.getState().view).toBe('hits');
     expect(store.getState().selection).toMatchObject({ pad: pad.id, hit: pad.members[1] });
+  });
+});
+
+describe('a click in Show in Pads', () => {
+  it('plays a hit once', async () => {
+    const { project, loop, pad } = hats();
+    const s = services();
+    const store = createStore({ ...initialState(project), view: 'loops', selection: { ...initialState(project).selection, loop: loop.id } });
+    render(<App store={store} services={s} />);
+    await act(async () => {});
+    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
+    fireEvent.click(chooser.getByRole('button', { name: 'Expand all' }));
+    const row = chooser.getByText('hat').closest('.pad-row')!;
+    fireEvent.click(within(row as HTMLElement).getByText('h2'));
+    expect(s.player.playHit).toHaveBeenLastCalledWith(expect.anything(), pad.members[1]);
   });
 });

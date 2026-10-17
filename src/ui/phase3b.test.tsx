@@ -166,10 +166,10 @@ describe('Playing while trimming', () => {
     expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(false);
   });
 
-  it('a one-shot plays once by default', async () => {
+  it('a one-shot loops by default, as everything does', async () => {
     await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'import');
     fireEvent.click(button('Trim snare.wav'));
     fireEvent.click(button('Play trimmed'));
-    expect(vi.mocked(fakeServices().player.audition).mock.calls.at(-1)?.[4]).toBe(false);
+    expect(vi.mocked(fakeServices().player.audition).mock.calls.at(-1)?.[4]).toBe(true);
   });
 });

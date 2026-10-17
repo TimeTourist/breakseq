@@ -32,10 +32,10 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       if (brk === undefined || sample === undefined || audio === undefined) return song(SONG_KEY, project);
       const from = Math.round(sample.offset * audio.sampleRate);
       const to = Math.round((sample.offset + sample.duration) * audio.sampleRate);
-      // Breaks loop, as in Trim; one-shots play once.
+      // Loops, as in Trim.
       return {
         key: `sample:${sample.id}`,
-        once: brk.bars === null,
+        once: false,
         kind: 'preview',
         preview: () => ({ kind: 'audio', audio: { sampleRate: audio.sampleRate, channels: audio.channels.map((c) => c.slice(from, to)) } }),
       };

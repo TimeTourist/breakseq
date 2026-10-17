@@ -47,11 +47,12 @@ describe('what Play plays', () => {
     expect(subjectOf(p, state(p, { view: 'slice' }))).toMatchObject({ key: `break:${brk.id}`, kind: 'song' });
   });
 
-  it('is in Hits the open parent, the picked hit, or the pad as it picks; once unless looped', () => {
+  it('is in Hits the open parent, the picked hit, or the pad as it picks; looped unless Once', () => {
     const sel = initialState(p).selection;
-    expect(subjectOf(p, state(p, { view: 'hits', selection: { ...sel, hit: brk.parent } }))?.key).toBe(`break:${brk.id}:true`);
-    expect(subjectOf(p, state(p, { view: 'hits', selection: { ...sel, pad: brk.pads[1]!, hit: memberOf(p, 1) } }))?.key).toBe(`hit:${memberOf(p, 1)}:true`);
-    const pad = subjectOf(p, state(p, { view: 'hits', hitsLoop: true, selection: { ...sel, pad: brk.pads[1]! } }));
+    expect(initialState(p).hitsLoop).toBe(true);
+    expect(subjectOf(p, state(p, { view: 'hits', hitsLoop: false, selection: { ...sel, hit: brk.parent } }))?.key).toBe(`break:${brk.id}:true`);
+    expect(subjectOf(p, state(p, { view: 'hits', hitsLoop: false, selection: { ...sel, pad: brk.pads[1]!, hit: memberOf(p, 1) } }))?.key).toBe(`hit:${memberOf(p, 1)}:true`);
+    const pad = subjectOf(p, state(p, { view: 'hits', selection: { ...sel, pad: brk.pads[1]! } }));
     expect(pad).toMatchObject({ key: `pad:${brk.pads[1]}:false`, once: false });
   });
 
@@ -123,9 +124,9 @@ describe('Play in each view', () => {
     expect(player.replace).toHaveBeenCalledTimes(1);
   });
 
-  it('plays a hit once in Hits, and loops it with Loop', async () => {
+  it('plays a hit once in Hits with Once, and loops it with Loop', async () => {
     const p = split();
-    const { player, end } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad: brkOf(p).pads[1]!, hit: memberOf(p, 1) } });
+    const { player, end } = await setup(p, { view: 'hits', hitsLoop: false, selection: { ...initialState(p).selection, pad: brkOf(p).pads[1]!, hit: memberOf(p, 1) } });
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
     // Played out, it stops by itself.
@@ -145,7 +146,7 @@ describe('Play in each view', () => {
 describe('the Hits list', () => {
   it('folds away a parent\'s pads', async () => {
     const p = split();
-    await setup(p, { view: 'hits' });
+    await setup(p, { view: 'hits', unfolded: [brkOf(p).id] });
     const list = screen.getByLabelText('Breaks and pads');
     expect(within(list).getAllByRole('button', { name: /^Pad / }).length).toBeGreaterThan(0);
     fireEvent.click(within(list).getByRole('button', { name: /^Hide the pads of/ }));
@@ -154,8 +155,10 @@ describe('the Hits list', () => {
     expect(within(list).getAllByRole('button', { name: /^Pad amen/ }).length).toBeGreaterThan(0);
   });
 
-  it('collapses and expands every break at once', async () => {
+  it('starts folded, and collapses and expands every break at once', async () => {
     await setup(split(), { view: 'hits' });
+    expect(within(screen.getByLabelText('Breaks and pads')).queryAllByRole('button', { name: /^Pad amen/ })).toHaveLength(0);
+    fireEvent.click(within(screen.getByLabelText('Breaks and pads')).getByRole('button', { name: 'Expand all' }));
     const list = screen.getByLabelText('Breaks and pads');
     fireEvent.click(within(list).getByRole('button', { name: 'Collapse all' }));
     expect(within(list).queryAllByRole('button', { name: /^Pad amen/ })).toHaveLength(0);
@@ -166,7 +169,7 @@ describe('the Hits list', () => {
   it('shows a replaced slice as 04→02', async () => {
     const p0 = split();
     const p = split(setHitSource(memberOf(p0, 3), brkOf(p0).id, 1));
-    await setup(p, { view: 'hits' });
+    await setup(p, { view: 'hits', unfolded: [brkOf(p).id] });
     const chip = screen.getByTitle(/plays 02 instead/);
     expect(chip.textContent).toBe('04→02');
     expect(chip.className).toContain('replaced');

@@ -43,8 +43,8 @@ export interface AppState {
   readonly clipboard: Clip | null;
   /** Whether Play in Hits loops what is open, or plays it once. */
   readonly hitsLoop: boolean;
-  /** Breaks whose pads are folded away in the Hits list. */
-  readonly folded: readonly Id[];
+  /** Breaks whose pads are shown in the Hits list; all are folded at first. */
+  readonly unfolded: readonly Id[];
   /** The break whose Trim is open in Import: what Play plays there. */
   readonly trimming: Id | null;
   /** Groups of pads left out of the pad shelf in Loops: a break's id, or "One-shots" or "Built". */
@@ -83,8 +83,8 @@ export const initialState = (project: Project = createProject()): AppState => ({
   selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },
   songCursor: 0,
   clipboard: null,
-  hitsLoop: false,
-  folded: [],
+  hitsLoop: true,
+  unfolded: [],
   trimming: null,
   shelfHidden: [],
   shelfOpen: [],
@@ -125,8 +125,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'hitsLoop':
       return { state: { ...state, hitsLoop: action.loop }, error: null };
     case 'fold': {
-      const others = state.folded.filter((id) => !action.breakIds.includes(id));
-      return { state: { ...state, folded: action.folded ? [...others, ...action.breakIds] : others }, error: null };
+      const others = state.unfolded.filter((id) => !action.breakIds.includes(id));
+      return { state: { ...state, unfolded: action.folded ? others : [...others, ...action.breakIds] }, error: null };
     }
     case 'trimming':
       return { state: { ...state, trimming: action.breakId }, error: null };
