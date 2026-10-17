@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { middleEllipsis } from './ImportView';
+import { middleEllipsis } from './labels';
 
 describe('long file names in Import', () => {
   it('are shortened in the middle, keeping the start and the extension', () => {

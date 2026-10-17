@@ -8,6 +8,7 @@ import { DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
 import { TrimEditor } from './TrimEditor';
 import { InSong, useHeard } from './InSong';
+import { middleEllipsis } from './labels';
 
 /** Every break, in import order: each imported file is one, a one-shot being a break with one slot. */
 export const sources = (project: Project): Break[] => Object.values(project.breaks);
@@ -24,13 +25,6 @@ export function breakLoops(project: Project, brk: Break): Loop[] {
 function files(project: Project): [string, Break[]][] {
   const order = [...new Set(sources(project).flatMap((b) => project.samples[b.sampleId]?.audioId ?? []))];
   return order.map((audioId) => [audioId, fileBreaks(project, audioId)]);
-}
-
-/** A long file name shortened in the middle, keeping its start and its end with the extension. */
-export function middleEllipsis(name: string, max = 32): string {
-  if (name.length <= max) return name;
-  const tail = Math.floor((max - 1) / 3);
-  return `${name.slice(0, max - 1 - tail)}…${name.slice(-tail)}`;
 }
 
 interface ImportViewProps {

@@ -1,12 +1,14 @@
 import type { Break } from '../model';
 import { sliceName, trimName } from '../model';
 import { useApp, useOpen, useProject } from './context';
+import { middleEllipsis } from './labels';
 
 type Part = 'break' | 'slice' | 'trim' | 'file';
 
 /**
  * Where a break comes from, each part a link to where it is edited: the break
- * (its parent, in Hits), its slice (Slice), its trim and file (Import).
+ * (its parent, in Hits), ← Slice, ← Trim and the file (Import), its name
+ * shortened in the middle as in Import. The full names are in the titles.
  */
 export function BreakOrigin({ brk, parts }: { readonly brk: Break; readonly parts: readonly Part[] }) {
   const project = useProject();
@@ -27,17 +29,17 @@ export function BreakOrigin({ brk, parts }: { readonly brk: Break; readonly part
         return brk.bars === null
           ? null
           : {
-              text: sliceName(project, brk),
-              title: 'Open its markers in Slice',
+              text: '← Slice',
+              title: `Open ${sliceName(project, brk)} in Slice`,
               go: () => {
                 store.dispatch({ type: 'sliceTarget', breakId: brk.id });
                 store.dispatch({ type: 'view', view: 'slice' });
               },
             };
       case 'trim':
-        return sample === undefined ? null : { text: trimName(sample), title: 'Open its Trim in Import', go: toImport };
+        return sample === undefined ? null : { text: '← Trim', title: `Open ${trimName(sample)} in Import`, go: toImport };
       case 'file':
-        return sample === undefined ? null : { text: sample.name, title: 'The imported file, in Import', go: toImport };
+        return sample === undefined ? null : { text: middleEllipsis(sample.name), title: `${sample.name}, in Import`, go: toImport };
     }
   };
   const links = parts.flatMap((p) => {
@@ -45,10 +47,9 @@ export function BreakOrigin({ brk, parts }: { readonly brk: Break; readonly part
     return l === null ? [] : [{ part: p, ...l }];
   });
   return (
-    <span className="origin small muted">
-      {links.map((l, i) => (
+    <span className="origin row small muted">
+      {links.map((l) => (
         <span key={l.part}>
-          {i > 0 && ' · '}
           <button type="button" className="link-text small" title={l.title} onClick={l.go}>
             {l.text}
           </button>

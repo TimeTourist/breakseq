@@ -106,7 +106,7 @@ export function SliceView() {
         <div className="stack-tight">
           <h1 className="mono">{sliceName(project, brk)}</h1>
           <div className="row nav-row">
-            <BreakOrigin brk={brk} parts={['break', 'trim', 'file']} />
+            <BreakOrigin brk={brk} parts={['break', 'file']} />
             <InSong heard={heard.breaks.has(brk.id)} />
             <button
               type="button"

@@ -660,7 +660,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
               onBlur={seal}
             />
             <div className="row nav-row">
-              {ownsBreak && brk !== undefined && <BreakOrigin brk={brk} parts={['slice', 'trim', 'file']} />}
+              {ownsBreak && brk !== undefined && <BreakOrigin brk={brk} parts={['trim', 'slice', 'file']} />}
               <InSong heard={ownsBreak && brk !== undefined ? heard.breaks.has(brk.id) : heard.hits.has(hit.id)} />
             </div>
             <p className="muted">

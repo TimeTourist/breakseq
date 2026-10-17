@@ -127,3 +127,10 @@ export const FILTER_TYPES = [
   ['lowpass', 'Low-pass'],
   ['highpass', 'High-pass'],
 ] as const;
+
+/** A long file name shortened in the middle, keeping its start and its end with the extension. */
+export function middleEllipsis(name: string, max = 32): string {
+  if (name.length <= max) return name;
+  const tail = Math.floor((max - 1) / 3);
+  return `${name.slice(0, max - 1 - tail)}…${name.slice(-tail)}`;
+}
