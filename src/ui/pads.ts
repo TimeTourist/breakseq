@@ -1,5 +1,5 @@
 import type { Hit, Id, Matrix, Pad, Project } from '../model';
-import { baseName, padOfHit } from '../model';
+import { baseName, matrixOfPad, padOfHit } from '../model';
 import { replacedBy } from './labels';
 import type { Selection } from './store';
 
@@ -74,8 +74,8 @@ export const rowNumber = (row: number): string => String(row + 1).padStart(2, '0
  */
 export function hitLabel(project: Project, padId: Id, row: number, hit: Hit): string {
   const by = replacedBy(project, padId, hit);
-  if (by !== null) return /^\d+$/.test(by) ? `${rowNumber(row)}→${by}` : `→${by}`;
-  const matrix = Object.values(project.matrices).find((m) => m.pads.includes(padId));
+  const matrix = matrixOfPad(project, padId);
+  if (by !== null) return hit.sampleId === matrix?.sampleId ? `${rowNumber(row)}→${by}` : `→${by}`;
   if (matrix?.sampleId === hit.sampleId && hit.slice !== null) return rowNumber(hit.slice);
   return baseName(hit.name);
 }

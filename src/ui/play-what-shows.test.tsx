@@ -165,7 +165,7 @@ describe('the timeline in Pads', () => {
     const p0 = split();
     const p = split(setHitSource(memberOf(p0, 3), sampleOf(p0).id, 1));
     await setup(p, { view: 'pads' });
-    const chip = screen.getByRole('button', { name: 'Hit amen 1 04' });
+    const chip = screen.getByRole('button', { name: '04→02, amen 1 04' });
     // ♪: it is heard in the song.
     expect(chip.querySelector('.hit-label')?.textContent).toBe('04→02');
     expect(chip.className).toContain('replaced');

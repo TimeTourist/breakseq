@@ -7,6 +7,7 @@ import {
   copyHits,
   hitStretch,
   matrixOfPad,
+  movePad,
   movePadMember,
   padOfHit,
   renamePad,
@@ -113,6 +114,7 @@ function PadControls({ pad, matrix, onError }: { readonly pad: Pad; readonly mat
   const query = search.trim().toLowerCase();
   const available = Object.values(project.hits).filter((h) => !pad.members.includes(h.id) && (query === '' || h.name.toLowerCase().includes(query)));
   const move = (id: Id, to: number) => onError(run(movePadMember(pad.id, id, to)));
+  const row = matrix.pads.indexOf(pad.id);
   const above = [{ name: 'matrix' as const, config: matrix.config }];
   const layer: Layer = {
     config: pad.config,
@@ -133,9 +135,21 @@ function PadControls({ pad, matrix, onError }: { readonly pad: Pad; readonly mat
         />
         <InSong heard={heard.pads.has(pad.id)} />
         <span className="muted small">
-          Row {rowNumber(matrix.pads.indexOf(pad.id))} of {matrix.name}
+          Row {rowNumber(row)} of {matrix.name}
         </span>
         <div className="row push">
+          <button type="button" aria-label={`Move ${pad.name} left`} title="One row earlier in the timeline" disabled={row === 0} onClick={() => onError(run(movePad(matrix.id, pad.id, row - 1)))}>
+            ←
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${pad.name} right`}
+            title="One row later in the timeline"
+            disabled={row === matrix.pads.length - 1}
+            onClick={() => onError(run(movePad(matrix.id, pad.id, row + 1)))}
+          >
+            →
+          </button>
           <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} onDeleted={() => open({ pad: null, hit: null, matrix: matrix.id }, 'pads')} />
         </div>
       </div>
