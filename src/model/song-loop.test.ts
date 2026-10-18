@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from './index';
-import { addClip, addSample, createProject, pasteClip, removeClip, setBreak, setSongBars, setSongLoop, setSongLoopOn } from './index';
+import { addClip, addSample, createProject, pasteClip, removeClip, setSlicing, setSongBars, setSongLoop, setSongLoopOn } from './index';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 
 const ctx = sequentialIds();
@@ -16,7 +16,7 @@ function run(project: Project, ...commands: Command[]): Project {
 /** A song of 8 bars with one break, so it has a loop M1. */
 function song(): Project {
   const project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-  return run(project, setBreak(Object.keys(project.breaks)[0]!, 1));
+  return run(project, setSlicing(Object.keys(project.samples)[0]!, 1));
 }
 
 describe('the song loop', () => {
