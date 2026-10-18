@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, copyHits, createMatrix, createProject, renameMatrix, setHitSource, setSlicing, sliceSample } from '../model';
+import { addPad, addSample, copyHits, createMatrix, setPadChoice, createProject, renameMatrix, setHitSource, setSlicing, sliceSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
-import { EMPTY_COLUMN_PX, MIN_COLUMN_PX, hitLabel, nextMatrixName, padsOpen, timelineLayout } from './pads';
+import { AUTOSCROLL_EDGE_PX, AUTOSCROLL_MAX_PX, EMPTY_COLUMN_PX, MIN_COLUMN_PX, autoscrollStep, dropCommand, dropTarget, hitLabel, nextMatrixName, padsOpen, stepSelection, timelineLayout, zoneOf } from './pads';
 import { initialState } from './store';
 
 const ctx = sequentialIds();
@@ -113,5 +113,132 @@ describe('a new matrix', () => {
     expect(nextMatrixName(p)).toBe('Matrix 1');
     expect(nextMatrixName(apply(p, createMatrix('Matrix 1')))).toBe('Matrix 2');
     expect(nextMatrixName(apply(p, createMatrix('Matrix 2')))).toBe('Matrix 1');
+  });
+});
+
+/** amen 1 with pad 02 holding a copy of slice 04 under its own, and a hand-built Snares of two one-shots. */
+function withSnares(): Project {
+  const p = apply(amen(), addSample({ name: 'snare_01.wav', audio: constantAudio(0.1) }), addSample({ name: 'snare_02.wav', audio: constantAudio(0.1) }), createMatrix('Snares'));
+  const m = matrixOf(p, 'amen 1');
+  const snares = matrixOf(p, 'Snares');
+  const oneShots = Object.values(p.hits).filter((h) => h.name.startsWith('snare_')).map((h) => h.id);
+  return apply(p, copyHits([p.pads[m.pads[3]!]!.members[0]!], m.pads[1]!), copyHits(oneShots, snares.pads[0]!));
+}
+const run = (p: Project, c: Command | null) => apply(p, c!);
+
+describe('where a drag drops', () => {
+  const p = withSnares();
+  const m = matrixOf(p, 'amen 1');
+  const pad2 = p.pads[m.pads[1]!]!;
+  const [own, copied] = pad2.members as [string, string];
+  const snare = p.pads[matrixOf(p, 'Snares').pads[0]!]!.members[0]!;
+
+  it('on a pad adds; on a hit replaces it; a hit on itself does nothing', () => {
+    expect(dropTarget(p, { kind: 'hit', hitId: snare }, { padId: pad2.id, hitId: null, zone: 'on' })).toEqual({ kind: 'add', padId: pad2.id });
+    expect(dropTarget(p, { kind: 'hit', hitId: snare }, { padId: pad2.id, hitId: own, zone: 'on' })).toEqual({ kind: 'replace', padId: pad2.id, hitId: own });
+    expect(dropTarget(p, { kind: 'hit', hitId: own }, { padId: pad2.id, hitId: own, zone: 'on' })).toBeNull();
+  });
+
+  it('between hits of its own pad moves; from another pad the edges of a hit still replace it', () => {
+    expect(dropTarget(p, { kind: 'hit', hitId: copied }, { padId: pad2.id, hitId: own, zone: 'before' })).toEqual({ kind: 'move', padId: pad2.id, hitId: copied, to: 0 });
+    expect(dropTarget(p, { kind: 'hit', hitId: snare }, { padId: pad2.id, hitId: own, zone: 'before' })).toEqual({ kind: 'replace', padId: pad2.id, hitId: own });
+    // Where it already is: nothing to do.
+    expect(dropTarget(p, { kind: 'hit', hitId: copied }, { padId: pad2.id, hitId: own, zone: 'after' })).toBeNull();
+  });
+
+  it('all hits of a matrix add, also dropped on a hit', () => {
+    const snares = matrixOf(p, 'Snares').id;
+    expect(dropTarget(p, { kind: 'matrix', matrixId: snares }, { padId: pad2.id, hitId: own, zone: 'on' })).toEqual({ kind: 'add', padId: pad2.id });
+  });
+
+  it('the zone of a hit: its top and bottom edges are between hits', () => {
+    expect(zoneOf(2, 0, 30)).toBe('before');
+    expect(zoneOf(15, 0, 30)).toBe('on');
+    expect(zoneOf(28, 0, 30)).toBe('after');
+    expect(zoneOf(0, 0, 0)).toBe('on');
+  });
+});
+
+describe('what a drop does', () => {
+  const p = withSnares();
+  const m = matrixOf(p, 'amen 1');
+  const pad2 = p.pads[m.pads[1]!]!;
+  const pad3 = p.pads[m.pads[2]!]!;
+  const snaresPad = p.pads[matrixOf(p, 'Snares').pads[0]!]!;
+  const snare = snaresPad.members[0]!;
+
+  it('adds copies last, and a pad on Top with more than one hit turns Round robin', () => {
+    const after = run(p, dropCommand({ kind: 'hit', hitId: snare }, { kind: 'add', padId: pad3.id }));
+    const members = after.pads[pad3.id]!.members;
+    expect(members).toHaveLength(2);
+    expect(members[0]).toBe(pad3.members[0]);
+    expect(after.hits[members[1]!]).toMatchObject({ sampleId: p.hits[snare]!.sampleId, name: p.hits[snare]!.name });
+    expect(members[1]).not.toBe(snare);
+    expect(after.pads[pad3.id]!.choice).toBe('roundRobin');
+  });
+
+  it('keeps a choice other than Top, and an empty pad given one hit stays on Top', () => {
+    const empty = apply(p, setPadChoice(pad3.id, 'random'));
+    expect(run(empty, dropCommand({ kind: 'hit', hitId: snare }, { kind: 'add', padId: pad3.id })).pads[pad3.id]!.choice).toBe('random');
+    const withEmpty = apply(p, addPad(m.id));
+    const newPad = matrixOf(withEmpty, 'amen 1').pads.at(-1)!;
+    expect(run(withEmpty, dropCommand({ kind: 'hit', hitId: snare }, { kind: 'add', padId: newPad })).pads[newPad]!.choice).toBe('top');
+  });
+
+  it('all hits of a matrix are copied last, pad by pad', () => {
+    const after = run(p, dropCommand({ kind: 'matrix', matrixId: matrixOf(p, 'Snares').id }, { kind: 'add', padId: pad3.id }));
+    expect(after.pads[pad3.id]!.members.slice(1).map((h) => after.hits[h]!.name)).toEqual(snaresPad.members.map((h) => p.hits[h]!.name));
+  });
+
+  it('replaces a hit with a copy in its place', () => {
+    const after = run(p, dropCommand({ kind: 'hit', hitId: snare }, { kind: 'replace', padId: pad2.id, hitId: pad2.members[0]! }));
+    const members = after.pads[pad2.id]!.members;
+    expect(members[1]).toBe(pad2.members[1]);
+    expect(after.hits[members[0]!]!.name).toBe(p.hits[snare]!.name);
+    expect(after.hits[pad2.members[0]!]).toBeUndefined();
+  });
+
+  it('moves a hit within its pad, also to first', () => {
+    const after = run(p, dropCommand({ kind: 'hit', hitId: pad2.members[1]! }, { kind: 'move', padId: pad2.id, hitId: pad2.members[1]!, to: 0 }));
+    expect(after.pads[pad2.id]!.members).toEqual([pad2.members[1], pad2.members[0]]);
+  });
+});
+
+describe('autoscroll while dragging', () => {
+  it('scrolls back near the start, on near the end, faster closer to the edge, and not in the middle', () => {
+    expect(autoscrollStep(500, 0, 1000)).toBe(0);
+    expect(autoscrollStep(AUTOSCROLL_EDGE_PX + 1, 0, 1000)).toBe(0);
+    expect(autoscrollStep(0, 0, 1000)).toBe(-AUTOSCROLL_MAX_PX);
+    expect(autoscrollStep(1000, 0, 1000)).toBe(AUTOSCROLL_MAX_PX);
+    expect(autoscrollStep(990, 0, 1000)).toBeGreaterThan(autoscrollStep(980, 0, 1000));
+    expect(autoscrollStep(980, 0, 1000)).toBeGreaterThan(0);
+    // Past the box, as the pointer leaves it, at full speed.
+    expect(autoscrollStep(1100, 0, 1000)).toBe(AUTOSCROLL_MAX_PX);
+  });
+});
+
+describe('arrow keys in Pads', () => {
+  const p = withSnares();
+  const m = matrixOf(p, 'amen 1');
+  const pad = (i: number) => p.pads[m.pads[i]!]!;
+  const open = (padIndex: number | null, hit: number | null) => padsOpen(p, m.id, { pad: padIndex === null ? null : m.pads[padIndex]!, hit: padIndex === null || hit === null ? null : pad(padIndex).members[hit]! })!;
+
+  it('←/→ go from pad to pad, from the matrix to the first or last, and stop at the ends', () => {
+    expect(stepSelection(open(null, null), 'ArrowRight')).toEqual({ pad: m.pads[0], hit: null });
+    expect(stepSelection(open(null, null), 'ArrowLeft')).toEqual({ pad: m.pads[3], hit: null });
+    expect(stepSelection(open(1, 1), 'ArrowRight')).toEqual({ pad: m.pads[2], hit: null });
+    expect(stepSelection(open(1, null), 'ArrowLeft')).toEqual({ pad: m.pads[0], hit: null });
+    expect(stepSelection(open(0, null), 'ArrowLeft')).toBeNull();
+    expect(stepSelection(open(3, null), 'ArrowRight')).toBeNull();
+  });
+
+  it('↑/↓ go through the hits of the pad, ↑ from the first back to the pad', () => {
+    expect(stepSelection(open(1, null), 'ArrowDown')).toEqual({ pad: m.pads[1], hit: pad(1).members[0] });
+    expect(stepSelection(open(1, 0), 'ArrowDown')).toEqual({ pad: m.pads[1], hit: pad(1).members[1] });
+    expect(stepSelection(open(1, 1), 'ArrowDown')).toBeNull();
+    expect(stepSelection(open(1, 1), 'ArrowUp')).toEqual({ pad: m.pads[1], hit: pad(1).members[0] });
+    expect(stepSelection(open(1, 0), 'ArrowUp')).toEqual({ pad: m.pads[1], hit: null });
+    expect(stepSelection(open(1, null), 'ArrowUp')).toBeNull();
+    expect(stepSelection(open(null, null), 'ArrowDown')).toBeNull();
   });
 });

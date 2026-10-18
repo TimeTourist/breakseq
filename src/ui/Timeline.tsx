@@ -1,12 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, DragEvent, MouseEvent } from 'react';
 import type { Id, Matrix, Pad } from '../model';
 import { PAD_CHOICES, STEPS_PER_BAR, hitSound, padSteps, sampleAudio, setPadChoice, stepDuration } from '../model';
 import { useApp, useOpen, useProject, useRun } from './context';
 import { InSongMark, useHeard } from './InSong';
 import { CHOICE_LABEL, middleEllipsis, padSilent } from './labels';
-import type { PadsOpen, Zoom } from './pads';
-import { ZOOMS, hitLabel, rowNumber, timelineLayout } from './pads';
+import { HIT_MIME, MATRIX_MIME } from './dnd';
+import type { Dragged, Over, PadsOpen, Placing, Zoom } from './pads';
+import { ZOOMS, autoscrollStep, dropTarget, hitLabel, rowNumber, timelineLayout, zoneOf } from './pads';
 import { Waveform } from './Waveform';
 
 /** The width laid out before the box is measured, as in a test without layout. */
@@ -43,15 +44,39 @@ interface TimelineProps {
   /** Seconds into the matrix while Play plays it, else null. */
   readonly playedSeconds: number | null;
   readonly onError: (error: string | null) => void;
+  readonly placing: Placing;
+}
+
+/** Where in pad `padId` an event is: on a hit (its edges are between hits), or on the pad. */
+function overAt(e: DragEvent | MouseEvent, padId: Id): Over {
+  const chip = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-hit]') : null;
+  if (chip === null || chip.dataset.hit === undefined) return { padId, hitId: null, zone: 'on' };
+  const rect = chip.getBoundingClientRect();
+  return { padId, hitId: chip.dataset.hit, zone: zoneOf(e.clientY, rect.top, rect.height) };
+}
+
+/** What a drop event carries, by its data; else what Pads saw start. */
+function draggedOf(e: DragEvent, started: Dragged | null): Dragged | null {
+  const hitId = e.dataTransfer.getData(HIT_MIME);
+  if (hitId !== '') return { kind: 'hit', hitId };
+  const matrixId = e.dataTransfer.getData(MATRIX_MIME);
+  return matrixId !== '' ? { kind: 'matrix', matrixId } : started;
 }
 
 /**
  * The matrix in focus as a timeline: its pads one after another, each as
  * wide as it plays (an empty pad narrow), on a raster of steps and beats,
  * with its hits downwards, the first marked. A click on a pad selects it; a
- * click on a hit selects and plays it. The timeline scrolls in its own box.
+ * click on a hit selects and plays it. The timeline scrolls in its own box,
+ * also while dragging near its edge (U4).
+ *
+ * A hit or all hits dropped on a pad are added as copies; a hit dropped on a
+ * hit replaces it; a hit dropped between hits of its own pad moves there
+ * (decisions 4, 12, 13). While dragging, the target reads "add" or
+ * "replace", or a line shows where the hit goes. With something picked on
+ * the shelf, a tap on a pad or a hit places it the same way.
  */
-export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }: TimelineProps) {
+export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, placing }: TimelineProps) {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
@@ -64,6 +89,8 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
   const steps = lengths.reduce((a, b) => a + b, 0);
   const selectedPad = open.kind === 'matrix' ? null : open.pad.id;
   const selectedHit = open.kind === 'hit' ? open.hit.id : null;
+  const [hover, setHover] = useState<Over | null>(null);
+  const target = placing.dragging === null || hover === null ? null : dropTarget(project, placing.dragging, hover);
 
   /** Where the playhead is, in px: within the pad whose steps it is in. */
   const playheadPx = (() => {
@@ -76,6 +103,42 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
   const playHit = (padId: Id, hitId: Id) => {
     select({ pad: padId, hit: hitId }, 'pads');
     services.player.playHit(project, hitId);
+  };
+
+  /** Drop handlers for a pad's column: the whole column is the pad, a hit in it its hit. */
+  const dropOn = (padId: Id) => ({
+    onDragOver: (e: DragEvent) => {
+      if (placing.dragging === null) return;
+      const over = overAt(e, padId);
+      const next = dropTarget(project, placing.dragging, over);
+      if (next === null) {
+        setHover(null);
+        return;
+      }
+      e.preventDefault();
+      e.dataTransfer.dropEffect = next.kind === 'move' ? 'move' : 'copy';
+      if (hover === null || hover.padId !== over.padId || hover.hitId !== over.hitId || hover.zone !== over.zone) setHover(over);
+    },
+    onDrop: (e: DragEvent) => {
+      const dragged = draggedOf(e, placing.dragging);
+      setHover(null);
+      if (dragged === null) return;
+      e.preventDefault();
+      const at = dropTarget(project, dragged, overAt(e, padId));
+      if (at !== null) placing.place(dragged, at);
+      placing.endDrag();
+    },
+    /** With something picked: a tap on the pad adds it (a tap on a hit is the hit's). */
+    onClick: (e: MouseEvent) => {
+      if (placing.picked === null || (e.target instanceof Element && e.target.closest('select') !== null)) return;
+      placing.place(placing.picked, { kind: 'add', padId });
+    },
+  });
+  const autoscroll = (e: DragEvent) => {
+    const element = box.current;
+    if (element === null || placing.dragging === null) return;
+    const rect = element.getBoundingClientRect();
+    element.scrollLeft += autoscrollStep(e.clientX, rect.left, rect.right);
   };
 
   return (
@@ -92,7 +155,16 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
           ))}
         </div>
       </div>
-      <div className="timeline-scroll" role="region" aria-label="Timeline" ref={box}>
+      <div
+        className={`timeline-scroll${placing.picked !== null ? ' picking' : ''}`}
+        role="region"
+        aria-label="Timeline"
+        ref={box}
+        onDragOver={autoscroll}
+        onDragLeave={(e) => {
+          if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setHover(null);
+        }}
+      >
         <div className="timeline" style={{ width: total }}>
           {pads.map((pad, row) => {
             const column = columns[row]!;
@@ -113,6 +185,8 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
                 key={pad.id}
                 className={`pad-column${column.steps === 0 ? ' empty' : ''}${pad.id === selectedPad ? ' current' : ''}${padSilent(project, pad) ? ' silent' : ''}${stepPx < 6 ? ' coarse' : ''}`}
                 style={raster}
+                data-drop={target?.kind === 'add' && target.padId === pad.id ? 'add' : undefined}
+                {...dropOn(pad.id)}
               >
                 <button
                   type="button"
@@ -120,7 +194,10 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
                   aria-label={`Pad ${pad.name}`}
                   aria-current={pad.id === selectedPad && selectedHit === null ? 'true' : undefined}
                   title={`${pad.name} · ${column.steps === 0 ? 'empty: takes no steps' : `${column.steps}/16`} · ${CHOICE_LABEL[pad.choice]}`}
-                  onClick={() => select({ pad: pad.id, hit: null }, 'pads')}
+                  onClick={() => {
+                    // With something picked, the tap is the column's: it adds.
+                    if (placing.picked === null) select({ pad: pad.id, hit: null }, 'pads');
+                  }}
                 >
                   <span className="pad-number mono">{rowNumber(row)}</span>
                   <InSongMark heard={heard.pads.has(pad.id)} />
@@ -153,15 +230,34 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
                       const label = hitLabel(project, pad.id, row, hit);
                       const replaced = label.includes('→');
                       const shown = `${middleEllipsis(label, chars)}${hit.direction === 'reverse' ? ' ◂' : ''}`;
+                      const insert = target?.kind === 'move' && hover?.hitId === id ? ` insert-${hover.zone}` : '';
                       return (
-                        <li key={id}>
+                        <li key={id} className={insert}>
                           <button
                             type="button"
                             className={`hit-chip mono${i === 0 ? ' first' : ''}${replaced ? ' replaced' : ''}`}
                             aria-label={shown === hit.name ? hit.name : `${shown}, ${hit.name}`}
                             aria-current={id === selectedHit ? 'true' : undefined}
-                            title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it`}
-                            onClick={() => playHit(pad.id, id)}
+                            title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it; drag it between hits to move it, or onto another pad or hit`}
+                            data-hit={id}
+                            data-drop={target?.kind === 'replace' && target.hitId === id ? 'replace' : undefined}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData(HIT_MIME, id);
+                              e.dataTransfer.effectAllowed = 'copyMove';
+                              placing.startDrag({ kind: 'hit', hitId: id });
+                            }}
+                            onDragEnd={placing.endDrag}
+                            onClick={(e) => {
+                              if (placing.picked === null) {
+                                playHit(pad.id, id);
+                                return;
+                              }
+                              // With something picked, a tap on a hit replaces it.
+                              e.stopPropagation();
+                              const at = dropTarget(project, placing.picked, { padId: pad.id, hitId: id, zone: 'on' });
+                              if (at !== null) placing.place(placing.picked, at);
+                            }}
                           >
                             <span className="hit-label">{shown}</span>
                             <InSongMark heard={heard.hits.has(id)} />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Matrix } from '../model';
 import { addPad, cloneMatrix, matrixKind, renameMatrix, trimName } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
@@ -8,9 +8,10 @@ import { DeleteMatrix } from './DeleteMatrix';
 import { FocusBar } from './FocusBar';
 import { InSong, useHeard } from './InSong';
 import { MatrixKindIcon } from './icons';
-import { middleEllipsis } from './labels';
-import type { Zoom } from './pads';
-import { padsOpen } from './pads';
+import { isTyping } from './isTyping';
+import type { Dragged, DropTarget, PadsOpen, Placing, Zoom } from './pads';
+import { dropCommand, padsOpen, stepSelection } from './pads';
+import { TakeFromShelf } from './TakeFromShelf';
 import { Timeline } from './Timeline';
 
 /**
@@ -26,6 +27,8 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<Zoom>('fit');
   const open = padsOpen(project, focus.matrix, selection);
+  const placing = usePlacing(setError);
+  const ask = usePadsKeys(open);
   const what = open === null ? null : open.kind === 'pad' && open.pad.members.length === 0 ? null : open.kind;
   const matrixPlays = open !== null && transport.played !== null && transport.played.key === `matrix:${open.matrix.id}`;
 
@@ -41,11 +44,18 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
         <NoFocus />
       ) : (
         <>
-          <MatrixRow matrix={open.matrix} selected={open.kind === 'matrix'} onError={setError} />
-          <Timeline matrix={open.matrix} open={open} zoom={zoom} onZoom={setZoom} playedSeconds={matrixPlays ? transport.played!.seconds : null} onError={setError} />
-          {/* Seam for Task 6: the shelf of the matrices taken from, with their hits to drag, tap or pick with keys. */}
-          <TakeFromShelf />
-          <ControlsPanel open={open} transport={transport} onError={setError} />
+          <MatrixRow matrix={open.matrix} selected={open.kind === 'matrix'} onError={setError} ask={ask.matrix} />
+          <Timeline
+            matrix={open.matrix}
+            open={open}
+            zoom={zoom}
+            onZoom={setZoom}
+            playedSeconds={matrixPlays ? transport.played!.seconds : null}
+            onError={setError}
+            placing={placing}
+          />
+          <TakeFromShelf placing={placing} />
+          <ControlsPanel open={open} transport={transport} onError={setError} ask={ask.selected} />
         </>
       )}
     </main>
@@ -71,28 +81,94 @@ function NoFocus() {
   );
 }
 
-/** The matrices taken from, under the timeline. Their hits come with Task 6. */
-function TakeFromShelf() {
-  const project = useProject();
-  const takeFrom = useSelect((s) => s.focus.takeFrom);
-  const matrices = takeFrom.flatMap((id) => (project.matrices[id] === undefined ? [] : [project.matrices[id]]));
-  if (matrices.length === 0) return null;
-  return (
-    <section className="take-from-shelf row" aria-label="Take from shelf">
-      {matrices.map((m) => (
-        <span key={m.id} className="chip" title={m.name}>
-          <MatrixKindIcon kind={matrixKind(m)} /> {middleEllipsis(m.name, 24)}
-        </span>
-      ))}
-    </section>
-  );
+/**
+ * Drag and tap to place: what is dragged, what is picked by a tap, and
+ * placing either as one undo step. A pick goes after it is placed, on
+ * Escape, or on a tap anywhere but a pad, a hit or the shelf.
+ */
+function usePlacing(onError: (error: string | null) => void): Placing {
+  const run = useRun();
+  const [dragging, setDragging] = useState<Dragged | null>(null);
+  const [picked, setPicked] = useState<Dragged | null>(null);
+  useEffect(() => {
+    if (picked === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setPicked(null);
+    };
+    const onClick = (e: MouseEvent) => {
+      if (!(e.target instanceof Element && e.target.closest('.pad-column, .take-from-shelf') !== null)) setPicked(null);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('click', onClick);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('click', onClick);
+    };
+  }, [picked]);
+  return {
+    dragging,
+    picked,
+    startDrag: setDragging,
+    endDrag: () => setDragging(null),
+    pick: setPicked,
+    place: (what: Dragged, target: DropTarget) => {
+      setPicked(null);
+      onError(run(dropCommand(what, target)));
+    },
+  };
 }
 
+/** Whether a key on `target` is the target's own: a field, a slider, a checkbox and the like. */
+const ownKeys = (target: EventTarget | null) => isTyping(target) || (target instanceof Element && target.closest('input, [role="slider"]') !== null);
+
+/**
+ * The keys of Pads: ←/→ go from pad to pad and ↑/↓ through the pad's hits,
+ * each step playing what it selects (a pad its first hit); Enter selects the
+ * matrix; Delete or Backspace asks, as the Delete button does, to delete what
+ * is selected. Returns the counts that make the Delete buttons ask.
+ */
+function usePadsKeys(open: PadsOpen | null) {
+  const project = useProject();
+  const { services } = useApp();
+  const select = useOpen();
+  const [ask, setAsk] = useState({ matrix: 0, selected: 0 });
+  // The listener is set up once and reads the latest of these.
+  const latest = useRef({ open, project });
+  latest.current = { open, project };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const { open: now, project: p } = latest.current;
+      if (now === null || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || ownKeys(e.target)) return;
+      if (document.querySelector('[role="alertdialog"]') !== null) return;
+      if (e.key.startsWith('Arrow')) {
+        const next = stepSelection(now, e.key);
+        if (next === null) return;
+        e.preventDefault();
+        select(next, 'pads');
+        const hit = next.hit ?? p.pads[next.pad]?.members[0];
+        if (hit !== undefined) services.player.playHit(p, hit);
+      } else if (e.key === 'Enter') {
+        // A focused button's Enter is its own.
+        if (e.target instanceof Element && e.target.closest('button, a, summary, [role="button"]') !== null) return;
+        e.preventDefault();
+        select({ matrix: now.matrix.id, pad: null, hit: null }, 'pads');
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        setAsk((a) => (now.kind === 'matrix' ? { ...a, matrix: a.matrix + 1 } : { ...a, selected: a.selected + 1 }));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [select, services]);
+  return ask;
+}
 /**
  * The matrix in focus, on top of its timeline: selecting it shows its config
  * below. Its name, ← Samples to its trim, ♪ Song, + Pad, Clone and Delete.
  */
-function MatrixRow({ matrix, selected, onError }: { readonly matrix: Matrix; readonly selected: boolean; readonly onError: (error: string | null) => void }) {
+function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix; readonly selected: boolean; readonly onError: (error: string | null) => void; readonly ask: number }) {
   const project = useProject();
   const { store } = useApp();
   const run = useRun();
@@ -149,7 +225,7 @@ function MatrixRow({ matrix, selected, onError }: { readonly matrix: Matrix; rea
         >
           Clone
         </button>
-        <DeleteMatrix matrix={matrix} onError={onError} onDeleted={() => select({ matrix: null, pad: null, hit: null }, 'pads')} />
+        <DeleteMatrix matrix={matrix} onError={onError} ask={ask} onDeleted={() => select({ matrix: null, pad: null, hit: null }, 'pads')} />
       </div>
     </section>
   );

@@ -63,15 +63,17 @@ interface ControlsProps {
   readonly open: PadsOpen;
   readonly transport: PadsPlay;
   readonly onError: (error: string | null) => void;
+  /** Asks to delete what is selected each time this changes (the Delete key). */
+  readonly ask?: number | undefined;
 }
 
 /** The controls under the timeline, for what is selected: a hit, a pad, or the matrix. */
-export function ControlsPanel({ open, transport, onError }: ControlsProps) {
+export function ControlsPanel({ open, transport, onError, ask }: ControlsProps) {
   switch (open.kind) {
     case 'hit':
-      return <HitControls key={open.hit.id} hit={open.hit} transport={transport} onError={onError} />;
+      return <HitControls key={open.hit.id} hit={open.hit} transport={transport} onError={onError} ask={ask} />;
     case 'pad':
-      return <PadControls key={open.pad.id} pad={open.pad} matrix={open.matrix} onError={onError} />;
+      return <PadControls key={open.pad.id} pad={open.pad} matrix={open.matrix} onError={onError} ask={ask} />;
     case 'matrix':
       return <MatrixControls matrix={open.matrix} onError={onError} />;
   }
@@ -102,7 +104,7 @@ function MatrixControls({ matrix, onError }: { readonly matrix: Matrix; readonly
  * A pad: its name, how it picks, its hits in order (the first plays by
  * default), adding more as copies, and its sound laid over all its hits.
  */
-function PadControls({ pad, matrix, onError }: { readonly pad: Pad; readonly matrix: Matrix; readonly onError: (error: string | null) => void }) {
+function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonly matrix: Matrix; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
@@ -150,7 +152,7 @@ function PadControls({ pad, matrix, onError }: { readonly pad: Pad; readonly mat
           >
             →
           </button>
-          <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} onDeleted={() => open({ pad: null, hit: null, matrix: matrix.id }, 'pads')} />
+          <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} ask={ask} onDeleted={() => open({ pad: null, hit: null, matrix: matrix.id }, 'pads')} />
         </div>
       </div>
 
@@ -273,7 +275,7 @@ function ReplacePanel({ hit, onError }: { readonly hit: Hit; readonly onError: (
 }
 
 /** A hit: Replace…, its region of its slice with handles, Variant, Delete, and its own config under its pad's and matrix's. */
-function HitControls({ hit, transport, onError }: { readonly hit: Hit; readonly transport: PadsPlay; readonly onError: (error: string | null) => void }) {
+function HitControls({ hit, transport, onError, ask }: { readonly hit: Hit; readonly transport: PadsPlay; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
   const project = useProject();
   const run = useRun();
   const seal = useSeal();
@@ -362,7 +364,7 @@ function HitControls({ hit, transport, onError }: { readonly hit: Hit; readonly 
           >
             Variant
           </button>
-          <Delete kind="hit" id={hit.id} name={hit.name} onError={onError} onDeleted={() => open({ hit: null }, 'pads')} />
+          <Delete kind="hit" id={hit.id} name={hit.name} onError={onError} ask={ask} onDeleted={() => open({ hit: null }, 'pads')} />
         </div>
       </div>
 

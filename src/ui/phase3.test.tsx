@@ -59,11 +59,12 @@ function build(...commands: Command[]): Project {
   }, createProject());
 }
 
-/** The app on `view`, with the matrix named `focus` (else the first) in focus in Pads. */
-async function setup(project: Project, view: View, focus?: string): Promise<Store> {
+/** The app on `view`, with the matrix named `focus` (else the first) in focus in Pads, taking from those named `takeFrom`. */
+async function setup(project: Project, view: View, focus?: string, takeFrom: readonly string[] = []): Promise<Store> {
   const matrices = Object.values(project.matrices);
   const focused = (focus === undefined ? matrices[0] : matrices.find((m) => m.name === focus))?.id ?? null;
-  const store = createStore({ ...initialState(project), view, focus: { matrix: focused, takeFrom: [] } });
+  const taken = takeFrom.map((name) => matrices.find((m) => m.name === name)!.id);
+  const store = createStore({ ...initialState(project), view, focus: { matrix: focused, takeFrom: taken } });
   render(<App store={store} services={fakeServices()} />);
   await act(async () => {});
   return store;
@@ -207,16 +208,18 @@ describe('Pads: matrices, pads and their hits', () => {
     expect(after.pads[amenOf(after).pads[0]!]!.config.volume).toBe(0);
   });
 
-  // Task 6: drag comes back with the Take from shelf, from it onto a pad or hit of the timeline; rewrite these there.
-  it.skip('dropping a matrix on a pad adds copies', async () => {
+  const shelf = () => screen.getByRole('region', { name: 'Take from shelf' });
+  const column = (name: string) => within(timeline()).getByRole('button', { name }).parentElement!;
+
+  it('dropping all hits of a matrix on a pad adds copies', async () => {
     const snareFiles = ['snare_01.wav', 'snare_02.wav', 'snare_03.wav', 'snare_04.wav'].map((name) => addSample({ name, audio: constantAudio(0.1) }));
     const base = breakAndOneShot(...snareFiles, createMatrix('Snares'));
     const snaresPad = Object.values(base.pads).find((p) => p.name === 'Snares 01')!;
     const originals = Object.values(base.hits).filter((h) => h.name.startsWith('snare_')).map((h) => h.id);
-    const store = await setup(applyAll(base, copyHits(originals, snaresPad.id)), 'pads');
+    const store = await setup(applyAll(base, copyHits(originals, snaresPad.id)), 'pads', 'amen 1', ['Snares']);
     const inSnares = present(store).pads[snaresPad.id]!.members;
 
-    drag(within(timeline()).getByRole('button', { name: 'Matrix Snares' }), within(timeline()).getByRole('button', { name: 'Pad amen 1 02' }).parentElement!);
+    drag(within(shelf()).getByRole('button', { name: 'All hits of Snares' }), column('Pad amen 1 02'));
 
     const after = present(store);
     const row = after.pads[amenOf(after).pads[1]!]!;
@@ -229,25 +232,23 @@ describe('Pads: matrices, pads and their hits', () => {
     expect(screen.getByRole('button', { name: /^Undo: add 4 hits/ })).toBeTruthy();
   });
 
-  // Task 6: drag comes back with the Take from shelf, from it onto a pad or hit of the timeline; rewrite these there.
-  it.skip('a pad dragged onto a matrix becomes a copy of it last there, named after its row, and a hit a new pad', async () => {
-    const store = await setup(breakAndOneShot(createMatrix('Snares')), 'pads');
-    const snares = () => Object.values(present(store).matrices).find((m) => m.name === 'Snares')!;
-    drag(within(timeline()).getByRole('button', { name: 'Pad amen 1 03' }), within(timeline()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
-    expect(snares().pads.map((p) => present(store).pads[p]!.name)).toEqual(['Snares 01', 'Snares 02']);
-    const chip = within(timeline()).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare 1')!;
-    drag(chip, within(timeline()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
-    const added = present(store).pads[snares().pads[2]!]!;
-    expect(added.members.map((h) => present(store).hits[h]!.name)).toEqual(['snare 1']);
+  // Dragging a pad onto a matrix is gone with the Hits list: Pads drags hits and all hits (decision 4).
+  it('a hit dragged from another pad of the matrix in focus becomes a copy there, last', async () => {
+    const store = await setup(breakAndOneShot(), 'pads');
+    const amen = amenOf(present(store));
+    const from = present(store).pads[amen.pads[2]!]!.members[0]!;
+    drag(within(column('Pad amen 1 03')).getByRole('button', { name: /^03/ }), column('Pad amen 1 01'));
+    const after = present(store);
+    expect(after.pads[amen.pads[2]!]!.members).toEqual([from]);
+    const copy = after.hits[after.pads[amen.pads[0]!]!.members[1]!]!;
+    expect(copy).toMatchObject({ sampleId: after.hits[from]!.sampleId, slice: 2 });
+    expect(copy.id).not.toBe(from);
   });
 
-  // Task 6: drag comes back with the Take from shelf, from it onto a pad or hit of the timeline; rewrite these there.
-  it.skip('a one-shot dragged onto a pad of the break becomes a copy there, and Pad member 2 plays it', async () => {
-    const store = await setup(breakAndOneShot(), 'pads');
-    fireEvent.click(within(timeline()).getByRole('button', { name: 'Pad amen 1 02' }));
+  it('a one-shot dragged onto a pad of the break becomes a copy there, and Pad member 2 plays it', async () => {
+    const store = await setup(breakAndOneShot(), 'pads', 'amen 1', ['snare 1']);
     const snare = Object.values(present(store).hits).find((h) => h.name.startsWith('snare'))!;
-    const chip = within(timeline()).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare 1')!;
-    drag(chip, screen.getByRole('list', { name: 'Hits in this pad' }));
+    drag(within(shelf()).getByRole('button', { name: snare.name }), column('Pad amen 1 02'));
 
     const pad = Object.values(present(store).pads).find((p) => p.name === 'amen 1 02')!;
     const copy = present(store).hits[pad.members[1]!]!;

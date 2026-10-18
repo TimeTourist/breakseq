@@ -2543,7 +2543,127 @@ button.danger:hover:not(:disabled) {
   background: var(--accent-bg);
 }
 
+/* The matrices taken from: scrolls in its own box, also while dragging near its edge (U4). */
 .take-from-shelf {
-  gap: 6px;
+  max-height: 32vh;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.shelf-head {
+  gap: 8px;
+  min-width: 0;
+}
+
+.shelf-hits {
+  display: flex;
   flex-wrap: wrap;
+  gap: 4px;
+}
+
+.shelf-hits .hit-chip,
+.all-hits {
+  cursor: grab;
+}
+
+.shelf-hits .hit-chip[aria-pressed='true'],
+.all-hits[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* What a tap picked, until it is placed: on top of the shelf as it scrolls. */
+.pick-note {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  gap: 8px;
+  margin: -8px -10px 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--accent);
+  background: var(--accent-bg);
+  font-size: 13px;
+}
+
+/* While something is picked, a tap on a pad or a hit places it. */
+.timeline-scroll.picking .pad-column {
+  cursor: copy;
+}
+
+/* What a drop does: a pad reads "add", a hit "replace", and a line shows where a moved hit goes. */
+.pad-column {
+  position: relative;
+}
+
+.pad-column[data-drop='add'] {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.pad-column[data-drop='add']::after,
+.pad-hits .hit-chip[data-drop='replace']::after {
+  position: absolute;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.pad-column[data-drop='add']::after {
+  content: 'add';
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pad-hits li {
+  position: relative;
+}
+
+.pad-hits .hit-chip {
+  position: relative;
+}
+
+.pad-hits .hit-chip[data-drop='replace'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.pad-hits .hit-chip[data-drop='replace'] .hit-label {
+  visibility: hidden;
+}
+
+.pad-hits .hit-chip[data-drop='replace']::after {
+  content: 'replace';
+  inset: 3px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pad-hits li.insert-before::before,
+.pad-hits li.insert-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.pad-hits li.insert-before::before {
+  top: -3px;
+}
+
+.pad-hits li.insert-after::after {
+  bottom: -3px;
 }
