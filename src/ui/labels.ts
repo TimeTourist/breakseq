@@ -1,5 +1,5 @@
-import type { Hit, Id, Matrix, Pad, PadChoice, Project } from '../model';
-import { STEPS_PER_BAR, baseName, hitSound, matrixKind, ownMatrix } from '../model';
+import type { Heard, Hit, Id, Matrix, Pad, PadChoice, Project, Sample } from '../model';
+import { STEPS_PER_BAR, baseName, hitSound, matrixKind, ownMatrix, trimName } from '../model';
 
 /** Hits have no colour of their own for now: every hit is drawn in this one. */
 export const HIT_COLOR = '#C9C4B8';
@@ -67,6 +67,12 @@ export function replacedBy(project: Project, padId: Id, hit: Hit): string | null
   const number = String(hit.slice + 1).padStart(2, '0');
   return hit.sampleId === home.matrix.sampleId ? number : `${name} ${number}`;
 }
+
+/** What a sample is called in Import and Slice: its own matrix's name, or its trim's when that matrix is gone. */
+export const sampleLabel = (project: Project, sample: Sample): string => ownMatrix(project, sample.id)?.name ?? trimName(sample);
+
+/** The samples that a hit heard in the song plays. */
+export const heardSamples = (project: Project, heard: Heard): ReadonlySet<Id> => new Set([...heard.hits].flatMap((h) => project.hits[h]?.sampleId ?? []));
 
 /** Loops a pad is in, with how many steps use it. */
 export const padUsages = (project: Project, padId: Id) =>

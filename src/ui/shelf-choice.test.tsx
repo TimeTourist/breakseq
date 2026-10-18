@@ -203,3 +203,47 @@ describe('matrices in the loop', () => {
     expect(store.getState().history.present.loops[loop.id]!.steps[0]!.padId).toBe(h1.pads[0]);
   });
 });
+
+describe('playing a matrix from Loops', () => {
+  /** Services whose renders are 2 s of two channels, so a matrix played once can be heard as an audition. */
+  function rendering() {
+    const s = services();
+    const buffer = { duration: 2, sampleRate: 100, numberOfChannels: 2, getChannelData: () => new Float32Array(200) } as unknown as AudioBuffer;
+    const renderSong = vi.fn(() => Promise.resolve({ buffer, triggers: [], tapes: [] } satisfies Take));
+    return { services: { ...s, renderSong } satisfies Services, renderSong };
+  }
+
+  async function open(project: Project, loopId: string) {
+    const { services: s, renderSong } = rendering();
+    const store = createStore({ ...initialState(project), view: 'loops', selection: { ...initialState(project).selection, loop: loopId } });
+    render(<App store={store} services={s} />);
+    await act(async () => {});
+    renderSong.mockClear();
+    return { s, renderSong };
+  }
+
+  /** The loop the render laid the matrix out in: its pads, step by step. */
+  const laidOut = (renderSong: ReturnType<typeof vi.fn>) => {
+    const rendered = renderSong.mock.calls[0]![0] as Project;
+    return rendered.loops['preview-matrix']!.steps.flatMap((st) => (st.padId === null ? [] : [st.padId]));
+  };
+
+  it('a click on a matrix in the shelf selects it and plays it once, as laid out', async () => {
+    const { project, loop, matrix } = hats();
+    const { s, renderSong } = await open(project, loop.id);
+    const chip = screen.getByRole('button', { name: 'Matrix Hats: lay out all its pads' });
+    await act(async () => void fireEvent.click(chip));
+    expect(chip.getAttribute('aria-pressed')).toBe('true');
+    expect(laidOut(renderSong)).toEqual(project.matrices[matrix.id]!.pads);
+    expect(s.player.audition).toHaveBeenCalledWith(expect.objectContaining({ sampleRate: 100 }), 0, 2);
+  });
+
+  it('a click on a matrix in Show in Pads plays it once', async () => {
+    const { project, loop, matrix } = hats();
+    const { s, renderSong } = await open(project, loop.id);
+    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
+    await act(async () => void fireEvent.click(chooser.getByText('Hats')));
+    expect(laidOut(renderSong)).toEqual(project.matrices[matrix.id]!.pads);
+    expect(s.player.audition).toHaveBeenCalledTimes(1);
+  });
+});

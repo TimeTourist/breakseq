@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Command, Id, Project, Renumber, Sample, SliceGrid } from '../model';
+import type { Command, Id, Renumber, Sample, SliceGrid } from '../model';
 import {
   MIN_SLICE,
   STEPS_PER_BAR,
@@ -21,7 +21,6 @@ import {
   setSlicing,
   sliceName,
   slicePlaces,
-  trimName,
   unlikelyBpm,
 } from '../model';
 import { detectTransients } from '../engine';
@@ -33,6 +32,7 @@ import { PlayControls } from './PlayControls';
 import { Slider } from './Slider';
 import { InSong, InSongMark, useHeard } from './InSong';
 import { Waveform } from './Waveform';
+import { heardSamples, sampleLabel } from './labels';
 
 const GRIDS: readonly SliceGrid[] = [4, 8, 16];
 const ms = (seconds: number) => Math.round(seconds * 1000);
@@ -43,8 +43,6 @@ type SliceBy = 'cues' | SliceGrid | 'transients';
 
 const sameMarkers = (a: readonly number[], b: readonly number[] | null) => b !== null && a.length === b.length && a.every((m, i) => Math.abs(m - b[i]!) < 1e-9);
 
-/** What a sample is called in Slice: its own matrix's name, or its trim's when that is gone. */
-const sampleLabel = (project: Project, sample: Sample): string => ownMatrix(project, sample.id)?.name ?? trimName(sample);
 
 /** A time as bar.beat.sixteenth, 1-based, with the rest in ms when it is off the grid. */
 function position(time: number, stepTime: number): string {
@@ -66,6 +64,10 @@ export function SliceView() {
   const [playingSample, setPlayingSample] = useState(false);
   const [sensitivity, setSensitivity] = useState(SENSITIVITY);
   const [transients, setTransients] = useState(false);
+  /** Bars typed but not committed yet: they apply on blur or Enter, so typing "16" asks once, not at "1". */
+  const [barsDraft, setBarsDraft] = useState<string | null>(null);
+  /** A sensitivity dragged to that would renumber used slices: it is asked about on release. */
+  const [pendingSensitivity, setPendingSensitivity] = useState<number | null>(null);
   const [loopSample, setLoopSample] = useState(true);
   const playhead = useAuditionPlayhead(playingSample);
   const box = useRef<HTMLDivElement>(null);
@@ -82,7 +84,7 @@ export function SliceView() {
   const samples = Object.values(project.samples).filter((s) => s.bars !== null || isUnsliced(s));
   const sample = samples.find((s) => s.id === target) ?? samples[0];
   /** The samples a hit heard in the song plays. */
-  const heardSamples = new Set([...heard.hits].flatMap((h) => project.hits[h]?.sampleId ?? []));
+  const heardHere = heardSamples(project, heard);
 
   if (sample === undefined) {
     return (
@@ -112,11 +114,13 @@ export function SliceView() {
           onClick={() => {
             setSelected(0);
             setTransients(false);
+            setBarsDraft(null);
+            setPendingSensitivity(null);
             store.dispatch({ type: 'sliceTarget', sampleId: s.id });
           }}
         >
           <span className="label grow ellipsis">{sampleLabel(project, s)}</span>
-          <InSongMark heard={heardSamples.has(s.id)} />
+          <InSongMark heard={heardHere.has(s.id)} />
           {isUnsliced(s) && <span className="badge">not sliced</span>}
         </button>
       ))}
@@ -199,13 +203,48 @@ export function SliceView() {
   const grid = markerGrid(sample.markers, bars);
   const cues = cueMarkers(sample);
 
-  /** Markers on the hits found at this sensitivity. Moving a marker by hand makes them your own. */
-  const detect = (value: number, mergeKey?: string) => {
-    if (audio === undefined) return;
+  /** Markers on the hits found at a sensitivity, as parts. */
+  const transientMarkers = (value: number) => (audio === undefined ? null : toParts(detectTransients(audio, sample.offset, duration, value)));
+  /** Markers on the hits found at this sensitivity, asking first if they renumber used slices. Moving a marker by hand makes them your own. */
+  const detect = (value: number) => {
+    const next = transientMarkers(value);
+    if (next === null) return;
+    markersTo(next, undefined, () => {
+      setSensitivity(value);
+      setTransients(true);
+      setSelected(0);
+    });
+  };
+  /**
+   * The Sensitivity slider while dragged: markers follow at once while that
+   * renumbers no used slice; otherwise the value waits, and is asked about on
+   * release (`releaseSensitivity`), not in the middle of the drag.
+   */
+  const dragSensitivity = (value: number) => {
+    const next = transientMarkers(value);
+    if (next === null) return;
+    if (renumberConflict(project, sample.id, next) !== null) {
+      setPendingSensitivity(value);
+      return;
+    }
+    setPendingSensitivity(null);
     setSensitivity(value);
-    setTransients(true);
     setSelected(0);
-    markersTo(toParts(detectTransients(audio, sample.offset, duration, value)), mergeKey);
+    setError(run(setMarkers(sample.id, next), `transients:${sample.id}`));
+  };
+  const releaseSensitivity = () => {
+    seal();
+    if (pendingSensitivity === null) return;
+    setPendingSensitivity(null);
+    detect(pendingSensitivity);
+  };
+  /** Commits typed bars, asking first if they renumber used slices. */
+  const commitBars = () => {
+    if (barsDraft === null) return;
+    setBarsDraft(null);
+    const next = Math.round(Number(barsDraft));
+    if (barsDraft.trim() === '' || !Number.isFinite(next) || next < 1 || next === bars) return;
+    change(markersForBars(sample, next), (newTrim) => setSampleBars(sample.id, next, newTrim));
   };
 
   return (
@@ -217,7 +256,7 @@ export function SliceView() {
           <h1 className="mono">{sliceName(sample)}</h1>
           <div className="row nav-row">
             {own !== undefined && <MatrixOrigin matrix={own} parts={['matrix', 'file']} />}
-            <InSong heard={heardSamples.has(sample.id)} />
+            <InSong heard={heardHere.has(sample.id)} />
             <button
               type="button"
               className="link-text small"
@@ -240,12 +279,13 @@ export function SliceView() {
                 min={1}
                 max={64}
                 aria-label="Bars in the sample"
-                value={bars}
-                onChange={(e) => {
-                  const bars = Math.round(Number(e.target.value));
-                  if (bars >= 1) change(markersForBars(sample, bars), (newTrim) => setSampleBars(sample.id, bars, newTrim), `bars:${sample.id}`);
+                value={barsDraft ?? bars}
+                onChange={(e) => setBarsDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitBars();
+                  if (e.key === 'Escape') setBarsDraft(null);
                 }}
-                onBlur={seal}
+                onBlur={commitBars}
               />
             </label>
             {bpm.toFixed(2)} BPM
@@ -279,11 +319,12 @@ export function SliceView() {
                 type="button"
                 aria-pressed={!transients && sameMarkers(sample.markers, cues)}
                 title="At the cue markers in the WAV file"
-                onClick={() => {
-                  setSelected(0);
-                  setTransients(false);
-                  markersTo(cues);
-                }}
+                onClick={() =>
+                  markersTo(cues, undefined, () => {
+                    setSelected(0);
+                    setTransients(false);
+                  })
+                }
               >
                 Cue markers
               </button>
@@ -293,11 +334,17 @@ export function SliceView() {
                 key={g}
                 type="button"
                 aria-pressed={!transients && grid === g}
-                onClick={() => {
-                  setSelected(0);
-                  setTransients(false);
-                  change(gridMarkers(bars, g), (newTrim) => setGrid(sample.id, g, newTrim));
-                }}
+                onClick={() =>
+                  change(
+                    gridMarkers(bars, g),
+                    (newTrim) => setGrid(sample.id, g, newTrim),
+                    undefined,
+                    () => {
+                      setSelected(0);
+                      setTransients(false);
+                    },
+                  )
+                }
               >
                 1/{g}
               </button>
@@ -307,7 +354,7 @@ export function SliceView() {
             </button>
           </div>
           {transients && (
-            <Slider label="Sensitivity" value={sensitivity} min={0} max={100} step={1} format={String} onChange={(v) => detect(v, `transients:${sample.id}`)} onCommit={seal} />
+            <Slider label="Sensitivity" value={pendingSensitivity ?? sensitivity} min={0} max={100} step={1} format={String} onChange={dragSensitivity} onCommit={releaseSensitivity} />
           )}
         </div>
       </div>
@@ -493,7 +540,7 @@ function Unsliced({ sample, toTrim, onSliced }: UnslicedProps) {
   const run = useRun();
   const heard = useHeard();
   const own = ownMatrix(project, sample.id);
-  const heardSamples = new Set([...heard.hits].flatMap((h) => project.hits[h]?.sampleId ?? []));
+  const heardHere = heardSamples(project, heard);
   const cues = cueMarkers(sample);
   const [bars, setBars] = useState<number | null>(null);
   const [by, setBy] = useState<SliceBy | null>(cues === null ? null : 'cues');
@@ -527,7 +574,7 @@ function Unsliced({ sample, toTrim, onSliced }: UnslicedProps) {
           <h1 className="mono">{sampleLabel(project, sample)}</h1>
           <div className="row nav-row">
             {own !== undefined && <MatrixOrigin matrix={own} parts={['file']} />}
-            <InSong heard={heardSamples.has(sample.id)} />
+            <InSong heard={heardHere.has(sample.id)} />
             <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, in Import" onClick={toTrim}>
               ← Trim
             </button>
