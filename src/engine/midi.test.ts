@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project, StepEffect } from '../model';
-import { addSample, createLoop, createMod, createProject, setBpm, setBreak, setSongCell, setStep, stepDuration } from '../model';
+import { addSample, createLoop, createMod, createProject, setBpm, setSlicing, setSongCell, setStep, stepDuration } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
 import type { Trigger } from './generate';
@@ -16,11 +16,11 @@ function run(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-/** A one-bar break of 2 s in 16 slices (120 BPM), M1 in a one-bar song at 120 BPM, and a 0.05 s snare. */
+/** A one-bar sample of 2 s in 16 slices (120 BPM), M1 in a one-bar song at 120 BPM, and a 0.05 s snare. */
 function song() {
   const start = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.05) }));
-  const amen = Object.values(start.breaks).find((b) => b.name === 'amen 1')!;
-  const project = run(start, setBreak(amen.id, 1), setBpm(120));
+  const amen = Object.values(start.samples).find((b) => b.name === 'amen.wav')!;
+  const project = run(start, setSlicing(amen.id, 1), setBpm(120));
   const m1 = Object.values(project.loops)[0]!;
   const snarePad = Object.values(project.pads).find((p) => p.name.startsWith('snare'))!;
   return { project: run(project, setSongCell('main', 0, m1.id)), m1, snarePad };
@@ -43,7 +43,7 @@ describe('MIDI plan', () => {
     const { project, m1 } = song();
     // Step 3 plays slice 1 again; a pitch mod on beat 2 changes steps 5–8.
     const pitch: StepEffect = { target: 'pitch', rate: 'beat', shape: { kind: 'list', values: [0, 5] } };
-    let p = run(project, setStep(m1.id, 2, { padId: project.breaks[Object.keys(project.breaks)[0]!]!.pads[0]! }));
+    let p = run(project, setStep(m1.id, 2, { padId: Object.values(project.matrices).find((m) => m.name === 'amen 1')!.pads[0]! }));
     const withMod = run(p, createMod('up', [pitch]));
     const mod = Object.keys(withMod.mods)[0]!;
     p = run(withMod, setSongCell('modA', 0, mod));

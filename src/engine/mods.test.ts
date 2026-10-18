@@ -2,19 +2,20 @@ import { describe, expect, it } from 'vitest';
 import type { Command, Id, Project, StepEffect } from '../model';
 import {
   addClip,
-  addPadMember,
+  copyHits,
   addSample,
   createLoop,
   createMod,
-  createPad,
+  createMatrix,
   createProject,
   effectiveHit,
-  placeBreak,
+  placeMatrix,
   setBpm,
+  setMatrixConfig,
   setSongBars,
   setSongCell,
   setStep,
-  sliceBreak,
+  sliceSample,
   stepDuration,
   updateHit,
 } from '../model';
@@ -38,7 +39,7 @@ const newest = (before: Readonly<Record<Id, unknown>>, after: Readonly<Record<Id
 
 /**
  * A kit at 120 BPM: kick K and four snares S1–S4, each with its own pad, and a
- * pad Snares with all four snares as members.
+ * pad Snares with copies of all four snares as members (`snare`).
  */
 function kit() {
   let project = run(createProject(), setBpm(120));
@@ -51,9 +52,12 @@ function kit() {
     pad[name] = newest(before.pads, project.pads);
   }
   const before = project;
-  project = run(project, createPad('Snares', [hit.S1!, hit.S2!, hit.S3!, hit.S4!]));
+  // The pad Snares holds copies of the four snares' hits.
+  project = run(project, createMatrix('Snares'));
   pad.Snares = newest(before.pads, project.pads);
-  return { project, hit, pad };
+  project = run(project, copyHits([hit.S1!, hit.S2!, hit.S3!, hit.S4!], pad.Snares));
+  const snare = project.pads[pad.Snares]!.members;
+  return { project, hit, pad, snare };
 }
 
 /** A main loop from a map of step → pad, placed over the whole song. */
@@ -183,23 +187,23 @@ describe('fas 4: mods', () => {
   });
 
   it('Pad member List 2 plays member 2, and numbers past the pad wrap round', () => {
-    const { project: base, pad, hit } = kit();
+    const { project: base, pad, snare } = kit();
     let [project] = withLoop(base, { 0: pad.Snares!, 4: pad.Snares! });
     const two = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [2] } }, 'modA');
-    expect(generateTriggers(two, () => 0).map((t) => t.hitId)).toEqual([hit.S2, hit.S2]);
+    expect(generateTriggers(two, () => 0).map((t) => t.hitId)).toEqual([snare[1], snare[1]]);
 
     project = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [5] } }, 'modA');
-    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S1, hit.S1]);
+    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([snare[0], snare[0]]);
   });
 
   it('Cycle with no values, per step, goes round the members where it hits a step: 1, 2, 3, 4, 1', () => {
-    const { project: base, pad, hit } = kit();
+    const { project: base, pad, hit, snare } = kit();
     let [project] = withLoop(base, { 2: pad.Snares!, 6: pad.Snares!, 10: pad.Snares!, 14: pad.Snares!, 18: pad.Snares! }, 2);
     project = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'cycle', values: [] } }, 'modA', [0, 1]);
 
     const snares = generateTriggers(project, () => 0).filter((t) => t.hitId !== hit.K);
 
-    expect(snares.map((t) => t.hitId)).toEqual([hit.S1, hit.S2, hit.S3, hit.S4, hit.S1]);
+    expect(snares.map((t) => t.hitId)).toEqual([snare[0], snare[1], snare[2], snare[3], snare[0]]);
   });
 
   it('volume from A and B adds, on top of the hit; for direction B wins', () => {
@@ -218,71 +222,52 @@ describe('fas 4: mods', () => {
 
 });
 
-describe('parent hit', () => {
-  it("a break's own hit adds its pitch and volume to every slice, on top of the slice's own", () => {
-    let project = run(createProject(), setBpm(120), addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const breakId = Object.keys(project.breaks)[0]!;
-    project = run(project, sliceBreak(breakId, 1, 4));
-    const parent = project.hits[project.breaks[breakId]!.parent!]!;
-    const m1 = Object.values(project.loops)[0]!;
-    const sliceHit = (i: number) => project.pads[m1.steps[i * 4]!.padId!]!.members[0]!;
-    project = run(
-      project,
-      setSongBars(1),
-      setSongCell('main', 0, m1.id),
-      updateHit(parent.id, { pitch: 1, volume: -3 }),
-      updateHit(sliceHit(1), { pitch: 1 }),
-    );
+/** A 1 s sample at 120 BPM sliced over one bar in four, its loop in a one-bar song. */
+function slicedSample() {
+  let project = run(createProject(), setBpm(120), addSample({ name: 'amen.wav', audio: constantAudio(1) }));
+  const sampleId = Object.keys(project.samples)[0]!;
+  project = run(project, sliceSample(sampleId, 1, 4));
+  const matrix = Object.values(project.matrices)[0]!;
+  const m1 = project.loops[matrix.loop!]!;
+  const sliceHit = (i: number) => project.pads[m1.steps[i * 4]!.padId!]!.members[0]!;
+  return { project: run(project, setSongBars(1), setSongCell('main', 0, m1.id)), matrix, sampleId, sliceHit };
+}
+
+describe("a matrix's config", () => {
+  it("adds its pitch and volume to every slice, on top of the slice's own", () => {
+    const { project: base, matrix, sliceHit } = slicedSample();
+    const project = run(base, setMatrixConfig(matrix.id, { pitch: 1, volume: -3 }), updateHit(sliceHit(1), { pitch: 1 }));
 
     const triggers = generateTriggers(project, () => 0);
 
     expect(triggers.map((t) => t.pitch)).toEqual([1, 2, 1, 1]);
     expect(triggers.map((t) => t.volume)).toEqual([-3, -3, -3, -3]);
   });
-});
 
-describe('parent hit as a macro', () => {
-  function slicedBreak() {
-    let project = run(createProject(), setBpm(120), addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const breakId = Object.keys(project.breaks)[0]!;
-    project = run(project, sliceBreak(breakId, 1, 4));
-    const parent = project.hits[project.breaks[breakId]!.parent!]!;
-    const m1 = Object.values(project.loops)[0]!;
-    const sliceHit = (i: number) => project.pads[m1.steps[i * 4]!.padId!]!.members[0]!;
-    return { project: run(project, setSongBars(1), setSongCell('main', 0, m1.id)), breakId, parent, sliceHit };
-  }
-
-  it("reverse on the parent turns each slice round; a reversed slice plays forward again", () => {
-    const { project: base, parent, sliceHit } = slicedBreak();
-    const project = run(base, updateHit(parent.id, { direction: 'reverse' }), updateHit(sliceHit(2), { direction: 'reverse' }));
+  it('reverse on the matrix turns each slice round; a reversed slice plays forward again', () => {
+    const { project: base, matrix, sliceHit } = slicedSample();
+    const project = run(base, setMatrixConfig(matrix.id, { direction: 'reverse' }), updateHit(sliceHit(2), { direction: 'reverse' }));
     expect(generateTriggers(project, () => 0).map((t) => t.direction)).toEqual(['reverse', 'reverse', 'forward', 'reverse']);
   });
 
-  it("the parent's fade applies where a slice has none", () => {
-    const { project: base, parent, sliceHit } = slicedBreak();
-    const project = run(base, updateHit(parent.id, { fadeOut: 8 }), updateHit(sliceHit(1), { fadeOut: 20 }));
+  it("the matrix's fade applies where a slice has none", () => {
+    const { project: base, matrix, sliceHit } = slicedSample();
+    const project = run(base, setMatrixConfig(matrix.id, { fadeOut: 8 }), updateHit(sliceHit(1), { fadeOut: 20 }));
     expect([0, 1].map((i) => effectiveHit(project, project.hits[sliceHit(i)]!).fadeOut)).toEqual([8, 20]);
   });
 
-  it('placing the parent lays its slices out from a step, each on its own step', () => {
-    const { project: base, breakId, sliceHit } = slicedBreak();
+  it('placing the matrix lays its slices out from a step, each on its own step', () => {
+    const { project: base, matrix, sliceHit } = slicedSample();
     let project = run(base, createLoop('Mine', 'main', 1));
     const mine = Object.values(project.loops).find((l) => l.name === 'Mine')!;
-    project = run(project, placeBreak(mine.id, breakId, 2));
+    project = run(project, placeMatrix(mine.id, matrix.id, 2));
     const padsAt = project.loops[mine.id]!.steps.flatMap((s, i) => (s.padId === null ? [] : [[i, project.pads[s.padId]!.members[0]]]));
-    // Slices start on steps 0, 4, 8 and 12 of the break, so from step 2 they land on 2, 6, 10 and 14.
+    // Slices start on steps 0, 4, 8 and 12 of the matrix, so from step 2 they land on 2, 6, 10 and 14.
     expect(padsAt).toEqual([
       [2, sliceHit(0)],
       [6, sliceHit(1)],
       [10, sliceHit(2)],
       [14, sliceHit(3)],
     ]);
-  });
-
-  it('a parent is never a pad member', () => {
-    const { project, parent } = slicedBreak();
-    const withPad = run(project, createPad('Mine'));
-    const mine = Object.values(withPad.pads).find((p) => p.name === 'Mine')!;
-    expect(addPadMember(mine.id, parent.id)(withPad, ctx)).toMatchObject({ ok: false, error: { kind: 'invalid' } });
   });
 });

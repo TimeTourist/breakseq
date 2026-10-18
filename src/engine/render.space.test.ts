@@ -61,7 +61,7 @@ const withMod = (project: Project, ...effects: StepEffect[]) => {
 };
 
 describe('reverb and delay on a hit', () => {
-  it('an older project gets none, and a slice with none takes its parent\'s', () => {
+  it('an older project gets none, and a slice with none takes its matrix\'s', () => {
     const { project, hitA } = song({ seconds: 0.1, steps: [0] });
     const { reverb: _r, delay: _d, ...old } = project.hits[hitA.id]!;
     void _r;

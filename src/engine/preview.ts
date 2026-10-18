@@ -1,5 +1,5 @@
 import type { Hit, Id, Loop, Pad, Project, Rng } from '../model';
-import { STEPS_PER_BAR, breakSequence, emptyStep } from '../model';
+import { emptyStep, matrixSequence } from '../model';
 import type { Trigger } from './generate';
 import { loopSong } from './generate';
 import { triggerSeconds } from './midi';
@@ -8,7 +8,7 @@ import { hitPlay } from './render';
 
 /**
  * What Play plays in views that show one thing rather than the song: a hit, a
- * pad's choice, or a break as laid out. Pure, like generate.
+ * pad's choice, or a matrix as laid out. Pure, like generate.
  */
 
 /** Hits one after another, each heard to its end: the triggers and how long they last. */
@@ -48,14 +48,14 @@ export function padTurns(pad: Pad, loop: boolean, rng: Rng): Id[] {
 }
 
 /**
- * The project with a song that plays a break once, laid out as its parent is
- * in a loop: each slot's pad on its step. A replaced slice plays what replaced it.
+ * The project with a song that plays a matrix once, laid out as it is in a
+ * loop: each pad on its step, from step 0. A replaced slice plays what replaced it.
  */
-export function breakSong(project: Project, breakId: Id): Project {
-  const brk = project.breaks[breakId];
-  const length = (brk?.bars ?? 1) * STEPS_PER_BAR;
+export function matrixSong(project: Project, matrixId: Id): Project {
+  const sequence = matrixSequence(project, matrixId);
+  const length = Math.max(1, ...sequence.map((s) => s.step + s.length));
   const steps = Array.from({ length }, () => emptyStep);
-  for (const { padId, step } of breakSequence(project, breakId)) steps[step] = { ...emptyStep, padId };
-  const loop: Loop = { id: 'preview-break', name: brk?.name ?? '', kind: 'main', steps };
+  for (const { padId, step } of sequence) steps[step] = { ...emptyStep, padId };
+  const loop: Loop = { id: 'preview-matrix', name: project.matrices[matrixId]?.name ?? '', kind: 'main', steps };
   return loopSong({ ...project, loops: { ...project.loops, [loop.id]: loop } }, loop.id);
 }

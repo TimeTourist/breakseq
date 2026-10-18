@@ -81,24 +81,24 @@ function isPlain(project: Project, t: Trigger): boolean {
 }
 
 /**
- * The pieces and notes of a take. Pieces go by break and slot: first each
- * break's slices as they are (Amen 01, 02 …), then variants, then one-shots,
+ * The pieces and notes of a take. Pieces go by sample and slice: first each
+ * sample's slices as they are (Amen 01, 02 …), then variants, then one-shots,
  * then tape segments, each segment a piece of its own. A note lasts as long as
  * its sound is heard: until it ends, or the next sound cuts it.
  */
 export function midiPlan(project: Project, take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[] }): MidiPlan {
   const triggers = [...take.triggers].sort((a, b) => a.time - b.time);
   const cuts = [...triggers.map((t) => t.time), ...take.tapes.map((t) => t.time)].sort((a, b) => a - b);
-  const breakOrder = Object.keys(project.breaks);
+  const sampleOrder = Object.keys(project.samples);
 
   const firsts = new Map<string, { trigger: Trigger; seconds: number; order: number[] }>();
   for (const t of triggers) {
     const key = soundKey(t);
     if (firsts.has(key)) continue;
     const hit = project.hits[t.hitId];
-    const brk = hit === undefined ? undefined : project.breaks[hit.breakId];
-    const tier = brk?.bars === null ? 2 : isPlain(project, t) ? 0 : 1;
-    firsts.set(key, { trigger: t, seconds: triggerSeconds(t), order: [tier, breakOrder.indexOf(hit?.breakId ?? ''), hit?.slot ?? -1, t.time] });
+    const sample = hit === undefined ? undefined : project.samples[hit.sampleId];
+    const tier = sample?.bars === null ? 2 : isPlain(project, t) ? 0 : 1;
+    firsts.set(key, { trigger: t, seconds: triggerSeconds(t), order: [tier, sampleOrder.indexOf(hit?.sampleId ?? ''), hit?.slice ?? -1, t.time] });
   }
   const byOrder = (a: readonly number[], b: readonly number[]) => {
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i]! - b[i]!;
