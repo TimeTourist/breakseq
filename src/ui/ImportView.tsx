@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Id, Loop, Project, Sample } from '../model';
 import {
   addSample,
+  addSlicedSample,
   addTrim,
   fileSamples,
   fileUsages,
@@ -20,7 +21,7 @@ import {
   unsliceTakes,
   unsliceUsages,
 } from '../model';
-import { decodeAudioFile, readCues } from '../engine';
+import { decodeAudioFile, decodeRex, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
@@ -47,6 +48,17 @@ function files(project: Project): [string, Sample[]][] {
   return order.map((audioId) => [audioId, fileSamples(project, audioId)]);
 }
 
+/** A REX2 file, by its name: ReCycle's sliced loops. */
+const isRex = (name: string): boolean => name.toLowerCase().endsWith('.rx2');
+
+/** A WAV or AIFF file. One with cue markers is marked Slice, not sliced: Slice offers its cues. */
+const addWave = (name: string, bytes: ArrayBuffer) => addSample({ name, audio: decodeAudioFile(bytes), cues: readCues(bytes) });
+
+/** A REX2 file comes sliced: its slices are the markers and its bars come from the file. */
+function addRex(name: string, bytes: Uint8Array) {
+  const rex = decodeRex(bytes);
+  return addSlicedSample({ name, audio: rex.audio, bars: rex.bars, markers: rex.slices });
+}
 
 interface ImportViewProps {
   /** Where Play is in the open Trim's sample, in seconds from its start, while it plays it. */
@@ -114,9 +126,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     for (const file of files) {
       try {
         const bytes = await file.arrayBuffer();
-        const audio = decodeAudioFile(bytes);
-        // A WAV with cue markers is marked Slice, not sliced: Slice offers its cues.
-        const error = run(addSample({ name: file.name, audio, cues: readCues(bytes) }));
+        const error = isRex(file.name) ? run(addRex(file.name, new Uint8Array(bytes))) : run(addWave(file.name, bytes));
         if (error !== null) failed.push(`${file.name}: ${error}`);
       } catch (e) {
         failed.push(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
@@ -161,8 +171,8 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
         <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
           <path d="M18 24V6M11 13l7-7 7 7M6 24v6h24v-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <div className="dropzone-title">Drop WAV or AIFF files here</div>
-        <div className="small">WAV files with cue markers keep them for Slice</div>
+        <div className="dropzone-title">Drop WAV, AIFF or REX2 files here</div>
+        <div className="small">WAV files with cue markers keep them for Slice; REX2 files come sliced</div>
         <button type="button" onClick={() => input.current?.click()}>
           Browse files
         </button>
@@ -171,7 +181,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
           type="file"
           hidden
           multiple
-          accept=".wav,.aif,.aiff,.aifc,audio/wav,audio/aiff"
+          accept=".wav,.aif,.aiff,.aifc,.rx2,audio/wav,audio/aiff"
           onChange={(e) => {
             void importFiles(Array.from(e.target.files ?? []));
             e.target.value = '';
