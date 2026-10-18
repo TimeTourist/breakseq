@@ -33,7 +33,7 @@ describe('indexedDbBackups', () => {
     if (!result.ok) throw new Error('addSample failed');
     return result.project;
   };
-  const summary = { snapshot: null, breaks: 0, loops: 0, clips: 0 };
+  const summary = { snapshot: null, samples: 0, loops: 0, clips: 0 };
   const ids = () => {
     let n = 0;
     return () => `b-${++n}`;
@@ -119,7 +119,31 @@ describe('the database before backups', () => {
       };
     });
 
-    await indexedDbBackups(factory).add(result.project, { snapshot: null, breaks: 0, loops: 0, clips: 0 }, 1);
+    await indexedDbBackups(factory).add(result.project, { snapshot: null, samples: 0, loops: 0, clips: 0 }, 1);
     expect(await indexedDbStorage(factory).load()).toEqual(result.project);
+  });
+});
+
+describe('an autosave from before Matrix', () => {
+  it('an autosave from before Matrix opens an empty project and leaves the backups', async () => {
+    const factory = new IDBFactory();
+    const { matrices: _matrices, ...old } = createProject();
+    void _matrices;
+    const backups = indexedDbBackups(factory, () => 'b-1');
+    await backups.add(createProject(), { snapshot: null, samples: 0, loops: 0, clips: 0 }, 1);
+    // Put the old project in the autosave key through the storage, then strip it.
+    await indexedDbStorage(factory).save(old as never);
+
+    expect(await indexedDbStorage(factory).load()).toBeNull();
+    expect((await backups.list()).map((b) => b.id)).toEqual(['b-1']);
+  });
+
+  it('restoring a backup from before Matrix is an error with the message', async () => {
+    const factory = new IDBFactory();
+    const { matrices: _matrices, ...old } = createProject();
+    void _matrices;
+    const backups = indexedDbBackups(factory, () => 'b-1');
+    await backups.add(old as never, { snapshot: null, samples: 0, loops: 0, clips: 0 }, 1);
+    await expect(backups.restore('b-1')).rejects.toThrow('This project was made before Matrix (phase 22). Open it in the tag fas-21-fore-matrix.');
   });
 });

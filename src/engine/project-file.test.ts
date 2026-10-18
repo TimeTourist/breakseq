@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createLoop, createProject, setSongCell, sliceSample } from '../model';
 import { seededRng, sequentialIds } from '../test/fixtures';
-import { ProjectFileError, readProjectFile, writeProjectFile } from './project-file';
+import { PROJECT_FILE_VERSION, ProjectFileError, readProjectFile, writeProjectFile } from './project-file';
 
 // One id counter per file, so ids never repeat between calls.
 const ctx = sequentialIds();
@@ -35,5 +35,14 @@ describe('project file', () => {
     expect(() => readProjectFile(newer)).toThrow(/newer version/);
     expect(() => readProjectFile(strToU8('not a zip'))).toThrow(ProjectFileError);
     expect(() => readProjectFile(zipSync({ 'other.txt': strToU8('x') }))).toThrow(ProjectFileError);
+  });
+});
+
+describe('a project file from before Matrix', () => {
+  it('a project file from before Matrix is refused with a message', () => {
+    const { matrices: _matrices, ...old } = createProject();
+    void _matrices;
+    const bytes = zipSync({ 'project.json': strToU8(JSON.stringify({ format: 'breakseq', version: PROJECT_FILE_VERSION, project: old })) });
+    expect(() => readProjectFile(bytes)).toThrow('This project was made before Matrix (phase 22). Open it in the tag fas-21-fore-matrix.');
   });
 });

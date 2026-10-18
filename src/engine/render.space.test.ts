@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Hit, Project, StepEffect } from '../model';
-import { NO_DELAY, NO_REVERB, addSample, createLoop, createMod, createProject, hitSpace, setBpm, setSongBars, setSongCell, setStep, updateHit, upgradeProject } from '../model';
+import { addSample, createLoop, createMod, createProject, hitSpace, setBpm, setSongBars, setSongCell, setStep, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
 import { renderTakeWithTail, spaceRing } from './render';
@@ -61,13 +61,8 @@ const withMod = (project: Project, ...effects: StepEffect[]) => {
 };
 
 describe('reverb and delay on a hit', () => {
-  it('an older project gets none, and a slice with none takes its matrix\'s', () => {
+  it('a slice with none takes its matrix\'s', () => {
     const { project, hitA } = song({ seconds: 0.1, steps: [0] });
-    const { reverb: _r, delay: _d, ...old } = project.hits[hitA.id]!;
-    void _r;
-    void _d;
-    const upgraded = upgradeProject({ ...project, hits: { ...project.hits, [hitA.id]: old as Hit } });
-    expect(upgraded.hits[hitA.id]).toMatchObject({ reverb: NO_REVERB, delay: NO_DELAY });
     expect(hitSpace(project, hitA)).toEqual({ reverb: null, delay: null });
   });
 

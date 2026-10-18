@@ -1,6 +1,6 @@
 import type { AudioData, Id, Project } from '../model';
 import { comparable } from '../engine';
-import { upgradeProject } from '../model';
+import { OLD_PROJECT_MESSAGE, upgradeProject } from '../model';
 import type { BackupInfo, BackupStorage, BackupSummary } from './backups';
 import { BACKUP_KEEP } from './backups';
 
@@ -65,7 +65,7 @@ export function indexedDbStorage(factory: IDBFactory = indexedDB): ProjectStorag
   const connect = connection(factory);
   return {
     load: async () => {
-      const saved = (await run(await connect(), 'readonly', (s) => s.get(KEY))) as Project | undefined;
+      const saved = await run(await connect(), 'readonly', (s) => s.get(KEY));
       return saved === undefined ? null : upgradeProject(saved);
     },
     save: async (project) => {
@@ -113,7 +113,9 @@ export function indexedDbBackups(factory: IDBFactory = indexedDB, newId: () => s
         const data = (await run(db, 'readonly', (s) => s.get(audioId), AUDIO)) as AudioData | undefined;
         if (data !== undefined) audio[audioId] = data;
       }
-      return upgradeProject({ ...record.project, audio });
+      const project = upgradeProject({ ...record.project, audio });
+      if (project === null) throw new Error(OLD_PROJECT_MESSAGE);
+      return project;
     },
   };
 }

@@ -1,6 +1,6 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import type { AudioData, Id, Project } from '../model';
-import { upgradeProject } from '../model';
+import { OLD_PROJECT_MESSAGE, upgradeProject } from '../model';
 import { AudioFileError, decodeAudioFile, encodeFloatWav } from './codec';
 
 export const PROJECT_FILE_VERSION = 2;
@@ -61,5 +61,7 @@ export function readProjectFile(bytes: Uint8Array): Project {
       throw new ProjectFileError(`${path}: ${e instanceof AudioFileError ? e.message : 'unreadable'}`);
     }
   }
-  return upgradeProject({ ...json.project, audio });
+  const project = upgradeProject({ ...json.project, audio });
+  if (project === null) throw new ProjectFileError(OLD_PROJECT_MESSAGE);
+  return project;
 }

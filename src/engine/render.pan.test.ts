@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Hit, Project, StepEffect } from '../model';
-import { addSample, channelAudio, createLoop, createMod, createProject, effectiveHit, sampleAudio, setBpm, setMatrixConfig, setSlicing, setSampleChannel, setSongCell, setStep, updateHit, upgradeProject } from '../model';
+import { addSample, channelAudio, createLoop, createMod, createProject, effectiveHit, sampleAudio, setBpm, setMatrixConfig, setSlicing, setSampleChannel, setSongCell, setStep, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { panGains } from './colour';
 import { generateTriggers } from './generate';
@@ -50,15 +50,12 @@ describe('channel choice', () => {
     expect(channelAudio(wide, 'mono')).toBe(channelAudio(wide, 'mono'));
   });
 
-  it('a sample plays the channels chosen for it, and one from an older project plays stereo', async () => {
+  it('a sample plays the channels chosen for it', async () => {
     const { project, sample } = shot(wide);
     expect(await heard(project)).toEqual([expect.closeTo(0.5, 4), expect.closeTo(-0.25, 4)]);
     const left = run(project, setSampleChannel(sample.id, 'left'));
     expect(sampleAudio(left, left.samples[sample.id]!)!.channels[1]![0]).toBe(0.5);
     expect(await heard(left)).toEqual([expect.closeTo(0.5, 4), expect.closeTo(0.5, 4)]);
-    const { channel: _gone, ...old } = project.samples[sample.id]!;
-    void _gone;
-    expect(upgradeProject({ ...project, samples: { [sample.id]: old as typeof sample } }).samples[sample.id]!.channel).toBe('stereo');
   });
 });
 
