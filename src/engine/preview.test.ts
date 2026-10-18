@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, setBpm, setHitSource, setMarkers, setPadChoice, setSlicing, sliceWindow, copyHits } from '../model';
+import { addSample, createProject, setBpm, setHitSource, setMarkers, setPadChoice, setSlicing, sliceWindow, copyHits, createMatrix, addPad, matrixSteps } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
 import { matrixSong, hitRun, padTurns } from './preview';
@@ -51,19 +51,25 @@ describe('previews', () => {
     expect(generateTake(song, () => 0).triggers.map((t) => t.step)).toEqual([0, 4, 8, 12]);
   });
 
-  it('matrixSong is whole bars: a one-shot is one bar, and 20 steps are two', () => {
+  it('matrixSong is whole bars: a one-shot is one bar, and a matrix of 20 steps is two', () => {
     const one = run(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }), setBpm(120));
     const shot = matrixSong(one, Object.values(one.matrices)[0]!.id);
     expect(shot.song.bars).toBe(1);
     expect(generateTake(shot, () => 0).triggers.map((t) => t.step)).toEqual([0]);
 
-    // 2 s at 120 BPM is one bar; sliced over 1.25 bars (2.5 s) it is 20 steps.
-    const long = run(createProject(), addSample({ name: 'l.wav', audio: constantAudio(2.5) }), setBpm(120));
-    const sampleId = Object.keys(long.samples)[0]!;
-    const sliced = run(long, setSlicing(sampleId, 1), setMarkers(sampleId, [0, 0.25, 0.5, 0.75]));
-    const song = matrixSong(sliced, Object.values(sliced.matrices)[0]!.id);
-    expect(song.song.bars % 1).toBe(0);
-    expect(generateTake(song, () => 0).triggers.map((t) => t.step)).toEqual([0, 4, 8, 12]);
+    // At 120 BPM a step is 0.125 s: a 0.75 s hit takes 6 steps and a 1.75 s hit 14, together 20.
+    const base = run(createProject(), addSample({ name: 'a.wav', audio: constantAudio(0.75) }), addSample({ name: 'b.wav', audio: constantAudio(1.75) }), setBpm(120));
+    const [a, b] = Object.values(base.pads);
+    let project = run(base, createMatrix('Long'));
+    const matrix = Object.values(project.matrices).find((m) => m.name === 'Long')!;
+    project = run(project, addPad(matrix.id));
+    const [first, second] = project.matrices[matrix.id]!.pads;
+    project = run(project, copyHits(a!.members, first!), copyHits(b!.members, second!));
+    expect(matrixSteps(project, matrix.id)).toBe(20);
+
+    const song = matrixSong(project, matrix.id);
+    expect(song.song.bars).toBe(2);
+    expect(generateTake(song, () => 0).triggers.map((t) => t.step)).toEqual([0, 6]);
   });
 
   it('plays a matrix as laid out, so a replaced slice plays what replaced it', () => {
