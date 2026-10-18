@@ -59,7 +59,7 @@ async function setup(project: Project, view: 'pads' | 'mods', selection: Partial
 }
 
 describe('stretch in the GUI', () => {
-  it('Hits sets a matrix to Fit to tempo, and Factor shows its slider; a hit of a sample that is not sliced cannot fit', async () => {
+  it('Pads sets a matrix to Fit to tempo, and Factor shows its slider; a hit of a sample that is not sliced cannot fit', async () => {
     const sampled = apply(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const amen = Object.values(sampled.samples).find((s) => s.name === 'amen.wav')!;
     const project = apply(sampled, setSlicing(amen.id, 1));

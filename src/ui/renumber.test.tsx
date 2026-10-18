@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, copyHits, createMatrix, createProject, ownMatrix, sliceSample } from '../model';
+import { addSample, copyHits, createMatrix, createProject, ownMatrix, renamePad, sliceSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Take } from './playback';
@@ -95,6 +95,17 @@ describe('the renumber dialog', () => {
     const p = amenAndSnares();
     const pads = Object.values(p.pads).slice(0, 3).map((pad) => pad.id);
     expect(renumberQuestion(p, { slices: [6, 8], pads })).toBe('You use slice 07, 09 in: pad amen 1 01, pad amen 1 02 and pad amen 1 03. Make a new trim and sample for this?');
+  });
+
+  it('names each pad by its matrix and row, so pads with the same name read apart (U20)', () => {
+    const p = amenAndSnares();
+    const snares = Object.values(p.matrices).find((m) => m.name === 'Snares')!;
+    const amen = Object.values(p.matrices).find((m) => m.name === 'amen 1')!;
+    const same = renamePad(snares.pads[0]!, 'amen 1 02')(p, sequentialIds());
+    if (!same.ok) throw new Error('rename failed');
+    expect(renumberQuestion(same.project, { slices: [1], pads: [amen.pads[1]!, snares.pads[0]!] })).toBe(
+      'You use slice 02 in: pad amen 1 02 and pad Snares 01. Make a new trim and sample for this?',
+    );
   });
 
   it('the renumber dialog offers New trim and Renumber', async () => {

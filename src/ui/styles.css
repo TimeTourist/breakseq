@@ -1117,44 +1117,6 @@ input[type='search'] {
   pointer-events: none;
 }
 
-.slice-line {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 11px;
-  min-height: 0;
-  margin-left: -5px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.slice-line::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 5px;
-  width: 1px;
-  background: rgb(232 230 225 / 0.45);
-}
-
-.slice-line:hover::before,
-.slice-line:focus-visible::before {
-  background: var(--accent);
-}
-
-.slice-line span {
-  position: absolute;
-  top: 2px;
-  left: 8px;
-  font-family: var(--mono, monospace);
-  font-size: 10px;
-  color: rgb(232 230 225 / 0.7);
-}
-
 .slider-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1693,9 +1655,12 @@ input[type='search'] {
 
 .timeline-box {
   background: var(--sunken);
+  /* As wide as the lanes, up to the page. */
+  width: fit-content;
+  max-width: 100%;
 }
 
-.timeline {
+.song-timeline {
   position: relative;
   padding: 8px 0 12px;
 }
@@ -1796,7 +1761,18 @@ input[type='search'] {
   background-size: 160px 100%, 40px 100%, 10px 100%;
 }
 
-/* Each lane is tinted in its colour, which names it: no label beside it. */
+/* The lane's name in its corner, kept in view while the timeline scrolls; clips cover it. */
+.lane-label {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  padding: 2px 6px;
+  color: var(--muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Each lane is tinted in its colour. */
 .timeline-lane.main {
   background-color: #1f1b12;
 }
@@ -2075,46 +2051,10 @@ input[type='search'] {
   fill: #e5689a;
 }
 
-/* Hits: each matrix's pads in order, a pad's hits beside it. */
-
-.matrix-head {
-  margin-top: 4px;
-}
-
-.pad-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 2px 4px;
-  border-radius: 6px;
-}
-
-.pad-row.current {
-  background: var(--accent-bg);
-}
-
 /* A pad whose slice is past its sample's last marker: it plays nothing. */
-.pad-row.silent,
 .chip.silent,
 .step.silent {
   opacity: 0.4;
-}
-
-.pad-row-name {
-  min-height: 0;
-  min-width: 3.2em;
-  padding: 2px 6px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  text-align: left;
-  font-size: 12px;
-}
-
-.pad-row.current .pad-row-name {
-  color: var(--accent);
-  font-weight: 600;
 }
 
 .hit-chip {
@@ -2148,18 +2088,6 @@ input[type='search'] {
   display: inline-flex;
   flex: none;
   color: var(--muted);
-}
-
-/* A matrix in the Hits list with the fold for its pads. */
-.fold-head {
-  gap: 4px;
-}
-
-.icon-button.fold {
-  width: 36px;
-  min-height: 36px;
-  height: 36px;
-  flex: none;
 }
 
 /* Once/Loop and ▶, together wherever something plays. */

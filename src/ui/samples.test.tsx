@@ -216,6 +216,30 @@ describe("U7: the trim's ▶ is the header's Play", () => {
   });
 });
 
+describe('one thing plays at a time in Samples', () => {
+  it("the trim's ▶ waits for its own render: before it, Play would start what was shown before", async () => {
+    const player = fakePlayer();
+    await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) })), makeServices(player));
+    fireEvent.click(button('Trim amen trim 1'));
+    expect((button('Play trim') as HTMLButtonElement).disabled).toBe(true);
+    await waitFor(() => expect((button('Play trim') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button('Play trim'));
+    expect(player.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('a click on a slice to hear it stops Play in the header first', async () => {
+    const player = fakePlayer();
+    await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)), makeServices(player));
+    await waitFor(() => expect((button('Play') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button('Play'));
+    expect(button('Stop')).toBeTruthy();
+    fireEvent.click(button('Play slice 02'));
+    expect(player.stop).toHaveBeenCalledTimes(1);
+    expect(player.audition).toHaveBeenCalledTimes(1);
+    expect(button('Play')).toBeTruthy();
+  });
+});
+
 describe('U12: Creates counts the pads and hits of the matrix', () => {
   it('a trim not sliced whose matrix has 2 pads and 3 hits', async () => {
     const project = build(
@@ -232,9 +256,8 @@ describe('U12: Creates counts the pads and hits of the matrix', () => {
       },
     );
     await setup(project);
-    const row = button('Pads →').closest('tr')!;
-    expect(row.textContent).toContain('2 pads, 3 hits');
-    expect(row.textContent).not.toContain('1 hit ');
+    // The whole cell: the matrix's count and the link, nothing about one hit.
+    expect(button('Pads →').closest('.creates')!.textContent).toBe('2 pads, 3 hits Pads →');
   });
 });
 

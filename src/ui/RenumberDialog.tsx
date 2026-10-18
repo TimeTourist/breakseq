@@ -1,15 +1,25 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { Project, Renumber } from '../model';
+import type { Id, Project, Renumber } from '../model';
+import { matrixOfPad, rowName } from '../model';
 
 /** Words in a list: "a", "a and b", "a, b and c". */
 const listText = (words: readonly string[]): string =>
   words.length <= 1 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]!}`;
 
-/** What the renumber dialog asks (decision 14): "You use slice 07, 09 in: pad 2 and pad 3. Make a new trim and sample for this?" */
+/** A pad by its matrix and row ("amen 1 07", "Snares 01"), which tell pads apart where names may not (U20). */
+function padPlace(project: Project, padId: Id): string | null {
+  const pad = project.pads[padId];
+  if (pad === undefined) return null;
+  const matrix = matrixOfPad(project, padId);
+  return matrix === undefined ? pad.name : rowName(matrix.name, matrix.pads.indexOf(padId));
+}
+
+/** What the renumber dialog asks (decision 14): "You use slice 07, 09 in: pad amen 1 07 and pad Snares 01. Make a new trim and sample for this?" */
 export function renumberQuestion(project: Project, conflict: Renumber, canNewTrim = true): string {
   const slices = conflict.slices.map((s) => String(s + 1).padStart(2, '0')).join(', ');
-  const pads = listText(conflict.pads.flatMap((id) => (project.pads[id] === undefined ? [] : [`pad ${project.pads[id].name}`])));
+  const places = conflict.pads.map((id) => padPlace(project, id)).filter((place) => place !== null);
+  const pads = listText(places.map((place) => `pad ${place}`));
   return `You use slice ${slices} in: ${pads}. ${canNewTrim ? 'Make a new trim and sample for this?' : 'Renumber them?'}`;
 }
 

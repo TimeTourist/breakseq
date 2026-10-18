@@ -17,7 +17,7 @@ export const CLIP_MIME = 'application/x-breakseq-clip';
 /** Width of one 1/16 step on the timeline. */
 export const STEP_PX = 10;
 
-/** The lanes, each tinted in its colour instead of a label beside it. */
+/** The lanes, each tinted in its colour and named in its corner. */
 const ROWS: readonly { row: SongRow; name: string }[] = [
   { row: 'main', name: 'Main' },
   { row: 'fill', name: 'Fill' },
@@ -130,7 +130,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
         label={`Loop ${which} at ${position(which === 'start' ? start : end)}`}
         title="Drag to move this end of the loop, or focus it and use ←/→ (Shift: a beat)"
         onDrag={(x, handle) => {
-          const el = handle.closest('.timeline') as HTMLElement | null;
+          const el = handle.closest('.song-timeline') as HTMLElement | null;
           if (el !== null) set(boundaryAt({ clientX: x }, el));
         }}
         onNudge={(direction, big) => set((which === 'start' ? start : end) + direction * (big ? 4 : 1))}
@@ -300,7 +300,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
       </div>
 
       <div className="table-scroll timeline-box" onClick={() => setSelected(null)}>
-        <div className="timeline" style={{ width }}>
+        <div className="song-timeline" style={{ width }}>
           <div className="timeline-row">
             <div
               className="timeline-ruler"
@@ -368,6 +368,9 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
                   setError(run(addClip(row, chip.ref, stepAt(e, e.currentTarget))));
                 }}
               >
+                <span className="lane-label small" aria-hidden="true">
+                  {name}
+                </span>
                 {hover?.row === row && <span className="drop-marker" style={{ left: hover.step * STEP_PX }} />}
                 {project.song.clips.filter((c) => c.row === row).map(clipView)}
               </div>

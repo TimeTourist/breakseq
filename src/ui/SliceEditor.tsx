@@ -127,7 +127,7 @@ function Sliced({ sample, played, toTrim, toPads, stopTransport, found, onFound 
   const run = useRun();
   const seal = useSeal();
   // Opens on the slice it was sent to, if any; from then on it is picked here.
-  const [selected, setSelected] = useState(() => store.getState().sliceSelected);
+  const [selected, setSelected] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [playingSample, setPlayingSample] = useState(false);
   const [sensitivity, setSensitivity] = useState(found?.sensitivity ?? SENSITIVITY);
@@ -353,6 +353,8 @@ function Sliced({ sample, played, toTrim, toPads, stopTransport, found, onFound 
                   aria-label={`Play slice ${two(i)}`}
                   onClick={() => {
                     setSelected(i);
+                    // One thing plays at a time: Play in the header stops.
+                    stopTransport();
                     services.player.audition(audio, sample.offset + m, ends[i]! - m);
                   }}
                 >

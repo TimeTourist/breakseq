@@ -70,7 +70,7 @@ describe('channel choice and pan in the GUI', () => {
     expect(store.getState().history.present.samples[sample.id]!.channel).toBe('left');
   });
 
-  it('Hits pans a hit', async () => {
+  it('Pads pans a hit', async () => {
     const project = apply(createProject(), addSample({ name: 'hat.wav', audio: constantAudio(0.1) }));
     const hit = Object.values(project.hits)[0]!;
     const store = await setup(project, 'pads', { hit: hit.id });

@@ -63,10 +63,11 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       return loopId === null ? song(SONG_KEY, project) : song(`loop:${loopId}`, loopSong(project, loopId));
     }
     case 'mods': {
-      const loopId = previewLoopId(project, selection);
+      // The mod on its loop; with no mod there is nothing to play (spec, Uppspelning), so Play stops.
       const modId = currentModId(project, selection);
-      if (loopId === null) return song(SONG_KEY, project);
-      return modId === null ? song(`loop:${loopId}`, loopSong(project, loopId)) : song(`mod:${modId}:${loopId}`, modPreviewSong(project, modId, loopId));
+      if (modId === null) return null;
+      const loopId = previewLoopId(project, selection);
+      return loopId === null ? song(SONG_KEY, project) : song(`mod:${modId}:${loopId}`, modPreviewSong(project, modId, loopId));
     }
     case 'song':
     case 'project':

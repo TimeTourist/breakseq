@@ -74,11 +74,11 @@ const present = (store: Store) => store.getState().history.present;
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 describe('Klart när: four snares become a pad, placed in a loop and heard in Song', () => {
-  it('builds the pad in Hits, fills a loop and places it in the song', async () => {
+  it('builds the pad in Pads, fills a loop and places it in the song', async () => {
     const snares = ['snare_01.wav', 'snare_02.wav', 'snare_03.wav', 'snare_04.wav'];
     const store = await setup(build(...snares.map((name) => addSample({ name, audio: constantAudio(0.2) }))), 'pads');
 
-    // Hits: a new matrix, its pad with copies of all four.
+    // Pads: a new matrix, its pad with copies of all four.
     fireEvent.click(button('+ New matrix'));
     fireEvent.click(button('Create'));
     const matrix = Object.values(present(store).matrices).find((m) => m.sampleId === null)!;
@@ -230,7 +230,7 @@ describe('Pads: matrices, pads and their hits', () => {
     expect(copies.map((h) => h.sampleId)).toEqual(inSnares.map((h) => after.hits[h]!.sampleId));
     expect(copies.some((h) => inSnares.includes(h.id))).toBe(false);
     expect(after.pads[snaresPad.id]!.members).toEqual(inSnares);
-    expect(screen.getByRole('button', { name: /^Undo: add 4 hits/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Undo: copy 4 hits/ })).toBeTruthy();
   });
 
   // Dragging a pad onto a matrix is gone with the Hits list: Pads drags hits and all hits (decision 4).

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createProject, ownMatrix, setHitSource, setMarkers, sliceSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
-import { padGroups, padLabel, replacedBy } from './labels';
+import { padLabel, replacedBy, shelfGroups } from './labels';
 
 const ctx = sequentialIds();
 function run(project: Project, ...commands: Command[]): Project {
@@ -22,22 +22,23 @@ function amenAndSnare() {
 }
 
 describe('pads grouped in the shelf', () => {
-  it('each break by its matrix, its pads in order; matrices with one pad under One-shots', () => {
+  it('each given matrix in order, its pads in order, with its classification', () => {
     const { project, amen } = amenAndSnare();
-    const groups = padGroups(project);
-    expect(groups.map((g) => [g.name, g.items.map((p) => p.name), g.matrixId])).toEqual([
-      ['amen 1', ['amen 1 01', 'amen 1 02', 'amen 1 03', 'amen 1 04'], amen.id],
-      ['One-shots', ['snare 1'], undefined],
+    const snare = Object.values(project.matrices).find((m) => m.name === 'snare 1')!;
+    const groups = shelfGroups(project, [amen.id, snare.id]);
+    expect(groups.map((g) => [g.name, g.items.map((p) => p.name), g.matrixId, g.kind])).toEqual([
+      ['amen 1', ['amen 1 01', 'amen 1 02', 'amen 1 03', 'amen 1 04'], amen.id, 'break'],
+      ['snare 1', ['snare 1'], snare.id, 'one-shot'],
     ]);
     expect(groups[0]!.items.map(padLabel)).toEqual(['01', '02', '03', '04']);
   });
 
   it('a pad past its sample’s last slice is left out while no loop plays it', () => {
-    const { project, sample } = amenAndSnare();
+    const { project, sample, amen } = amenAndSnare();
     const fewer = run(project, setMarkers(sample.id, [0, 0.25, 0.5]));
     const loop = Object.values(fewer.loops)[0]!;
     const unplayed = { ...fewer, loops: { [loop.id]: { ...loop, steps: loop.steps.map((s) => ({ ...s, padId: null })) } } };
-    expect(padGroups(unplayed)[0]!.items.map((p) => p.name)).toEqual(['amen 1 01', 'amen 1 02', 'amen 1 03']);
+    expect(shelfGroups(unplayed, [amen.id])[0]!.items.map((p) => p.name)).toEqual(['amen 1 01', 'amen 1 02', 'amen 1 03']);
   });
 });
 
