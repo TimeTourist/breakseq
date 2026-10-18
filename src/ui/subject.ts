@@ -1,6 +1,6 @@
 import type { Project, Rng } from '../model';
-import { sampleAudio } from '../model';
-import { breakSong, hitRun, loopSong, modPreviewSong, padTurns } from '../engine';
+import { ownMatrix, sampleAudio } from '../model';
+import { hitRun, loopSong, matrixSong, modPreviewSong, padTurns } from '../engine';
 import { hitsOpen } from './HitsView';
 import { currentLoopId } from './LoopsView';
 import { currentModId, previewLoopId } from './ModsView';
@@ -26,10 +26,9 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
   switch (view) {
     case 'import': {
       // The sample whose Trim is open, trimmed, as it is; with none open, the song.
-      const brk = project.breaks[state.trimming ?? ''];
-      const sample = brk === undefined ? undefined : project.samples[brk.sampleId];
+      const sample = project.samples[state.trimming ?? ''];
       const audio = sample === undefined ? undefined : sampleAudio(project, sample);
-      if (brk === undefined || sample === undefined || audio === undefined) return song(SONG_KEY, project);
+      if (sample === undefined || audio === undefined) return song(SONG_KEY, project);
       const from = Math.round(sample.offset * audio.sampleRate);
       const to = Math.round((sample.offset + sample.duration) * audio.sampleRate);
       // Loops, as in Trim.
@@ -41,14 +40,16 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       };
     }
     case 'slice': {
-      const breaks = Object.values(project.breaks).filter((b) => b.bars !== null);
-      const brk = breaks.find((b) => b.id === state.sliceTarget) ?? breaks[0];
-      return brk === undefined ? null : song(`break:${brk.id}`, breakSong(project, brk.id));
+      // The sample open in Slice, or the first sliced one, as its own matrix lays it out.
+      const sliced = Object.values(project.samples).filter((s) => s.bars !== null);
+      const sample = sliced.find((s) => s.id === state.sliceTarget) ?? sliced[0];
+      const matrix = sample === undefined ? undefined : ownMatrix(project, sample.id);
+      return matrix === undefined ? null : song(`matrix:${matrix.id}`, matrixSong(project, matrix.id));
     }
     case 'hits': {
       const once = !state.hitsLoop;
-      const { pad, hit, picked, parent } = hitsOpen(project, selection);
-      if (parent && hit !== undefined) return song(`break:${hit.breakId}:${once}`, breakSong(project, hit.breakId), once);
+      const { pad, hit, picked, matrix } = hitsOpen(project, selection);
+      if (matrix !== undefined) return song(`matrix:${matrix.id}:${once}`, matrixSong(project, matrix.id), once);
       if (picked && hit !== undefined) return { key: `hit:${hit.id}:${once}`, once, kind: 'preview', preview: () => ({ kind: 'hits', project, run: hitRun(project, [hit.id]) }) };
       if (pad === undefined || pad.members.length === 0) return null;
       return { key: `pad:${pad.id}:${once}`, once, kind: 'preview', preview: (rng) => ({ kind: 'hits', project, run: hitRun(project, padTurns(pad, !once, rng)) }) };

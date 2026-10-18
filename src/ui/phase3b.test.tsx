@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, setBreak } from '../model';
+import { addSample, createProject, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -93,8 +93,8 @@ describe('Markers in Slice', () => {
   /** A 2 s, one-bar break with markers on 1/16, open in Slice. */
   async function sliceSetup() {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-    const result = setBreak(Object.keys(project.breaks)[0]!, 1)(project, ctx);
-    if (!result.ok) throw new Error('setBreak failed');
+    const result = setSlicing(Object.keys(project.samples)[0]!, 1)(project, ctx);
+    if (!result.ok) throw new Error('setSlicing failed');
     return setup(result.project, 'slice');
   }
 
@@ -179,8 +179,8 @@ describe('Playing while trimming', () => {
 describe('files, trims and breaks in the GUI', () => {
   async function sliced() {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-    const result = setBreak(Object.keys(project.breaks)[0]!, 1)(project, ctx);
-    if (!result.ok) throw new Error('setBreak failed');
+    const result = setSlicing(Object.keys(project.samples)[0]!, 1)(project, ctx);
+    if (!result.ok) throw new Error('setSlicing failed');
     return result.project;
   }
 
@@ -192,20 +192,25 @@ describe('files, trims and breaks in the GUI', () => {
     expect(screen.getByRole('button', { name: 'Trim amen trim 2' }).getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('Hits renames the break from its parent, and shows its slice, trim and file as links', async () => {
+  it('Hits renames the matrix, and shows its slice, trim and file as links', async () => {
     const project = await sliced();
-    const brk = Object.values(project.breaks)[0]!;
-    const store = createStore({ ...initialState(project), view: 'hits', selection: { ...initialState(project).selection, hit: brk.parent } });
+    const matrix = Object.values(project.matrices)[0]!;
+    const sample = Object.values(project.samples)[0]!;
+    const store = createStore({ ...initialState(project), view: 'hits', selection: { ...initialState(project).selection, matrix: matrix.id } });
     render(<App store={store} services={fakeServices()} />);
     await act(async () => {});
-    fireEvent.change(screen.getByLabelText('Hit name'), { target: { value: 'think' } });
-    expect(store.getState().history.present.breaks[brk.id]!.name).toBe('think');
+    fireEvent.change(screen.getByLabelText('Matrix name'), { target: { value: 'think' } });
+    expect(store.getState().history.present.matrices[matrix.id]!.name).toBe('think');
+    expect(store.getState().history.present.pads[matrix.pads[0]!]!.name).toBe('think 01');
+    // Plays and Replace with file are gone (decision 11).
+    expect(screen.queryByRole('combobox', { name: 'Trim under the break' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Replace with file/ })).toBeNull();
     // ← Trim ← Slice and the file, the full names in their titles.
     const origin = screen.getByRole('button', { name: '← Slice' }).closest('.origin')!;
     expect([...origin.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['← Trim', '← Slice', 'amen.wav']);
     expect(screen.getByRole('button', { name: '← Slice' }).title).toBe('Open amen slice 1 in Slice');
     fireEvent.click(screen.getByRole('button', { name: '← Slice' }));
-    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: brk.id });
+    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: sample.id });
   });
 
   it('Slice has no Replace sample; Hits → opens the break, and Make one-shot makes a one-shot of the slice', async () => {

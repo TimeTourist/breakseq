@@ -10,6 +10,8 @@ export type View = (typeof VIEWS)[number];
 export interface Selection {
   readonly hit: Id | null;
   readonly pad: Id | null;
+  /** The matrix open on its own in Hits, while no pad or hit is. */
+  readonly matrix: Id | null;
   readonly loop: Id | null;
   /** Step index within the selected loop. */
   readonly step: number | null;
@@ -37,9 +39,9 @@ export interface AppState {
   readonly history: History;
   readonly projectFolder: ProjectFolderState;
   readonly view: View;
-  /** The break picked in Import for slicing. */
+  /** The sample open in Slice. */
   readonly sliceTarget: string | null;
-  /** The slice Slice opens with selected, as when a parent's slice line in Hits is double-clicked. */
+  /** The slice Slice opens with selected, as when a matrix's slice line in Hits is double-clicked. */
   readonly sliceSelected: number;
   readonly selection: Selection;
   /** The step in Song that Play starts from, set by a click in its ruler; Stop goes back to it. */
@@ -48,11 +50,11 @@ export interface AppState {
   readonly clipboard: Clip | null;
   /** Whether Play in Hits loops what is open, or plays it once. */
   readonly hitsLoop: boolean;
-  /** Breaks whose pads are shown in the Hits list; all are folded at first. */
+  /** Matrices whose pads are shown in the Hits list; breaks are folded at first. */
   readonly unfolded: readonly Id[];
-  /** The break whose Trim is open in Import: what Play plays there. */
+  /** The sample (trim) whose Trim is open in Import: what Play plays there. */
   readonly trimming: Id | null;
-  /** Groups of pads left out of the pad shelf in Loops: a break's id, or "One-shots" or "Built". */
+  /** Groups of pads left out of the pad shelf in Loops: a matrix's id, or "One-shots". */
   readonly shelfHidden: readonly string[];
   /** Groups unfolded in the list under the shelf that chooses them; all are folded at first. */
   readonly shelfOpen: readonly string[];
@@ -68,15 +70,15 @@ export type Action =
   | { readonly type: 'redo' }
   | { readonly type: 'view'; readonly view: View }
   | { readonly type: 'place'; readonly place: Place }
-  | { readonly type: 'sliceTarget'; readonly breakId: string | null; readonly slice?: number }
+  | { readonly type: 'sliceTarget'; readonly sampleId: string | null; readonly slice?: number }
   /** Swaps in a project and starts a new undo history, as a loaded snapshot does. */
   | { readonly type: 'load'; readonly project: Project }
   | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> }
   | { readonly type: 'songCursor'; readonly step: number }
   | { readonly type: 'clipboard'; readonly clip: Clip | null }
   | { readonly type: 'hitsLoop'; readonly loop: boolean }
-  | { readonly type: 'fold'; readonly breakIds: readonly Id[]; readonly folded: boolean }
-  | { readonly type: 'trimming'; readonly breakId: Id | null }
+  | { readonly type: 'fold'; readonly matrixIds: readonly Id[]; readonly folded: boolean }
+  | { readonly type: 'trimming'; readonly sampleId: Id | null }
   | { readonly type: 'shelfShown'; readonly group: string; readonly shown: boolean }
   | { readonly type: 'shelfOpen'; readonly groups: readonly string[]; readonly open: boolean };
 
@@ -86,7 +88,7 @@ export const initialState = (project: Project = createProject()): AppState => ({
   view: 'import',
   sliceTarget: null,
   sliceSelected: 0,
-  selection: { hit: null, pad: null, loop: null, step: null, mod: null, previewLoop: null },
+  selection: { hit: null, pad: null, matrix: null, loop: null, step: null, mod: null, previewLoop: null },
   songCursor: 0,
   clipboard: null,
   hitsLoop: true,
@@ -121,7 +123,7 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'place':
       return { state: { ...state, ...action.place }, error: null };
     case 'sliceTarget':
-      return { state: { ...state, sliceTarget: action.breakId, sliceSelected: action.slice ?? 0 }, error: null };
+      return { state: { ...state, sliceTarget: action.sampleId, sliceSelected: action.slice ?? 0 }, error: null };
     case 'load':
       return { state: { ...state, history: createHistory(action.project), songCursor: 0 }, error: null };
     case 'projectFolder':
@@ -133,11 +135,11 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'hitsLoop':
       return { state: { ...state, hitsLoop: action.loop }, error: null };
     case 'fold': {
-      const others = state.unfolded.filter((id) => !action.breakIds.includes(id));
-      return { state: { ...state, unfolded: action.folded ? others : [...others, ...action.breakIds] }, error: null };
+      const others = state.unfolded.filter((id) => !action.matrixIds.includes(id));
+      return { state: { ...state, unfolded: action.folded ? others : [...others, ...action.matrixIds] }, error: null };
     }
     case 'trimming':
-      return { state: { ...state, trimming: action.breakId }, error: null };
+      return { state: { ...state, trimming: action.sampleId }, error: null };
     case 'shelfShown': {
       const others = state.shelfHidden.filter((g) => g !== action.group);
       return { state: { ...state, shelfHidden: action.shown ? others : [...others, action.group] }, error: null };

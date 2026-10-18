@@ -3,7 +3,8 @@ import type { Break, Loop, Project } from '../model';
 import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, isUnsliced, makeOneShot, markBreak, oneShotTakes, oneShotUsages, removeFile, sliceName, trimName, unlikelyBpm } from '../model';
 import { decodeAudioFile, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
-import { DeleteBreak } from './DeleteBreak';
+// TODO(fas-22 Task 7b): use DeleteMatrix (props matrix) or removeSample here; aliased so the module resolves until then.
+import { DeleteMatrix as DeleteBreak } from './DeleteMatrix';
 import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
 import { TrimEditor } from './TrimEditor';

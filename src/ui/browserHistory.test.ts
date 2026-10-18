@@ -36,7 +36,7 @@ describe('browser Back and Forward', () => {
     const store = createStore(initialState(createProject()));
     const browser = fakeHistory();
     stop = followBrowserHistory(store, browser.history, browser.events);
-    store.dispatch({ type: 'sliceTarget', breakId: 'b1' });
+    store.dispatch({ type: 'sliceTarget', sampleId: 'b1' });
     store.dispatch({ type: 'view', view: 'slice' });
     store.dispatch({ type: 'select', selection: { hit: 'h1' }, view: 'hits' });
     store.dispatch({ type: 'select', selection: { hit: 'h2' } });

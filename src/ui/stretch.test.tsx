@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createMod, createProject, setBreak } from '../model';
+import { addSample, createMod, createProject, ownMatrix, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Take } from './playback';
@@ -58,19 +58,19 @@ async function setup(project: Project, view: 'hits' | 'mods', selection: Partial
 }
 
 describe('stretch in the GUI', () => {
-  it('Hits sets a hit to Fit to tempo, and Factor shows its slider; a one-shot cannot fit', async () => {
+  it('Hits sets a matrix to Fit to tempo, and Factor shows its slider; a hit of a sample that is not sliced cannot fit', async () => {
     const sampled = apply(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
-    const amen = Object.values(sampled.breaks).find((b) => b.name === 'amen 1')!;
-    const project = apply(sampled, setBreak(amen.id, 1));
-    const parent = project.breaks[amen.id]!.parent!;
-    const store = await setup(project, 'hits', { hit: parent });
+    const amen = Object.values(sampled.samples).find((s) => s.name === 'amen.wav')!;
+    const project = apply(sampled, setSlicing(amen.id, 1));
+    const matrix = ownMatrix(project, amen.id)!.id;
+    const store = await setup(project, 'hits', { matrix });
     const modes = screen.getByRole('group', { name: 'Stretch mode' });
     fireEvent.click(within(modes).getByRole('button', { name: 'Fit to tempo' }));
-    expect(store.getState().history.present.hits[parent]!.stretch.mode).toBe('fit');
+    expect(store.getState().history.present.matrices[matrix]!.config.stretch.mode).toBe('fit');
     fireEvent.click(within(modes).getByRole('button', { name: 'Factor' }));
     expect(screen.getByRole('slider', { name: /^Factor/ })).toBeTruthy();
     fireEvent.click(within(screen.getByRole('group', { name: 'Grains from' })).getByRole('button', { name: 'Hit' }));
-    expect(store.getState().history.present.hits[parent]!.stretch).toMatchObject({ mode: 'factor', from: 'hit' });
+    expect(store.getState().history.present.matrices[matrix]!.config.stretch).toMatchObject({ mode: 'factor', from: 'hit' });
 
     const snare = Object.values(project.hits).find((h) => h.name.startsWith('snare'))!;
     cleanup();

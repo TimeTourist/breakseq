@@ -5,6 +5,12 @@ import { useState } from 'react';
 export const CELL_MIME = 'application/x-breakseq-cell';
 /** A loop step being dragged: its index. */
 export const STEP_MIME = 'application/x-breakseq-step';
+/** A hit being dragged: its id. Dropped on a pad or matrix it is copied there. */
+export const HIT_MIME = 'application/x-breakseq-hit';
+/** A pad being dragged: its id. */
+export const PAD_MIME = 'application/x-breakseq-pad';
+/** A matrix being dragged: its id. */
+export const MATRIX_MIME = 'application/x-breakseq-matrix';
 
 /**
  * Ctrl while dropping copies; otherwise a drag moves. Alt (Option) copies too,

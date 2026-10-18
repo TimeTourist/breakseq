@@ -2060,7 +2060,7 @@ input[type='search'] {
   fill: #e5689a;
 }
 
-/* Hits: each break's pads in order, a pad's hits beside it. */
+/* Hits: each matrix's pads in order, a pad's hits beside it. */
 
 .break-head {
   margin-top: 4px;
@@ -2079,7 +2079,7 @@ input[type='search'] {
   background: var(--accent-bg);
 }
 
-/* A slot pad past its break's last slice: it plays nothing. */
+/* A pad whose slice is past its sample's last marker: it plays nothing. */
 .pad-row.silent,
 .chip.silent,
 .step.silent {
@@ -2128,7 +2128,14 @@ input[type='search'] {
   background: var(--accent-bg);
 }
 
-/* A parent in the Hits list with the fold for its pads. */
+/* A break or one-shot icon by a matrix's name. */
+.matrix-kind {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+
+/* A matrix in the Hits list with the fold for its pads. */
 .fold-head {
   gap: 4px;
 }

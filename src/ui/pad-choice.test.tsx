@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createPad, createProject, setStep } from '../model';
+import { addSample, copyHits, createLoop, createMatrix, createProject, setStep } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Take } from './playback';
@@ -48,12 +48,12 @@ function apply(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-/** Two hats in a pad of their own, and a loop with the pad on step 1. */
+/** Copies of two hats in the pad of a matrix of their own, and a loop with the pad on step 1. */
 function hats() {
-  const sampled = apply(createProject(), addSample({ name: 'h1.wav', audio: constantAudio(0.1) }), addSample({ name: 'h2.wav', audio: constantAudio(0.1) }));
-  const hits = Object.values(sampled.hits).map((h) => h.id);
-  const built = apply(sampled, createPad('hat', hits), createLoop('M1', 'main', 1));
-  const pad = Object.values(built.pads).find((p) => p.name === 'hat')!;
+  const sampled = apply(createProject(), addSample({ name: 'h1.wav', audio: constantAudio(0.1) }), addSample({ name: 'h2.wav', audio: constantAudio(0.1) }), createMatrix('hat'));
+  const pad = Object.values(sampled.pads).find((p) => p.name === 'hat 01')!;
+  const built = apply(sampled, copyHits(Object.keys(sampled.hits), pad.id), createLoop('M1', 'main', 1));
+  const hits = built.pads[pad.id]!.members;
   const loop = Object.values(built.loops)[0]!;
   return { project: apply(built, setStep(loop.id, 0, { padId: pad.id })), pad, loop, hits };
 }

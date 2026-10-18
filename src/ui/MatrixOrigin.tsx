@@ -1,38 +1,38 @@
-import type { Break } from '../model';
+import type { Matrix } from '../model';
 import { sliceName, trimName } from '../model';
 import { useApp, useOpen, useProject } from './context';
 import { middleEllipsis } from './labels';
 
-type Part = 'break' | 'slice' | 'trim' | 'file';
+type Part = 'matrix' | 'slice' | 'trim' | 'file';
 
 /**
- * Where a break comes from, each part a link to where it is edited: the break
- * (its parent, in Hits), ← Slice, ← Trim and the file (Import), its name
- * shortened in the middle as in Import. The full names are in the titles.
+ * Where a matrix comes from, each part a link to where it is edited: the
+ * matrix (in Hits), ← Slice, ← Trim and the file (Import), its name shortened
+ * in the middle as in Import. The full names are in the titles. A matrix built
+ * by hand comes from no sample, and has only itself.
  */
-export function BreakOrigin({ brk, parts }: { readonly brk: Break; readonly parts: readonly Part[] }) {
+export function MatrixOrigin({ matrix, parts }: { readonly matrix: Matrix; readonly parts: readonly Part[] }) {
   const project = useProject();
   const { store } = useApp();
   const open = useOpen();
-  const sample = project.samples[brk.sampleId];
+  const sample = matrix.sampleId === null ? undefined : project.samples[matrix.sampleId];
   const toImport = () => {
-    store.dispatch({ type: 'trimming', breakId: brk.id });
+    if (sample === undefined) return;
+    store.dispatch({ type: 'trimming', sampleId: sample.id });
     store.dispatch({ type: 'view', view: 'import' });
   };
   const link = (part: Part) => {
     switch (part) {
-      case 'break': {
-        const hit = brk.parent ?? project.pads[brk.pads[0] ?? '']?.members[0];
-        return hit === undefined ? null : { text: `break ${brk.name}`, title: 'Open the break in Hits', go: () => open({ hit, pad: null }, 'hits') };
-      }
+      case 'matrix':
+        return { text: `matrix ${matrix.name}`, title: 'Open the matrix in Hits', go: () => open({ matrix: matrix.id, pad: null, hit: null }, 'hits') };
       case 'slice':
-        return brk.bars === null
+        return sample === undefined || sample.bars === null
           ? null
           : {
               text: '← Slice',
-              title: `Open ${sliceName(project, brk)} in Slice`,
+              title: `Open ${sliceName(sample)} in Slice`,
               go: () => {
-                store.dispatch({ type: 'sliceTarget', breakId: brk.id });
+                store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
                 store.dispatch({ type: 'view', view: 'slice' });
               },
             };
