@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
+import { matrixSong } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
 import {
   STEPS_PER_BAR,
@@ -26,6 +27,18 @@ import { LoopLength } from './LoopLength';
 import { Delete } from './DeleteButton';
 import { InSong, InSongMark, useHeard } from './InSong';
 import type { Selection } from './store';
+import type { Services } from './services';
+
+/**
+ * Plays a matrix once as it is laid out in a loop (`matrixSong`), rendered and
+ * then heard as an audition: beside the transport, cutting any other audition.
+ */
+export async function playMatrixOnce(services: Services, project: Project, matrixId: Id): Promise<void> {
+  const take = await services.renderSong(matrixSong(project, matrixId), services.rng());
+  const buffer = take.full ?? take.buffer;
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
+  services.player.audition({ sampleRate: buffer.sampleRate, channels }, 0, buffer.duration);
+}
 
 /** The loop open in Loops: the selected one, else the first. */
 export function currentLoopId(project: Project, selection: Selection): Id | null {
@@ -75,6 +88,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   /** Opens a pad, or a hit in it, in Hits, with the matrix it is a row of. */
   const openPad = (padId: Id, hit: Id | null = null) => open({ pad: padId, hit, matrix: matrixOfPad(project, padId)?.id ?? null }, 'hits');
   const openMatrix = (matrixId: Id) => open({ matrix: matrixId, pad: null, hit: null }, 'hits');
+  const playMatrix = (matrixId: Id) =>
+    playMatrixOnce(services, project, matrixId).catch((e: unknown) => setError(`Could not play it: ${e instanceof Error ? e.message : String(e)}`));
   const allOpen = groups.length > 0 && groups.every((g) => shelfOpen.includes(groupKey(g)));
 
   const newLoop = (kind: LoopKind) => {
@@ -144,7 +159,10 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   />
                   <span
                     className="label grow ellipsis"
-                    title={group.matrixId === undefined ? undefined : 'Double-click to edit the matrix in Hits'}
+                    title={group.matrixId === undefined ? undefined : 'Click to play it once, double-click to edit it in Hits'}
+                    onClick={() => {
+                      if (group.matrixId !== undefined) void playMatrix(group.matrixId);
+                    }}
                     onDoubleClick={() => {
                       if (group.matrixId !== undefined) openMatrix(group.matrixId);
                     }}
@@ -423,10 +441,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     className="chip parent-chip"
                     aria-pressed={shelfMatrix === matrixId}
                     aria-label={`Matrix ${group.name}: lay out all its pads`}
-                    title="The whole matrix: lays out its pads one after another from the step. Double-click to edit it in Hits"
+                    title="The whole matrix: a click plays it once and selects it; it lays out its pads one after another from the step. Double-click to edit it in Hits"
                     onDoubleClick={() => openMatrix(matrixId)}
                     onClick={() => {
                       setShelfMatrix(shelfMatrix === matrixId ? null : matrixId);
+                      void playMatrix(matrixId);
                       setShelfPad(null);
                     }}
                     onDragStart={(e) => {

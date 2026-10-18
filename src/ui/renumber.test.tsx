@@ -68,6 +68,29 @@ const samples = (store: Store) => Object.values(present(store).samples);
 const QUESTION = 'You use slice 02 in: pad amen 1 02 and pad Snares 01. Make a new trim and sample for this?';
 
 describe('the renumber dialog', () => {
+  it('the bars ask once, when committed: typing "16" does not ask at "1"', async () => {
+    const store = await setup(amenAndSnares());
+    const bars = screen.getByLabelText('Bars in the sample');
+    fireEvent.change(bars, { target: { value: '1' } });
+    fireEvent.change(bars, { target: { value: '16' } });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(samples(store)[0]).toMatchObject({ bars: 1 });
+    fireEvent.blur(bars);
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Renumber' }));
+    expect(samples(store)[0]).toMatchObject({ bars: 16 });
+    expect(samples(store)[0]!.markers).toHaveLength(64);
+  });
+
+  it('cancelling leaves the view as it was: the grid and the selected slice', async () => {
+    await setup(amenAndSnares());
+    fireEvent.click(screen.getByRole('button', { name: 'Play slice 03' }));
+    fireEvent.click(screen.getByRole('button', { name: '1/8' }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByRole('button', { name: '1/4' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('heading', { name: 'Slice 03' })).toBeTruthy();
+  });
+
   it('asks in words which slices and pads, listing them as one says them', () => {
     const p = amenAndSnares();
     const pads = Object.values(p.pads).slice(0, 3).map((pad) => pad.id);
@@ -114,7 +137,9 @@ describe('the renumber dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '1/8' }));
     expect(screen.getByRole('alertdialog', { name: /^You use slice 02/ })).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Escape' });
-    fireEvent.change(screen.getByLabelText('Bars in the sample'), { target: { value: '2' } });
+    const bars = screen.getByLabelText('Bars in the sample');
+    fireEvent.change(bars, { target: { value: '2' } });
+    fireEvent.keyDown(bars, { key: 'Enter' });
     expect(screen.getByRole('alertdialog', { name: /^You use slice 02/ })).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(samples(store)[0]).toMatchObject({ bars: 1 });

@@ -26,7 +26,7 @@ import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
 import { TrimEditor } from './TrimEditor';
 import { InSong, useHeard } from './InSong';
-import { middleEllipsis } from './labels';
+import { heardSamples, middleEllipsis, sampleLabel } from './labels';
 
 /** Every sample (trim), in import order. */
 export const sources = (project: Project): Sample[] => Object.values(project.samples);
@@ -47,8 +47,6 @@ function files(project: Project): [string, Sample[]][] {
   return order.map((audioId) => [audioId, fileSamples(project, audioId)]);
 }
 
-/** What a sample is called in Import: its own matrix's name, or its trim's when that is gone. */
-const sampleLabel = (project: Project, sample: Sample): string => ownMatrix(project, sample.id)?.name ?? trimName(sample);
 
 interface ImportViewProps {
   /** Where Play is in the open Trim's sample, in seconds from its start, while it plays it. */
@@ -71,7 +69,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const [toUnslice, setToUnslice] = useState<string | null>(null);
   const asked = toUnslice === null ? undefined : project.samples[toUnslice];
   /** The samples a hit heard in the song plays. */
-  const heardSamples = new Set([...heard.hits].flatMap((h) => project.hits[h]?.sampleId ?? []));
+  const heardHere = heardSamples(project, heard);
   useEffect(() => {
     if (previewing === null) return;
     return () => services.player.stopAudition();
@@ -378,7 +376,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                   )}
                                 </>
                               )}
-                              <InSong heard={heardSamples.has(sample.id)} />
+                              <InSong heard={heardHere.has(sample.id)} />
                             </div>
                           </td>
                         </tr>
