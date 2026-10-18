@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Config, Hit, Matrix, Pad, Project, Sample } from './types';
 import { NO_CONFIG } from './types';
+import { sampleBpm } from './owners';
 import {
-  breakBpm,
   effectiveHit,
   gridMarkers,
   hitColour,
@@ -130,11 +130,11 @@ describe('config in three layers', () => {
 
   it('grain and grid come from the nearest layer that has them, else the defaults', () => {
     const none = layered({}, {}, {});
-    expect(hitStretch(none.project, none.hit)).toEqual({ factor: 1, grain: 30, from: 'break' });
+    expect(hitStretch(none.project, none.hit)).toEqual({ factor: 1, grain: 30, from: 'sample' });
     const set = layered(
       { stretch: { mode: 'off', factor: 1, grain: null, from: 'hit' } },
       { stretch: { mode: 'off', factor: 1, grain: 80, from: null } },
-      { stretch: { mode: 'off', factor: 1, grain: 200, from: 'break' } },
+      { stretch: { mode: 'off', factor: 1, grain: 200, from: 'sample' } },
     );
     expect(hitStretch(set.project, set.hit)).toEqual({ factor: 1, grain: 80, from: 'hit' });
   });
@@ -202,7 +202,7 @@ describe('grids, tempo and names', () => {
   });
 
   it('a sample of 4 bars over 7.06 s is about 136 BPM', () => {
-    expect(breakBpm(breakDuration(4, 136), 4)).toBeCloseTo(136);
+    expect(sampleBpm({ duration: breakDuration(4, 136), bars: 4 })).toBeCloseTo(136);
   });
 
   it('names a trim, its slicing, and its rows', () => {

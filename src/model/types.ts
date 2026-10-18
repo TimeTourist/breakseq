@@ -58,8 +58,8 @@ export interface Region {
  * the song's, so a slice lasts as long as its steps in the song.
  */
 export type StretchMode = 'off' | 'fit' | 'factor';
-/** Where the grain grid starts: at the sample's start, as when a sampler stretched the whole break, or at the hit's start. */
-export type GrainFrom = 'break' | 'hit';
+/** Where the grain grid starts: at the sample's start, as when a sampler stretched the whole sample, or at the hit's start. */
+export type GrainFrom = 'sample' | 'hit';
 
 export interface HitStretch {
   readonly mode: StretchMode;
@@ -67,7 +67,7 @@ export interface HitStretch {
   readonly factor: number;
   /** Grain length in ms; null takes the next layer's, or DEFAULT_GRAIN. */
   readonly grain: number | null;
-  /** null takes the next layer's, or 'break'. */
+  /** null takes the next layer's, or 'sample'. */
   readonly from: GrainFrom | null;
 }
 

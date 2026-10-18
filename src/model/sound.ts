@@ -6,11 +6,6 @@ import { matrixOfPad, padOfHit, sampleBpm } from './owners';
 /** A file name without its audio extension: "amen.wav 01" → "amen 01". */
 export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc)(?=\s|$)/gi, '');
 
-/** A break of `bars` bars in 4/4 lasting `duration` seconds. */
-export function breakBpm(duration: number, bars: number): number {
-  return (bars * 4 * 60) / duration;
-}
-
 /** The shortest slice markers may make, in seconds. */
 export const MIN_SLICE = 0.001;
 
@@ -128,7 +123,7 @@ export function hitStretch(project: Project, hit: Hit): StretchPlay {
   return {
     factor: clampStretch(layers.reduce((f, c) => f * layerFactor(c), fit)),
     grain: nearest(layers, (c) => c.stretch.grain !== null)?.stretch.grain ?? DEFAULT_GRAIN,
-    from: nearest(layers, (c) => c.stretch.from !== null)?.stretch.from ?? 'break',
+    from: nearest(layers, (c) => c.stretch.from !== null)?.stretch.from ?? 'sample',
   };
 }
 

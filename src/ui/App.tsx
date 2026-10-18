@@ -100,6 +100,9 @@ function useTake() {
   return { shown, rendering, error, newTake: useCallback(() => setNonce((n) => n + 1), []) };
 }
 
+/** Shown when an autosave from before Matrix was set aside as a backup. */
+const SET_ASIDE_NOTICE = 'Your project from before Matrix was kept as a backup in Project.';
+
 /**
  * Loads the saved project once, then saves shortly after every change. If the
  * saved project could not be loaded, nothing is saved: saving would write the
@@ -115,6 +118,7 @@ function useAutosave() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backups, setBackups] = useState<readonly BackupInfo[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const lastBackup = useRef<number | null>(null);
 
   const keep = useCallback(
@@ -138,6 +142,14 @@ function useAutosave() {
       .then((saved) => {
         if (saved !== null) store.dispatch({ type: 'load', project: saved });
         setLoaded(true);
+        if (services.storage.setAside?.() === true) {
+          setNotice(SET_ASIDE_NOTICE);
+          // The old autosave became a backup during the load: the list read before it lacks it.
+          services.backups
+            ?.list()
+            .then(setBackups)
+            .catch(() => undefined);
+        }
         if (saved !== null) keep(saved).catch(() => setError('Could not keep a backup of the autosave'));
       })
       .catch(() => setError('Could not load the saved project. Autosave is off so it is not overwritten; restore a backup in Project, or reload the page to try again.'));
@@ -172,7 +184,7 @@ function useAutosave() {
     [services, store, loaded, keep],
   );
 
-  return { error, backups, restore };
+  return { error, backups, restore, notice, dismissNotice: () => setNotice(null) };
 }
 
 /**
@@ -208,7 +220,7 @@ function Shell() {
   const { store, services } = useApp();
   const view = useSelect((s) => s.view);
   const { shown, rendering, error: renderError, newTake } = useTake();
-  const { error: saveError, backups, restore } = useAutosave();
+  const { error: saveError, backups, restore, notice, dismissNotice } = useAutosave();
   const [playing, setPlaying] = useState(false);
   // What is playing: a subject's key, or a snapshot played from Project, which is not the song.
   const [playingKey, setPlayingKey] = useState<string | null>(null);
@@ -301,6 +313,14 @@ function Shell() {
         onStop={stop}
         status={status}
       />
+      {notice !== null && (
+        <p className="notice row" role="status">
+          {notice}
+          <button type="button" aria-label="Dismiss notice" onClick={dismissNotice}>
+            Dismiss
+          </button>
+        </p>
+      )}
       {view === 'import' && <ImportView playheadSeconds={playingKey?.startsWith('sample:') === true ? playhead.seconds : null} />}
       {view === 'slice' && <SliceView />}
       {view === 'hits' && (

@@ -284,6 +284,18 @@ describe('removal', () => {
     expect(gone.loops[loop]!.steps[0]).toMatchObject({ padId, memberId: null });
   });
 
+  it("a trim's usages also name loops that play pads elsewhere whose hits play it, once each", () => {
+    const { project: p0, sampleId, matrixId } = amen();
+    const { project: p1, padId: only } = snares(p0, [rowHit(p0, matrixId, 1).id]);
+    const p2 = run(p1, createLoop('Outside', 'main', 1), createLoop('Quiet', 'main', 1));
+    const outside = by(p2.loops, (l) => l.name === 'Outside').id;
+    const project = run(p2, setStep(outside, 0, { padId: only }), setStep(outside, 4, { padId: only }));
+    expect(findUsages(project, 'sample', sampleId)).toEqual([
+      { kind: 'loop', id: outside, name: 'Outside' },
+      { kind: 'pad', id: only, name: 'Snares 01' },
+    ]);
+  });
+
   it('removing a trim removes its hits everywhere; their pads stay empty and steps locked to them fall back to member 1', () => {
     const { project: p0, sampleId, matrixId } = amen();
     const kick = run(p0, addSample({ name: 'kick.wav', audio: constantAudio(0.2) }));

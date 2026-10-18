@@ -3,7 +3,6 @@ import type { Command, Id, Renumber, Sample, SliceGrid } from '../model';
 import {
   MIN_SLICE,
   STEPS_PER_BAR,
-  breakBpm,
   cueMarkers,
   gridMarkers,
   holds,
@@ -510,6 +509,7 @@ export function SliceView() {
         <RenumberDialog
           project={project}
           conflict={asking.conflict}
+          canNewTrim={ownMatrix(project, sample.id) !== undefined}
           onAnswer={(newTrim) => {
             setAsking(null);
             if (newTrim !== null) asking.go(newTrim);
@@ -598,7 +598,7 @@ function Unsliced({ sample, toTrim, onSliced }: UnslicedProps) {
                 }}
               />
             </label>
-            {bars !== null && `${breakBpm(duration, bars).toFixed(2)} BPM`}
+            {bars !== null && `${sampleBpm({ duration, bars })!.toFixed(2)} BPM`}
           </p>
         </div>
         <div className="row push">

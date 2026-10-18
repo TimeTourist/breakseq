@@ -8,6 +8,8 @@ import { BACKUP_KEEP } from './backups';
 export interface ProjectStorage {
   readonly load: () => Promise<Project | null>;
   readonly save: (project: Project) => Promise<void>;
+  /** After `load`: whether the autosave was from before Matrix and was set aside as a backup. */
+  readonly setAside?: () => boolean;
 }
 
 const DB_NAME = 'breakseq';
@@ -63,14 +65,20 @@ const connection = (factory: IDBFactory) => {
 /** The project in IndexedDB. Audio (Float32Arrays) is stored by structured clone. */
 export function indexedDbStorage(factory: IDBFactory = indexedDB): ProjectStorage {
   const connect = connection(factory);
+  let setAside = false;
   return {
     load: async () => {
+      setAside = false;
       const saved = await run(await connect(), 'readonly', (s) => s.get(KEY));
       if (saved === undefined) return null;
       const project = upgradeProject(saved);
-      if (project === null) await keepOldAutosave(factory, saved);
+      if (project === null) {
+        await keepOldAutosave(factory, saved);
+        setAside = true;
+      }
       return project;
     },
+    setAside: () => setAside,
     save: async (project) => {
       await run(await connect(), 'readwrite', (s) => s.put(project, KEY));
     },

@@ -28,17 +28,24 @@ function matrixUsages(project: Project, matrixId: Id): Usage[] {
 
 /**
  * Where a sample (a trim) is used, which goes silent without it: where its own
- * matrix is used, and pads elsewhere with a hit that plays it.
+ * matrix is used, pads elsewhere with a hit that plays it, and the loops that
+ * play those pads or have a step locked to such a hit.
  */
 function sampleUsages(project: Project, sampleId: Id): Usage[] {
   const own = Object.values(project.matrices).find((m) => m.sampleId === sampleId);
   const ownPads = new Set(own?.pads ?? []);
-  return [
-    ...(own === undefined ? [] : matrixUsages(project, own.id)),
-    ...Object.values(project.pads)
-      .filter((p) => !ownPads.has(p.id) && p.members.some((m) => project.hits[m]?.sampleId === sampleId))
-      .map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name })),
-  ];
+  const playing = (hitId: Id) => project.hits[hitId]?.sampleId === sampleId;
+  const outside = Object.values(project.pads).filter((p) => !ownPads.has(p.id) && p.members.some(playing));
+  const outsideIds = new Set(outside.map((p) => p.id));
+  const fromOwn = own === undefined ? [] : matrixUsages(project, own.id);
+  const named = new Set(fromOwn.flatMap((u) => (u.kind === 'loop' ? [u.id] : [])));
+  const elsewhere = Object.values(project.loops)
+    .filter((l) => !named.has(l.id) && l.steps.some((s) => (s.padId !== null && outsideIds.has(s.padId)) || (s.memberId !== null && playing(s.memberId))))
+    .map(loopUsage);
+  // Loops first, then pads; the song usage of the own matrix stays among the loops it names.
+  const loops = fromOwn.filter((u) => u.kind === 'loop');
+  const rest = fromOwn.filter((u) => u.kind !== 'loop');
+  return [...loops, ...elsewhere, ...rest, ...outside.map((p): Usage => ({ kind: 'pad', id: p.id, name: p.name }))];
 }
 
 /**

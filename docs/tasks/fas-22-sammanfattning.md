@@ -52,7 +52,6 @@ Inga (`grep -rn "TODO(spec)" src` ger inget).
 - **Text som fortfarande använder break eller one-shot som namn** (Klart när punkt 5). Typerna och objekten är klara, men du får avgöra om de här ska bytas:
   - knappen Make one-shot i Slice (kommandot `makeOneShot`), som gör en ny trim med en matrix med en pad
   - gruppen One-shots i Show in Pads och hyllan i Loops
-  - `GrainFrom`-värdet `'break'`, som i gränssnittet heter Sample
   - "en one-shot" i texter i Hits och Delete, till exempel "(one-shot)" i listan Replace… och "1 pad, 1 hit" för en one-shot
   - testnamn i motorn, till exempel `noiseBreak`
 - **Don't slice på en slicad trim** gör som Make one-shot gjorde förut (beslut av controllern, designen säger inget om det). Pad 01 blir kvar och spelar hela trimmen, och de andra raderna med sina hits och loopen går. Var de användes blir det tyst. Det kan behöva ses över i fas 23.
@@ -65,7 +64,6 @@ Inga (`grep -rn "TODO(spec)" src` ger inget).
 - **Dialogen är på engelska**, som resten av gränssnittet: "You use slice 07, 09 in: pad amen 1 07 and pad Snares 01. Make a new trim and sample for this?". Knapparna heter New trim och Renumber, och Escape avbryter.
   - Den frågar också när grid, takter eller transienter byter numrering, inte bara när en markör läggs till eller tas bort.
   - Takterna frågar när fältet lämnas eller med Enter, och Sensitivity när reglaget släpps, inte mitt i en ändring (beslut av controllern). Om du vill att fältet ska fråga direkt kostar det ett extra klick ut ur fältet.
-- **Efter New trim står den gamla trimmen kvar i Slice-listan** (amen trim 1, slicad men utan egen matrix). Det följer beslut 16, men kan se konstigt ut.
 - **En rad man själv tagit bort kommer inte tillbaka** när markörerna ändras (beslut av controllern, enligt beslut 12). Nya rader görs bara för slices som är nya. Om du väntar dig att en borttagen rad kommer tillbaka när man slicar om, är det inte så.
 - **Pads man lagt till själv är inga rader.** Får trimmen fler slices hamnar de nya raderna efter dem.
 - **Byte i en loop till en kortare matrix** tömmer steg vars rad den nya saknar, i stället för att lägga till rader där (beslut av controllern).
@@ -112,3 +110,7 @@ Inga (`grep -rn "TODO(spec)" src` ger inget).
   - Matrisknappen i Loops har en inline-IIFE.
   - `RenumberDialog` prenumererar på tangenter på nytt vid varje rendering.
   - Testnamn i motorn säger fortfarande "break".
+
+## Efter slutgranskningen
+
+Sex fynd är rättade: slicning med grid 1/8 eller 1/4 ger inga tysta rader; en trim utan egen matrix erbjuder bara Renumber (inget onödigt New trim); `GrainFrom` heter nu `'sample'` i stället för `'break'` och `breakBpm` är borta (kvar är `sampleBpm`); gamla kommentarer om break och parent är omskrivna; ett autospar från före Matrix ger ett meddelande som går att stänga och säkerhetskopian syns direkt i listan; Delete trim nämner också loopar som spelar pads utanför trimmens egen matrix vars hits spelar trimmen.

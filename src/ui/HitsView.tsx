@@ -764,15 +764,15 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                 Inherit
               </button>
             )}
-            {(['break', 'hit'] as const).map((from) => (
+            {(['sample', 'hit'] as const).map((from) => (
               <button
                 key={from}
                 type="button"
-                aria-pressed={stretch.from === from || (!hasAbove && stretch.from === null && from === 'break')}
-                title={from === 'break' ? 'A grid from the start of the sample, like a sampler stretching the whole sample' : 'Grains start with the hit, for clean attacks'}
+                aria-pressed={stretch.from === from || (!hasAbove && stretch.from === null && from === 'sample')}
+                title={from === 'sample' ? 'A grid from the start of the sample, like a sampler stretching the whole sample' : 'Grains start with the hit, for clean attacks'}
                 onClick={() => set({ from }, 'from')}
               >
-                {from === 'break' ? 'Sample' : 'Hit'}
+                {from === 'sample' ? 'Sample' : 'Hit'}
               </button>
             ))}
           </div>

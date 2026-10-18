@@ -38,7 +38,7 @@ export interface Voice {
 /** Sample buffers made on one context, per sample and direction. */
 export type BufferCache = Map<string, AudioBuffer>;
 
-/** A hit played as it is, with no mods: its own settings plus its parent's. */
+/** A hit played as it is, with no mods: its own settings plus those of its pad and matrix layers. */
 export function hitPlay(project: Project, hit: Hit): HitPlay {
   const own = effectiveHit(project, hit);
   return {
@@ -124,9 +124,9 @@ export function scheduleHit(
           rate,
           factor: play.stretch.factor,
           grain: play.stretch.grain / 1000,
-          origin: play.stretch.from === 'break' ? 0 : offset,
-          // From the hit, grains stay within it; from the break, they may read on into the next slice.
-          limit: play.stretch.from === 'break' ? buffer.duration : onFrame(region.end),
+          origin: play.stretch.from === 'sample' ? 0 : offset,
+          // From the hit, grains stay within it; from the sample, they may read on into the next slice.
+          limit: play.stretch.from === 'sample' ? buffer.duration : onFrame(region.end),
         });
   // It ends on a whole frame too: the buffer goes on past the slice, into the next one.
   const naturalEnd = start + (plan === null ? Math.max(0, onFrame(region.end) - offset) / rate : plan.length);
@@ -140,7 +140,7 @@ export function scheduleHit(
     buffer === clean ? 1 : levelMatch(rms(channelsOf(clean), frameOf(offset), frameOf(region.end)), rms(channelsOf(buffer), frameOf(offset), frameOf(region.end)));
   const filter = play.filter === null ? null : filterSettings(play.filter, context.sampleRate);
   const level = dbToGain(play.volume) * distGain * (filter?.gain ?? 1);
-  // The parent's fade applies where the slice has none.
+  // The pad's or matrix's fade applies where the hit has none.
   const fadeOut = effectiveHit(project, hit).fadeOut / 1000;
   const fadeStart = fadeOut > 0 ? Math.max(start, naturalEnd - fadeOut) : naturalEnd;
   const levelAt = (t: number) => (t <= fadeStart ? level : (level * (naturalEnd - t)) / (naturalEnd - fadeStart));

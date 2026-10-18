@@ -52,9 +52,9 @@ describe('stretch on a hit', () => {
     p = stretched(p, slice(3), { mode: 'factor', factor: 2 });
     expect(hitStretch(p, p.hits[slice(3).id]!)).toEqual({ factor: 2 * (120 / 150), grain: 60, from: 'hit' });
     // A slice's own grain and grid win; with none anywhere, 30 ms from the break.
-    expect(hitStretch(project, slice(3))).toEqual({ factor: 1, grain: 30, from: 'break' });
-    p = stretched(p, slice(3), { grain: 10, from: 'break' });
-    expect(hitStretch(p, p.hits[slice(3).id]!)).toMatchObject({ grain: 10, from: 'break' });
+    expect(hitStretch(project, slice(3))).toEqual({ factor: 1, grain: 30, from: 'sample' });
+    p = stretched(p, slice(3), { grain: 10, from: 'sample' });
+    expect(hitStretch(p, p.hits[slice(3).id]!)).toMatchObject({ grain: 10, from: 'sample' });
   });
 
   it('a stretched hit lasts longer in Loops, at its own and its matrix stretch', () => {
@@ -66,7 +66,7 @@ describe('stretch on a hit', () => {
     const { project } = amen(150);
     expect(generateTriggers(project, () => 0).every((t) => t.stretch === null)).toBe(true);
     const fit = macro(project, { mode: 'fit' });
-    expect(generateTriggers(fit, () => 0)[0]!.stretch).toEqual({ factor: 0.8, grain: 30, from: 'break' });
+    expect(generateTriggers(fit, () => 0)[0]!.stretch).toEqual({ factor: 0.8, grain: 30, from: 'sample' });
   });
 });
 
@@ -81,8 +81,8 @@ describe('the Stretch mod', () => {
   it('Multiply times the hit stretch, Replace instead of it; the mod grain applies', () => {
     const { project } = amen(150);
     const fit = macro(project, { mode: 'fit' });
-    expect(generateTriggers(withMod(fit, effect(2, 'multiply')), () => 0)[0]!.stretch).toEqual({ factor: 1.6, grain: 80, from: 'break' });
-    expect(generateTriggers(withMod(fit, effect(2, 'replace')), () => 0)[0]!.stretch).toEqual({ factor: 2, grain: 80, from: 'break' });
+    expect(generateTriggers(withMod(fit, effect(2, 'multiply')), () => 0)[0]!.stretch).toEqual({ factor: 1.6, grain: 80, from: 'sample' });
+    expect(generateTriggers(withMod(fit, effect(2, 'replace')), () => 0)[0]!.stretch).toEqual({ factor: 2, grain: 80, from: 'sample' });
   });
 
   it('B wins over A, and a factor of 1 is no stretch', () => {

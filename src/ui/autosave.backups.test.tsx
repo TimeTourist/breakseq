@@ -76,6 +76,39 @@ const settle = async (ms = 0) => {
 /** A change to the project, as any command makes. */
 const change = (store: Store, bpm: number) => act(() => void store.dispatch({ type: 'run', command: (p) => ({ ok: true, project: { ...p, song: { ...p.song, bpm } } }) }));
 
+describe('an autosave from before Matrix', () => {
+  it('says it was kept as a backup, dismissably, and lists that backup at once', async () => {
+    vi.useFakeTimers();
+    const backups = memoryBackups();
+    let aside = false;
+    const storage: ProjectStorage = {
+      // As indexedDbStorage does: the old autosave becomes a backup during the load.
+      load: async () => {
+        await backups.add(amen(), { snapshot: null, samples: 1, loops: 0, clips: 0 }, Date.now());
+        aside = true;
+        return null;
+      },
+      save: () => Promise.resolve(),
+      setAside: () => aside,
+    };
+    const store = createStore(initialState());
+    render(<App store={store} services={services(storage, backups)} />);
+    await settle();
+    expect(screen.getByRole('status').textContent).toContain('Your project from before Matrix was kept as a backup in Project.');
+    act(() => void store.dispatch({ type: 'view', view: 'project' }));
+    expect(screen.getAllByRole('group', { name: /^Backup / })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('says nothing when no autosave was set aside', async () => {
+    vi.useFakeTimers();
+    render(<App store={createStore(initialState())} services={services({ load: () => Promise.resolve(null), save: () => Promise.resolve() }, memoryBackups())} />);
+    await settle();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
 describe('autosave backups', () => {
   it('keeps the project as loaded, before anything changes it', async () => {
     vi.useFakeTimers();

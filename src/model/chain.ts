@@ -2,14 +2,15 @@ import type { Command, CommandContext, Usage } from './command';
 import { invalid, notFound, ok, sequence } from './command';
 import { findUsages } from './references';
 import type { SliceGrid } from './sound';
-import { MIN_SLICE, baseName, breakBpm, defaultMatrixName, gridMarkers, markerGrid, sliceWindow, slotHit, slotName } from './sound';
+import { MIN_SLICE, baseName, defaultMatrixName, gridMarkers, markerGrid, sliceWindow, slotHit, slotName } from './sound';
+import { sampleBpm } from './owners';
 import { matrixSequence, matrixSteps } from './lengths';
 import { emptyStep } from './project';
 import { renameMatrixIn } from './names';
 import type { AudioData, Id, Loop, Matrix, Pad, Project, Sample, SampleChannel, Step } from './types';
 import { NO_CONFIG, STEPS_PER_BAR } from './types';
 
-export { MIN_SLICE, baseName, breakBpm, gridMarkers };
+export { MIN_SLICE, baseName, gridMarkers };
 
 export interface NewSample {
   readonly name: string;
@@ -153,7 +154,7 @@ function cleanMarkers(markers: readonly number[], duration: number): number[] {
  * 1, 2, 4, 8 and 16 that gives a tempo from 70 to 180 BPM, nearest 140.
  */
 export function guessBars(duration: number): number {
-  const options = [1, 2, 4, 8, 16].map((bars) => ({ bars, bpm: breakBpm(duration, bars) }));
+  const options = [1, 2, 4, 8, 16].map((bars) => ({ bars, bpm: sampleBpm({ duration, bars })! }));
   const fitting = options.filter((o) => o.bpm >= 70 && o.bpm <= 180);
   const pool = fitting.length > 0 ? fitting : options;
   return pool.reduce((best, o) => (Math.abs(o.bpm - 140) < Math.abs(best.bpm - 140) ? o : best)).bars;
@@ -605,7 +606,7 @@ export const setGrid =
   };
 
 /** Slices a sample over `bars` bars with its markers on an equal grid. */
-export const sliceSample = (sampleId: Id, bars: number, grid: SliceGrid = 16): Command => sequence(setSlicing(sampleId, bars), setGrid(sampleId, grid));
+export const sliceSample = (sampleId: Id, bars: number, grid: SliceGrid = 16): Command => setSlicing(sampleId, bars, gridMarkers(bars, grid));
 
 /** Makes a hit play another slice, of this sample or another, keeping its own config and region. */
 export const setHitSource =

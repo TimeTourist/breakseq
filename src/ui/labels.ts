@@ -14,7 +14,7 @@ export function padLabel(pad: Pad): string {
 export interface Group<T> {
   readonly name: string;
   readonly items: readonly T[];
-  /** For a group of a break's pads: the matrix, which lays all of them out. */
+  /** For a group of a matrix's pads: the matrix, which lays all of them out. */
   readonly matrixId?: Id;
 }
 
@@ -25,7 +25,7 @@ export function padSilent(project: Project, pad: Pad): boolean {
 }
 
 /**
- * Pads grouped the way they belong together: each break's pads in order,
+ * Pads grouped the way they belong together: each matrix's pads in order,
  * named after its matrix; then the pad of every one-shot (a matrix of one pad)
  * under One-shots. A silent pad shows only while a loop still plays it.
  */
