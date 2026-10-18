@@ -66,12 +66,23 @@ export function indexedDbStorage(factory: IDBFactory = indexedDB): ProjectStorag
   return {
     load: async () => {
       const saved = await run(await connect(), 'readonly', (s) => s.get(KEY));
-      return saved === undefined ? null : upgradeProject(saved);
+      if (saved === undefined) return null;
+      const project = upgradeProject(saved);
+      if (project === null) await keepOldAutosave(factory, saved);
+      return project;
     },
     save: async (project) => {
       await run(await connect(), 'readwrite', (s) => s.put(project, KEY));
     },
   };
+}
+
+/** Keeps an autosave from before Matrix as a backup, as it is, before the autosave is written over. */
+async function keepOldAutosave(factory: IDBFactory, saved: unknown): Promise<void> {
+  const old = saved as Partial<Project> & { audio?: Record<Id, AudioData> };
+  const count = (record: object | undefined) => Object.keys(record ?? {}).length;
+  const summary = { snapshot: null, samples: count(old.samples), loops: count(old.loops), clips: old.song?.clips?.length ?? 0 };
+  await indexedDbBackups(factory).add({ ...old, audio: old.audio ?? {} } as Project, summary, Date.now());
 }
 
 /**

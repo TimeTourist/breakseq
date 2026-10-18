@@ -39,7 +39,7 @@ describe('project file', () => {
 });
 
 describe('a project file from before Matrix', () => {
-  it('a project file from before Matrix is refused with a message', () => {
+  it('is refused with a message', () => {
     const { matrices: _matrices, ...old } = createProject();
     void _matrices;
     const bytes = zipSync({ 'project.json': strToU8(JSON.stringify({ format: 'breakseq', version: PROJECT_FILE_VERSION, project: old })) });
