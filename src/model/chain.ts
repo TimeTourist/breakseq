@@ -353,40 +353,132 @@ export function unsliceUsages(project: Project, sampleId: Id): Usage[] {
 const keep = <T,>(record: Readonly<Record<Id, T>>, gone: (id: Id) => boolean) =>
   Object.fromEntries(Object.entries(record).filter(([id]) => !gone(id))) as Record<Id, T>;
 
+const mapValues = <T,>(record: Readonly<Record<Id, T>>, change: (x: T) => T): Record<Id, T> =>
+  Object.fromEntries(Object.entries(record).map(([id, x]) => [id, change(x)]));
+
+/** Pads, hits and a loop that go together. */
+export interface Parts {
+  readonly pads: ReadonlySet<Id>;
+  readonly hits: ReadonlySet<Id>;
+  readonly loop: Id | null;
+}
+
+/**
+ * Removes pads with their hits, other hits and a loop, silencing where they
+ * were used: pads leave their matrices and hits their pads, steps with the
+ * pads are emptied, steps locked to the hits fall back to member 1, and the
+ * loop leaves the song and its matrix. Pads that become empty stay.
+ */
+export function dropParts(project: Project, { pads, hits: others, loop }: Parts): Project {
+  const hits = new Set([...others, ...[...pads].flatMap((p) => project.pads[p]?.members ?? [])]);
+  const step = (s: Step): Step => (s.padId !== null && pads.has(s.padId) ? emptyStep : s.memberId !== null && hits.has(s.memberId) ? { ...s, memberId: null } : s);
+  return {
+    ...project,
+    matrices: mapValues(project.matrices, (m) =>
+      m.pads.some((p) => pads.has(p)) || (loop !== null && m.loop === loop) ? { ...m, pads: m.pads.filter((p) => !pads.has(p)), loop: m.loop === loop ? null : m.loop } : m,
+    ),
+    pads: mapValues(keep(project.pads, (id) => pads.has(id)), (p) => (p.members.some((m) => hits.has(m)) ? { ...p, members: p.members.filter((m) => !hits.has(m)) } : p)),
+    hits: keep(project.hits, (id) => hits.has(id)),
+    loops: mapValues(keep(project.loops, (id) => id === loop), (l) => (l.steps.some((s) => step(s) !== s) ? { ...l, steps: l.steps.map(step) } : l)),
+    song: loop === null || !project.song.clips.some((c) => c.ref === loop) ? project.song : { ...project.song, clips: project.song.clips.filter((c) => c.ref !== loop) },
+  };
+}
+
 /**
  * A sample no longer sliced ("Don't slice"), or no longer marked to be. A
  * sliced one loses what `unsliceParts` lists, and where that was used goes
- * silent: steps with its pads are emptied, steps locked to its hits fall back
- * to member 1, and its loop leaves the song. Row 01 stays and plays the whole
- * sample, named after the matrix again.
+ * silent (`dropParts`). Row 01 stays and plays the whole sample, named after
+ * the matrix again.
  */
 function unslice(project: Project, sample: Sample) {
   if (sample.bars === null) return sample.unsliced === true ? ok(setSampleIn(project, withoutUnsliced(sample))) : invalid('The sample is not sliced');
   const { own, kept, pads, hits, loop } = unsliceParts(project, sample);
-  const loops = Object.fromEntries(
-    Object.entries(keep(project.loops, (id) => id === loop)).map(([id, l]): [Id, Loop] => [
-      id,
-      l.steps.some((s) => (s.padId !== null && pads.has(s.padId)) || (s.memberId !== null && hits.has(s.memberId)))
-        ? { ...l, steps: l.steps.map((s) => (s.padId !== null && pads.has(s.padId) ? emptyStep : s.memberId !== null && hits.has(s.memberId) ? { ...s, memberId: null } : s)) }
-        : l,
-    ]),
-  );
-  const unsliced: Sample = { ...withoutUnsliced(sample), bars: null, markers: [0] };
-  let next: Project = {
-    ...setSampleIn(project, unsliced),
-    pads: Object.fromEntries(
-      Object.entries(keep(project.pads, (id) => pads.has(id))).map(([id, p]): [Id, Pad] => [id, p.members.some((m) => hits.has(m)) ? { ...p, members: p.members.filter((m) => !hits.has(m)) } : p]),
-    ),
-    hits: keep(project.hits, (id) => hits.has(id)),
-    loops,
-    song: loop === null ? project.song : { ...project.song, clips: project.song.clips.filter((c) => c.ref !== loop) },
-  };
+  let next = dropParts(setSampleIn(project, { ...withoutUnsliced(sample), bars: null, markers: [0] }), { pads, hits, loop });
   if (own !== undefined) {
-    const matrix: Matrix = { ...own, pads: own.pads.filter((p) => !pads.has(p)), loop: null };
-    next = renamePadAndHit(setMatrixIn(next, matrix), kept, slotName(own.name, sample, 0), baseName(own.name));
+    next = renamePadAndHit(setMatrixIn(next, { ...next.matrices[own.id]!, loop: null }), kept, slotName(own.name, sample, 0), baseName(own.name));
   }
   return ok(next);
 }
+
+/** What goes with a matrix: its pads and their hits, not its loop or samples (decision 9). */
+const matrixParts = (project: Project, matrixId: Id): Parts => ({ pads: new Set(project.matrices[matrixId]?.pads ?? []), hits: new Set(), loop: null });
+
+/** Removes a matrix with its pads and hits; where they were used goes silent. Its loop and samples stay. */
+export function dropMatrix(project: Project, matrixId: Id): Project {
+  if (project.matrices[matrixId] === undefined) return project;
+  const next = dropParts(project, matrixParts(project, matrixId));
+  return { ...next, matrices: keep(next.matrices, (id) => id === matrixId) };
+}
+
+/** What a matrix takes with it when removed, in words: "16 pads", "16 hits"; a one-shot "1 pad", "1 hit". */
+export function matrixTakes(project: Project, matrixId: Id): string[] {
+  const matrix = project.matrices[matrixId];
+  if (matrix === undefined) return [];
+  const hits = matrix.pads.flatMap((p) => project.pads[p]?.members ?? []).length;
+  return [...(matrix.pads.length > 0 ? [count(matrix.pads.length, 'pad')] : []), ...(hits > 0 ? [count(hits, 'hit')] : [])];
+}
+
+/** What goes with a sample (a trim): its own matrix with its pads and hits, and every hit that plays it, wherever it is. */
+function sampleParts(project: Project, sampleId: Id): Parts {
+  const own = ownMatrix(project, sampleId);
+  return { ...matrixParts(project, own?.id ?? ''), hits: new Set(Object.values(project.hits).filter((h) => h.sampleId === sampleId).map((h) => h.id)) };
+}
+
+/** What a sample takes with it when removed, in words: "matrix amen 1", "16 pads", "18 hits". */
+export function sampleTakes(project: Project, sampleId: Id): string[] {
+  if (project.samples[sampleId] === undefined) return [];
+  const own = ownMatrix(project, sampleId);
+  const { pads, hits } = sampleParts(project, sampleId);
+  const all = new Set([...hits, ...[...pads].flatMap((p) => project.pads[p]?.members ?? [])]);
+  return [...(own === undefined ? [] : [`matrix ${own.name}`]), ...(pads.size > 0 ? [count(pads.size, 'pad')] : []), ...(all.size > 0 ? [count(all.size, 'hit')] : [])];
+}
+
+/**
+ * Removes a sample (a trim) with its own matrix, its pads and hits, and every
+ * hit that plays it, in any matrix: pads elsewhere that become empty stay, and
+ * steps locked to a removed hit fall back to member 1. Where it was used
+ * (`findUsages(…, 'sample', …)`) goes silent; its file goes with its last trim.
+ */
+export const removeSample =
+  (sampleId: Id): Command =>
+  (project) => {
+    const sample = project.samples[sampleId];
+    if (sample === undefined) return notFound(sampleId);
+    const own = ownMatrix(project, sampleId);
+    const dropped = dropParts(project, sampleParts(project, sampleId));
+    const next = own === undefined ? dropped : { ...dropped, matrices: keep(dropped.matrices, (id) => id === own.id) };
+    const samples = keep(next.samples, (id) => id === sampleId);
+    const fileUsed = Object.values(samples).some((s) => s.audioId === sample.audioId);
+    return ok({ ...next, samples, audio: fileUsed ? next.audio : keep(next.audio, (id) => id === sample.audioId) });
+  };
+
+/** Where a file's trims are used outside the file, each place once; it goes silent when the file is removed. */
+export function fileUsages(project: Project, audioId: Id): Usage[] {
+  const samples = fileSamples(project, audioId);
+  const owns = samples.flatMap((s) => {
+    const own = ownMatrix(project, s.id);
+    return own === undefined ? [] : [...own.pads, ...(own.loop === null ? [] : [own.loop])];
+  });
+  const inside = new Set(owns);
+  const seen = new Set<string>();
+  return samples
+    .flatMap((s) => findUsages(project, 'sample', s.id))
+    .filter((u) => {
+      const key = `${u.kind}:${u.id ?? ''}`;
+      if ((u.id !== null && inside.has(u.id)) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+/** Removes a file with every trim of it, as `removeSample` does each: one undo step. */
+export const removeFile =
+  (audioId: Id): Command =>
+  (project, ctx) => {
+    const samples = fileSamples(project, audioId);
+    if (samples.length === 0) return notFound(audioId);
+    return sequence(...samples.map((s) => removeSample(s.id)))(project, ctx);
+  };
 
 /** Which channels of its file a sample plays: Stereo, Left, Right or Mono, always in stereo. */
 export const setSampleChannel =

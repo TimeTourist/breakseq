@@ -18,7 +18,7 @@ export function emptySong(bars = DEFAULT_SONG_BARS, bpm = DEFAULT_BPM): Song {
 }
 
 export function createProject(): Project {
-  return { audio: {}, samples: {}, breaks: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
+  return { audio: {}, samples: {}, matrices: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
 
 /** The next free loop name: M1, M2, … for mains and F1, F2, … for fills. */
