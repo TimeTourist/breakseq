@@ -2667,3 +2667,24 @@ button.danger:hover:not(:disabled) {
 .pad-hits li.insert-after::after {
   bottom: -3px;
 }
+
+/* + New matrix: the one-shots to tick, in a box that scrolls. */
+.new-matrix {
+  min-width: min(420px, calc(100vw - 32px));
+}
+
+.new-matrix h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.one-shot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

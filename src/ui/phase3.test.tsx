@@ -80,6 +80,7 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
 
     // Hits: a new matrix, its pad with copies of all four.
     fireEvent.click(button('+ New matrix'));
+    fireEvent.click(button('Create'));
     const matrix = Object.values(present(store).matrices).find((m) => m.sampleId === null)!;
     expect(store.getState().selection).toMatchObject({ matrix: matrix.id, pad: null, hit: null });
     fireEvent.change(screen.getByLabelText('Matrix name'), { target: { value: 'Snares' } });
