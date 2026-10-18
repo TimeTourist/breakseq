@@ -1,5 +1,5 @@
 import type { Hit, Id, Project, Step } from './types';
-import { effectiveHit, hitSound, hitStretch, slotStep } from './breaks';
+import { effectiveHit, hitSound, hitStretch, slotStep } from './sound';
 
 /** How long a hit sounds, in seconds: its region at its pitch and stretch and its parent's, without mods. */
 export function hitSeconds(project: Project, hit: Hit): number {

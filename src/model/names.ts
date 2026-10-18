@@ -1,4 +1,4 @@
-import { baseName } from './breaks';
+import { baseName } from './sound';
 import type { Id, Project } from './types';
 
 /**

@@ -1,8 +1,8 @@
 import type { Command, CommandContext, Usage } from './command';
 import { invalid, notFound, ok, sequence } from './command';
 import { findUsages } from './references';
-import type { SliceGrid } from './breaks';
-import { MIN_SLICE, baseName, breakBpm, breakSequence, defaultBreakName, ensureSlots, gridMarkers, markerGrid, padSlot, sliceWindow, slotHit, slotName } from './breaks';
+import type { SliceGrid } from './sound';
+import { MIN_SLICE, baseName, breakBpm, breakSequence, defaultBreakName, ensureSlots, gridMarkers, markerGrid, padSlot, sliceWindow, slotHit, slotName } from './sound';
 import { emptyStep } from './project';
 import { renameBreakIn } from './names';
 import type { AudioData, Break, Id, Loop, Pad, Project, Sample, SampleChannel, Step } from './types';

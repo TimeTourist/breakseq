@@ -1,7 +1,7 @@
 import type { Command, CommandResult } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
 import { addClip, fitClips } from './clips';
-import { breakSequence, isParentHit } from './breaks';
+import { breakSequence, isParentHit } from './sound';
 import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
