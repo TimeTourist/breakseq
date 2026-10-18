@@ -12,8 +12,11 @@ import { adjustJRbits, minAverageIndex, updateAverages } from './rex';
 /** A REX2 file read: the loop's waveform, its tempo and where its slices start. */
 export interface RexFile {
   readonly sampleRate: number;
-  /** The tempo the file is set to play at. */
-  readonly bpm: number;
+  /**
+   * The tempo ReCycle auditions the file at (GLOB), which a REX player plays its slices at. Not the
+   * loop's own tempo: that follows from the audio's length and `bars`.
+   */
+  readonly previewBpm: number;
   /** The loop's length in 4/4 bars, rounded up to whole bars. */
   readonly bars: number;
   /** The loop, padded with silence to `bars` whole bars; a mono file in both channels. */
@@ -128,19 +131,16 @@ function filterPoints(sensitivity: number): number {
 }
 
 /**
- * Where the slices start, in frames from the loop's start, as VelociLoops'
- * finalizeSlices keeps them: sorted, those hidden at the file's sensitivity
- * and those after the loop left out, and a slice at the loop's start added when
- * the first starts later. Muted and locked slices are kept.
+ * The slices as VelociLoops' finalizeSlices keeps them: sorted, those hidden
+ * at the file's sensitivity and those after the loop left out. Muted and
+ * locked slices are kept.
  */
-function sliceStarts(p: Parsed, loopFrames: number): number[] {
+function visibleSlices(p: Parsed): SliceEntry[] {
   const hidden = filterPoints(p.sensitivity);
-  const visible = [...p.slices]
+  return [...p.slices]
     .sort((a, b) => a.start - b.start)
     .filter((s) => !(p.loopEnd > p.loopStart && s.start < p.totalFrames && s.start >= p.loopEnd))
     .filter((s) => s.length > 1 || s.selected || s.special || s.points > hidden);
-  const starts = visible.map((s) => Math.max(0, s.start - p.loopStart)).filter((rel) => rel < loopFrames);
-  return starts[0] === 0 ? starts : [0, ...starts];
 }
 
 const clampInt32 = (v: number): number => (v > 0x7fffffff ? 0x7fffffff : v < -0x80000000 ? -0x80000000 : v);
@@ -300,14 +300,19 @@ function decompress(bytes: Uint8Array, frames: number, channels: number, bitDept
   return out;
 }
 
+/** Whether the bytes are a REX2 file, by their header (an IFF CAT of type REX2), whatever the file is called. */
+export function isRexFile(bytes: Uint8Array): boolean {
+  return bytes.length >= 12 && ascii(bytes, 0) === 'CAT ' && ascii(bytes, 8) === 'REX2';
+}
+
 /**
- * Reads a REX2 file: the loop's waveform from its loop start to its loop end,
- * padded with silence to whole 4/4 bars, and where its slices start. Throws
- * "Not a REX2 file" when the bytes are not one, and "Damaged REX2 file" when
- * they are but cannot be read.
+ * Reads a REX2 file: the loop's waveform from its loop start (or its first
+ * slice, if that is earlier) to its loop end, padded with silence to whole 4/4
+ * bars, and where its slices start. Throws "Not a REX2 file" when the bytes
+ * are not one, and "Damaged REX2 file" when they are but cannot be read.
  */
 export function decodeRex(bytes: Uint8Array): RexFile {
-  if (bytes.length < 12 || ascii(bytes, 0) !== 'CAT ' || ascii(bytes, 8) !== 'REX2') throw new Error(NOT_REX);
+  if (!isRexFile(bytes)) throw new Error(NOT_REX);
   const p: Parsed = {
     headerSeen: false,
     channels: 1,
@@ -332,8 +337,14 @@ export function decodeRex(bytes: Uint8Array): RexFile {
   const pcm = decompress(bytes.subarray(p.sdat.offset, p.sdat.offset + p.sdat.size), p.totalFrames, p.channels, p.bitDepth);
 
   const hasLoop = p.loopEnd > p.loopStart && p.loopEnd <= p.totalFrames;
-  const loopStart = hasLoop ? p.loopStart : 0;
-  const loopFrames = hasLoop ? p.loopEnd - p.loopStart : p.totalFrames;
+  const visible = visibleSlices(p);
+  // The REX SDK plays the loop from its first slice when that starts before the loop start
+  // (120Mono.rx2: loop start 14363, first slice 322), and from the loop start when it starts after.
+  const loopStart = hasLoop ? Math.min(p.loopStart, visible[0]?.start ?? p.loopStart) : 0;
+  const loopFrames = (hasLoop ? p.loopEnd : p.totalFrames) - loopStart;
+  // Where the slices start, from the loop's start; a slice at its start when the first starts later.
+  const starts = visible.map((s) => Math.max(0, s.start - loopStart)).filter((rel) => rel < loopFrames);
+  if (starts[0] !== 0) starts.unshift(0);
   // The loop's length in quarter notes, from its bars and beats in its time signature.
   const num = p.timeSigNum > 0 ? p.timeSigNum : 4;
   const den = p.timeSigDen > 0 ? p.timeSigDen : 4;
@@ -354,9 +365,9 @@ export function decodeRex(bytes: Uint8Array): RexFile {
 
   return {
     sampleRate: p.sampleRate,
-    bpm: p.tempo / 1000,
+    previewBpm: p.tempo / 1000,
     bars,
     audio: { sampleRate: p.sampleRate, channels: [channels[0], channels[1]] },
-    slices: sliceStarts(p, loopFrames).map((start) => start / frames),
+    slices: starts.map((start) => start / frames),
   };
 }

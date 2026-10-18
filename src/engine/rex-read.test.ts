@@ -11,9 +11,9 @@ const LSB16 = 1 / 32768;
 
 /**
  * The WAV references are what the REX SDK renders at 120 BPM, slice by slice: each slice from 2 frames
- * after its start, at the file's processing gain (1000 is 0.8333), written as 16-bit. The first slice
- * plays straight from the file until it is cut for the next, so that is where the decoded loop and the
- * reference are the same sound.
+ * after its start, at the file's processing gain (1000 is 0.8333), placed where it falls at 120 BPM,
+ * with a tail after it. The first slice plays straight from the file until the next starts, so there
+ * the decoded loop and the reference are the same samples; later slices start over the tail before them.
  */
 const SDK_GAIN = 1000 * 0.000833333354;
 const SDK_OFFSET = 2;
@@ -31,11 +31,51 @@ function expectFirstSliceMatches(rx2: string, wav: string, frames: number): void
   }
 }
 
+/** Frames of a quarter note at 120 BPM and 44.1 kHz, as the references are rendered. */
+const QUARTER = 22050;
+/** The SDK renders in blocks of 64 frames, so a slice may land up to a block off. */
+const BLOCK = 64;
+
+/**
+ * Every slice is heard in the reference where its place in the loop falls at 120 BPM: its part of the
+ * padded loop times its bars of four quarters. Its first 4000 frames correlate with the reference there,
+ * within a block; a slice that starts silent is silent there too.
+ */
+function expectSlicesPlaced(name: string): void {
+  const rex = decodeRex(fixture(`${name}.rx2`));
+  const ref = decodeAudioFile(fixture(`${name}.wav`)).channels[0]!;
+  const decoded = rex.audio.channels[0]!;
+  const n = 4000;
+  rex.slices.forEach((part, k) => {
+    const src = Math.round(part * decoded.length) + SDK_OFFSET;
+    const at = Math.round(part * rex.bars * 4 * QUARTER);
+    const x = Array.from({ length: n }, (_, i) => decoded[src + i]! * SDK_GAIN);
+    const xx = x.reduce((sum, v) => sum + v * v, 0);
+    if (xx === 0) {
+      const yy = Array.from({ length: n }, (_, i) => (ref[at + i] ?? 0) ** 2).reduce((a, b) => a + b, 0);
+      expect(yy, `${name} slice ${k} silent`).toBeLessThan(1e-3);
+      return;
+    }
+    let best = -1;
+    for (let d = -BLOCK; d <= BLOCK; d++) {
+      let xy = 0;
+      let yy = 0;
+      for (let i = 0; i < n; i++) {
+        const y = ref[at + d + i] ?? 0;
+        xy += x[i]! * y;
+        yy += y * y;
+      }
+      best = Math.max(best, xy / Math.sqrt(xx * yy + 1e-20));
+    }
+    expect(best, `${name} slice ${k}`).toBeGreaterThan(0.99);
+  });
+}
+
 describe('REX import', () => {
   it('reads 120Stereo.rx2: one bar at 120 BPM, its ten slices, the sound of its WAV', () => {
     const rex = decodeRex(fixture('120Stereo.rx2'));
     expect(rex.sampleRate).toBe(44100);
-    expect(rex.bpm).toBe(120);
+    expect(rex.previewBpm).toBe(120);
     expect(rex.bars).toBe(1);
     // From loop start 54 to loop end 88254: a bar at 120 BPM.
     expect(rex.audio.channels[0]!.length).toBe(88200);
@@ -50,24 +90,47 @@ describe('REX import', () => {
 
   it('reads 120FourBeats.rx2: four beats are one bar, and it sounds as its WAV', () => {
     const rex = decodeRex(fixture('120FourBeats.rx2'));
-    expect(rex.bpm).toBe(120);
+    expect(rex.previewBpm).toBe(120);
     expect(rex.bars).toBe(1);
     expect(rex.audio.channels[0]!.length).toBe(113801 - 322);
     expect(rex.slices).toHaveLength(10);
     expectFirstSliceMatches('120FourBeats.rx2', '120FourBeats.wav', 10000);
   });
 
-  it('reads 120Mono.rx2 into both channels: the same recording as 120FourBeats with the loop starting at its second slice', () => {
+  it('reads 120Mono.rx2 from its first slice, before its loop start, as the REX SDK plays it', () => {
     const mono = decodeRex(fixture('120Mono.rx2'));
     const four = decodeRex(fixture('120FourBeats.rx2'));
     const [left, right] = mono.audio.channels;
     expect(left).toEqual(right);
-    // Loop start 14363 rather than 322: 14041 frames on. (Its WAV reference is 120FourBeats', byte for byte.)
-    expect(left!.length).toBe(113801 - 14363);
-    expect(left).toEqual(four.audio.channels[0]!.subarray(14041));
-    // The slice before the loop's start is folded into its first.
-    expect(mono.slices[0]).toBe(0);
-    expect(new Set(mono.slices).size).toBe(9);
+    // Its loop start is 14363, but its first slice is at 322: the loop is played from there, so it is the
+    // same loop as 120FourBeats (whose WAV reference is 120Mono's, byte for byte), four beats of ~93 BPM.
+    expect(left!.length).toBe(113801 - 322);
+    expect(left).toEqual(four.audio.channels[0]);
+    expect(mono.slices).toEqual(four.slices);
+    expect(mono.slices).toHaveLength(10);
+    expectFirstSliceMatches('120Mono.rx2', '120Mono.wav', 10000);
+  });
+
+  it('reads 120Mono24Bits.rx2, 24-bit, as its WAV', () => {
+    const rex = decodeRex(fixture('120Mono24Bits.rx2'));
+    expect(rex.bars).toBe(1);
+    expect(rex.slices).toHaveLength(10);
+    expectFirstSliceMatches('120Mono24Bits.rx2', '120Mono24Bits.wav', 10000);
+  });
+
+  it('reads 120ThreeBeats.rx2 as one bar, the fourth beat silent', () => {
+    const rex = decodeRex(fixture('120ThreeBeats.rx2'));
+    expect(rex.bars).toBe(1);
+    expect(rex.slices).toHaveLength(8);
+    const audio = rex.audio.channels[0]!;
+    // Three beats of the loop, then one more of silence at the loop's own tempo.
+    const loop = Math.round((audio.length * 3) / 4);
+    expect(audio.subarray(loop + 1).every((v) => v === 0)).toBe(true);
+    expectFirstSliceMatches('120ThreeBeats.rx2', '120ThreeBeats.wav', 10000);
+  });
+
+  it.each(['120Stereo', '120Mono', '120FourBeats', '120ThreeBeats', '120Mono24Bits'])('places every slice of %s where the REX SDK plays it', (name) => {
+    expectSlicesPlaced(name);
   });
 
   it('reads a file Breakseq exported with the same slices, tempo and sound', () => {
@@ -78,7 +141,7 @@ describe('REX import', () => {
       Float32Array.from({ length: n }, (_, i) => -at(k, i) / 2),
     ]);
     const rex = decodeRex(encodeRex({ sampleRate: 44100, bpm: 132, slices }));
-    expect(rex.bpm).toBe(132);
+    expect(rex.previewBpm).toBe(132);
     expect(rex.slices).toHaveLength(3);
     expect(rex.bars).toBe(1);
     // Padded to a bar at 132 BPM.
