@@ -126,7 +126,7 @@ function Sliced({ sample, played, toTrim, toPads, stopTransport, found, onFound 
   const { store, services } = useApp();
   const run = useRun();
   const seal = useSeal();
-  // Opens on the slice it was sent to, if any; from then on it is picked here.
+  // The slice picked here: the first to begin with.
   const [selected, setSelected] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [playingSample, setPlayingSample] = useState(false);

@@ -44,6 +44,12 @@ export interface Focus {
   readonly takeFrom: readonly Id[];
 }
 
+/**
+ * The matrices taken from, as shown and used: the matrix in focus is not one,
+ * though it stays in `takeFrom` and comes back when the focus moves on.
+ */
+export const takenFrom = (focus: Focus): Id[] => focus.takeFrom.filter((id) => id !== focus.matrix);
+
 export interface AppState {
   readonly history: History;
   readonly focus: Focus;

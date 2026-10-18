@@ -4,6 +4,7 @@ import type { PointerEvent } from 'react';
 import { baseName, matrixKind } from '../model';
 import { useApp, useProject, useSelect } from './context';
 import { HIT_MIME, MATRIX_MIME } from './dnd';
+import { takenFrom } from './store';
 import { MatrixKindIcon } from './icons';
 import { middleEllipsis } from './labels';
 import type { Dragged, Placing } from './pads';
@@ -18,7 +19,8 @@ import { autoscrollStep, hitLabel, sameDragged } from './pads';
 export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
   const project = useProject();
   const { services } = useApp();
-  const takeFrom = useSelect((s) => s.focus.takeFrom);
+  const focus = useSelect((s) => s.focus);
+  const takeFrom = takenFrom(focus);
   const box = useRef<HTMLElement>(null);
   // The pointer of the last press: only a finger or a pen picks (decision 8).
   const pointer = useRef('');

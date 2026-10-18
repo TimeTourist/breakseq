@@ -69,7 +69,7 @@ export function replacedBy(project: Project, padId: Id, hit: Hit): string | null
   return hit.sampleId === home.matrix.sampleId ? number : `${name} ${number}`;
 }
 
-/** What a sample is called in Import and Slice: its own matrix's name, or its trim's when that matrix is gone. */
+/** What a sample is called in Samples: its own matrix's name, or its trim's when that matrix is gone. */
 export const sampleLabel = (project: Project, sample: Sample): string => ownMatrix(project, sample.id)?.name ?? trimName(sample);
 
 /** The samples that a hit heard in the song plays. */

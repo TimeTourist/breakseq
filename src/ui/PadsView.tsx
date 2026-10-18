@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Matrix } from '../model';
+import type { Id, Matrix, Project } from '../model';
 import { padPicker } from '../engine';
 import { addPad, cloneMatrix, matrixKind, renameMatrix, trimName } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
@@ -9,9 +9,9 @@ import { DeleteMatrix } from './DeleteMatrix';
 import { FocusBar } from './FocusBar';
 import { InSong, useHeard } from './InSong';
 import { MatrixKindIcon } from './icons';
-import { isTyping } from './isTyping';
+import { isTyping, modalOpen } from './isTyping';
 import type { Dragged, DropTarget, PadsOpen, Placing, Zoom } from './pads';
-import { autoscrollStep, dropCommand, padsOpen, stepSelection } from './pads';
+import { autoscrollStep, dropCommand, padsOpen, replacedWith, stepSelection } from './pads';
 import { TakeFromShelf } from './TakeFromShelf';
 import { Timeline } from './Timeline';
 
@@ -90,13 +90,15 @@ function NoFocus() {
  */
 function usePlacing(onError: (error: string | null) => void): Placing {
   const run = useRun();
+  const { store } = useApp();
+  const select = useOpen();
   const [dragging, setDragging] = useState<Dragged | null>(null);
   const [picked, setPicked] = useState<Dragged | null>(null);
   useEffect(() => {
     if (picked === null) return;
     const onKey = (e: KeyboardEvent) => {
       // Escape in a dialog is the dialog's.
-      if (e.key !== 'Escape' || document.querySelector('[role="alertdialog"]') !== null) return;
+      if (e.key !== 'Escape' || modalOpen()) return;
       e.preventDefault();
       setPicked(null);
     };
@@ -118,9 +120,29 @@ function usePlacing(onError: (error: string | null) => void): Placing {
     pick: setPicked,
     place: (what: Dragged, target: DropTarget) => {
       setPicked(null);
-      onError(run(dropCommand(what, target)));
+      const before = store.getState().history.present;
+      const error = run(dropCommand(what, target));
+      onError(error);
+      // A replaced hit is gone: its copy is selected, so the controls stay on a hit.
+      const copy = error === null ? replacedWith(before, store.getState().history.present, target) : null;
+      if (copy !== null) select({ pad: target.padId, hit: copy }, 'pads');
     },
   };
+}
+
+/** The pad or hit button a key went to in the timeline, as what is open: arrows step on from it, not from the selection. */
+function keyOrigin(target: EventTarget | null, project: Project, now: PadsOpen): PadsOpen | null {
+  const button = target instanceof Element ? target.closest<HTMLElement>('.pad-head, [data-hit]') : null;
+  const padId = button?.closest<HTMLElement>('.pad-column')?.dataset.pad;
+  if (button == null || padId === undefined) return null;
+  return padsOpen(project, now.matrix.id, { pad: padId, hit: button.dataset.hit ?? null });
+}
+
+/** The timeline's button for a pad, or a hit of it. */
+function timelineButton(padId: Id, hitId: Id | null): HTMLElement | null {
+  const column = Array.from(document.querySelectorAll<HTMLElement>('.pad-column')).find((c) => c.dataset.pad === padId);
+  if (column === undefined) return null;
+  return hitId === null ? column.querySelector<HTMLElement>('.pad-head') : (Array.from(column.querySelectorAll<HTMLElement>('[data-hit]')).find((b) => b.dataset.hit === hitId) ?? null);
 }
 
 /** Whether a key on `target` is the target's own: a field, a slider, a checkbox and the like. */
@@ -142,15 +164,24 @@ function usePadsKeys(open: PadsOpen | null) {
   // The listener is set up once and reads the latest of these.
   const latest = useRef({ open, project, select });
   latest.current = { open, project, select };
+  // After a step, focus goes to the newly selected button once it shows (roving tabindex).
+  const focusNext = useRef<{ pad: Id; hit: Id | null } | null>(null);
+  useEffect(() => {
+    const next = focusNext.current;
+    if (next === null) return;
+    focusNext.current = null;
+    timelineButton(next.pad, next.hit)?.focus();
+  }, [open]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const { open: now, project: p, select } = latest.current;
       if (now === null || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || ownKeys(e.target)) return;
-      if (document.querySelector('[role="alertdialog"]') !== null) return;
+      if (modalOpen()) return;
       if (e.key.startsWith('Arrow')) {
-        const next = stepSelection(now, e.key);
+        const next = stepSelection(keyOrigin(e.target, p, now) ?? now, e.key);
         if (next === null) return;
         e.preventDefault();
+        focusNext.current = next;
         select(next, 'pads');
         const pad = p.pads[next.pad];
         picker.current ??= padPicker(services.rng());
@@ -171,6 +202,40 @@ function usePadsKeys(open: PadsOpen | null) {
   }, [services]);
   return ask;
 }
+
+/**
+ * The matrix's name: renamed as it is typed, but a name typed empty is only a
+ * draft until blur or Enter, which commit it; only then does it fail.
+ */
+function MatrixName({ matrix, onError }: { readonly matrix: Matrix; readonly onError: (error: string | null) => void }) {
+  const run = useRun();
+  const seal = useSeal();
+  const [draft, setDraft] = useState<string | null>(null);
+  const mergeKey = `matrix:${matrix.id}:name`;
+  const commit = () => {
+    // A name that is not empty is in already.
+    if (draft !== null && draft.trim() === '') onError(run(renameMatrix(matrix.id, draft), mergeKey));
+    setDraft(null);
+    seal();
+  };
+  return (
+    <input
+      className="title-input mono grow"
+      aria-label="Matrix name"
+      value={draft ?? matrix.name}
+      onChange={(e) => {
+        const name = e.target.value;
+        setDraft(name);
+        onError(name.trim() === '' ? null : run(renameMatrix(matrix.id, name), mergeKey));
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+      }}
+      onBlur={commit}
+    />
+  );
+}
+
 /**
  * The matrix in focus, on top of its timeline: selecting it shows its config
  * below. Its name, ← Samples to its trim, ♪ Song, + Pad, Clone and Delete.
@@ -178,8 +243,6 @@ function usePadsKeys(open: PadsOpen | null) {
 function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix; readonly selected: boolean; readonly onError: (error: string | null) => void; readonly ask: number }) {
   const project = useProject();
   const { store } = useApp();
-  const run = useRun();
-  const seal = useSeal();
   const select = useOpen();
   const heard = useHeard();
   const adding = useRunAdding(onError);
@@ -203,13 +266,7 @@ function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix
         <MatrixKindIcon kind={kind} />
         <span className="small muted">{kind === 'break' ? 'break' : 'one-shot'}</span>
       </button>
-      <input
-        className="title-input mono grow"
-        aria-label="Matrix name"
-        value={matrix.name}
-        onChange={(e) => onError(run(renameMatrix(matrix.id, e.target.value), `matrix:${matrix.id}:name`))}
-        onBlur={seal}
-      />
+      <MatrixName key={matrix.id} matrix={matrix} onError={onError} />
       <InSong heard={heard.matrices.has(matrix.id)} />
       {sample !== undefined && (
         <button type="button" className="link-text small" title={`Open ${trimName(sample)} in Samples`} onClick={toSamples}>

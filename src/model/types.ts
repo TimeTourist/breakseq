@@ -5,6 +5,9 @@ export type Rng = () => number;
 
 export const STEPS_PER_BAR = 16;
 
+/** The longest loop: 16 bars. */
+export const MAX_LOOP_STEPS = 16 * STEPS_PER_BAR;
+
 /** Raw audio. Treated as immutable once created. */
 export interface AudioData {
   readonly sampleRate: number;

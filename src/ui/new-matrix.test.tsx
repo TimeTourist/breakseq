@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject } from '../model';
+import { addSample, createProject, renameMatrix } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Take } from './playback';
@@ -61,7 +61,7 @@ async function open() {
   render(<App store={store} services={s} />);
   await act(async () => {});
   fireEvent.click(screen.getByRole('button', { name: '+ New matrix' }));
-  return { store, playHit, project };
+  return { store, playHit, project, player: s.player };
 }
 
 const dialog = () => within(screen.getByRole('alertdialog'));
@@ -123,5 +123,24 @@ describe('+ New matrix', () => {
     fireEvent.change(dialog().getByRole('textbox', { name: 'Name' }), { target: { value: ' ' } });
     fireEvent.click(dialog().getByRole('button', { name: 'Create' }));
     expect(dialog().getByRole('alert').textContent).toMatch(/needs a name/);
+  });
+
+  it("the app's keys stay out of the open dialog: Space ticks, digits and Ctrl+Z do nothing there", async () => {
+    const { store, player } = await open();
+    const matrix = Object.values(store.getState().history.present.matrices)[0]!;
+    store.dispatch({ type: 'run', command: renameMatrix(matrix.id, 'renamed') });
+    const checkbox = dialog().getByRole('checkbox', { name: /kick/ });
+    checkbox.focus();
+    // Not prevented: the browser ticks the box (checked in Chromium).
+    expect(fireEvent.keyDown(checkbox, { key: ' ' })).toBe(true);
+    expect(player.play).not.toHaveBeenCalled();
+    fireEvent.keyDown(checkbox, { key: '2' });
+    expect(store.getState().view).toBe('pads');
+    fireEvent.keyDown(checkbox, { key: 'z', ctrlKey: true });
+    expect(store.getState().history.present.matrices[matrix.id]!.name).toBe('renamed');
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    // Escape stays the dialog's.
+    fireEvent.keyDown(checkbox, { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });
