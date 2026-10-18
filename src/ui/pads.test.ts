@@ -146,6 +146,11 @@ describe('where a drag drops', () => {
     expect(dropTarget(p, { kind: 'hit', hitId: copied }, { padId: pad2.id, hitId: own, zone: 'after' })).toBeNull();
   });
 
+  it('a hit dropped on the empty part of its own pad moves last; already last, nothing', () => {
+    expect(dropTarget(p, { kind: 'hit', hitId: own }, { padId: pad2.id, hitId: null, zone: 'on' })).toEqual({ kind: 'move', padId: pad2.id, hitId: own, to: 1 });
+    expect(dropTarget(p, { kind: 'hit', hitId: copied }, { padId: pad2.id, hitId: null, zone: 'on' })).toBeNull();
+  });
+
   it('all hits of a matrix add, also dropped on a hit', () => {
     const snares = matrixOf(p, 'Snares').id;
     expect(dropTarget(p, { kind: 'matrix', matrixId: snares }, { padId: pad2.id, hitId: own, zone: 'on' })).toEqual({ kind: 'add', padId: pad2.id });

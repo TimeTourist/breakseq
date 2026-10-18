@@ -2,7 +2,7 @@
 import { act, cleanup, createEvent, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, copyHits, createMatrix, createProject, renameMatrix, setHitSource, setSlicing, sliceSample } from '../model';
+import { addSample, copyHits, createMatrix, setPadChoice, createProject, renameMatrix, setHitSource, setSlicing, sliceSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -461,6 +461,29 @@ describe('Pads: the Take from shelf and drag', () => {
     expect(present(store).pads[m.pads[1]!]!.members).toEqual([first, second]);
   });
 
+  it('a hit dropped on the empty part of its own pad moves last, not a copy', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id);
+    const [first, second] = p.pads[m.pads[1]!]!.members as [string, string];
+    drag(hitsIn(columns()[1]!)[0]!, columns()[1]!);
+    expect(present(store).pads[m.pads[1]!]!.members).toEqual([second, first]);
+  });
+
+  it('a drag that ends without a drop leaves no mark', async () => {
+    await setupTaking(amenAndSnares());
+    const transfer = dataTransfer();
+    fireEvent.dragStart(shelfSnare(), { dataTransfer: transfer });
+    dragAt('dragOver', columns()[2]!, transfer);
+    expect(columns()[2]!.dataset.drop).toBe('add');
+    fireEvent.dragEnd(shelfSnare(), { dataTransfer: transfer });
+    expect(columns()[2]!.dataset.drop).toBeUndefined();
+    // A new drag starts with no mark from the last one.
+    fireEvent.dragStart(shelfSnare(), { dataTransfer: transfer });
+    expect(columns()[2]!.dataset.drop).toBeUndefined();
+    fireEvent.dragEnd(shelfSnare(), { dataTransfer: transfer });
+  });
+
   it('dragging from another pad copies, also on its own matrix', async () => {
     const p = amen();
     const m = matrixNamed(p, 'amen 1');
@@ -495,12 +518,41 @@ describe('Pads: the Take from shelf and drag', () => {
   });
 });
 
+/** A tap with a finger: the pointer down says it is touch, then the click. */
+const tap = (element: HTMLElement) => {
+  fireEvent.pointerDown(element, { pointerType: 'touch' });
+  fireEvent.click(element);
+};
+
 describe('Pads: tap to place', () => {
+  it('a mouse click on a shelf hit plays it without picking it', async () => {
+    const { player } = await setupTaking(amenAndSnares());
+    fireEvent.pointerDown(shelfSnare(), { pointerType: 'mouse' });
+    fireEvent.click(shelfSnare());
+    expect(player.playHit).toHaveBeenCalledTimes(1);
+    expect(shelfSnare().getAttribute('aria-pressed')).toBe('false');
+    // Nor does Enter on it, which clicks with no pointer.
+    fireEvent.click(shelfSnare());
+    expect(shelfSnare().getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByRole('status', { name: 'Picked' })).toBeNull();
+  });
+
+  it('Escape in a dialog is the dialog’s: the pick stays', async () => {
+    const p = amenAndSnares();
+    await setupTaking(p);
+    fireEvent.click(hitsIn(columns()[1]!)[1]!);
+    tap(shelfSnare());
+    fireEvent.keyDown(window, { key: 'Delete' });
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(shelfSnare().getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('tap a hit then a pad adds it', async () => {
     const p = amenAndSnares();
     const m = matrixNamed(p, 'amen 1');
     const { store, player } = await setupTaking(p);
-    fireEvent.click(shelfSnare());
+    tap(shelfSnare());
     // A click plays it, and picks it.
     expect(player.playHit).toHaveBeenCalledTimes(1);
     expect(shelfSnare().getAttribute('aria-pressed')).toBe('true');
@@ -519,10 +571,10 @@ describe('Pads: tap to place', () => {
     const p = amenAndSnares();
     const m = matrixNamed(p, 'amen 1');
     const { store } = await setupTaking(p);
-    fireEvent.click(shelfSnare());
+    tap(shelfSnare());
     fireEvent.click(hitsIn(columns()[1]!)[0]!);
     expect(present(store).hits[present(store).pads[m.pads[1]!]!.members[0]!]!.name).toMatch(/^snare_01/);
-    fireEvent.click(within(shelf()).getByRole('button', { name: 'All hits of Snares' }));
+    tap(within(shelf()).getByRole('button', { name: 'All hits of Snares' }));
     fireEvent.click(columns()[3]!);
     expect(present(store).pads[m.pads[3]!]!.members).toHaveLength(3);
   });
@@ -531,13 +583,13 @@ describe('Pads: tap to place', () => {
     const p = amenAndSnares();
     const { store } = await setupTaking(p);
     const before = present(store);
-    fireEvent.click(shelfSnare());
+    tap(shelfSnare());
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(shelfSnare().getAttribute('aria-pressed')).toBe('false');
-    fireEvent.click(shelfSnare());
-    fireEvent.click(shelfSnare());
+    tap(shelfSnare());
+    tap(shelfSnare());
     expect(shelfSnare().getAttribute('aria-pressed')).toBe('false');
-    fireEvent.click(shelfSnare());
+    tap(shelfSnare());
     fireEvent.click(screen.getByRole('region', { name: 'Matrix' }));
     expect(shelfSnare().getAttribute('aria-pressed')).toBe('false');
     expect(present(store)).toBe(before);
@@ -569,6 +621,21 @@ describe('Pads: keys', () => {
     // Enter selects the matrix.
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(screen.getByRole('region', { name: 'Matrix controls' })).toBeTruthy();
+  });
+
+  it('a step onto a pad plays it as it picks', async () => {
+    const p = amen(setPadChoiceCmd());
+    const m = matrixNamed(p, 'amen 1');
+    const { player } = await setup(p, m.id);
+    const pad2 = p.pads[m.pads[1]!]!;
+    expect(pad2.choice).toBe('roundRobin');
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(player.playHit).toHaveBeenLastCalledWith(expect.anything(), pad2.members[0]);
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    // Round robin: the next hit this time.
+    expect(player.playHit).toHaveBeenLastCalledWith(expect.anything(), pad2.members[1]);
   });
 
   it('keys stay out of fields and sliders', async () => {
@@ -618,3 +685,11 @@ describe('Pads: Play while the focus changes', () => {
     expect(store.getState().selection.pad).toBe(m.pads[1]);
   });
 });
+
+/** Pad 02 of amen 1 on Round robin. */
+function setPadChoiceCmd(): Command {
+  return (project, c) => {
+    const m = Object.values(project.matrices).find((x) => x.name === 'amen 1')!;
+    return setPadChoice(m.pads[1]!, 'roundRobin')(project, c);
+  };
+}

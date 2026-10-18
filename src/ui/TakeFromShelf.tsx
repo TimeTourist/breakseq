@@ -1,5 +1,6 @@
 import type { DragEvent } from 'react';
 import { useRef } from 'react';
+import type { PointerEvent } from 'react';
 import { baseName, matrixKind } from '../model';
 import { useApp, useProject, useSelect } from './context';
 import { HIT_MIME, MATRIX_MIME } from './dnd';
@@ -19,13 +20,19 @@ export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
   const { services } = useApp();
   const takeFrom = useSelect((s) => s.focus.takeFrom);
   const box = useRef<HTMLElement>(null);
+  // The pointer of the last press: only a finger or a pen picks (decision 8).
+  const pointer = useRef('');
   const matrices = takeFrom.flatMap((id) => (project.matrices[id] === undefined ? [] : [project.matrices[id]]));
   if (matrices.length === 0) return null;
 
   const picked = placing.picked;
   const pickedName =
     picked === null ? null : picked.kind === 'hit' ? (project.hits[picked.hitId]?.name ?? null) : `all hits of ${project.matrices[picked.matrixId]?.name ?? ''}`;
-  /** A chip that drags `dragged`, and on a tap picks it, or drops the pick when it is picked already. */
+  /**
+   * A chip that drags `dragged`. A click plays a hit; a tap with a finger or
+   * pen also picks it, or drops the pick when it is picked already. A mouse
+   * click or Enter only plays.
+   */
   const chip = (dragged: Dragged, mime: string, id: string) => ({
     draggable: true,
     'aria-pressed': sameDragged(placing.picked, dragged),
@@ -35,9 +42,14 @@ export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
       placing.startDrag(dragged);
     },
     onDragEnd: placing.endDrag,
+    onPointerDown: (e: PointerEvent) => {
+      pointer.current = e.pointerType;
+    },
     onClick: () => {
+      const touch = pointer.current === 'touch' || pointer.current === 'pen';
+      pointer.current = '';
       if (dragged.kind === 'hit') services.player.playHit(project, dragged.hitId);
-      placing.pick(sameDragged(placing.picked, dragged) ? null : dragged);
+      if (touch) placing.pick(sameDragged(placing.picked, dragged) ? null : dragged);
     },
   });
   const autoscroll = (e: DragEvent) => {
@@ -66,7 +78,7 @@ export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
             <span className="mono ellipsis" title={m.name}>
               {middleEllipsis(m.name, 24)}
             </span>
-            <button type="button" className="chip all-hits" aria-label={`All hits of ${m.name}`} title="Drag or tap: a copy of each of its hits, added last" {...chip({ kind: 'matrix', matrixId: m.id }, MATRIX_MIME, m.id)}>
+            <button type="button" className="chip all-hits" aria-label={`All hits of ${m.name}`} title="Drag, or tap then a pad: a copy of each of its hits, added last" {...chip({ kind: 'matrix', matrixId: m.id }, MATRIX_MIME, m.id)}>
               All hits
             </button>
           </div>
@@ -83,7 +95,7 @@ export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
                     type="button"
                     className="hit-chip mono"
                     aria-label={label === hit.name ? hit.name : `${label}, ${hit.name}`}
-                    title={`${hit.name} · click plays it; drag or tap, then a pad (add) or a hit (replace)`}
+                    title={`${hit.name} · click plays it; drag it, or tap it and then a pad (add) or a hit (replace)`}
                     {...chip({ kind: 'hit', hitId }, HIT_MIME, hitId)}
                   >
                     {middleEllipsis(label, 16)}
