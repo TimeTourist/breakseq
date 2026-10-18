@@ -245,6 +245,46 @@ export const cloneMatrix =
     return ok(setMatrix({ ...project, pads, hits }, { id: ctx.newId(), name, pads: copies, config: matrix.config, sampleId: null, loop: null }));
   };
 
+/**
+ * Decision 12: a copy of `sourceHitId` takes `targetHitId`'s place in its pad;
+ * steps locked to the target lock the copy; the target goes. One undo step.
+ */
+export const replaceHit = (targetHitId: Id, sourceHitId: Id): Command =>
+  following((project, ctx) => {
+    if (targetHitId === sourceHitId) return invalid('A hit cannot replace itself');
+    if (project.hits[targetHitId] === undefined) return notFound(targetHitId);
+    if (project.hits[sourceHitId] === undefined) return notFound(sourceHitId);
+    const pad = padOfHit(project, targetHitId);
+    if (pad === undefined) return invalid('The hit is in no pad');
+    const hits = { ...project.hits };
+    const [copy] = copiesOf(project, [sourceHitId], hits, ctx);
+    const placed = setPad({ ...project, hits }, { ...pad, members: pad.members.map((m) => (m === targetHitId ? copy! : m)) });
+    const relock = (s: Step): Step => (s.memberId === targetHitId ? { ...s, memberId: copy! } : s);
+    const loops = Object.fromEntries(
+      Object.entries(placed.loops).map(([id, l]) => [id, l.steps.some((s) => s.memberId === targetHitId) ? { ...l, steps: l.steps.map(relock) } : l]),
+    );
+    return ok(dropParts({ ...placed, loops }, { pads: new Set(), hits: new Set([targetHitId]), loop: null }));
+  });
+
+/**
+ * Decision 15: a new matrix with one pad holding copies of the given hits
+ * (each with its own settings), choice Round robin when more than one. It has
+ * no sample and no loop.
+ */
+export const createMatrixFrom =
+  (name: string, hitIds: readonly Id[]): Command =>
+  (project, ctx) => {
+    if (name.trim() === '') return invalid('A matrix needs a name');
+    if (hitIds.length === 0) return invalid('A matrix from hits needs at least one hit');
+    const missing = hitIds.find((h) => project.hits[h] === undefined);
+    if (missing !== undefined) return notFound(missing);
+    const hits = { ...project.hits };
+    const members = copiesOf(project, hitIds, hits, ctx);
+    const pad: Pad = { ...emptyPad(ctx.newId(), rowName(name, 0)), members, choice: members.length > 1 ? 'roundRobin' : 'top' };
+    const matrix: Matrix = { id: ctx.newId(), name, pads: [pad.id], config: NO_CONFIG, sampleId: null, loop: null };
+    return ok(setMatrix(setPad({ ...project, hits }, pad), matrix));
+  };
+
 // Loops
 
 /** A new empty loop. Without a name it gets the next free M or F number. */
