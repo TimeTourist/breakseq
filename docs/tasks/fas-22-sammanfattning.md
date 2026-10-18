@@ -38,14 +38,7 @@
    - `effectiveHit adds pitch, volume and pan from pad and matrix` och `a hit follows the layers where it lives` (`src/model/sound.test.ts`).
    - `generate applies the pad's and matrix's layers` (`src/engine/generate.test.ts`).
    - `the pad's sound sliders change every hit of the pad` (`src/ui/phase3.test.tsx`): padens volym −6 dB ger −6 dB på både sliceträffen och kopian, och hitsens egna volymer är orörda.
-5. **Ingen kod, typ eller text i gränssnittet använder Break eller One-shot som objekt; de finns bara som klassificering (ikon).**
-   - Typerna och funktionsnamnen har ingen `Break`. `matrixKind` och ikonen är klassificeringen, och listan i Loops har gruppen One-shots för matriser med en pad.
-   - Kvar finns:
-     - Värdet `'break'` i `GrainFrom`, ett läge för stretch som i gränssnittet heter Sample.
-     - Kommandot `makeOneShot` och knappen Make one-shot i Slice. Knappen gör en ny trim med en matrix med en pad.
-     - "(one-shot)" efter trims utan slicing i listan Replace… i Hits.
-     - Testnamn i motorn, till exempel `noiseBreak`.
-   - Se "Vad som bör granskas".
+5. **Ingen kod, typ eller text i gränssnittet använder Break eller One-shot som objekt; de finns bara som klassificering (ikon).** Uppfyllt för typer och objekt: inga typer eller funktionsnamn heter `Break`, och `matrixKind` med ikonen är klassificeringen. Text i gränssnittet som fortfarande använder one-shot eller break som namn lämnas till dig att avgöra (se första punkten under "Vad som bör granskas").
 6. **Testerna går igenom, typecheck och lint är gröna, och det finns en sammanfattning.** 475 tester i 59 filer passerar, och `npm run typecheck` och `npm run lint` är gröna. Det här är sammanfattningen.
 
 ## TODO(spec)
@@ -56,16 +49,23 @@ Inga (`grep -rn "TODO(spec)" src` ger inget).
 
 ### Där det byggda går utöver eller skiljer sig från designen
 
+- **Text som fortfarande använder break eller one-shot som namn** (Klart när punkt 5). Typerna och objekten är klara, men du får avgöra om de här ska bytas:
+  - knappen Make one-shot i Slice (kommandot `makeOneShot`), som gör en ny trim med en matrix med en pad
+  - gruppen One-shots i Show in Pads och hyllan i Loops
+  - `GrainFrom`-värdet `'break'`, som i gränssnittet heter Sample
+  - "en one-shot" i texter i Hits och Delete, till exempel "(one-shot)" i listan Replace… och "1 pad, 1 hit" för en one-shot
+  - testnamn i motorn, till exempel `noiseBreak`
+- **Don't slice på en slicad trim** gör som Make one-shot gjorde förut (beslut av controllern, designen säger inget om det). Pad 01 blir kvar och spelar hela trimmen, och de andra raderna med sina hits och loopen går. Var de användes blir det tyst. Det kan behöva ses över i fas 23.
+- **Delete matrix tar inte matrisens loop.** Loopen blir kvar, och dess steg med matrisens pads töms. Det är en tolkning av beslut 9.
+- **Clone matrix ger ingen egen loop och ingen länk till trimmen.** Clone break gav förut en egen utlagd loop.
+- **Regeln "Tagg = `Tag`" är borttagen ur ordlistan i CLAUDE.md**, eftersom det inte finns någon `Tag`-typ i koden (bara etiketten "Tag as" i Loops och en kommentar). Specen säger fortfarande "Tagg Main/Fill" om loopar.
 - **Sample i koden är trimmen.** Designen säger att en slicad trim ger ett sample per slice. I koden är `Sample` trimmen, med takter och markörer, och en slice är trimmen plus ett nummer. Ordet Sample täcker alltså båda, och specen säger det så.
 - **Loopen heter som matrisen** (amen 1), inte som filen (amen) som förut.
-- **Delete matrix tar inte matrisens loop.** Loopen blir kvar, och dess steg med matrisens pads töms. Det är en tolkning av beslut 9.
 - **Delete trim tar varje hit som spelar trimmen,** även kopior i andra matriser. Paddar som blir tomma ligger kvar. Delete frågar först och listar var den används.
-- **Clone matrix ger ingen egen loop och ingen länk till trimmen.** Clone break gav förut en egen utlagd loop.
 - **Dialogen är på engelska**, som resten av gränssnittet: "You use slice 07, 09 in: pad amen 1 07 and pad Snares 01. Make a new trim and sample for this?". Knapparna heter New trim och Renumber, och Escape avbryter.
   - Den frågar också när grid, takter eller transienter byter numrering, inte bara när en markör läggs till eller tas bort.
   - Takterna frågar när fältet lämnas eller med Enter, och Sensitivity när reglaget släpps, inte mitt i en ändring (beslut av controllern). Om du vill att fältet ska fråga direkt kostar det ett extra klick ut ur fältet.
 - **Efter New trim står den gamla trimmen kvar i Slice-listan** (amen trim 1, slicad men utan egen matrix). Det följer beslut 16, men kan se konstigt ut.
-- **Don't slice på en slicad trim** gör som Make one-shot gjorde förut (beslut av controllern, designen säger inget om det). Pad 01 blir kvar och spelar hela trimmen, och de andra raderna med sina hits och loopen går. Var de användes blir det tyst. Det kan behöva ses över i fas 23.
 - **En rad man själv tagit bort kommer inte tillbaka** när markörerna ändras (beslut av controllern, enligt beslut 12). Nya rader görs bara för slices som är nya. Om du väntar dig att en borttagen rad kommer tillbaka när man slicar om, är det inte så.
 - **Pads man lagt till själv är inga rader.** Får trimmen fler slices hamnar de nya raderna efter dem.
 - **Byte i en loop till en kortare matrix** tömmer steg vars rad den nya saknar, i stället för att lägga till rader där (beslut av controllern).
