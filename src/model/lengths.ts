@@ -1,5 +1,6 @@
-import type { Hit, Id, Project, Step } from './types';
-import { effectiveHit, hitSound, hitStretch, slotStep } from './sound';
+import type { Hit, Id, Pad, Project, Step } from './types';
+import { STEPS_PER_BAR } from './types';
+import { effectiveHit, hitSound, hitStretch, sliceWindow, slotStep } from './sound';
 
 /** How long a hit sounds, in seconds: its region at its pitch and stretch and its parent's, without mods. */
 export function hitSeconds(project: Project, hit: Hit): number {
@@ -67,4 +68,52 @@ export function slicePlaces(markers: readonly number[], steps: number): SlicePla
     slices[at] = i;
   });
   return slices.map((slice, i) => ({ slice, dropped: dropped[i]! }));
+}
+
+/**
+ * Steps a hit takes when laid out: a slice from where it lands on its sample's
+ * grid to the next slice that lands later; 0 for a slice that lands on the same
+ * step as the one before it, or a silent one; anything else its sound in the
+ * song's tempo, rounded up (at least 1).
+ */
+export function hitSteps(project: Project, hit: Hit): number {
+  const sample = project.samples[hit.sampleId];
+  if (sample !== undefined && hit.slice !== null) {
+    if (sliceWindow(sample, hit.slice) === null) return 0;
+    if (sample.bars !== null) {
+      const steps = sample.bars * STEPS_PER_BAR;
+      const landing = sample.markers.map((m) => slotStep(m, steps));
+      const at = landing[hit.slice]!;
+      if (at >= steps || (hit.slice > 0 && landing[hit.slice - 1] === at)) return 0;
+      return (landing.find((s) => s > at) ?? steps) - at;
+    }
+  }
+  const step = 60 / project.song.bpm / 4;
+  return Math.max(1, Math.ceil(hitSeconds(project, hit) / step - 1e-9));
+}
+
+/** Steps a pad takes when laid out: those of its first hit; 0 for an empty pad. */
+export function padSteps(project: Project, pad: Pad): number {
+  const hit = pad.members[0] === undefined ? undefined : project.hits[pad.members[0]];
+  return hit === undefined ? 0 : hitSteps(project, hit);
+}
+
+/** The matrix's pads one after another, each from where the one before ends, skipping pads of 0 steps. */
+export function matrixSequence(project: Project, matrixId: Id): { padId: Id; step: number; length: number }[] {
+  const matrix = project.matrices[matrixId];
+  const out: { padId: Id; step: number; length: number }[] = [];
+  let step = 0;
+  for (const padId of matrix?.pads ?? []) {
+    const pad = project.pads[padId];
+    const length = pad === undefined ? 0 : padSteps(project, pad);
+    if (length === 0) continue;
+    out.push({ padId, step, length });
+    step += length;
+  }
+  return out;
+}
+
+/** The steps a matrix takes: the sum of its pads. */
+export function matrixSteps(project: Project, matrixId: Id): number {
+  return matrixSequence(project, matrixId).reduce((total, s) => total + s.length, 0);
 }
