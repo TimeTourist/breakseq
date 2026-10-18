@@ -1,9 +1,9 @@
 import type { Project, Rng } from '../model';
 import { ownMatrix, sampleAudio } from '../model';
 import { hitRun, loopSong, matrixSong, modPreviewSong, padTurns } from '../engine';
-import { hitsOpen } from './HitsView';
 import { currentLoopId } from './LoopsView';
 import { currentModId, previewLoopId } from './ModsView';
+import { padsOpen } from './pads';
 import { selectedTrim } from './SamplesView';
 import type { Preview } from './services';
 import type { AppState } from './store';
@@ -21,7 +21,7 @@ export type Subject = { readonly key: string; readonly once: boolean } & (
 /** The key of the song itself: only it has a cursor and a loop. */
 export const SONG_KEY = 'song';
 
-export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'selection' | 'sliceTarget' | 'trimming' | 'hitsLoop'>): Subject | null {
+export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'selection' | 'sliceTarget' | 'trimming' | 'focus'>): Subject | null {
   const { view, selection } = state;
   const song = (key: string, p: Project, once = false): Subject => ({ key, once, kind: 'song', project: p });
   switch (view) {
@@ -46,12 +46,17 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       return matrix === undefined ? song(SONG_KEY, project) : song(`matrix:${matrix.id}`, matrixSong(project, matrix.id));
     }
     case 'pads': {
-      const once = !state.hitsLoop;
-      const { pad, hit, picked, matrix } = hitsOpen(project, selection);
-      if (matrix !== undefined) return song(`matrix:${matrix.id}:${once}`, matrixSong(project, matrix.id), once);
-      if (picked && hit !== undefined) return { key: `hit:${hit.id}:${once}`, once, kind: 'preview', preview: () => ({ kind: 'hits', project, run: hitRun(project, [hit.id]) }) };
-      if (pad === undefined || pad.members.length === 0) return null;
-      return { key: `pad:${pad.id}:${once}`, once, kind: 'preview', preview: (rng) => ({ kind: 'hits', project, run: hitRun(project, padTurns(pad, !once, rng)) }) };
+      // What is selected: a hit once, a pad as it picks (anew each time round), the matrix in a loop.
+      const open = padsOpen(project, state.focus.matrix, selection);
+      if (open === null) return null;
+      if (open.kind === 'matrix') return song(`matrix:${open.matrix.id}`, matrixSong(project, open.matrix.id));
+      if (open.kind === 'hit') {
+        const hitId = open.hit.id;
+        return { key: `hit:${hitId}`, once: true, kind: 'preview', preview: () => ({ kind: 'hits', project, run: hitRun(project, [hitId]) }) };
+      }
+      const pad = open.pad;
+      if (pad.members.length === 0) return null;
+      return { key: `pad:${pad.id}`, once: false, kind: 'preview', preview: (rng) => ({ kind: 'hits', project, run: hitRun(project, padTurns(pad, true, rng)) }) };
     }
     case 'loops': {
       const loopId = currentLoopId(project, selection);

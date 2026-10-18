@@ -7,10 +7,10 @@ import { backupDue, summarize } from './backups';
 import { followBrowserHistory } from './browserHistory';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
-import { HitsView } from './HitsView';
 import { isTyping } from './isTyping';
 import { LoopsView } from './LoopsView';
 import { ModsView } from './ModsView';
+import { PadsView } from './PadsView';
 import { SONG_KEY, subjectOf } from './subject';
 import type { Take } from './playback';
 import type { Services } from './services';
@@ -331,7 +331,7 @@ function Shell() {
         />
       )}
       {view === 'pads' && (
-        <HitsView
+        <PadsView
           transport={{
             playing: playing && playingKey !== 'snapshot',
             onToggle: () => toggle.current(),

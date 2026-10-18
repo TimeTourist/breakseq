@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createMod, createProject, ownMatrix, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
+import { focusOn } from '../test/focus';
 import { App } from './App';
 import type { Take } from './playback';
 import type { Services } from './services';
@@ -51,7 +52,7 @@ function apply(project: Project, ...commands: Command[]): Project {
 
 async function setup(project: Project, view: 'pads' | 'mods', selection: Partial<Selection>) {
   const start = initialState(project);
-  const store = createStore({ ...start, view, selection: { ...start.selection, ...selection } });
+  const store = createStore({ ...start, view, focus: focusOn(project, selection), selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
   await act(async () => {});
   return store;
