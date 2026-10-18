@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, cueMarkers, setBreak } from '../model';
+import { addSample, createProject, cueMarkers, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Take } from './playback';
@@ -47,44 +47,44 @@ function apply(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-async function open(project: Project, hitId: string) {
+async function open(project: Project, selection: { matrix?: string; hit?: string }) {
   const start = initialState(project);
-  const store = createStore({ ...start, view: 'hits', selection: { ...start.selection, hit: hitId } });
+  const store = createStore({ ...start, view: 'hits', selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
   await act(async () => {});
   return store;
 }
 
-describe('slice lines on the parent in Hits', () => {
+describe('slice lines on the matrix in Hits', () => {
   const amen = () => {
     // Sliced at the file's cues.
     const added = apply(createProject(), addSample({ name: 'Amen', audio: constantAudio(1), cues: [0.25, 0.5, 0.75] }));
-    const brk = Object.values(added.breaks)[0]!;
-    return apply(added, setBreak(brk.id, 1, cueMarkers(added.samples[brk.sampleId]!)!));
+    const sample = Object.values(added.samples)[0]!;
+    return apply(added, setSlicing(sample.id, 1, cueMarkers(sample)!));
   };
+  const matrixOf = (project: Project) => Object.values(project.matrices)[0]!;
 
   it('shows a line where each slice starts', async () => {
     const project = amen();
-    const brk = Object.values(project.breaks)[0]!;
-    await open(project, brk.parent!);
+    await open(project, { matrix: matrixOf(project).id });
     const lines = ['01', '02', '03', '04'].map((n) => screen.getByLabelText(new RegExp(`^Slice ${n}:`)) as HTMLElement);
     expect(lines.map((l) => l.style.left)).toEqual(['0%', '25%', '50%', '75%']);
   });
 
-  it('shows none on a slice', async () => {
+  it('shows none on a hit', async () => {
     const project = amen();
-    const slice = Object.values(project.hits).find((h) => h.slot === 1)!;
-    await open(project, slice.id);
+    const slice = Object.values(project.hits).find((h) => h.slice === 1)!;
+    await open(project, { hit: slice.id });
     expect(screen.queryByLabelText(/^Slice 01:/)).toBeNull();
   });
 
   it('a double-click on a line opens that slice in Slice', async () => {
     const project = amen();
-    const brk = Object.values(project.breaks)[0]!;
-    const store = await open(project, brk.parent!);
+    const sample = Object.values(project.samples)[0]!;
+    const store = await open(project, { matrix: matrixOf(project).id });
     fireEvent.doubleClick(screen.getByLabelText(/^Slice 03:/));
     await act(async () => {});
-    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: brk.id });
+    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: sample.id, sliceSelected: 2 });
     expect(screen.getByRole('button', { name: /^Marker 03 at/ }).getAttribute('aria-pressed')).toBe('true');
   });
 });

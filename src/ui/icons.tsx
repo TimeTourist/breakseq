@@ -40,3 +40,18 @@ export function NewCropIcon() {
     </svg>
   );
 }
+
+/** What a matrix is, by how many pads it has: a break (rows of pads) or a one-shot (one pad). */
+export function MatrixKindIcon({ kind }: { readonly kind: 'break' | 'one-shot' }) {
+  return (
+    <span className="matrix-kind" role="img" aria-label={kind} title={kind === 'break' ? 'Break: more than one pad' : 'One-shot: one pad'}>
+      <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+        {kind === 'break' ? (
+          <path d="M2 3.5h12M2 8h12M2 12.5h12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        ) : (
+          <circle cx="8" cy="8" r="3.5" fill="currentColor" />
+        )}
+      </svg>
+    </span>
+  );
+}

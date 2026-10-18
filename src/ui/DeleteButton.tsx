@@ -12,8 +12,6 @@ interface DeleteButtonProps {
   readonly name: string;
   /** Where it is used; it goes silent there. */
   readonly usages: readonly Usage[];
-  /** Set when it cannot go on its own, saying why: a break's own pad goes with the break. */
-  readonly blocked?: string | undefined;
   /** Removes it, returning an error or null. */
   readonly onDelete: () => string | null;
   readonly onDeleted?: (() => void) | undefined;
@@ -94,7 +92,7 @@ export const usageText = (u: Usage) => (u.kind === 'song' ? 'Song' : `${u.kind} 
  * Delete, the same everywhere: it always asks first, in a dialog listing what
  * goes with it and where it goes silent.
  */
-export function DeleteButton({ label, name, usages, blocked, onDelete, onDeleted, onError, goes = [], icon = false }: DeleteButtonProps) {
+export function DeleteButton({ label, name, usages, onDelete, onDeleted, onError, goes = [], icon = false }: DeleteButtonProps) {
   const where = usages.map(usageText).join(', ');
   const [asking, setAsking] = useState(false);
   return (
@@ -103,8 +101,7 @@ export function DeleteButton({ label, name, usages, blocked, onDelete, onDeleted
       type="button"
       className={icon ? 'icon-button small' : undefined}
       aria-label={`${label} ${name}`}
-      disabled={blocked !== undefined}
-      title={blocked ?? [label, ...(goes.length > 0 ? [`Goes with it: ${goes.join(', ')}`] : []), ...(usages.length > 0 ? [`Goes silent in: ${where}`] : [])].join('. ')}
+      title={[label, ...(goes.length > 0 ? [`Goes with it: ${goes.join(', ')}`] : []), ...(usages.length > 0 ? [`Goes silent in: ${where}`] : [])].join('. ')}
       onClick={() => setAsking(true)}
     >
       {icon ? <TrashIcon /> : label}
@@ -135,18 +132,17 @@ interface DeleteProps {
   readonly onError: (error: string | null) => void;
 }
 
-/** Delete for a pad, hit, loop or mod; one that is part of a break goes with the break instead. */
+/** Delete for a pad, hit, loop or mod. A pad takes its hits with it, a hit leaves its pad. */
 export function Delete({ kind, id, name, onDeleted, onError }: DeleteProps) {
   const project = useProject();
   const run = useRun();
-  const usages = findUsages(project, kind, id);
-  const owner = usages.find((u) => u.kind === 'break');
+  const hits = kind === 'pad' ? (project.pads[id]?.members.length ?? 0) : 0;
   return (
     <DeleteButton
       label={`Delete ${kind}`}
       name={name}
-      usages={usages}
-      blocked={owner === undefined ? undefined : `Part of break ${owner.name}: it goes with the break`}
+      usages={findUsages(project, kind, id)}
+      goes={hits > 0 ? [`${hits} hit${hits === 1 ? '' : 's'}`] : []}
       onDelete={() => run(removeAnyway(kind, id))}
       onDeleted={onDeleted}
       onError={onError}

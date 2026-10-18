@@ -3,7 +3,7 @@ import { baseName } from '../model';
 
 const COLLECTIONS = [
   ['samples', 'sample'],
-  ['breaks', 'break'],
+  ['matrices', 'matrix'],
   ['hits', 'hit'],
   ['pads', 'pad'],
   ['loops', 'loop'],
@@ -15,9 +15,9 @@ const COLLECTIONS = [
  * button: "change hit Amen-break 05", "add 64 samples", "change the song".
  */
 export function describeChange(before: Project, after: Project): string {
-  // A removed break takes its sample, pads and hits with it: it is the break that goes.
-  const removedBreaks = Object.keys(before.breaks).filter((id) => !(id in after.breaks));
-  if (removedBreaks.length === 1) return `remove break ${baseName(before.breaks[removedBreaks[0]!]!.name)}`;
+  // A removed matrix takes its pads and hits with it: it is the matrix that goes.
+  const removed = Object.keys(before.matrices).filter((id) => !(id in after.matrices));
+  if (removed.length === 1 && before.samples === after.samples) return `remove matrix ${baseName(before.matrices[removed[0]!]!.name)}`;
   for (const [key, noun] of COLLECTIONS) {
     const a = before[key] as Readonly<Record<string, { name: string }>>;
     const b = after[key] as Readonly<Record<string, { name: string }>>;
@@ -26,7 +26,7 @@ export function describeChange(before: Project, after: Project): string {
     const removed = Object.keys(a).filter((id) => !(id in b));
     const changed = Object.keys(b).filter((id) => id in a && a[id] !== b[id]);
     const name = (record: typeof a, ids: string[]) =>
-      ids.length === 1 ? `${noun} ${baseName(record[ids[0]!]!.name)}` : `${ids.length} ${noun}s`;
+      ids.length === 1 ? `${noun} ${baseName(record[ids[0]!]!.name)}` : `${ids.length} ${noun === 'matrix' ? 'matrices' : `${noun}s`}`;
     if (added.length > 0) return `add ${name(b, added)}`;
     if (removed.length > 0) return `remove ${name(a, removed)}`;
     if (changed.length > 0) return `change ${name(b, changed)}`;

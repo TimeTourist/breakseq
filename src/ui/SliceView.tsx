@@ -22,7 +22,8 @@ import {
 } from '../model';
 import { detectTransients } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { BreakOrigin } from './BreakOrigin';
+// TODO(fas-22 Task 7b): use MatrixOrigin (props matrix, parts 'matrix' | 'file'); aliased so the module resolves until then.
+import { MatrixOrigin as BreakOrigin } from './MatrixOrigin';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
 import { Slider } from './Slider';

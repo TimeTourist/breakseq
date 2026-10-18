@@ -1,93 +1,72 @@
-import type { Hit, Id, Pad, PadChoice, Project } from '../model';
-import { STEPS_PER_BAR, baseName, isParentPad, slotHeard, slotStep } from '../model';
-import { hitSeconds } from '../engine';
+import type { Hit, Id, Matrix, Pad, PadChoice, Project } from '../model';
+import { STEPS_PER_BAR, baseName, hitSound, matrixKind, ownMatrix } from '../model';
 
 /** Hits have no colour of their own for now: every hit is drawn in this one. */
 export const HIT_COLOR = '#C9C4B8';
 
-
-/** A short label for a pad chip: a slice's number ("amen 07" → "07"), otherwise the start of its name. */
+/** A short label for a pad chip: a row's number ("amen 07" → "07"), otherwise the start of its name. */
 export function padLabel(pad: Pad): string {
   const name = baseName(pad.name);
-  const number = pad.auto ? /\s(\d{2,})$/.exec(name)?.[1] : undefined;
+  const number = /\s(\d{2,})$/.exec(name)?.[1];
   return number ?? (name.length > 8 ? `${name.slice(0, 7)}…` : name);
 }
 
 export interface Group<T> {
   readonly name: string;
   readonly items: readonly T[];
-  /** For a group of a break's pads: the break, which lays all of them out. */
-  readonly breakId?: Id;
+  /** For a group of a break's pads: the matrix, which lays all of them out. */
+  readonly matrixId?: Id;
+}
+
+/** A pad whose first hit plays a slice past its sample's last marker: it plays nothing until there are more. */
+export function padSilent(project: Project, pad: Pad): boolean {
+  const hit = pad.members[0] === undefined ? undefined : project.hits[pad.members[0]];
+  return hit !== undefined && hitSound(project, hit) === null;
 }
 
 /**
- * Pads grouped the way they belong together: each break's slot pads in order,
- * named after the break; then one-shots, each a break with one pad; then pads
- * built by hand. A break's parent never shows as a pad, and a silent slot (past
- * the break's last slice) only while a loop still plays it.
+ * Pads grouped the way they belong together: each break's pads in order,
+ * named after its matrix; then the pad of every one-shot (a matrix of one pad)
+ * under One-shots. A silent pad shows only while a loop still plays it.
  */
 export function padGroups(project: Project, filter: (pad: Pad) => boolean = () => true): Group<Pad>[] {
   const inLoops = new Set(Object.values(project.loops).flatMap((l) => l.steps.flatMap((s) => (s.padId === null ? [] : [s.padId]))));
-  const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
   const shown = (id: Id) => {
     const pad = project.pads[id];
-    return pad !== undefined && filter(pad) && !isParentPad(project, pad) && (!silent.has(id) || inLoops.has(id)) ? [pad] : [];
+    return pad !== undefined && filter(pad) && (!padSilent(project, pad) || inLoops.has(id)) ? [pad] : [];
   };
-  const breaks = Object.values(project.breaks);
-  const inBreaks = new Set(breaks.flatMap((b) => b.pads));
-  const oneShots = breaks.filter((b) => b.bars === null).flatMap((b) => b.pads.flatMap(shown));
-  const built = Object.values(project.pads).filter((p) => !inBreaks.has(p.id) && filter(p) && !isParentPad(project, p));
+  const matrices = Object.values(project.matrices);
+  const oneShots = matrices.filter((m) => matrixKind(m) === 'one-shot').flatMap((m) => m.pads.flatMap(shown));
   return [
-    ...breaks
-      .filter((b) => b.bars !== null)
-      .map((b) => ({ name: b.name, items: b.pads.flatMap(shown), breakId: b.id }))
+    ...matrices
+      .filter((m) => matrixKind(m) === 'break')
+      .map((m) => ({ name: m.name, items: m.pads.flatMap(shown), matrixId: m.id }))
       .filter((g) => g.items.length > 0),
     ...(oneShots.length > 0 ? [{ name: 'One-shots', items: oneShots }] : []),
-    ...(built.length > 0 ? [{ name: 'Built', items: built }] : []),
   ];
 }
 
-/** Where a hit in a slot pad plays from, when it is not that slot: "07", "Think 07", or a one-shot's name. */
-export function replacedBy(project: Project, padId: Id, hit: Hit): string | null {
-  const home = Object.values(project.breaks).find((b) => b.pads.includes(padId));
-  if (home === undefined) return null;
-  const slot = home.pads.indexOf(padId);
-  if (hit.breakId === home.id && hit.slot === slot) return null;
-  const source = project.breaks[hit.breakId];
-  if (source === undefined) return null;
-  if (hit.slot === null || source.bars === null) return source.name;
-  const number = String(hit.slot + 1).padStart(2, '0');
-  return hit.breakId === home.id ? number : `${source.name} ${number}`;
+/** The matrix a pad is a row of, and its row (0 is 01). */
+function rowOf(project: Project, padId: Id): { matrix: Matrix; row: number } | undefined {
+  const matrix = Object.values(project.matrices).find((m) => m.pads.includes(padId));
+  return matrix === undefined ? undefined : { matrix, row: matrix.pads.indexOf(padId) };
 }
 
 /**
- * How many 1/16 steps a hit takes when placed: a slice the steps from where it
- * lands on its break's grid to where the next slice lands (as Slice shows it),
- * anything else its sound in the song's tempo, rounded up. At least one step.
+ * Where a hit in a row of a sliced matrix plays from, when it is not that
+ * row's slice: "07", "think 07", or a one-shot's name. null in a matrix built by hand.
  */
-export function hitSteps(project: Project, hit: Hit): number {
-  const brk = project.breaks[hit.breakId];
-  if (brk !== undefined && brk.bars !== null && hit.slot !== null && hit.slot < brk.markers.length) {
-    const steps = brk.bars * STEPS_PER_BAR;
-    const at = slotStep(brk.markers[hit.slot]!, steps);
-    const next = brk.markers.map((m) => slotStep(m, steps)).find((s) => s > at) ?? steps;
-    return Math.max(1, next - at);
-  }
-  const step = 60 / project.song.bpm / 4;
-  return Math.max(1, Math.ceil(hitSeconds(project, hit) / step - 1e-9));
+export function replacedBy(project: Project, padId: Id, hit: Hit): string | null {
+  const home = rowOf(project, padId);
+  if (home === undefined || home.matrix.sampleId === null) return null;
+  if (hit.sampleId === home.matrix.sampleId && hit.slice === home.row) return null;
+  const sample = project.samples[hit.sampleId];
+  if (sample === undefined) return null;
+  const name = ownMatrix(project, sample.id)?.name ?? baseName(sample.name);
+  if (hit.slice === null || sample.bars === null) return name;
+  const number = String(hit.slice + 1).padStart(2, '0');
+  return hit.sampleId === home.matrix.sampleId ? number : `${name} ${number}`;
 }
-
-/** How many steps a pad takes when placed: those of its first hit. */
-export function padSteps(project: Project, pad: Pad): number {
-  const hit = pad.members[0] === undefined ? undefined : project.hits[pad.members[0]];
-  return hit === undefined ? 1 : hitSteps(project, hit);
-}
-
-/** Pads a hit is in, with its member number in each. */
-export const hitUsages = (project: Project, hitId: Id) =>
-  Object.values(project.pads)
-    .filter((p) => p.members.includes(hitId))
-    .map((pad) => ({ pad, member: pad.members.indexOf(hitId) + 1 }));
 
 /** Loops a pad is in, with how many steps use it. */
 export const padUsages = (project: Project, padId: Id) =>
