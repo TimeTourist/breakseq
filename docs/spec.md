@@ -242,6 +242,9 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 19. Pan och kanalval | Pan på hitten (föräldern som makro) och som mod, adderas som volym, balans med lika effekt; kanalval på samplet i Trim (Stereo, Left, Right, Mono) | En hi-hat kan studsa mellan vänster och höger med en Random-mod |
 | 20. Säkerhetskopior av autosparen | De 20 senaste kopiorna av projektet i webbläsaren, vid laddning och högst var 5:e minut; Restore i Project | Ett projekt som skrivits över går att få tillbaka från kopian vid laddningen |
 | 21. Reverb och delay | Reverb (mängd, storlek) och delay (mängd, tid, feedback) på hitten och som mod, med svansen bredvid rösten; torr MIDI- och REX-export och rymden som egen WAV | En mod med reverb över två takter ger ett kast som klingar ut efter moden |
+| 22. Matrix (planerad) | Break och one-shot blir en Matrix: pads i y-led, hits i x-led, config i tre lager (hit, pad, matrix). Drag ger kopior. Se `docs/tasks/fas-22.md` | Se `docs/tasks/fas-22.md` |
+| 23. Gränssnitt för matriser (planerad) | Fokus på en matrix och några påsar, dragsida och flikar. Utformas före fasen | – |
+| 24. Mods att leka med (planerad) | Ett gränssnitt för mods där det är lätt och roligt att leka med parametrarna. Utformas före fasen | – |
 
 ## Utanför v1
 
