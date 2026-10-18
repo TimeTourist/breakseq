@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addPadMember, addSample, createProject, setBpm, setBreak, setHitSource, setMarkers, setPadChoice, sliceWindow } from '../model';
+import { addSample, createProject, setBpm, setHitSource, setMarkers, setPadChoice, setSlicing, sliceWindow, copyHits } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
-import { breakSong, hitRun, padTurns } from './preview';
+import { matrixSong, hitRun, padTurns } from './preview';
 
 const ctx = sequentialIds();
 const run = (project: Project, ...commands: Command[]) =>
@@ -16,12 +16,13 @@ const run = (project: Project, ...commands: Command[]) =>
 /** One bar of 2 s at 120 BPM in four slices of 0.5 s. */
 function split(): Project {
   const project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), setBpm(120));
-  const id = Object.keys(project.breaks)[0]!;
-  return run(project, setBreak(id, 1), setMarkers(id, [0, 0.25, 0.5, 0.75]));
+  const id = Object.keys(project.samples)[0]!;
+  return run(project, setSlicing(id, 1), setMarkers(id, [0, 0.25, 0.5, 0.75]));
 }
 
-const brkOf = (p: Project) => Object.values(p.breaks)[0]!;
-const memberOf = (p: Project, slot: number) => p.pads[brkOf(p).pads[slot]!]!.members[0]!;
+const matrixOf = (p: Project) => Object.values(p.matrices)[0]!;
+const sampleOf = (p: Project) => Object.values(p.samples)[0]!;
+const memberOf = (p: Project, row: number) => p.pads[matrixOf(p).pads[row]!]!.members[0]!;
 
 describe('previews', () => {
   it('plays hits one after another, each as long as it sounds', () => {
@@ -33,8 +34,8 @@ describe('previews', () => {
 
   it('lets a pad pick each round when looped, a round robin going round whole', () => {
     const p0 = split();
-    const padId = brkOf(p0).pads[0]!;
-    const p = run(p0, addPadMember(padId, memberOf(p0, 1)), addPadMember(padId, memberOf(p0, 2)), setPadChoice(padId, 'roundRobin'));
+    const padId = matrixOf(p0).pads[0]!;
+    const p = run(p0, copyHits([memberOf(p0, 1), memberOf(p0, 2)], padId), setPadChoice(padId, 'roundRobin'));
     const pad = p.pads[padId]!;
     const turns = padTurns(pad, true, () => 0);
     expect(turns).toHaveLength(9);
@@ -42,14 +43,22 @@ describe('previews', () => {
     expect(padTurns(pad, false, () => 0)).toEqual([pad.members[0]]);
   });
 
-  it('plays a break as laid out, so a replaced slice plays what replaced it', () => {
+  it('matrixSong plays a matrix as it lays out', () => {
+    const p = split();
+    const song = matrixSong(p, matrixOf(p).id);
+    expect(song.song.bars).toBe(1);
+    expect(song.song.clips).toHaveLength(1);
+    expect(generateTake(song, () => 0).triggers.map((t) => t.step)).toEqual([0, 4, 8, 12]);
+  });
+
+  it('plays a matrix as laid out, so a replaced slice plays what replaced it', () => {
     const p0 = split();
-    const brk = brkOf(p0);
+    const sample = sampleOf(p0);
     // Slot 4 plays slice 2 instead.
-    const p = run(p0, setHitSource(memberOf(p0, 3), brk.id, 1));
-    const take = generateTake(breakSong(p, brk.id), () => 0);
+    const p = run(p0, setHitSource(memberOf(p0, 3), sample.id, 1));
+    const take = generateTake(matrixSong(p, matrixOf(p).id), () => 0);
     expect(take.triggers.map((t) => t.step)).toEqual([0, 4, 8, 12]);
     expect(take.triggers[3]!.region).toEqual(take.triggers[1]!.region);
-    expect(take.triggers[3]!.region).toEqual(sliceWindow(p, brk, 1));
+    expect(take.triggers[3]!.region).toEqual(sliceWindow(sample, 1));
   });
 });

@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Hit, Project, StepEffect } from '../model';
-import { NO_DIST, addSample, createLoop, createMod, createProject, hitColour, setBpm, setBreak, setSongCell, setStep, updateHit, upgradeProject } from '../model';
+import { NO_DIST, addSample, createLoop, createMod, createProject, hitColour, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit, upgradeProject } from '../model';
 import { sequentialIds } from '../test/fixtures';
 import { rms } from './colour';
 import { generateTriggers } from './generate';
@@ -54,13 +54,13 @@ describe('dist and filter on a hit', () => {
     expect(await heard(shot(5000, { filter: { type: 'highpass', cutoff: 200, resonance: 0 } }).project)).toBeCloseTo(clean, 1);
   });
 
-  it("a slice with none of its own takes its parent's, as with fade", () => {
+  it("a slice with none of its own takes its matrix's, as with fade", () => {
     const start = run(createProject(), addSample({ name: 'amen.wav', audio: sine(100, 2) }));
-    const id = Object.keys(start.breaks)[0]!;
-    let project = run(start, setBreak(id, 1));
-    const parent = project.breaks[id]!.parent!;
-    const slice = Object.values(project.hits).find((h) => h.slot === 2)!;
-    project = run(project, updateHit(parent, { dist: { mode: 'crush', amount: 0.5 }, filter: { type: 'lowpass', cutoff: 800, resonance: 0.1 } }));
+    const id = Object.keys(start.samples)[0]!;
+    let project = run(start, setSlicing(id, 1));
+    const matrix = Object.values(project.matrices)[0]!;
+    const slice = Object.values(project.hits).find((h) => h.slice === 2)!;
+    project = run(project, setMatrixConfig(matrix.id, { dist: { mode: 'crush', amount: 0.5 }, filter: { type: 'lowpass', cutoff: 800, resonance: 0.1 } }));
     expect(hitColour(project, project.hits[slice.id]!)).toEqual({ dist: { mode: 'crush', amount: 0.5 }, filter: { type: 'lowpass', cutoff: 800, resonance: 0.1 } });
     project = run(project, updateHit(slice.id, { dist: { mode: 'drive', amount: 0.2 } }));
     expect(hitColour(project, project.hits[slice.id]!).dist).toEqual({ mode: 'drive', amount: 0.2 });

@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Hit, Project, StepEffect } from '../model';
-import { NO_STRETCH, addSample, createLoop, createMod, createProject, hitSeconds, hitStretch, setBpm, setBreak, setSongCell, setStep, updateHit, upgradeProject } from '../model';
+import { NO_STRETCH, addSample, createLoop, createMod, createProject, hitSeconds, hitStretch, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit, upgradeProject } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTriggers } from './generate';
 import { renderTriggers } from './render';
@@ -16,17 +16,21 @@ function run(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-/** A one-bar break of 2 s (120 BPM) in 16 slices, its M1 in a one-bar song at `bpm`. */
+/** A one-bar sample of 2 s (120 BPM) in 16 slices, its M1 in a one-bar song at `bpm`. */
 function amen(bpm: number) {
   const start = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-  const id = Object.keys(start.breaks)[0]!;
-  const project = run(start, setBreak(id, 1), setBpm(bpm));
-  const brk = project.breaks[id]!;
-  const parent = project.hits[brk.parent!]!;
-  const slice = (slot: number): Hit => Object.values(project.hits).find((h) => h.breakId === id && h.slot === slot)!;
+  const id = Object.keys(start.samples)[0]!;
+  const project = run(start, setSlicing(id, 1), setBpm(bpm));
+  const slice = (n: number): Hit => Object.values(project.hits).find((h) => h.sampleId === id && h.slice === n)!;
   const m1 = Object.values(project.loops)[0]!;
-  return { project: run(project, setSongCell('main', 0, m1.id)), parent, slice, m1 };
+  return { project: run(project, setSongCell('main', 0, m1.id)), slice, m1 };
 }
+
+/** The sample's matrix lays its stretch over all its slices: the macro. */
+const macro = (project: Project, stretch: Partial<Hit['stretch']>) => {
+  const matrix = Object.values(project.matrices)[0]!;
+  return run(project, setMatrixConfig(matrix.id, { stretch: { ...matrix.config.stretch, ...stretch } }));
+};
 
 const stretched = (project: Project, hit: Hit, stretch: Partial<Hit['stretch']>) => run(project, updateHit(hit.id, { stretch: { ...hit.stretch, ...stretch } }));
 
@@ -42,9 +46,9 @@ describe('stretch on a hit', () => {
     expect(hitStretch(fitShot, fitShot.hits[snare.id]!).factor).toBe(1);
   });
 
-  it("the parent is a macro: its factor multiplies the slice's, and a slice takes its grain and grid", () => {
-    const { project, parent, slice } = amen(150);
-    let p = stretched(project, parent, { mode: 'fit', grain: 60, from: 'hit' });
+  it("the matrix is a macro: its factor multiplies the slice's, and a slice takes its grain and grid", () => {
+    const { project, slice } = amen(150);
+    let p = macro(project, { mode: 'fit', grain: 60, from: 'hit' });
     p = stretched(p, slice(3), { mode: 'factor', factor: 2 });
     expect(hitStretch(p, p.hits[slice(3).id]!)).toEqual({ factor: 2 * (120 / 150), grain: 60, from: 'hit' });
     // A slice's own grain and grid win; with none anywhere, 30 ms from the break.
@@ -60,15 +64,15 @@ describe('stretch on a hit', () => {
     expect(upgradeProject({ ...project, hits: { ...project.hits, [old.id]: old as Hit } }).hits[old.id]!.stretch).toEqual(NO_STRETCH);
   });
 
-  it('a stretched hit lasts longer in Loops, at its own and its parent stretch', () => {
-    const { project, parent, slice } = amen(120);
-    expect(hitSeconds(stretched(project, parent, { mode: 'factor', factor: 2 }), slice(0))).toBeCloseTo(0.25);
+  it('a stretched hit lasts longer in Loops, at its own and its matrix stretch', () => {
+    const { project, slice } = amen(120);
+    expect(hitSeconds(macro(project, { mode: 'factor', factor: 2 }), slice(0))).toBeCloseTo(0.25);
   });
 
   it('triggers carry the stretch; unstretched ones none', () => {
-    const { project, parent } = amen(150);
+    const { project } = amen(150);
     expect(generateTriggers(project, () => 0).every((t) => t.stretch === null)).toBe(true);
-    const fit = stretched(project, parent, { mode: 'fit' });
+    const fit = macro(project, { mode: 'fit' });
     expect(generateTriggers(fit, () => 0)[0]!.stretch).toEqual({ factor: 0.8, grain: 30, from: 'break' });
   });
 });
@@ -82,8 +86,8 @@ describe('the Stretch mod', () => {
   const effect = (value: number, combine: 'multiply' | 'replace', grain = 80): StepEffect => ({ target: 'stretch', rate: 'step', shape: { kind: 'list', values: [value] }, stretch: { grain, combine } });
 
   it('Multiply times the hit stretch, Replace instead of it; the mod grain applies', () => {
-    const { project, parent } = amen(150);
-    const fit = stretched(project, parent, { mode: 'fit' });
+    const { project } = amen(150);
+    const fit = macro(project, { mode: 'fit' });
     expect(generateTriggers(withMod(fit, effect(2, 'multiply')), () => 0)[0]!.stretch).toEqual({ factor: 1.6, grain: 80, from: 'break' });
     expect(generateTriggers(withMod(fit, effect(2, 'replace')), () => 0)[0]!.stretch).toEqual({ factor: 2, grain: 80, from: 'break' });
   });

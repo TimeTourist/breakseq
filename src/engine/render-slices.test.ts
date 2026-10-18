@@ -2,10 +2,12 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createProject, setBpm, setSongCell, setStep } from '../model';
+import { addSample, createLoop, createProject, setBpm, setHitSource, setSongCell, setStep } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { decodeAudioFile, readCues } from './codec';
 import { generateTake } from './generate';
+import { midiPlan } from './midi';
+import { hitSeconds } from './preview';
 import { renderTake } from './render';
 import { SLOT_GAP, midiExport, rexExport } from './render-slices';
 
@@ -71,3 +73,27 @@ describe('MIDI export', () => {
   });
 });
 
+
+describe('a hit past the last slice', () => {
+  it('a hit past the last slice is silent in generate, render, MIDI and REX', async () => {
+    // b's hit plays slice 5 of a sample with one slice: past its last marker.
+    let project = run(createProject(), setBpm(60), addSample({ name: 'a.wav', audio: constantAudio(0.1) }), addSample({ name: 'b.wav', audio: constantAudio(0.2) }), createLoop('L', 'main', 1));
+    const [a, b] = Object.values(project.pads);
+    const bHit = project.hits[b!.members[0]!]!;
+    const loop = Object.values(project.loops)[0]!;
+    project = run(project, setHitSource(bHit.id, bHit.sampleId, 5), setStep(loop.id, 0, { padId: a!.id }), setStep(loop.id, 8, { padId: b!.id }), setSongCell('main', 0, loop.id));
+
+    // Generate: only a plays.
+    const take = generateTake(project, () => 0);
+    expect(take.triggers.map((t) => t.step)).toEqual([0]);
+    // Render: silence where b would be (step 8 is at 2 s).
+    const buffer = await renderTake(take, project, SAMPLE_RATE);
+    const data = buffer.getChannelData(0);
+    expect(data.slice(Math.round(2 * SAMPLE_RATE), Math.round(2.2 * SAMPLE_RATE)).every((v) => Math.abs(v) < 1e-9)).toBe(true);
+    expect(hitSeconds(project, project.hits[bHit.id]!)).toBe(0);
+    // MIDI and REX: one piece, a's.
+    expect(midiPlan(project, take).pieces).toHaveLength(1);
+    expect((await midiExport(project, { ...take, buffer }, SAMPLE_RATE)).pieces).toBe(1);
+    expect((await rexExport(project, { ...take, buffer }, SAMPLE_RATE)).pieces).toBe(1);
+  });
+});

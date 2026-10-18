@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Command, Id, Pad, PadChoice, Project } from '../model';
-import { addSample, createLoop, createMod, createPad, createProject, setBpm, setPadChoice, setSongBars, setSongCell, setStep, upgradeProject } from '../model';
+import type { Command, Id, PadChoice, Project } from '../model';
+import { addSample, createLoop, createMod, copyHits, createMatrix, createProject, setBpm, setPadChoice, setSongBars, setSongCell, setStep } from '../model';
 import { constantAudio, seededRng, sequenceRng, sequentialIds } from '../test/fixtures';
 import { generateTriggers } from './generate';
 
@@ -18,14 +18,17 @@ const newest = (before: Project, after: Project, key: 'hits' | 'pads' | 'loops' 
 /** A hi-hat pad of four hits h1–h4, and a one-bar loop playing it on every beat, in a song of `bars` bars. */
 function hats(choice: PadChoice, bars = 2) {
   let project = run(createProject(), setBpm(120));
-  const hits: Id[] = [];
+  const sources: Id[] = [];
   for (const name of ['h1', 'h2', 'h3', 'h4']) {
     const next = run(project, addSample({ name, audio: constantAudio(0.05) }));
-    hits.push(newest(project, next, 'hits'));
+    sources.push(newest(project, next, 'hits'));
     project = next;
   }
-  let next = run(project, createPad('hat', hits));
+  // The pad 'hat' holds copies of the four hits.
+  let next = run(project, createMatrix('hat'));
   const pad = newest(project, next, 'pads');
+  next = run(next, copyHits(sources, pad));
+  const hits = next.pads[pad]!.members.slice(-sources.length);
   project = run(next, setPadChoice(pad, choice), setSongBars(bars));
   next = run(project, createLoop('M1', 'main', 1));
   const loop = newest(project, next, 'loops');
@@ -41,11 +44,9 @@ describe("the pad's choice", () => {
     expect(names(hats('top').project)).toEqual(Array.from({ length: 8 }, () => 'h1'));
   });
 
-  it('a new pad, and a pad from an older project, play Top', () => {
-    const { project, pad } = hats('roundRobin');
-    const old = { ...project.pads[pad]!, choice: undefined } as unknown as Pad;
-    expect(upgradeProject({ ...project, pads: { [pad]: old } }).pads[pad]!.choice).toBe('top');
-    const fresh = run(createProject(), createPad('p'));
+  // TODO(fas-22 Task 6): a pad from an older project plays Top; upgradeProject is migrated there.
+  it('a new pad plays Top', () => {
+    const fresh = run(createProject(), createMatrix('p'));
     expect(Object.values(fresh.pads)[0]!.choice).toBe('top');
   });
 

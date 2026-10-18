@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Hit, Project, StepEffect } from '../model';
-import { addSample, channelAudio, createLoop, createMod, createProject, effectiveHit, sampleAudio, setBpm, setBreak, setSampleChannel, setSongCell, setStep, updateHit, upgradeProject } from '../model';
+import { addSample, channelAudio, createLoop, createMod, createProject, effectiveHit, sampleAudio, setBpm, setMatrixConfig, setSlicing, setSampleChannel, setSongCell, setStep, updateHit, upgradeProject } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { panGains } from './colour';
 import { generateTriggers } from './generate';
@@ -79,13 +79,13 @@ describe('pan', () => {
     expect(r).toBeCloseTo(0.4 * Math.SQRT2, 3);
   });
 
-  it("the parent's pan adds to a slice's, and mods add theirs in percent, kept within −100 and 100", () => {
+  it("the matrix's pan adds to a slice's, and mods add theirs in percent, kept within −100 and 100", () => {
     const start = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-    const id = Object.keys(start.breaks)[0]!;
-    let project = run(start, setBreak(id, 1));
-    const parent = project.breaks[id]!.parent!;
-    const slice = Object.values(project.hits).find((h) => h.slot === 0)!;
-    project = run(project, updateHit(parent, { pan: -0.5 }), updateHit(slice.id, { pan: 0.2 }));
+    const id = Object.keys(start.samples)[0]!;
+    let project = run(start, setSlicing(id, 1));
+    const matrix = Object.values(project.matrices)[0]!;
+    const slice = Object.values(project.hits).find((h) => h.slice === 0)!;
+    project = run(project, setMatrixConfig(matrix.id, { pan: -0.5 }), updateHit(slice.id, { pan: 0.2 }));
     expect(effectiveHit(project, project.hits[slice.id]!).pan).toBeCloseTo(-0.3);
 
     const m1 = Object.values(project.loops)[0]!;

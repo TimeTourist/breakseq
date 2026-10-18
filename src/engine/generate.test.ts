@@ -4,14 +4,16 @@ import {
   addSample,
   createLoop,
   createMod,
-  createPad,
+  copyHits,
   createProject,
   removePadMember,
   addClip,
   resizeClip,
   setBpm,
-  setBreak,
   setMarkers,
+  setMatrixConfig,
+  setPadConfig,
+  setSlicing,
   setSongBars,
   setSongCell,
   setStep,
@@ -169,23 +171,25 @@ describe('timing', () => {
 
 describe('pad members', () => {
   it('a step without a choice plays member 1, a step with one plays it, and a removed member gives member 1', () => {
-    let { project, hit } = withPads(['S1', 'S2']);
+    let { project, hit, pad } = withPads(['S1', 'S2']);
     const before = project;
-    project = run(project, createPad('Snares', [hit.S1!, hit.S2!]));
-    const snares = added(before, project, 'pads');
+    // S1's pad gets a second member: a copy of S2's hit.
+    project = run(project, copyHits([hit.S2!], pad.S1!));
+    const snares = pad.S1!;
+    const second = added(before, project, 'hits');
     let loop: Id;
     [project, loop] = addLoop(project, 'M1', 'main', 1);
     project = run(
       project,
       setStep(loop, 0, { padId: snares }),
-      setStep(loop, 4, { padId: snares, memberId: hit.S2! }),
+      setStep(loop, 4, { padId: snares, memberId: second }),
       setSongBars(1),
       setSongCell('main', 0, loop),
     );
 
-    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S1, hit.S2]);
+    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S1, second]);
 
-    project = run(project, removePadMember(snares, hit.S2!));
+    project = run(project, removePadMember(snares, second));
     expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S1, hit.S1]);
   });
 
@@ -410,20 +414,36 @@ describe('fill clips', () => {
 });
 
 describe('silent slots', () => {
-  it('a slot past its break\'s last slice plays nothing, and sounds again when the break has it back', () => {
+  it('a hit past its sample\'s last slice plays nothing, and sounds again when the sample has it back', () => {
     let project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), setBpm(120));
-    const id = Object.keys(project.breaks)[0]!;
-    project = run(project, setBreak(id, 1));
+    const id = Object.keys(project.samples)[0]!;
+    project = run(project, setSlicing(id, 1));
     const m1 = Object.values(project.loops)[0]!.id;
     project = run(project, setSongBars(1), setSongCell('main', 0, m1));
     expect(generateTriggers(project, () => 0)).toHaveLength(16);
 
-    // Four slices left: M1 follows the break and plays them on 1, 5, 9 and 13.
+    // Four slices left: the loop follows the matrix and plays them on 1, 5, 9 and 13.
     const four = run(project, setMarkers(id, [0, 0.25, 0.5, 0.75]));
     expect(generateTriggers(four, () => 0).map((t) => t.step)).toEqual([0, 4, 8, 12]);
 
-    // Edited by hand, M1 keeps playing all 16 slots: 12 of them are silent now.
+    // Edited by hand, the loop keeps playing all 16 rows: 12 of them are silent now.
     const edited = run(project, setStep(m1, 0, { ignoreMods: true }), setMarkers(id, [0, 0.25, 0.5, 0.75]));
     expect(generateTriggers(edited, () => 0).map((t) => t.step)).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe('layers of pad and matrix', () => {
+  it('generate applies the pad\'s and matrix\'s layers', () => {
+    let { project, pad, hit } = withPads(['K']);
+    project = run(project, updateHit(hit.K!, { pitch: 1, volume: -2 }));
+    const matrix = Object.values(project.matrices)[0]!;
+    project = run(project, setPadConfig(pad.K!, { pitch: 3 }), setMatrixConfig(matrix.id, { volume: -6 }));
+    let loop: Id;
+    [project, loop] = addLoop(project, 'M1', 'main', 1);
+    project = run(project, setStep(loop, 0, { padId: pad.K! }), setSongBars(1), setSongCell('main', 0, loop));
+
+    const [t] = generateTriggers(project, () => 0);
+    expect(t!.pitch).toBe(4);
+    expect(t!.volume).toBe(-8);
   });
 });

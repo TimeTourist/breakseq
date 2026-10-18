@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Id, ModEffect, ModRate, Project, ShufflePick, StackPick, SwapEffect } from '../model';
-import { addClip, addSample, createLoop, createMod, createPad, createProject, setBpm, setSongBars, setStep } from '../model';
+import { addClip, addSample, createLoop, createMod, copyHits, createMatrix, createProject, setBpm, setSongBars, setStep } from '../model';
 import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
 import { generateTriggers } from './generate';
 import { shuffleOrder, stackPick } from './swap';
@@ -32,9 +32,11 @@ function kit() {
     pad[name] = newest(before.pads, project.pads);
   }
   const before = project;
-  project = run(project, createPad('Alt', [hit.F!, hit.A!]));
+  // Alt holds copies of F and A.
+  project = run(project, createMatrix('Alt'));
   pad.Alt = newest(before.pads, project.pads);
-  const nameOf = (id: Id | undefined) => Object.keys(hit).find((k) => hit[k] === id) ?? '-';
+  project = run(project, copyHits([hit.F!, hit.A!], pad.Alt));
+  const nameOf = (id: Id | undefined) => (id === undefined ? '-' : (project.hits[id]?.name.replace(/ 1$/, '') ?? '-'));
   return { project, hit, pad, nameOf };
 }
 
