@@ -170,6 +170,7 @@ describe('Pads: the focus bar', () => {
     expect(take.getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(screen.getByRole('button', { name: '+ New matrix' }));
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Create' }));
     const made = matrixNamed(present(store), 'Matrix 1');
     expect(made).toBeTruthy();
     expect(store.getState().focus.matrix).toBe(made.id);
