@@ -1,5 +1,5 @@
 import type { Hit, Id, Loop, Pad, Project, Rng } from '../model';
-import { emptyStep, matrixSequence } from '../model';
+import { STEPS_PER_BAR, emptyStep, matrixSequence } from '../model';
 import type { Trigger } from './generate';
 import { loopSong } from './generate';
 import { triggerSeconds } from './midi';
@@ -53,7 +53,9 @@ export function padTurns(pad: Pad, loop: boolean, rng: Rng): Id[] {
  */
 export function matrixSong(project: Project, matrixId: Id): Project {
   const sequence = matrixSequence(project, matrixId);
-  const length = Math.max(1, ...sequence.map((s) => s.step + s.length));
+  // Whole bars, at least one, as a break always was.
+  const total = Math.max(0, ...sequence.map((s) => s.step + s.length));
+  const length = Math.max(1, Math.ceil(total / STEPS_PER_BAR)) * STEPS_PER_BAR;
   const steps = Array.from({ length }, () => emptyStep);
   for (const { padId, step } of sequence) steps[step] = { ...emptyStep, padId };
   const loop: Loop = { id: 'preview-matrix', name: project.matrices[matrixId]?.name ?? '', kind: 'main', steps };
