@@ -59,9 +59,11 @@ function build(...commands: Command[]): Project {
   }, createProject());
 }
 
-async function setup(project: Project, view: View): Promise<Store> {
-  // The Hits list unfolded, to reach its pads.
-  const store = createStore({ ...initialState(project), view, unfolded: Object.keys(project.matrices) });
+/** The app on `view`, with the matrix named `focus` (else the first) in focus in Pads. */
+async function setup(project: Project, view: View, focus?: string): Promise<Store> {
+  const matrices = Object.values(project.matrices);
+  const focused = (focus === undefined ? matrices[0] : matrices.find((m) => m.name === focus))?.id ?? null;
+  const store = createStore({ ...initialState(project), view, focus: { matrix: focused, takeFrom: [] } });
   render(<App store={store} services={fakeServices()} />);
   await act(async () => {});
   return store;
@@ -106,10 +108,11 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
   });
 });
 
-describe('Hits', () => {
+describe('Pads: a hit', () => {
   it('the pitch slider changes the hit, and one whole drag is one undo step', async () => {
     const store = await setup(build(addSample({ name: 'kick.wav', audio: constantAudio(0.2) })), 'pads');
     const before = present(store);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Hit / })[0]!);
     const pitch = screen.getByRole('slider', { name: /Pitch/ });
 
     fireEvent.change(pitch, { target: { value: '2' } });
@@ -142,39 +145,42 @@ function drag(from: HTMLElement, to: HTMLElement) {
   fireEvent.drop(to, { dataTransfer });
 }
 
-describe('Hits: matrices, pads and their hits', () => {
+describe('Pads: matrices, pads and their hits', () => {
   /** A one-bar break amen.wav sliced in four, and a one-shot snare.wav. */
   function breakAndOneShot(...more: Command[]) {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const amen = Object.values(project.samples).find((s) => s.name === 'amen.wav')!;
     return applyAll(project, sliceSample(amen.id, 1, 4), ...more);
   }
-  const side = () => screen.getByRole('complementary', { name: 'Matrices and pads' });
+  const timeline = () => screen.getByRole('region', { name: 'Timeline' });
+  const rowOf = () => screen.getByRole('region', { name: 'Matrix' });
   const amenOf = (project: Project) => Object.values(project.matrices).find((m) => m.name === 'amen 1')!;
 
-  it('lists each matrix with its pads in order', async () => {
+  it('lists each matrix to focus on, and the focused one’s pads in order', async () => {
     await setup(breakAndOneShot(), 'pads');
-    expect(within(side()).getAllByRole('button', { name: /^Matrix / }).map((b) => b.getAttribute('aria-label'))).toEqual(['Matrix amen 1', 'Matrix snare 1']);
-    const pads = within(side()).getAllByRole('button', { name: /^Pad / }).map((b) => b.getAttribute('aria-label'));
-    expect(pads).toEqual(['Pad amen 1 01', 'Pad amen 1 02', 'Pad amen 1 03', 'Pad amen 1 04', 'Pad snare 1']);
+    const options = within(screen.getByRole('combobox', { name: 'Matrix in focus' })).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['≡ amen 1', '• snare 1']);
+    const pads = within(timeline()).getAllByRole('button', { name: /^Pad / }).map((b) => b.getAttribute('aria-label'));
+    expect(pads).toEqual(['Pad amen 1 01', 'Pad amen 1 02', 'Pad amen 1 03', 'Pad amen 1 04']);
   });
 
   it('a matrix shows a break icon with more than one pad', async () => {
-    const store = await setup(breakAndOneShot(createMatrix('Snares')), 'pads');
-    const icon = (name: string) => within(within(side()).getByRole('button', { name: `Matrix ${name}` })).getByRole('img').getAttribute('aria-label');
-    expect([icon('amen 1'), icon('snare 1'), icon('Snares')]).toEqual(['break', 'one-shot', 'one-shot']);
-    fireEvent.click(within(side()).getByRole('button', { name: 'Matrix Snares' }));
+    const store = await setup(breakAndOneShot(createMatrix('Snares')), 'pads', 'Snares');
+    const take = (name: string) => within(within(screen.getByRole('group', { name: 'Take from' })).getByRole('button', { name })).getByRole('img').getAttribute('aria-label');
+    const icon = () => within(rowOf()).getByRole('img').getAttribute('aria-label');
+    expect([take('amen 1'), take('snare 1'), icon()]).toEqual(['break', 'one-shot', 'one-shot']);
     fireEvent.click(button('+ Pad'));
-    expect(icon('Snares')).toBe('break');
+    expect(icon()).toBe('break');
     const snares = Object.values(present(store).matrices).find((m) => m.name === 'Snares')!;
     expect(store.getState().selection.pad).toBe(snares.pads[1]);
   });
 
   it('the matrix opens on its own, with its config over every pad', async () => {
     const store = await setup(breakAndOneShot(), 'pads');
-    fireEvent.click(within(side()).getByRole('button', { name: 'Matrix amen 1' }));
-    expect(screen.queryByRole('region', { name: 'Pad' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'Matrix' })).toBeTruthy();
+    fireEvent.click(within(timeline()).getByRole('button', { name: 'Pad amen 1 02' }));
+    fireEvent.click(button('Matrix amen 1'));
+    expect(screen.queryByRole('region', { name: 'Pad controls' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Matrix controls' })).toBeTruthy();
     const amen = amenOf(present(store));
     expect(store.getState().selection.matrix).toBe(amen.id);
     fireEvent.change(screen.getByRole('slider', { name: /Volume/ }), { target: { value: '-6' } });
@@ -189,7 +195,7 @@ describe('Hits: matrices, pads and their hits', () => {
     const project = applyAll(present(store), copyHits(Object.values(present(store).hits).filter((h) => h.name.startsWith('snare')).map((h) => h.id), pad.id));
     cleanup();
     const reopened = await setup(project, 'pads');
-    fireEvent.click(within(side()).getByRole('button', { name: 'Pad amen 1 02' }));
+    fireEvent.click(within(timeline()).getByRole('button', { name: 'Pad amen 1 02' }));
     expect(screen.queryByRole('group', { name: 'Pad sound' })).toBeNull();
     fireEvent.click(button(/Pad sound/));
     fireEvent.change(within(screen.getByRole('group', { name: 'Pad sound' })).getByRole('slider', { name: /Volume/ }), { target: { value: '-6' } });
@@ -201,7 +207,8 @@ describe('Hits: matrices, pads and their hits', () => {
     expect(after.pads[amenOf(after).pads[0]!]!.config.volume).toBe(0);
   });
 
-  it('dropping a matrix on a pad adds copies', async () => {
+  // Task 6: drag comes back with the Take from shelf, from it onto a pad or hit of the timeline; rewrite these there.
+  it.skip('dropping a matrix on a pad adds copies', async () => {
     const snareFiles = ['snare_01.wav', 'snare_02.wav', 'snare_03.wav', 'snare_04.wav'].map((name) => addSample({ name, audio: constantAudio(0.1) }));
     const base = breakAndOneShot(...snareFiles, createMatrix('Snares'));
     const snaresPad = Object.values(base.pads).find((p) => p.name === 'Snares 01')!;
@@ -209,7 +216,7 @@ describe('Hits: matrices, pads and their hits', () => {
     const store = await setup(applyAll(base, copyHits(originals, snaresPad.id)), 'pads');
     const inSnares = present(store).pads[snaresPad.id]!.members;
 
-    drag(within(side()).getByRole('button', { name: 'Matrix Snares' }), within(side()).getByRole('button', { name: 'Pad amen 1 02' }).parentElement!);
+    drag(within(timeline()).getByRole('button', { name: 'Matrix Snares' }), within(timeline()).getByRole('button', { name: 'Pad amen 1 02' }).parentElement!);
 
     const after = present(store);
     const row = after.pads[amenOf(after).pads[1]!]!;
@@ -222,22 +229,24 @@ describe('Hits: matrices, pads and their hits', () => {
     expect(screen.getByRole('button', { name: /^Undo: add 4 hits/ })).toBeTruthy();
   });
 
-  it('a pad dragged onto a matrix becomes a copy of it last there, named after its row, and a hit a new pad', async () => {
+  // Task 6: drag comes back with the Take from shelf, from it onto a pad or hit of the timeline; rewrite these there.
+  it.skip('a pad dragged onto a matrix becomes a copy of it last there, named after its row, and a hit a new pad', async () => {
     const store = await setup(breakAndOneShot(createMatrix('Snares')), 'pads');
     const snares = () => Object.values(present(store).matrices).find((m) => m.name === 'Snares')!;
-    drag(within(side()).getByRole('button', { name: 'Pad amen 1 03' }), within(side()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
+    drag(within(timeline()).getByRole('button', { name: 'Pad amen 1 03' }), within(timeline()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
     expect(snares().pads.map((p) => present(store).pads[p]!.name)).toEqual(['Snares 01', 'Snares 02']);
-    const chip = within(side()).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare 1')!;
-    drag(chip, within(side()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
+    const chip = within(timeline()).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare 1')!;
+    drag(chip, within(timeline()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
     const added = present(store).pads[snares().pads[2]!]!;
     expect(added.members.map((h) => present(store).hits[h]!.name)).toEqual(['snare 1']);
   });
 
-  it('a one-shot dragged onto a pad of the break becomes a copy there, and Pad member 2 plays it', async () => {
+  // Task 6: drag comes back with the Take from shelf, from it onto a pad or hit of the timeline; rewrite these there.
+  it.skip('a one-shot dragged onto a pad of the break becomes a copy there, and Pad member 2 plays it', async () => {
     const store = await setup(breakAndOneShot(), 'pads');
-    fireEvent.click(within(side()).getByRole('button', { name: 'Pad amen 1 02' }));
+    fireEvent.click(within(timeline()).getByRole('button', { name: 'Pad amen 1 02' }));
     const snare = Object.values(present(store).hits).find((h) => h.name.startsWith('snare'))!;
-    const chip = within(side()).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare 1')!;
+    const chip = within(timeline()).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare 1')!;
     drag(chip, screen.getByRole('list', { name: 'Hits in this pad' }));
 
     const pad = Object.values(present(store).pads).find((p) => p.name === 'amen 1 02')!;
@@ -258,10 +267,10 @@ describe('Hits: matrices, pads and their hits', () => {
   });
 });
 
-describe('Pads in Hits', () => {
+describe('a pad in Pads', () => {
   it('moving a member up makes it member 1', async () => {
     const { project, pad, a, b } = twoHitPad();
-    const store = await setup(project, 'pads');
+    const store = await setup(project, 'pads', 'Both');
     fireEvent.click(button('Pad Both 01'));
 
     fireEvent.click(button('Move b 1 up'));

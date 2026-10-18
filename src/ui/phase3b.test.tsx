@@ -188,11 +188,11 @@ describe('files, trims and matrices in the GUI', () => {
     expect(screen.getByRole('button', { name: 'Trim amen trim 2' }).getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('Hits renames the matrix, and shows its slice, trim and file as links', async () => {
+  it('Pads renames the matrix, and links to its trim in Samples', async () => {
     const project = await sliced();
     const matrix = Object.values(project.matrices)[0]!;
     const sample = Object.values(project.samples)[0]!;
-    const store = createStore({ ...initialState(project), view: 'pads', selection: { ...initialState(project).selection, matrix: matrix.id } });
+    const store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: matrix.id, takeFrom: [] } });
     render(<App store={store} services={fakeServices()} />);
     await act(async () => {});
     fireEvent.change(screen.getByLabelText('Matrix name'), { target: { value: 'think' } });
@@ -201,11 +201,9 @@ describe('files, trims and matrices in the GUI', () => {
     // Plays and Replace with file are gone (decision 11).
     expect(screen.queryByRole('combobox', { name: 'Trim under the break' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Replace with file/ })).toBeNull();
-    // ← Trim ← Slice and the file, the full names in their titles.
-    const origin = screen.getByRole('button', { name: '← Slice' }).closest('.origin')!;
-    expect([...origin.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['← Trim', '← Slice', 'amen.wav']);
-    expect(screen.getByRole('button', { name: '← Slice' }).title).toBe('Open amen slice 1 in Samples');
-    fireEvent.click(screen.getByRole('button', { name: '← Slice' }));
+    // ← Samples, with the trim's full name in its title (decision 14).
+    expect(screen.getByRole('button', { name: '← Samples' }).title).toBe('Open amen trim 1 in Samples');
+    fireEvent.click(screen.getByRole('button', { name: '← Samples' }));
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample.id });
   });
 

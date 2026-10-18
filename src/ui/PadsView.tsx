@@ -1,0 +1,156 @@
+import { useState } from 'react';
+import type { Matrix } from '../model';
+import { addPad, cloneMatrix, matrixKind, renameMatrix, trimName } from '../model';
+import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
+import type { PadsPlay } from './ControlsPanel';
+import { ControlsPanel, useRunAdding } from './ControlsPanel';
+import { DeleteMatrix } from './DeleteMatrix';
+import { FocusBar } from './FocusBar';
+import { InSong, useHeard } from './InSong';
+import { MatrixKindIcon } from './icons';
+import { middleEllipsis } from './labels';
+import type { Zoom } from './pads';
+import { padsOpen } from './pads';
+import { Timeline } from './Timeline';
+
+/**
+ * Pads: where all that is heard is shaped (decision 3, layout B). The focus
+ * bar on top; the matrix in focus as its row and a timeline of its pads; the
+ * shelf of the matrices taken from; and the controls for what is selected
+ * underneath: a hit, a pad or the matrix.
+ */
+export function PadsView({ transport }: { readonly transport: PadsPlay }) {
+  const project = useProject();
+  const focus = useSelect((s) => s.focus);
+  const selection = useSelect((s) => s.selection);
+  const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<Zoom>('fit');
+  const open = padsOpen(project, focus.matrix, selection);
+  const what = open === null ? null : open.kind === 'pad' && open.pad.members.length === 0 ? null : open.kind;
+  const matrixPlays = open !== null && transport.played !== null && transport.played.key === `matrix:${open.matrix.id}`;
+
+  return (
+    <main className="view wide pads-view">
+      <FocusBar what={what} transport={transport} onError={setError} />
+      {error !== null && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {open === null ? (
+        <NoFocus />
+      ) : (
+        <>
+          <MatrixRow matrix={open.matrix} selected={open.kind === 'matrix'} onError={setError} />
+          <Timeline matrix={open.matrix} open={open} zoom={zoom} onZoom={setZoom} playedSeconds={matrixPlays ? transport.played!.seconds : null} onError={setError} />
+          {/* Seam for Task 6: the shelf of the matrices taken from, with their hits to drag, tap or pick with keys. */}
+          <TakeFromShelf />
+          <ControlsPanel open={open} transport={transport} onError={setError} />
+        </>
+      )}
+    </main>
+  );
+}
+
+/** Pads with no matrix in focus: choose one above, or slice a sample in Samples to get one. */
+function NoFocus() {
+  const project = useProject();
+  const { store } = useApp();
+  const none = Object.keys(project.matrices).length === 0;
+  return (
+    <div className="panel stack-tight">
+      <p className="muted">{none ? 'No matrices yet. Every sample in Samples gets one; or make one with + New matrix.' : 'Choose a matrix to work on, under Focus above.'}</p>
+      {none && (
+        <div className="row nav-row">
+          <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'samples' })}>
+            ← Samples
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The matrices taken from, under the timeline. Their hits come with Task 6. */
+function TakeFromShelf() {
+  const project = useProject();
+  const takeFrom = useSelect((s) => s.focus.takeFrom);
+  const matrices = takeFrom.flatMap((id) => (project.matrices[id] === undefined ? [] : [project.matrices[id]]));
+  if (matrices.length === 0) return null;
+  return (
+    <section className="take-from-shelf row" aria-label="Take from shelf">
+      {matrices.map((m) => (
+        <span key={m.id} className="chip" title={m.name}>
+          <MatrixKindIcon kind={matrixKind(m)} /> {middleEllipsis(m.name, 24)}
+        </span>
+      ))}
+    </section>
+  );
+}
+
+/**
+ * The matrix in focus, on top of its timeline: selecting it shows its config
+ * below. Its name, ← Samples to its trim, ♪ Song, + Pad, Clone and Delete.
+ */
+function MatrixRow({ matrix, selected, onError }: { readonly matrix: Matrix; readonly selected: boolean; readonly onError: (error: string | null) => void }) {
+  const project = useProject();
+  const { store } = useApp();
+  const run = useRun();
+  const seal = useSeal();
+  const select = useOpen();
+  const heard = useHeard();
+  const adding = useRunAdding(onError);
+  const sample = matrix.sampleId === null ? undefined : project.samples[matrix.sampleId];
+  const toSamples = () => {
+    if (sample === undefined) return;
+    store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
+    store.dispatch({ type: 'view', view: 'samples' });
+  };
+  const kind = matrixKind(matrix);
+  return (
+    <section className={`matrix-row row${selected ? ' current' : ''}`} aria-label="Matrix">
+      <button
+        type="button"
+        className="matrix-select"
+        aria-label={`Matrix ${matrix.name}`}
+        aria-current={selected ? 'true' : undefined}
+        title="The matrix: its config applies to every pad"
+        onClick={() => select({ matrix: matrix.id, pad: null, hit: null }, 'pads')}
+      >
+        <MatrixKindIcon kind={kind} />
+        <span className="small muted">{kind === 'break' ? 'break' : 'one-shot'}</span>
+      </button>
+      <input
+        className="title-input mono grow"
+        aria-label="Matrix name"
+        value={matrix.name}
+        onChange={(e) => onError(run(renameMatrix(matrix.id, e.target.value), `matrix:${matrix.id}:name`))}
+        onBlur={seal}
+      />
+      <InSong heard={heard.matrices.has(matrix.id)} />
+      {sample !== undefined && (
+        <button type="button" className="link-text small" title={`Open ${trimName(sample)} in Samples`} onClick={toSamples}>
+          ← Samples
+        </button>
+      )}
+      <div className="row push nowrap">
+        <button type="button" title="An empty pad last in the matrix" onClick={() => adding(addPad(matrix.id), 'pads', (id) => select({ pad: id, hit: null }, 'pads'))}>
+          + Pad
+        </button>
+        <button
+          type="button"
+          title="A copy of the whole matrix, with its own pads and hits, to change apart from this one"
+          onClick={() =>
+            adding(cloneMatrix(matrix.id), 'matrices', (id) => {
+              store.dispatch({ type: 'focus', matrix: id });
+              select({ matrix: id, pad: null, hit: null }, 'pads');
+            })
+          }
+        >
+          Clone
+        </button>
+        <DeleteMatrix matrix={matrix} onError={onError} onDeleted={() => select({ matrix: null, pad: null, hit: null }, 'pads')} />
+      </div>
+    </section>
+  );
+}

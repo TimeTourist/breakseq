@@ -76,7 +76,7 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: '5' });
     expect(heading()).toBe('Song');
     fireEvent.keyDown(window, { key: '2' });
-    expect(heading()).toBe('Hits');
+    expect(heading()).toBe('Pads');
     fireEvent.keyDown(window, { key: '1' });
     expect(heading()).toBe('Samples');
     fireEvent.keyDown(window, { key: '6' });

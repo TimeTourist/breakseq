@@ -85,9 +85,16 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const silent = new Set(Object.values(project.pads).filter((p) => padSilent(project, p)).map((p) => p.id));
   const swappable = Object.values(project.matrices);
   const groups = padGroups(project);
-  /** Opens a pad, or a hit in it, in Hits, with the matrix it is a row of. */
-  const openPad = (padId: Id, hit: Id | null = null) => open({ pad: padId, hit, matrix: matrixOfPad(project, padId)?.id ?? null }, 'pads');
-  const openMatrix = (matrixId: Id) => open({ matrix: matrixId, pad: null, hit: null }, 'pads');
+  /** Opens a pad, or a hit in it, in Pads, with the matrix it is a row of in focus. */
+  const openPad = (padId: Id, hit: Id | null = null) => {
+    const matrixId = matrixOfPad(project, padId)?.id ?? null;
+    store.dispatch({ type: 'focus', matrix: matrixId });
+    open({ pad: padId, hit, matrix: matrixId }, 'pads');
+  };
+  const openMatrix = (matrixId: Id) => {
+    store.dispatch({ type: 'focus', matrix: matrixId });
+    open({ matrix: matrixId, pad: null, hit: null }, 'pads');
+  };
   const playMatrix = (matrixId: Id) =>
     playMatrixOnce(services, project, matrixId).catch((e: unknown) => setError(`Could not play it: ${e instanceof Error ? e.message : String(e)}`));
   const allOpen = groups.length > 0 && groups.every((g) => shelfOpen.includes(groupKey(g)));
