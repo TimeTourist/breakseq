@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Matrix } from '../model';
+import { padPicker } from '../engine';
 import { addPad, cloneMatrix, matrixKind, renameMatrix, trimName } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import type { PadsPlay } from './ControlsPanel';
@@ -93,7 +94,8 @@ function usePlacing(onError: (error: string | null) => void): Placing {
   useEffect(() => {
     if (picked === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      // Escape in a dialog is the dialog's.
+      if (e.key !== 'Escape' || document.querySelector('[role="alertdialog"]') !== null) return;
       e.preventDefault();
       setPicked(null);
     };
@@ -125,7 +127,7 @@ const ownKeys = (target: EventTarget | null) => isTyping(target) || (target inst
 
 /**
  * The keys of Pads: ←/→ go from pad to pad and ↑/↓ through the pad's hits,
- * each step playing what it selects (a pad its first hit); Enter selects the
+ * each step playing what it selects (a pad as it picks); Enter selects the
  * matrix; Delete or Backspace asks, as the Delete button does, to delete what
  * is selected. Returns the counts that make the Delete buttons ask.
  */
@@ -134,12 +136,14 @@ function usePadsKeys(open: PadsOpen | null) {
   const { services } = useApp();
   const select = useOpen();
   const [ask, setAsk] = useState({ matrix: 0, selected: 0 });
+  // Picks a pad's hit as the pad does, round robin on from the last step.
+  const picker = useRef<ReturnType<typeof padPicker> | null>(null);
   // The listener is set up once and reads the latest of these.
-  const latest = useRef({ open, project });
-  latest.current = { open, project };
+  const latest = useRef({ open, project, select });
+  latest.current = { open, project, select };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { open: now, project: p } = latest.current;
+      const { open: now, project: p, select } = latest.current;
       if (now === null || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || ownKeys(e.target)) return;
       if (document.querySelector('[role="alertdialog"]') !== null) return;
       if (e.key.startsWith('Arrow')) {
@@ -147,7 +151,9 @@ function usePadsKeys(open: PadsOpen | null) {
         if (next === null) return;
         e.preventDefault();
         select(next, 'pads');
-        const hit = next.hit ?? p.pads[next.pad]?.members[0];
+        const pad = p.pads[next.pad];
+        picker.current ??= padPicker(services.rng());
+        const hit = next.hit ?? (pad === undefined ? undefined : picker.current(pad));
         if (hit !== undefined) services.player.playHit(p, hit);
       } else if (e.key === 'Enter') {
         // A focused button's Enter is its own.
@@ -161,7 +167,7 @@ function usePadsKeys(open: PadsOpen | null) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [select, services]);
+  }, [services]);
   return ask;
 }
 /**

@@ -120,13 +120,20 @@ export function zoneOf(y: number, top: number, height: number): Zone {
 /**
  * What dropping `dragged` over `over` does, or null when it does nothing. A
  * hit dropped between hits of its own pad moves there; on a hit, a hit
- * replaces it (from another pad, all of the hit replaces); anywhere else in a
- * pad, and all hits of a matrix anywhere, it adds copies last.
+ * replaces it (from another pad, all of the hit replaces); on the empty part
+ * of its own pad it moves last; anywhere in another pad, and all hits of a
+ * matrix anywhere, it adds copies last.
  */
 export function dropTarget(project: Project, dragged: Dragged, over: Over): DropTarget | null {
-  if (dragged.kind === 'matrix' || over.hitId === null) return { kind: 'add', padId: over.padId };
+  if (dragged.kind === 'matrix') return { kind: 'add', padId: over.padId };
   const pad = project.pads[over.padId];
   if (pad === undefined) return null;
+  if (over.hitId === null) {
+    // Within its own pad a drag reorders (decision 13): the empty part of the pad is last place.
+    if (!pad.members.includes(dragged.hitId)) return { kind: 'add', padId: pad.id };
+    const last = pad.members.length - 1;
+    return pad.members[last] === dragged.hitId ? null : { kind: 'move', padId: pad.id, hitId: dragged.hitId, to: last };
+  }
   if (dragged.hitId === over.hitId) return null;
   if (pad.members.includes(dragged.hitId) && over.zone !== 'on') {
     const to = pad.members.filter((m) => m !== dragged.hitId).indexOf(over.hitId) + (over.zone === 'after' ? 1 : 0);

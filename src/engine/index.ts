@@ -11,4 +11,5 @@ export * from './render-slices';
 export { encodeRex, type RexLoop } from './rex';
 export * from './project-folder';
 export * from './preview';
+export { padPicker } from './pad-choice';
 export * from './rex-read';

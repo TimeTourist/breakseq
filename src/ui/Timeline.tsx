@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent, MouseEvent } from 'react';
 import type { Id, Matrix, Pad } from '../model';
 import { PAD_CHOICES, STEPS_PER_BAR, hitSound, padSteps, sampleAudio, setPadChoice, stepDuration } from '../model';
@@ -90,6 +90,10 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
   const selectedPad = open.kind === 'matrix' ? null : open.pad.id;
   const selectedHit = open.kind === 'hit' ? open.hit.id : null;
   const [hover, setHover] = useState<Over | null>(null);
+  // A drag that ends, dropped or not, leaves no mark.
+  useEffect(() => {
+    if (placing.dragging === null) setHover(null);
+  }, [placing.dragging]);
   const target = placing.dragging === null || hover === null ? null : dropTarget(project, placing.dragging, hover);
 
   /** Where the playhead is, in px: within the pad whose steps it is in. */
