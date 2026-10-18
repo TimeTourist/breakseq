@@ -107,3 +107,7 @@ Flera loopar som spelar samtidigt, var och en med egen röst (till exempel en ki
 ## Rita i exemplet i Mods
 
 Rita värdena direkt i exempelgrafen för en stegeffekt: dra över staplarna så blir effekten en List med ett värde per intervall i dess rate (16, 4 eller 1 över en takt). Kräver en fast skala per mål medan man ritar (pitch −12 till +12 i hela halvtoner, volym −24 till 0 dB, pan ±100 %, reverb och delay 0–100 %, ratchet 1–8, direction F/R). Öppet: om Ramp, Random och Cycle blir en List när man ritar, och om mönster längre än en takt ska gå att rita. (Bordlagt 2026-10-17.)
+
+## Filbläddrare med provlyssning
+
+En egen filbläddrare i appen, eftersom webbläsarens fil-dialog inte kan spela ljud: välj en samplemapp en gång (File System Access API i Chrome och Edge, som projektmappen i Project; Firefox och Safari väljer mappen varje gång), bläddra bland undermappar och WAV/AIFF/REX2-filer, klicka för att spela, pil upp/ned spelar nästa, dra en fil till Import, en påse eller en pad. Öppet: var den ligger (i Import, som en panel från alla flikar, eller båda; förslaget var en panel) och när den byggs. (Bordlagt 2026-10-18.)
