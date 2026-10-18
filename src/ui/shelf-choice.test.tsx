@@ -7,7 +7,7 @@ import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Take } from './playback';
 import type { Services } from './services';
-import type { Selection } from './store';
+import type { Focus, Selection } from './store';
 import { createStore, initialState } from './store';
 
 afterEach(cleanup);
@@ -65,51 +65,63 @@ function hats() {
   return { project: apply(built, setStep(loop.id, 0, { padId: pad.id })), pad, loop, hits, matrix };
 }
 
-async function setup(project: Project, view: 'pads' | 'loops', selection: Partial<Selection>) {
+async function setup(project: Project, view: 'pads' | 'loops', selection: Partial<Selection>, focus: Focus = { matrix: null, takeFrom: [] }) {
   const start = initialState(project);
-  const store = createStore({ ...start, view, selection: { ...start.selection, ...selection } });
+  const store = createStore({ ...start, view, focus, selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
   await act(async () => {});
   return store;
 }
 
-describe('choosing what the pad shelf in Loops shows', () => {
-  it('lists each group folded, with a tick that hides it from the shelf', async () => {
+describe('the pad shelf in Loops follows the focus', () => {
+  it('the shelf shows the focus and take from', async () => {
     const { project, loop, matrix } = hats();
-    const store = await setup(project, 'loops', { loop: loop.id });
-    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
-    // Hats, a break, and the One-shots h1 and h2.
-    expect(chooser.getAllByRole('button', { name: /^Show the pads of/ }).map((b) => b.getAttribute('aria-label'))).toEqual([
-      'Show the pads of Hats',
-      'Show the pads of One-shots',
-    ]);
-    expect(chooser.queryByText('hat')).toBeNull();
+    const h1 = Object.values(project.matrices).find((m) => m.name === 'h1 1')!;
+    const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
+    const shelf = () => Array.from(document.querySelectorAll('.shelf-label')).map((e) => e.textContent!.trim());
+    expect(shelf()).toEqual(['Hats']);
+    expect(screen.getByRole('button', { name: 'Pad hat' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Choose what shows' })).toBeNull();
 
-    expect(screen.getByRole('button', { name: 'Pad hat' })).toBeTruthy();
-    fireEvent.click(chooser.getByRole('checkbox', { name: 'Show Hats in Pads' }));
-    expect(screen.queryByRole('button', { name: 'Pad hat' })).toBeNull();
-    expect(store.getState().shelfHidden).toEqual([matrix.id]);
-    fireEvent.click(chooser.getByRole('checkbox', { name: 'Show Hats in Pads' }));
-    expect(screen.getByRole('button', { name: 'Pad hat' })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole('group', { name: 'Take from' })).getByRole('button', { name: 'h1 1' }));
+    expect(store.getState().focus.takeFrom).toEqual([h1.id]);
+    expect(shelf()).toEqual(['Hats', 'h1 1']);
   });
 
-  it('expands and collapses every group at once', async () => {
+  it('changing focus in Loops changes it in Pads', async () => {
+    const { project, loop, matrix } = hats();
+    const h1 = Object.values(project.matrices).find((m) => m.name === 'h1 1')!;
+    const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Matrix in focus' }), { target: { value: h1.id } });
+    expect(store.getState().focus.matrix).toBe(h1.id);
+    store.dispatch({ type: 'view', view: 'pads' });
+    await act(async () => {});
+    expect((screen.getByRole('combobox', { name: 'Matrix in focus' }) as HTMLSelectElement).value).toBe(h1.id);
+  });
+
+  it('with no focus the shelf asks for one', async () => {
     const { project, loop } = hats();
     await setup(project, 'loops', { loop: loop.id });
-    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
-    fireEvent.click(chooser.getByRole('button', { name: 'Expand all' }));
-    expect(chooser.getAllByRole('button', { name: /^Hide the pads of/ })).toHaveLength(2);
-    expect(chooser.getByText('hat')).toBeTruthy();
-    fireEvent.click(chooser.getByRole('button', { name: 'Collapse all' }));
-    expect(chooser.queryByText('hat')).toBeNull();
+    expect(screen.getByText(/Choose a matrix in focus/)).toBeTruthy();
+  });
+
+  it('an empty pad has no length label', async () => {
+    const { project, loop, matrix } = hats();
+    const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
+    expect(screen.getByRole('button', { name: 'Pad hat' }).textContent).toMatch(/·\d/);
+    store.dispatch({ type: 'run', command: addPad(matrix.id) });
+    await act(async () => {});
+    const empty = store.getState().history.present.matrices[matrix.id]!.pads[2]!;
+    const name = store.getState().history.present.pads[empty]!.name;
+    expect(screen.getByRole('button', { name: `Pad ${name}` }).textContent).not.toMatch(/·/);
   });
 });
 
 describe('how long what is dragged from the shelf is', () => {
   it('shows a pad’s steps on its chip, and where it lands while dragged over a step', async () => {
-    const { project, loop } = hats();
+    const { project, loop, matrix } = hats();
     const steps = Math.ceil(0.1 / (60 / project.song.bpm / 4) - 1e-9);
-    await setup(project, 'loops', { loop: loop.id });
+    await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
     const chip = screen.getByRole('button', { name: 'Pad hat' });
     expect(chip.textContent).toBe(`hat ·${steps}`);
 
@@ -126,8 +138,8 @@ describe('how long what is dragged from the shelf is', () => {
 
 describe('a click in the shelf', () => {
   it('plays the pad’s first hit, and selects it', async () => {
-    const { project, loop, pad } = hats();
-    const store = createStore({ ...initialState(project), view: 'loops', selection: { ...initialState(project).selection, loop: loop.id } });
+    const { project, loop, pad, matrix } = hats();
+    const store = createStore({ ...initialState(project), view: 'loops', focus: { matrix: matrix.id, takeFrom: [] }, selection: { ...initialState(project).selection, loop: loop.id } });
     const s = services();
     render(<App store={store} services={s} />);
     await act(async () => {});
@@ -138,44 +150,19 @@ describe('a click in the shelf', () => {
 });
 
 describe('from Loops to Hits', () => {
-  it('a double-click on a pad in the shelf, or on a hit in Show in Pads, opens it in Hits', async () => {
+  it('a double-click on a pad in the shelf opens it in Pads', async () => {
     const { project, loop, pad, matrix } = hats();
-    const store = await setup(project, 'loops', { loop: loop.id });
+    const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
     fireEvent.doubleClick(screen.getByRole('button', { name: 'Pad hat' }));
     expect(store.getState().view).toBe('pads');
     expect(store.getState().selection).toMatchObject({ pad: pad.id, matrix: matrix.id });
-
-    store.dispatch({ type: 'view', view: 'loops' });
-    await act(async () => {});
-    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
-    fireEvent.click(chooser.getByRole('button', { name: 'Expand all' }));
-    const row = chooser.getByText('hat').closest('.pad-row')!;
-    const chip = within(row as HTMLElement).getByText('h2 1');
-    fireEvent.doubleClick(chip);
-    expect(store.getState().view).toBe('pads');
-    expect(store.getState().selection).toMatchObject({ pad: pad.id, hit: pad.members[1], matrix: matrix.id });
-  });
-});
-
-describe('a click in Show in Pads', () => {
-  it('plays a hit once', async () => {
-    const { project, loop, pad } = hats();
-    const s = services();
-    const store = createStore({ ...initialState(project), view: 'loops', selection: { ...initialState(project).selection, loop: loop.id } });
-    render(<App store={store} services={s} />);
-    await act(async () => {});
-    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
-    fireEvent.click(chooser.getByRole('button', { name: 'Expand all' }));
-    const row = chooser.getByText('hat').closest('.pad-row')!;
-    fireEvent.click(within(row as HTMLElement).getByText('h2 1'));
-    expect(s.player.playHit).toHaveBeenLastCalledWith(expect.anything(), pad.members[1]);
   });
 });
 
 describe('a matrix in the shelf', () => {
   it('lays out its pads one after another when dropped on a step, and a double-click opens it in Hits', async () => {
     const { project, loop, matrix } = hats();
-    const store = await setup(project, 'loops', { loop: loop.id });
+    const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
     const chip = screen.getByRole('button', { name: 'Matrix Hats: lay out all its pads' });
     const data = new Map<string, string>();
     const dataTransfer = { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? '', get types() { return [...data.keys()]; }, effectAllowed: 'all', dropEffect: 'copy' };
@@ -194,8 +181,8 @@ describe('a matrix in the shelf', () => {
 
 describe('matrices in the loop', () => {
   it('Matrix: Hats → swaps it for another matrix, row for row', async () => {
-    const { project, loop } = hats();
-    const store = await setup(project, 'loops', { loop: loop.id });
+    const { project, loop, matrix } = hats();
+    const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
     const h1 = Object.values(project.matrices).find((m) => m.name === 'h1 1')!;
     const swaps = within(screen.getByLabelText('Matrices in the loop'));
     expect(swaps.getByRole('button', { name: 'Hats' })).toBeTruthy();
@@ -213,9 +200,9 @@ describe('playing a matrix from Loops', () => {
     return { services: { ...s, renderSong } satisfies Services, renderSong };
   }
 
-  async function open(project: Project, loopId: string) {
+  async function open(project: Project, loopId: string, matrixId: string) {
     const { services: s, renderSong } = rendering();
-    const store = createStore({ ...initialState(project), view: 'loops', selection: { ...initialState(project).selection, loop: loopId } });
+    const store = createStore({ ...initialState(project), view: 'loops', focus: { matrix: matrixId, takeFrom: [] }, selection: { ...initialState(project).selection, loop: loopId } });
     render(<App store={store} services={s} />);
     await act(async () => {});
     renderSong.mockClear();
@@ -230,20 +217,11 @@ describe('playing a matrix from Loops', () => {
 
   it('a click on a matrix in the shelf selects it and plays it once, as laid out', async () => {
     const { project, loop, matrix } = hats();
-    const { s, renderSong } = await open(project, loop.id);
+    const { s, renderSong } = await open(project, loop.id, matrix.id);
     const chip = screen.getByRole('button', { name: 'Matrix Hats: lay out all its pads' });
     await act(async () => void fireEvent.click(chip));
     expect(chip.getAttribute('aria-pressed')).toBe('true');
     expect(laidOut(renderSong)).toEqual(project.matrices[matrix.id]!.pads);
     expect(s.player.audition).toHaveBeenCalledWith(expect.objectContaining({ sampleRate: 100 }), 0, 2);
-  });
-
-  it('a click on a matrix in Show in Pads plays it once', async () => {
-    const { project, loop, matrix } = hats();
-    const { s, renderSong } = await open(project, loop.id);
-    const chooser = within(screen.getByRole('region', { name: 'Choose what shows' }));
-    await act(async () => void fireEvent.click(chooser.getByText('Hats')));
-    expect(laidOut(renderSong)).toEqual(project.matrices[matrix.id]!.pads);
-    expect(s.player.audition).toHaveBeenCalledTimes(1);
   });
 });

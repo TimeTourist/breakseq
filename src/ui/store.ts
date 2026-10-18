@@ -64,10 +64,6 @@ export interface AppState {
   readonly unfolded: readonly Id[];
   /** The sample (trim) whose Trim is open in Import: what Play plays there. */
   readonly trimming: Id | null;
-  /** Groups of pads left out of the pad shelf in Loops: a matrix's id, or "One-shots". */
-  readonly shelfHidden: readonly string[];
-  /** Groups unfolded in the list under the shelf that chooses them; all are folded at first. */
-  readonly shelfOpen: readonly string[];
 }
 
 export type Action =
@@ -92,9 +88,7 @@ export type Action =
   | { readonly type: 'clipboard'; readonly clip: Clip | null }
   | { readonly type: 'hitsLoop'; readonly loop: boolean }
   | { readonly type: 'fold'; readonly matrixIds: readonly Id[]; readonly folded: boolean }
-  | { readonly type: 'trimming'; readonly sampleId: Id | null }
-  | { readonly type: 'shelfShown'; readonly group: string; readonly shown: boolean }
-  | { readonly type: 'shelfOpen'; readonly groups: readonly string[]; readonly open: boolean };
+  | { readonly type: 'trimming'; readonly sampleId: Id | null };
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
@@ -109,8 +103,6 @@ export const initialState = (project: Project = createProject()): AppState => ({
   hitsLoop: true,
   unfolded: [],
   trimming: null,
-  shelfHidden: [],
-  shelfOpen: [],
 });
 
 /** The focus with matrices that are no longer in the project left out: a removed or undone matrix is no focus. */
@@ -175,14 +167,6 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     }
     case 'trimming':
       return { state: { ...state, trimming: action.sampleId }, error: null };
-    case 'shelfShown': {
-      const others = state.shelfHidden.filter((g) => g !== action.group);
-      return { state: { ...state, shelfHidden: action.shown ? others : [...others, action.group] }, error: null };
-    }
-    case 'shelfOpen': {
-      const others = state.shelfOpen.filter((g) => !action.groups.includes(g));
-      return { state: { ...state, shelfOpen: action.open ? [...others, ...action.groups] : others }, error: null };
-    }
   }
 }
 

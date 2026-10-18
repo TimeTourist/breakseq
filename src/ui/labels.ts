@@ -46,6 +46,29 @@ export function padGroups(project: Project, filter: (pad: Pad) => boolean = () =
   ];
 }
 
+/** A matrix of the shelf in Loops: its pads in order, with its classification. */
+export interface ShelfGroup extends Group<Pad> {
+  readonly matrixId: Id;
+  readonly kind: 'break' | 'one-shot';
+}
+
+/**
+ * The shelf in Loops (decision 5): the given matrices (the focus, then those
+ * taken from) with their pads. A silent pad shows only while a loop still plays it.
+ */
+export function shelfGroups(project: Project, matrixIds: readonly Id[]): ShelfGroup[] {
+  const inLoops = new Set(Object.values(project.loops).flatMap((l) => l.steps.flatMap((s) => (s.padId === null ? [] : [s.padId]))));
+  return matrixIds.flatMap((id) => {
+    const matrix = project.matrices[id];
+    if (matrix === undefined) return [];
+    const items = matrix.pads.flatMap((p) => {
+      const pad = project.pads[p];
+      return pad !== undefined && (!padSilent(project, pad) || inLoops.has(p)) ? [pad] : [];
+    });
+    return [{ name: matrix.name, items, matrixId: id, kind: matrixKind(matrix) }];
+  });
+}
+
 /** The matrix a pad is a row of, and its row (0 is 01). */
 function rowOf(project: Project, padId: Id): { matrix: Matrix; row: number } | undefined {
   const matrix = Object.values(project.matrices).find((m) => m.pads.includes(padId));
