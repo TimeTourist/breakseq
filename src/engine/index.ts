@@ -8,6 +8,7 @@ export { effectPreview, isDiscrete } from './mods';
 export * from './swap';
 export * from './midi';
 export * from './render-slices';
-export * from './rex';
+export { encodeRex, type RexLoop } from './rex';
 export * from './project-folder';
 export * from './preview';
+export * from './rex-read';

@@ -52,7 +52,8 @@ const channel = (): Channel => ({ d: new Int32Array(5), a: new Uint32Array(5).fi
 
 const toCodeValue = (signed2x: number): number => (signed2x >= 0 ? signed2x : -signed2x - 1) >>> 0;
 
-function minAverageIndex(a: Uint32Array): number {
+/** Shared with the reader (rex-read.ts). */
+export function minAverageIndex(a: Uint32Array): number {
   let idx = 0;
   for (let i = 1; i < 5; i++) if (a[i]! < a[idx]!) idx = i;
   return idx;
@@ -101,7 +102,8 @@ function applyPredictor(idx: number, s: number, d: Int32Array): void {
   }
 }
 
-function updateAverages(a: Uint32Array, d: Int32Array): void {
+/** Shared with the reader (rex-read.ts). */
+export function updateAverages(a: Uint32Array, d: Int32Array): void {
   for (let i = 0; i < 5; i++) {
     const v = d[i]!;
     a[i] = (a[i]! + ((v ^ (v >> 31)) >>> 0) - (a[i]! >>> 5)) >>> 0;
@@ -109,7 +111,7 @@ function updateAverages(a: Uint32Array, d: Int32Array): void {
 }
 
 /** j and rbits moved to suit `step`; returned rather than changed in place. */
-function adjustJRbits(step: number, j: number, rbits: number): [number, number] {
+export function adjustJRbits(step: number, j: number, rbits: number): [number, number] {
   if (step < j) {
     for (let jt = j >>> 1; step < jt; jt >>>= 1) {
       j = jt;
