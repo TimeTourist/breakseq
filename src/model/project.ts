@@ -2,7 +2,6 @@ import type { Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, 
 import { NO_DELAY, NO_DIST, NO_FILTER, NO_REVERB, NO_STRETCH, STEPS_PER_BAR } from './types';
 import { defaultBreakName } from './sound';
 import { renameBreakIn } from './names';
-import { breaksFromSamples } from './upgrade-breaks';
 
 // A new song starts at 170 BPM and 8 bars.
 export const DEFAULT_BPM = 170;
@@ -73,9 +72,7 @@ export function upgradeProject(project: Project): Project {
   );
   const upgraded: Project & { tags?: unknown } = { ...project, samples, hits, pads, loops, mods, song };
   delete upgraded.tags;
-  // Breaks became their own objects, taking the samples' break fields (and tag fields) with them.
-  const withBreaks = (project as { breaks?: unknown }).breaks === undefined ? breaksFromSamples(upgraded) : upgraded;
-  return namedTrims(withBreaks);
+  return namedTrims(upgraded);
 }
 
 /**

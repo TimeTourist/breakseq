@@ -56,19 +56,20 @@ const only = <T>(record: Readonly<Record<string, T>>): T => {
 };
 
 describe('automatic chain', () => {
-  it('addSample creates a sample, a one-shot break over it, a default hit and a pad with that hit as its only member', () => {
+  it('addSample creates a sample, its own one-shot matrix, a default hit and a pad with that hit as its only member', () => {
     const ctx = sequentialIds();
     const project = run(createProject(), ctx, addSample({ name: 'Kick', audio: constantAudio(0.5) }));
 
     const sample = only(project.samples);
     const hit = only(project.hits);
     const pad = only(project.pads);
+    expect(sample).toMatchObject({ bars: null, markers: [0] });
     expect(sample.duration).toBeCloseTo(0.5);
-    const brk = only(project.breaks);
-    expect(brk).toMatchObject({ sampleId: sample.id, bars: null, markers: [0], pads: [pad.id], parent: null });
+    const matrix = only(project.matrices);
+    expect(matrix).toMatchObject({ sampleId: sample.id, pads: [pad.id], loop: null });
     expect(hit).toMatchObject({
-      breakId: brk.id,
-      slot: 0,
+      sampleId: sample.id,
+      slice: 0,
       region: { start: 0, end: 1 },
       direction: 'forward',
       pitch: 0,
