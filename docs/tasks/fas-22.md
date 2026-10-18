@@ -60,7 +60,7 @@ Läget före fasen är taggat i git: `fas-21-fore-matrix`.
 - **Byte i en loop** (Amen → Think) byter rad N mot rad N, som i dag.
 - **Längden på en hit i steg** räknas som i dag: en slice tar stegen från där den börjar på trimmens grid till där nästa börjar, ett helt sample sin längd i låtens tempo avrundat uppåt.
 - **Gränssnittet tills fas 23:** Hits visar matriser i stället för breaks, med matrisens config där föräldern är i dag och padens config ovanför dess hits. Import och Slice fortsätter att fungera; valet Break/One-shot i Import blir "slica" eller "inte slica".
-- **Ordlistan i specen och i `CLAUDE.md`** byts: Sample, Hit, Pad, Matrix. Break och One-shot står kvar som namn på klassificeringen.
+- **Ordlistan i specen och i `CLAUDE.md`** byts: Sample, Hit, Pad, Matrix. Break och One-shot står kvar som namn på klassificeringen. Ordet Matrix används bara för detta, aldrig i Mods (ingen "mod matrix").
 - **Kopior tar bara hittens egna inställningar** (beslut 6): padens och matrisens config där kopian kom ifrån följer inte med, utan den nya platsens gäller. Dras en matrix till en matrix läggs dess pads sist, med sin egen padconfig och sitt val. Dras en matrix eller pad till en pad läggs alla dess hits sist på den paden.
 - **Region finns bara på hitten.** Pad och matrix har inte region. Fit to tempo räknas en gång, oavsett hur många lager som har det; faktorer multipliceras som i dag.
 - **Spela en pad** betyder att paden väljer. **Spela en matrix** spelar den som den läggs ut i en loop.
