@@ -9,6 +9,7 @@ import {
   isUnsliced,
   makeOneShot,
   markUnsliced,
+  markersForBars,
   ownMatrix,
   renameMatrix,
   renumberConflict,
@@ -185,6 +186,62 @@ describe('the automatic chain', () => {
   });
 });
 
+/** Adds a pad by hand, last in a matrix, with one hit playing `[sampleId, slice]`. */
+function handPad(project: Project, matrixId: Id, sampleId: Id, slice: number | null, id = 'hand'): Project {
+  const hit = newHit(`${id}-hit`, id, sampleId, slice);
+  const pad: Pad = { id, name: id, members: [hit.id], choice: 'top', config: NO_CONFIG };
+  const matrix = project.matrices[matrixId]!;
+  return {
+    ...project,
+    hits: { ...project.hits, [hit.id]: hit },
+    pads: { ...project.pads, [pad.id]: pad },
+    matrices: { ...project.matrices, [matrixId]: { ...matrix, pads: [...matrix.pads, pad.id] } },
+  };
+}
+
+/** The slice each pad of a matrix plays by its top hit, or 'x' for another sample's. */
+const rowSlices = (project: Project, matrixId: Id, sampleId: Id) =>
+  project.matrices[matrixId]!.pads.map((p) => {
+    const hit = project.hits[project.pads[p]!.members[0]!]!;
+    return hit.sampleId === sampleId ? hit.slice : 'x';
+  });
+
+describe('rows follow what pads play, in a matrix edited by hand (decision 12)', () => {
+  it('a pad added by hand to a one-shot is no row: slicing gives every slice a row, after it', () => {
+    let project = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const amenId = by(project.samples, (s) => s.name === 'amen.wav').id;
+    const snareId = by(project.samples, (s) => s.name === 'snare.wav').id;
+    const matrixId = ownMatrix(project, amenId)!.id;
+    project = run(handPad(project, matrixId, snareId, 0), setSlicing(amenId, 1));
+    expect(rowSlices(project, matrixId, amenId)).toEqual([0, 'x', ...Array.from({ length: 15 }, (_, i) => i + 1)]);
+  });
+
+  it('a row removed by hand is not made again, and a new slice gets one row', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const matrix = p0.matrices[matrixId]!;
+    const project = { ...p0, matrices: { ...p0.matrices, [matrixId]: { ...matrix, pads: matrix.pads.filter((_, i) => i !== 2) } } };
+    const more = run(project, setMarkers(sampleId, Array.from({ length: 17 }, (_, i) => i / 17)));
+    const slices = rowSlices(more, matrixId, sampleId);
+    expect(slices.filter((s) => s === 15)).toHaveLength(1);
+    expect(slices.filter((s) => s === 16)).toHaveLength(1);
+    expect(slices).not.toContain(2);
+    expect(slices).toHaveLength(16);
+  });
+
+  it("un-slicing keeps pads added by hand with another sample's hits", () => {
+    let { project, sampleId, matrixId } = amen(4);
+    project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const snareId = by(project.samples, (s) => s.name === 'snare.wav').id;
+    project = handPad(project, matrixId, snareId, 0);
+    const first = project.matrices[matrixId]!.pads[0]!;
+    expect(unsliceTakes(project, sampleId)).toEqual(['15 pads', '15 hits', 'loop amen 1']);
+    const after = run(project, setSlicing(sampleId, null));
+    expect(after.matrices[matrixId]!.pads).toEqual([first, 'hand']);
+    expect(after.hits['hand-hit']).toBeDefined();
+    expect(heard(after, after.hits['hand-hit']!)).toEqual([0, 0.3]);
+  });
+});
+
 describe('the automatic loop', () => {
   it('the automatic loop follows until edited by hand', () => {
     const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
@@ -269,6 +326,31 @@ describe('numbering', () => {
     expect(heard(next, next.hits[hits[0]!]!)).toEqual([1, 1.5]);
     // The own loop followed the move.
     expect(next.loops[own.loop!]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 8]);
+  });
+
+  it('markersForBars gives the markers a change of bars would set, for renumberConflict', () => {
+    const { project: p0, sampleId } = amen(4);
+    // On 1/4 they follow the bars; placed by hand they stay.
+    expect(markersForBars(p0.samples[sampleId]!, 2)).toEqual([0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]);
+    const byHand = run(p0, setMarkers(sampleId, [0, 0.3]));
+    expect(markersForBars(byHand.samples[sampleId]!, 2)).toEqual([0, 0.3]);
+    expect(run(p0, setSampleBars(sampleId, 2)).samples[sampleId]!.markers).toEqual(markersForBars(p0.samples[sampleId]!, 2));
+    const { project } = withSnares(p0, [sampleId, 3]);
+    expect(renumberConflict(project, sampleId, markersForBars(project.samples[sampleId]!, 2))).toMatchObject({ slices: [3] });
+  });
+
+  it('setSampleBars can make a new trim too', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const { project, hits } = withSnares(p0, [sampleId, 3]);
+    const next = run(project, setSampleBars(sampleId, 2, true));
+    const fresh = by(next.samples, (s) => s.id !== sampleId);
+    expect(fresh).toMatchObject({ trim: 2, bars: 2 });
+    expect(fresh.markers).toHaveLength(8);
+    expect(next.samples[sampleId]).toEqual(project.samples[sampleId]);
+    expect(next.matrices[matrixId]!.sampleId).toBe(fresh.id);
+    expect(heard(next, next.hits[hits[0]!]!)).toEqual([1.5, 2]);
+    // The own loop followed: 2 bars of 1/4.
+    expect(next.loops[next.matrices[matrixId]!.loop!]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 4, 8, 12, 16, 20, 24, 28]);
   });
 
   it('setGrid can make a new trim too', () => {

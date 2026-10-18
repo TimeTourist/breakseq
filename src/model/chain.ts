@@ -45,7 +45,7 @@ function wholeSample(id: Id, name: string, audioId: Id, audio: AudioData, cues: 
 /** A sample's own matrix as a one-shot: one pad with one hit playing slice 0, named after the trim ("amen 2"). */
 function addOwnMatrix(project: Project, sample: Sample, ctx: CommandContext): Project {
   const matrix: Matrix = { id: ctx.newId(), name: defaultMatrixName(sample), pads: [], config: NO_CONFIG, sampleId: sample.id, loop: null };
-  return ensureRows(setMatrixIn(project, matrix), matrix.id, 1, ctx.newId);
+  return ensureRows(setMatrixIn(project, matrix), matrix.id, 0, 1, ctx.newId);
 }
 
 /**
@@ -162,19 +162,32 @@ export function guessBars(duration: number): number {
 /** Whether a sample's tempo looks wrong, which usually means its bars are. */
 export const unlikelyBpm = (bpm: number): boolean => bpm < 60 || bpm > 200;
 
+/** The slice of `sampleId` a pad's top hit plays, or null when it plays something else. */
+function padSlice(project: Project, padId: Id, sampleId: Id): number | null {
+  const pad = project.pads[padId];
+  const hit = pad?.members[0] === undefined ? undefined : project.hits[pad.members[0]];
+  return hit === undefined || hit.sampleId !== sampleId ? null : (hit.slice ?? 0);
+}
+
 /**
- * Gives a matrix rows up to `count`: each new row is a pad with one hit
- * playing that slice of the matrix's sample. Rows are never taken away; a row
- * past the last slice is silent until there are more slices.
+ * Gives a matrix a row for each new slice of its sample, `from` up to `count`,
+ * that no pad of it plays yet (by its top hit): a pad with one hit playing
+ * that slice, added last. Rows are matched by what they play, not where they
+ * are, since a matrix is free to edit (decision 12): a pad added by hand is no
+ * row, and a row removed by hand is not made again for an older slice. Rows
+ * are never taken away; one past the last slice is silent until there are more.
  */
-function ensureRows(project: Project, matrixId: Id, count: number, newId: () => Id): Project {
+function ensureRows(project: Project, matrixId: Id, from: number, count: number, newId: () => Id): Project {
   const matrix = project.matrices[matrixId];
   const sample = matrix?.sampleId == null ? undefined : project.samples[matrix.sampleId];
-  if (matrix === undefined || sample === undefined || matrix.pads.length >= count) return project;
+  if (matrix === undefined || sample === undefined) return project;
+  const played = new Set(matrix.pads.map((p) => padSlice(project, p, sample.id)));
+  const missing = Array.from({ length: Math.max(0, count - from) }, (_, i) => from + i).filter((slice) => !played.has(slice));
+  if (missing.length === 0) return project;
   const hits = { ...project.hits };
   const pads = { ...project.pads };
   const added: Id[] = [];
-  for (let slice = matrix.pads.length; slice < count; slice++) {
+  for (const slice of missing) {
     const hit = slotHit(newId(), slotName(matrix.name, sample, slice), sample.id, slice);
     const pad: Pad = { id: newId(), name: hit.name, members: [hit.id], choice: 'top', config: NO_CONFIG };
     hits[hit.id] = hit;
@@ -211,6 +224,17 @@ function followLoop(before: Project, after: Project, matrixId: Id): Project {
 }
 
 /**
+ * The markers a sample gets when sliced over `bars` bars without markers given
+ * (`setSlicing`, `setSampleBars`): markers on a grid follow the new length, on
+ * 1/16 when it is not sliced yet; markers placed by hand stay. For the UI to
+ * ask `renumberConflict` before a change of bars.
+ */
+export function markersForBars(sample: Sample, bars: number): readonly number[] {
+  const grid = sample.bars === null ? 16 : markerGrid(sample.markers, sample.bars);
+  return grid === null ? sample.markers : gridMarkers(bars, grid);
+}
+
+/**
  * Slices a sample over `bars` bars, or takes its slicing away with null.
  * Markers on a grid follow the new length; markers placed by hand stay, unless
  * `markers` are given. Its own matrix gets a row per slice (a one-shot's pad
@@ -226,14 +250,13 @@ export const setSlicing =
     if (bars === null) return unslice(project, sample);
     if (!Number.isInteger(bars) || bars < 1) return invalid('A sample is sliced over a whole number of bars');
 
-    const grid = sample.bars === null ? 16 : markerGrid(sample.markers, sample.bars);
-    const nextMarkers = markers ?? (grid === null ? sample.markers : gridMarkers(bars, grid));
+    const nextMarkers = markers ?? markersForBars(sample, bars);
     const sliced: Sample = { ...withoutUnsliced(sample), bars, markers: nextMarkers };
     const own = ownMatrix(project, sampleId);
     if (own === undefined) return ok(setSampleIn(project, sliced));
     // A one-shot's pad and hit become row 01's.
     let next = sample.bars === null ? renameRow(project, own, sliced, 0) : project;
-    next = ensureRows(setSampleIn(next, sliced), own.id, nextMarkers.length, ctx.newId);
+    next = ensureRows(setSampleIn(next, sliced), own.id, sample.markers.length, nextMarkers.length, ctx.newId);
     if (own.loop === null) {
       const matrix = next.matrices[own.id]!;
       const loop: Loop = { id: ctx.newId(), name: baseName(matrix.name), kind: 'main', steps: laidOut(next, matrix) };
@@ -258,31 +281,41 @@ function renamePadAndHit(project: Project, padId: Id | undefined, from: string, 
   };
 }
 
-/** Changes how many bars a sliced sample is: its BPM follows, and markers on a grid. */
+/**
+ * Changes how many bars a sliced sample is: its BPM follows, and markers on a
+ * grid (`markersForBars`). With `newTrim`, as in `setMarkers`, the own matrix
+ * moves to a new trim with the new bars and markers and the sample stays as it was.
+ */
 export const setSampleBars =
-  (sampleId: Id, bars: number): Command =>
+  (sampleId: Id, bars: number, newTrim = false): Command =>
   (project, ctx) => {
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
     if (sample.bars === null) return invalid('Only a sliced sample has bars');
-    return setSlicing(sampleId, bars)(project, ctx);
+    if (!newTrim) return setSlicing(sampleId, bars)(project, ctx);
+    if (!Number.isInteger(bars) || bars < 1) return invalid('A sample is sliced over a whole number of bars');
+    return ok(changeOwnRows(project, sample, toNewTrim(project, sample, { bars, markers: markersForBars(sample, bars) }, ctx), ctx));
   };
 
 /**
- * What un-slicing a sample takes: its own matrix's rows after 01 and their
- * hits, hits in row 01 that play a later slice of it (they would be silent),
- * and its own loop. Copies of its slices elsewhere stay, silent.
+ * What un-slicing a sample takes: the rows of its own matrix (pads whose top
+ * hit plays it) but the first, which stays to play the whole sample, with
+ * their hits; hits in that row that play a later slice of it (they would be
+ * silent); and its own loop. Pads added by hand stay, and so do copies of its
+ * slices elsewhere, silent.
  */
 function unsliceParts(project: Project, sample: Sample) {
   const own = ownMatrix(project, sample.id);
-  const pads = new Set(own?.pads.slice(1) ?? []);
-  const first = own?.pads[0] === undefined ? undefined : project.pads[own.pads[0]];
+  const rows = (own?.pads ?? []).filter((p) => padSlice(project, p, sample.id) !== null);
+  const kept = rows.find((p) => padSlice(project, p, sample.id) === 0) ?? rows[0];
+  const pads = new Set(rows.filter((p) => p !== kept));
+  const first = kept === undefined ? undefined : project.pads[kept];
   const hits = new Set([
     ...[...pads].flatMap((p) => project.pads[p]?.members ?? []),
     ...(first?.members ?? []).filter((h) => project.hits[h]?.sampleId === sample.id && (project.hits[h]?.slice ?? 0) > 0),
   ]);
   const loop = own?.loop != null && project.loops[own.loop] !== undefined ? own.loop : null;
-  return { own, pads, hits, loop };
+  return { own, kept, pads, hits, loop };
 }
 
 const count = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;
@@ -329,7 +362,7 @@ const keep = <T,>(record: Readonly<Record<Id, T>>, gone: (id: Id) => boolean) =>
  */
 function unslice(project: Project, sample: Sample) {
   if (sample.bars === null) return sample.unsliced === true ? ok(setSampleIn(project, withoutUnsliced(sample))) : invalid('The sample is not sliced');
-  const { own, pads, hits, loop } = unsliceParts(project, sample);
+  const { own, kept, pads, hits, loop } = unsliceParts(project, sample);
   const loops = Object.fromEntries(
     Object.entries(keep(project.loops, (id) => id === loop)).map(([id, l]): [Id, Loop] => [
       id,
@@ -349,8 +382,8 @@ function unslice(project: Project, sample: Sample) {
     song: loop === null ? project.song : { ...project.song, clips: project.song.clips.filter((c) => c.ref !== loop) },
   };
   if (own !== undefined) {
-    const matrix: Matrix = { ...own, pads: own.pads.slice(0, 1), loop: null };
-    next = renamePadAndHit(setMatrixIn(next, matrix), matrix.pads[0], slotName(own.name, sample, 0), baseName(own.name));
+    const matrix: Matrix = { ...own, pads: own.pads.filter((p) => !pads.has(p)), loop: null };
+    next = renamePadAndHit(setMatrixIn(next, matrix), kept, slotName(own.name, sample, 0), baseName(own.name));
   }
   return ok(next);
 }
@@ -423,8 +456,8 @@ export function renumberConflict(project: Project, sampleId: Id, markers: readon
  * `markers` (decision 16): its hits that play the sample play the new trim.
  * The sample keeps its markers, and hits elsewhere stay on it.
  */
-function toNewTrim(project: Project, sample: Sample, markers: readonly number[], ctx: CommandContext): { project: Project; sampleId: Id } {
-  const fresh = newTrimOf(project, sample, { markers }, ctx);
+function toNewTrim(project: Project, sample: Sample, patch: Pick<Sample, 'markers'> & Partial<Pick<Sample, 'bars'>>, ctx: CommandContext): Project {
+  const fresh = newTrimOf(project, sample, patch, ctx);
   const own = ownMatrix(project, sample.id);
   let next = setSampleIn(project, fresh);
   if (own !== undefined) {
@@ -432,7 +465,19 @@ function toNewTrim(project: Project, sample: Sample, markers: readonly number[],
     const hits = Object.fromEntries(Object.entries(next.hits).map(([id, h]) => [id, moved.has(id) ? { ...h, sampleId: fresh.id } : h]));
     next = setMatrixIn({ ...next, hits }, { ...own, sampleId: fresh.id });
   }
-  return { project: next, sampleId: fresh.id };
+  return next;
+}
+
+/**
+ * After a change to a sample's slicing (`changed`), its own matrix gets rows
+ * for new slices and its loop follows, as `setSlicing` does.
+ */
+function changeOwnRows(before: Project, sample: Sample, changed: Project, ctx: CommandContext): Project {
+  const own = ownMatrix(before, sample.id);
+  if (own === undefined) return changed;
+  const now = changed.matrices[own.id]?.sampleId;
+  const count = now == null ? 0 : (changed.samples[now]?.markers.length ?? 0);
+  return followLoop(before, ensureRows(changed, own.id, sample.markers.length, count, ctx.newId), own.id);
 }
 
 /**
@@ -453,10 +498,8 @@ export const setMarkers =
       if ((sorted[i]! - sorted[i - 1]!) * sample.duration < MIN_SLICE) return invalid('Markers are too close together');
     }
     if ((1 - sorted[sorted.length - 1]!) * sample.duration < MIN_SLICE) return invalid('A marker is too close to the end');
-    const own = ownMatrix(project, sampleId);
-    const changed = newTrim ? toNewTrim(project, sample, sorted, ctx) : { project: setSampleIn(project, { ...sample, markers: sorted }), sampleId };
-    if (own === undefined) return ok(changed.project);
-    return ok(followLoop(project, ensureRows(changed.project, own.id, sorted.length, ctx.newId), own.id));
+    const changed = newTrim ? toNewTrim(project, sample, { markers: sorted }, ctx) : setSampleIn(project, { ...sample, markers: sorted });
+    return ok(changeOwnRows(project, sample, changed, ctx));
   };
 
 /** Puts a sample's markers on an equal grid. */
