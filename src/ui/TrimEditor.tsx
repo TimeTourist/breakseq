@@ -20,10 +20,16 @@ const CHANNELS: [SampleChannel, string, string][] = [
 export function TrimEditor({
   sample,
   played = null,
+  transport,
 }: {
   readonly sample: Sample;
   /** Where Play (the one at the top) is in the trimmed sample, in seconds, while it plays it. */
   readonly played?: number | null;
+  /**
+   * Play in the header, which plays the open Trim, looped: given, ▶ here is
+   * that same Play, so one stops the other. Left out, ▶ auditions on its own.
+   */
+  readonly transport?: { readonly playing: boolean; readonly onToggle: () => void };
 }) {
   const project = useProject();
   const { services } = useApp();
@@ -139,16 +145,20 @@ export function TrimEditor({
           ))}
         </div>
         <div className="row push">
-          <PlayControls
-            what="trim"
-            playing={playing}
-            onToggle={() => (playing ? services.player.stopAudition() : play(loop))}
-            loop={loop}
-            onLoop={(next) => {
-              setLoop(next);
-              if (playing) play(next);
-            }}
-          />
+          {transport === undefined ? (
+            <PlayControls
+              what="trim"
+              playing={playing}
+              onToggle={() => (playing ? services.player.stopAudition() : play(loop))}
+              loop={loop}
+              onLoop={(next) => {
+                setLoop(next);
+                if (playing) play(next);
+              }}
+            />
+          ) : (
+            <PlayControls what="trim" playing={transport.playing} onToggle={transport.onToggle} title="Plays the trim looped, as Play at the top does" />
+          )}
           <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>
             Reset
           </button>

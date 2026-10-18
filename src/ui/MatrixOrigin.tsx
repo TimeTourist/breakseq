@@ -7,8 +7,8 @@ type Part = 'matrix' | 'slice' | 'trim' | 'file';
 
 /**
  * Where a matrix comes from, each part a link to where it is edited: the
- * matrix (in Hits), ← Slice, ← Trim and the file (Import), its name shortened
- * in the middle as in Import. The full names are in the titles. A matrix built
+ * matrix (in Pads, in focus), ← Slice, ← Trim and the file (Samples), its name
+ * shortened in the middle as in Samples. The full names are in the titles. A matrix built
  * by hand comes from no sample, and has only itself.
  */
 export function MatrixOrigin({ matrix, parts }: { readonly matrix: Matrix; readonly parts: readonly Part[] }) {
@@ -16,30 +16,38 @@ export function MatrixOrigin({ matrix, parts }: { readonly matrix: Matrix; reado
   const { store } = useApp();
   const open = useOpen();
   const sample = matrix.sampleId === null ? undefined : project.samples[matrix.sampleId];
-  const toImport = () => {
+  const toSamples = () => {
     if (sample === undefined) return;
+    store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
     store.dispatch({ type: 'trimming', sampleId: sample.id });
     store.dispatch({ type: 'view', view: 'samples' });
   };
   const link = (part: Part) => {
     switch (part) {
       case 'matrix':
-        return { text: `matrix ${matrix.name}`, title: 'Open the matrix in Hits', go: () => open({ matrix: matrix.id, pad: null, hit: null }, 'pads') };
+        return {
+          text: `matrix ${matrix.name}`,
+          title: 'Open the matrix in Pads',
+          go: () => {
+            store.dispatch({ type: 'focus', matrix: matrix.id });
+            open({ matrix: matrix.id, pad: null, hit: null }, 'pads');
+          },
+        };
       case 'slice':
         return sample === undefined || sample.bars === null
           ? null
           : {
               text: '← Slice',
-              title: `Open ${sliceName(sample)} in Slice`,
+              title: `Open ${sliceName(sample)} in Samples`,
               go: () => {
                 store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
                 store.dispatch({ type: 'view', view: 'samples' });
               },
             };
       case 'trim':
-        return sample === undefined ? null : { text: '← Trim', title: `Open ${trimName(sample)} in Import`, go: toImport };
+        return sample === undefined ? null : { text: '← Trim', title: `Open ${trimName(sample)} in Samples`, go: toSamples };
       case 'file':
-        return sample === undefined ? null : { text: middleEllipsis(sample.name), title: `${sample.name}, in Import`, go: toImport };
+        return sample === undefined ? null : { text: middleEllipsis(sample.name), title: `${sample.name}, in Samples`, go: toSamples };
     }
   };
   const links = parts.flatMap((p) => {

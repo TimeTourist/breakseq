@@ -8,15 +8,14 @@ import { followBrowserHistory } from './browserHistory';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
 import { HitsView } from './HitsView';
-import { ImportView } from './ImportView';
 import { isTyping } from './isTyping';
 import { LoopsView } from './LoopsView';
 import { ModsView } from './ModsView';
 import { SONG_KEY, subjectOf } from './subject';
 import type { Take } from './playback';
 import type { Services } from './services';
-import { SliceView } from './SliceView';
 import { ProjectView } from './ProjectView';
+import { SamplesView } from './SamplesView';
 import { SongView } from './SongView';
 import type { Store, View } from './store';
 import { VIEWS } from './store';
@@ -242,6 +241,8 @@ function Shell() {
   }, [services, songPlays, songLoop, step]);
 
   const start = (next: ShownTake) => {
+    // One thing plays at a time: an audition, as of a file or a slice, stops.
+    services.player.stopAudition();
     services.player.setLoop(loopRange(next.key === SONG_KEY));
     services.player.play(next.take, next.key === SONG_KEY ? store.getState().songCursor * step : 0, next.once);
     setPlayingKey(next.key);
@@ -319,10 +320,15 @@ function Shell() {
         </p>
       )}
       {view === 'samples' && (
-        <>
-          <ImportView playheadSeconds={playingKey?.startsWith('sample:') === true ? playhead.seconds : null} />
-          <SliceView />
-        </>
+        <SamplesView
+          transport={{
+            playingKey: playing && playingKey !== 'snapshot' ? playingKey : null,
+            seconds: playhead.seconds,
+            duration: playing && shown?.key === playingKey ? shown.take.buffer.duration : null,
+            onPlay: play,
+            onStop: stop,
+          }}
+        />
       )}
       {view === 'pads' && (
         <HitsView

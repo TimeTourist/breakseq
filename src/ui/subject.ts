@@ -4,6 +4,7 @@ import { hitRun, loopSong, matrixSong, modPreviewSong, padTurns } from '../engin
 import { hitsOpen } from './HitsView';
 import { currentLoopId } from './LoopsView';
 import { currentModId, previewLoopId } from './ModsView';
+import { selectedTrim } from './SamplesView';
 import type { Preview } from './services';
 import type { AppState } from './store';
 
@@ -39,9 +40,8 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
           preview: () => ({ kind: 'audio', audio: { sampleRate: trimmedAudio.sampleRate, channels: trimmedAudio.channels.map((c) => c.slice(from, to)) } }),
         };
       }
-      // Else the sample open in Slice, or the first sliced one, as its own matrix lays it out; with none, the song.
-      const sliced = Object.values(project.samples).filter((s) => s.bars !== null);
-      const sample = sliced.find((s) => s.id === state.sliceTarget) ?? sliced[0];
+      // Else the trim shown below the table, as its own matrix lays it out; with none, the song.
+      const sample = selectedTrim(project, state.sliceTarget);
       const matrix = sample === undefined ? undefined : ownMatrix(project, sample.id);
       return matrix === undefined ? song(SONG_KEY, project) : song(`matrix:${matrix.id}`, matrixSong(project, matrix.id));
     }

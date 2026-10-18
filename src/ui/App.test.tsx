@@ -72,13 +72,13 @@ describe('App', () => {
       .getAllByRole('button')
       .map((b) => b.textContent);
     expect(tabs).toEqual(['1Samples', '2Pads', '3Loops', '4Mods', '5Song', '6Project']);
-    expect(screen.getByRole('heading', { name: 'Import' })).toBeTruthy();
+    expect(heading()).toBe('Samples');
     fireEvent.keyDown(window, { key: '5' });
     expect(heading()).toBe('Song');
     fireEvent.keyDown(window, { key: '2' });
     expect(heading()).toBe('Hits');
     fireEvent.keyDown(window, { key: '1' });
-    expect(screen.getByRole('heading', { name: 'Import' })).toBeTruthy();
+    expect(heading()).toBe('Samples');
     fireEvent.keyDown(window, { key: '6' });
     expect(heading()).toBe('Project');
     // There is no seventh tab.

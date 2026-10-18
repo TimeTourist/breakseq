@@ -443,6 +443,11 @@ p {
   border-bottom: 1px solid var(--border-strong);
 }
 
+/* The trim shown below the table. */
+.sources tr.selected > td {
+  background: var(--raised);
+}
+
 .sources td.file .mono {
   white-space: nowrap;
 }
@@ -2250,6 +2255,11 @@ input[type='search'] {
 .dialog {
   max-width: 520px;
   margin: 16px;
+}
+
+/* A dialog that takes focus itself, not a button in it, shows no ring for that. */
+.dialog:focus {
+  outline: none;
 }
 
 .confirm-delete {
