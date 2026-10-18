@@ -75,3 +75,14 @@ describe('snapshots in a project folder', () => {
     expect(comparable(run(project, renameLoop(Object.keys(project.loops)[0]!, 'X')))).not.toBe(comparable(project));
   });
 });
+
+describe('a snapshot from before Matrix', () => {
+  it('is refused with a message', async () => {
+    const folder = memoryFolder();
+    const info = await saveSnapshot(folder, amen(), 'old', new Date(2026, 9, 15, 19, 20));
+    const json = JSON.parse(new TextDecoder().decode(folder.files.get(info.file)!));
+    delete json.project.matrices;
+    folder.files.set(info.file, new TextEncoder().encode(JSON.stringify(json)));
+    await expect(loadSnapshot(folder, info.file)).rejects.toThrow('This project was made before Matrix (phase 22). Open it in the tag fas-21-fore-matrix.');
+  });
+});

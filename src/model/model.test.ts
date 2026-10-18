@@ -15,7 +15,6 @@ import {
   setBpm,
   setLoopLength,
   setSongBars,
-  upgradeProject,
   apply,
   createHistory,
   createLoop,
@@ -204,19 +203,8 @@ describe('pad members', () => {
 });
 
 describe('no tags', () => {
-  it('a new project has no tags, and an old one loses its tags and the samples\' tag fields', () => {
+  it('a new project has no tags', () => {
     expect('tags' in createProject()).toBe(false);
-    const ctx = sequentialIds();
-    const base = run(createProject(), ctx, addSample({ name: 'a', audio: constantAudio(0.1) }));
-    const id = only(base.samples).id;
-    const legacy = {
-      ...base,
-      tags: { k: { id: 'k', name: 'K' } },
-      samples: { [id]: { ...base.samples[id]!, mainTag: 'k', extraTags: [], tagGuessed: true } },
-    } as unknown as Project;
-    const upgraded = upgradeProject(legacy);
-    expect('tags' in upgraded).toBe(false);
-    expect(upgraded.samples[id]).toEqual(base.samples[id]);
   });
 });
 
@@ -312,14 +300,6 @@ describe('fas 3 model', () => {
     expect(setLoopLength(loop.id, 16 * 16 + 1)(project, ctx).ok).toBe(false);
   });
 
-  it('an older loop with a bars field loses it: its length is its steps', () => {
-    const ctx = sequentialIds();
-    const project = run(createProject(), ctx, createLoop(null, 'main', 1));
-    const loop = only(project.loops);
-    const legacy = { ...project, loops: { [loop.id]: { ...loop, bars: 1 } } } as unknown as Project;
-    expect('bars' in upgradeProject(legacy).loops[loop.id]!).toBe(false);
-  });
-
   it('createLoop without a name takes the next free M or F number', () => {
     const ctx = sequentialIds();
     const project = run(createProject(), ctx, createLoop(null, 'main', 1), createLoop(null, 'main', 1), createLoop(null, 'fill', 1));
@@ -352,14 +332,6 @@ describe('fas 3 model', () => {
     expect(undo(history).present.song.bpm).toBe(120);
   });
 
-  it('upgradeProject fills in fields that older saves lack', () => {
-    const ctx = sequentialIds();
-    const project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
-    const old = structuredClone(project) as { hits: Record<string, { variantOf?: unknown }>; pads: Record<string, { auto?: unknown }> };
-    Object.values(old.hits).forEach((h) => delete h.variantOf);
-    Object.values(old.pads).forEach((p) => delete p.auto);
-    expect(upgradeProject(old as unknown as Project)).toEqual(project);
-  });
 });
 
 describe('loop kind is a tag', () => {
@@ -452,28 +424,6 @@ describe('clips', () => {
     expect(run(next, ctx, setSongBars(2)).song.clips.map((c) => [c.row, c.start, c.length])).toEqual([['main', 0, 32]]);
   });
 
-  it('a song saved with rows becomes clips that play the same', () => {
-    const ctx = sequentialIds();
-    const base = run(createProject(), ctx, createLoop('M', 'main', 2), createLoop('F', 'fill', 1), createMod('D', [{ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1] } }]));
-    const [m, f] = Object.keys(base.loops) as [string, string];
-    const d = Object.keys(base.mods)[0]!;
-    const legacy = {
-      ...base,
-      loops: { ...base.loops, [f]: { ...base.loops[f]!, window: { start: 8, end: 16 } } },
-      song: { bpm: 170, bars: 6, rows: { main: [m, null, null, null, m, null], fill: [null, null, f, null, null, null], modA: [d, d, null, d, null, null], modB: [null, null, null, null, null, null] } },
-    } as unknown as Project;
-
-    const clips = upgradeProject(legacy).song.clips.map((c) => [c.row, c.ref, c.start, c.length, c.offset]);
-
-    expect(clips).toEqual([
-      ['main', m, 0, 64, 0],
-      ['main', m, 64, 32, 0],
-      ['fill', f, 40, 8, 8],
-      ['modA', d, 0, 32, 0],
-      ['modA', d, 48, 16, 0],
-    ]);
-    expect('window' in upgradeProject(legacy).loops[f]!).toBe(false);
-  });
 });
 
 describe('mods with effects', () => {
@@ -509,39 +459,6 @@ describe('mods with effects', () => {
     expect(run(project, ctx, addClip('modA', id, 0, 8)).song.clips[0]!.length).toBe(20);
   });
 
-  it('a tape saved before ramp time, curve, wow and flutter gets their defaults', () => {
-    const base = createProject();
-    const old = { target: 'tape', length: 2, direction: 'pingpong', speed: { from: 1, to: 0 } };
-    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [old] } } } as unknown as Project;
-    expect(upgradeProject(legacy).mods.m!.effects).toEqual([{ ...old, rampOver: null, curve: 'linear', wow: 0, flutter: 0 }]);
-  });
-
-  it('a saved scope goes: a mod acts on everything under its clip in Song', () => {
-    const base = createProject();
-    const effect = { target: 'pitch', scope: { kind: 'range', from: 4, to: 7 }, rate: 'bar', shape: { kind: 'list', values: [12] } };
-    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [effect] }, n: { id: 'n', name: 'Older', ...effect } } } as unknown as Project;
-    const upgraded = upgradeProject(legacy);
-    expect(upgraded.mods.m!.effects[0]).toEqual({ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [12] } });
-    expect(upgraded.mods.n!.effects[0]).toEqual({ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [12] } });
-  });
-
-  it('a saved random shape gets whole numbers for pitch and stays free elsewhere', () => {
-    const base = createProject();
-    const random = (target: string) => ({ target, rate: 'bar', shape: { kind: 'random', min: 0, max: 4, chance: 50 } });
-    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', effects: [random('pitch'), random('volume')] } } } as unknown as Project;
-    expect(upgradeProject(legacy).mods.m!.effects.map((e) => 'shape' in e && e.shape.kind === 'random' && e.shape.whole)).toEqual([true, false]);
-  });
-
-  it('a saved Borrow becomes Swap from the stack, at random, at its rate', () => {
-    const base = createProject();
-    const oldest = { id: 'm', name: 'Old', target: 'sourceLoop', rate: 'beat', shape: { kind: 'list', values: [0, 1] }, sources: ['a', 'b'] };
-    const newer = { target: 'sourceLoop', rate: 'step', sources: ['a'], pick: { kind: 'every', n: 2 }, skipEmpty: true };
-    const legacy = { ...base, mods: { m: oldest, n: { id: 'n', name: 'Newer', effects: [newer] } } } as unknown as Project;
-    const upgraded = upgradeProject(legacy);
-    expect(upgraded.mods.m!.effects).toEqual([{ target: 'swap', rate: 'beat', mode: { kind: 'stack', pick: 'random' } }]);
-    expect(upgraded.mods.n!.effects).toEqual([{ target: 'swap', rate: 'step', mode: { kind: 'stack', pick: 'random' } }]);
-  });
-
   it('Shuffle rotates by 1 to 15', () => {
     const ctx = sequentialIds();
     const rotate = (by: number) => createMod('S', [{ target: 'swap', rate: 'step', mode: { kind: 'shuffle', pick: { kind: 'rotate', by } } }])(createProject(), ctx).ok;
@@ -555,15 +472,6 @@ describe('mods with effects', () => {
     expect(createMod('T', [{ ...tape, rampOver: 4, wow: 0.5, flutter: 1 }])(createProject(), ctx).ok).toBe(true);
   });
 
-  it('a mod saved before effects becomes a mod with that one effect', () => {
-    const base = createProject();
-    const legacy = { ...base, mods: { m: { id: 'm', name: 'Old', target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [2] } } } } as unknown as Project;
-    expect(upgradeProject(legacy).mods.m).toEqual({
-      id: 'm',
-      name: 'Old',
-      effects: [{ target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [2] } }],
-    });
-  });
 });
 
 describe('moving steps', () => {

@@ -9,10 +9,10 @@ describe('backups', () => {
     expect(backupDue(1000, 1000 + BACKUP_EVERY_MS)).toBe(true);
   });
 
-  it('sums up a project by its active snapshot, breaks, loops and clips', () => {
+  it('sums up a project by its active snapshot, samples, loops and clips', () => {
     const summary = summarize(createProject(), 'Groove');
-    expect(summary).toEqual({ snapshot: 'Groove', breaks: 0, loops: 0, clips: 0 });
-    expect(summaryText({ snapshot: null, breaks: 1, loops: 3, clips: 8 })).toBe('1 break · 3 loops · 8 clips');
+    expect(summary).toEqual({ snapshot: 'Groove', samples: 0, loops: 0, clips: 0 });
+    expect(summaryText({ snapshot: null, samples: 1, loops: 3, clips: 8 })).toBe('1 sample · 3 loops · 8 clips');
   });
 
   it('tells the time and how long ago, with the date on an earlier day', () => {

@@ -44,7 +44,6 @@ describe("the pad's choice", () => {
     expect(names(hats('top').project)).toEqual(Array.from({ length: 8 }, () => 'h1'));
   });
 
-  // TODO(fas-22 Task 6): a pad from an older project plays Top; upgradeProject is migrated there.
   it('a new pad plays Top', () => {
     const fresh = run(createProject(), createMatrix('p'));
     expect(Object.values(fresh.pads)[0]!.choice).toBe('top');

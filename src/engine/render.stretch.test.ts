@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Hit, Project, StepEffect } from '../model';
-import { NO_STRETCH, addSample, createLoop, createMod, createProject, hitSeconds, hitStretch, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit, upgradeProject } from '../model';
+import { addSample, createLoop, createMod, createProject, hitSeconds, hitStretch, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTriggers } from './generate';
 import { renderTriggers } from './render';
@@ -55,13 +55,6 @@ describe('stretch on a hit', () => {
     expect(hitStretch(project, slice(3))).toEqual({ factor: 1, grain: 30, from: 'break' });
     p = stretched(p, slice(3), { grain: 10, from: 'break' });
     expect(hitStretch(p, p.hits[slice(3).id]!)).toMatchObject({ grain: 10, from: 'break' });
-  });
-
-  it('a hit from an older project is not stretched', () => {
-    const { project, slice } = amen(120);
-    const { stretch: _gone, ...old } = slice(0);
-    void _gone;
-    expect(upgradeProject({ ...project, hits: { ...project.hits, [old.id]: old as Hit } }).hits[old.id]!.stretch).toEqual(NO_STRETCH);
   });
 
   it('a stretched hit lasts longer in Loops, at its own and its matrix stretch', () => {

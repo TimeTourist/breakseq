@@ -126,7 +126,7 @@ describe('autosave backups', () => {
     vi.useFakeTimers();
     const backups = memoryBackups();
     const old = amen();
-    await backups.add(old, { snapshot: 'Hek-tick', breaks: 1, loops: 2, clips: 3 }, Date.now());
+    await backups.add(old, { snapshot: 'Hek-tick', samples: 1, loops: 2, clips: 3 }, Date.now());
     const save = vi.fn(() => Promise.resolve());
     const store = createStore(initialState());
     render(<App store={store} services={services({ load: () => Promise.reject(new Error('broken')), save }, backups)} />);
@@ -135,7 +135,7 @@ describe('autosave backups', () => {
 
     const row = screen.getByRole('group', { name: /^Backup / });
     expect(row.textContent).toContain('Hek-tick');
-    expect(row.textContent).toContain('1 break · 2 loops · 3 clips');
+    expect(row.textContent).toContain('1 sample · 2 loops · 3 clips');
     fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
     await settle(SAVE_DEBOUNCE_MS * 2);
 

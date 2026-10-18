@@ -2,7 +2,7 @@
 import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Hit, Project, StepEffect } from '../model';
-import { NO_DIST, addSample, createLoop, createMod, createProject, hitColour, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit, upgradeProject } from '../model';
+import { addSample, createLoop, createMod, createProject, hitColour, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit } from '../model';
 import { sequentialIds } from '../test/fixtures';
 import { rms } from './colour';
 import { generateTriggers } from './generate';
@@ -64,13 +64,6 @@ describe('dist and filter on a hit', () => {
     expect(hitColour(project, project.hits[slice.id]!)).toEqual({ dist: { mode: 'crush', amount: 0.5 }, filter: { type: 'lowpass', cutoff: 800, resonance: 0.1 } });
     project = run(project, updateHit(slice.id, { dist: { mode: 'drive', amount: 0.2 } }));
     expect(hitColour(project, project.hits[slice.id]!).dist).toEqual({ mode: 'drive', amount: 0.2 });
-  });
-
-  it('a hit from an older project has none', () => {
-    const { project, hit } = shot(220);
-    const { dist: _gone, ...old } = project.hits[hit.id]!;
-    void _gone;
-    expect(upgradeProject({ ...project, hits: { [hit.id]: old as Hit } }).hits[hit.id]!.dist).toEqual(NO_DIST);
   });
 });
 
