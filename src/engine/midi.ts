@@ -48,13 +48,15 @@ const round = (x: number, places: number) => x.toFixed(places);
 
 /**
  * What makes two triggers the same sound: the sample and slice played, region,
- * pitch, volume, pan, direction, stretch, dist and filter, to a hundredth. Not
+ * fade, pitch, volume, pan, direction, stretch, dist and filter, to a hundredth. Not
  * the hit: copies that sound the same are one piece.
  */
 const soundKey = (project: Project, t: Trigger): string => {
   const hit: Hit | undefined = project.hits[t.hitId];
   return [
     hit === undefined ? t.hitId : `${hit.sampleId}:${hit.slice ?? '-'}`,
+    // Fade is applied at render from the hit and its layers; the trigger does not carry it.
+    hit === undefined ? '-' : round(effectiveHit(project, hit).fadeOut, 1),
     round(t.region.start, 6),
     round(t.region.end, 6),
     round(t.pitch, 2),

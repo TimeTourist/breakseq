@@ -251,6 +251,17 @@ describe('rows follow what pads play, in a matrix edited by hand (decision 12)',
     expect(slices).toHaveLength(16);
   });
 
+  it('new rows are named after their row, so a row removed by hand leaves no name twice', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    // Row 06 (slice 5, silent) goes; the rows after it are renumbered.
+    const removed = run(p0, removeAnyway('pad', p0.matrices[matrixId]!.pads[5]!));
+    // Seventeen slices: slice 5 gets a row again, and slice 16 one, both last.
+    const more = run(removed, setMarkers(sampleId, Array.from({ length: 17 }, (_, i) => i / 17)));
+    const names = more.matrices[matrixId]!.pads.map((p) => more.pads[p]!.name);
+    expect(names).toEqual(Array.from({ length: 17 }, (_, i) => `amen 1 ${String(i + 1).padStart(2, '0')}`));
+    expect(rowSlices(more, matrixId, sampleId).slice(15)).toEqual([5, 16]);
+  });
+
   it("un-slicing keeps pads added by hand with another sample's hits", () => {
     let { project, sampleId, matrixId } = amen(4);
     project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));

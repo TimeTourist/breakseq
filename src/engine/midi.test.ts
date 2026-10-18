@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project, StepEffect } from '../model';
-import { addSample, copyHits, createLoop, createMatrix, createMod, createProject, setBpm, setSlicing, setSongCell, setStep, stepDuration, updateHit } from '../model';
+import { addSample, copyHits, createLoop, createMatrix, createMod, createProject, setBpm, setMatrixConfig, setPadConfig, setSlicing, setSongCell, setStep, stepDuration, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
 import type { Trigger } from './generate';
@@ -30,7 +30,7 @@ function copyOfFirst(project: Project) {
   const made = run(project, createMatrix('Copies'));
   const matrix = Object.values(made.matrices).find((m) => m.name === 'Copies')!;
   const first = Object.values(made.matrices).find((m) => m.name === 'amen 1')!.pads[0]!;
-  return { project: run(made, copyHits(made.pads[first]!.members, matrix.pads[0]!)), padId: matrix.pads[0]! };
+  return { project: run(made, copyHits(made.pads[first]!.members, matrix.pads[0]!)), padId: matrix.pads[0]!, matrixId: matrix.id };
 }
 const take = (project: Project) => generateTake(project, () => 0);
 const nameOf = (project: Project, t: Trigger) => project.hits[t.hitId]!.name;
@@ -80,6 +80,26 @@ describe('MIDI plan', () => {
     const plan = midiPlan(pitched, take(pitched));
     expect(plan.pieces).toHaveLength(16);
     expect(plan.notes[2]!.piece).not.toBe(0);
+  });
+
+  it('copies with a different fade are two bits', () => {
+    const { project, m1 } = song();
+    const { project: p, padId } = copyOfFirst(project);
+    const faded = run(p, updateHit(p.pads[padId]!.members[0]!, { fadeOut: 20 }), setStep(m1.id, 2, { padId }));
+    const plan = midiPlan(faded, take(faded));
+    expect(plan.pieces).toHaveLength(16);
+    expect(plan.notes[2]!.piece).not.toBe(0);
+  });
+
+  it("copies that differ only by their pad's or matrix's config are two bits", () => {
+    const { project, m1 } = song();
+    const { project: p, padId, matrixId } = copyOfFirst(project);
+    for (const change of [setPadConfig(padId, { fadeOut: 20 }), setPadConfig(padId, { pitch: 2 }), setMatrixConfig(matrixId, { fadeOut: 30 })]) {
+      const changed = run(p, change, setStep(m1.id, 2, { padId }));
+      const plan = midiPlan(changed, take(changed));
+      expect(plan.pieces).toHaveLength(16);
+      expect(plan.notes[2]!.piece).not.toBe(0);
+    }
   });
 
   it('one-shots come after the breaks, and a note lasts until the sound ends or the next one cuts it', () => {

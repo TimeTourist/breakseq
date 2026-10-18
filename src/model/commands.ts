@@ -1,7 +1,7 @@
 import type { Command, CommandContext, CommandResult } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
 import { addClip, fitClips } from './clips';
-import { dropMatrix, dropParts, followMatrices, removeSample } from './chain';
+import { dropMatrix, dropParts, following, removeSample } from './chain';
 import { matrixSequence, matrixSteps } from './lengths';
 import { matrixOfPad, padOfHit } from './owners';
 import { renumberRows, rowName } from './names';
@@ -13,17 +13,6 @@ import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEff
 import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR } from './types';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
-
-/**
- * A command after which the matrices' own loops follow the change, each while
- * it was exactly as its matrix laid it out (`followMatrices`).
- */
-const following =
-  (command: Command): Command =>
-  (project, ctx) => {
-    const result = command(project, ctx);
-    return result.ok ? ok(followMatrices(project, result.project)) : result;
-  };
 
 // Samples
 
@@ -47,6 +36,7 @@ export const updateHit = (id: Id, patch: Patch<Omit<Hit, 'sampleId'>>): Command 
 /**
  * A variant of a hit: a new hit on the same sample with its config, marked as
  * the hit's variant and added last to the hit's pad. One undo step.
+ * Not `following`: it never changes a pad's first hit, so no layout changes.
  */
 export const addVariant =
   (id: Id, name?: string): Command =>
@@ -74,7 +64,7 @@ export const renamePad =
     return pad === undefined ? notFound(id) : ok(setPad(project, { ...pad, name }));
   };
 
-/** How the pad picks a member where no step lock or mod picks one. */
+/** How the pad picks a member where no step lock or mod picks one. Not `following`: the layout goes by the first hit. */
 export const setPadChoice =
   (id: Id, choice: PadChoice): Command =>
   (project) => {
@@ -182,8 +172,12 @@ function padCopy(project: Project, pad: Pad, name: string, pads: Record<Id, Pad>
  * along, the new place's applies. Changing a copy leaves the original, and the
  * other way round.
  */
-export const copyHits = (hitIds: readonly Id[], toPadId: Id): Command =>
-  following((project, ctx) => {
+export const copyHits = (hitIds: readonly Id[], toPadId: Id): Command => following(copyHitsTo(hitIds, toPadId));
+
+/** `copyHits` without following, for commands built on it. */
+const copyHitsTo =
+  (hitIds: readonly Id[], toPadId: Id): Command =>
+  (project, ctx) => {
     const pad = project.pads[toPadId];
     if (pad === undefined) return notFound(toPadId);
     const missing = hitIds.find((h) => project.hits[h] === undefined);
@@ -191,7 +185,7 @@ export const copyHits = (hitIds: readonly Id[], toPadId: Id): Command =>
     const hits = { ...project.hits };
     const copies = copiesOf(project, hitIds, hits, ctx);
     return ok(setPad({ ...project, hits }, { ...pad, members: [...pad.members, ...copies] }));
-  });
+  };
 
 /** Copies a pad last to a matrix: a new pad named after its row there, with its choice and config, and copies of its hits. */
 export const copyPad = (padId: Id, toMatrixId: Id): Command =>
@@ -207,12 +201,11 @@ export const copyPad = (padId: Id, toMatrixId: Id): Command =>
   });
 
 /** Copies a matrix: to a matrix, each of its pads last, named after their rows (`copyPad`); to a pad, all its hits last, pad by pad (`copyHits`). */
-export const copyMatrix =
-  (fromId: Id, to: { readonly matrixId: Id } | { readonly padId: Id }): Command =>
-  (project, ctx) => {
+export const copyMatrix = (fromId: Id, to: { readonly matrixId: Id } | { readonly padId: Id }): Command =>
+  following((project, ctx) => {
     const from = project.matrices[fromId];
     if (from === undefined) return notFound(fromId);
-    if ('padId' in to) return copyHits(from.pads.flatMap((p) => project.pads[p]?.members ?? []), to.padId)(project, ctx);
+    if ('padId' in to) return copyHitsTo(from.pads.flatMap((p) => project.pads[p]?.members ?? []), to.padId)(project, ctx);
     const matrix = project.matrices[to.matrixId];
     if (matrix === undefined) return notFound(to.matrixId);
     const pads = { ...project.pads };
@@ -222,8 +215,8 @@ export const copyMatrix =
       const pad = project.pads[p];
       if (pad !== undefined) copies.push(padCopy(project, pad, rowName(matrix.name, matrix.pads.length + copies.length), pads, hits, ctx));
     }
-    return ok(followMatrices(project, setMatrix({ ...project, pads, hits }, { ...matrix, pads: [...matrix.pads, ...copies] })));
-  };
+    return ok(setMatrix({ ...project, pads, hits }, { ...matrix, pads: [...matrix.pads, ...copies] }));
+  });
 
 /**
  * A matrix copied whole, to change apart from the original: "<name> copy",
@@ -429,7 +422,7 @@ export const swapMatrix =
     return ok({ ...project, loops: { ...project.loops, [loopId]: { ...loop, steps } } });
   };
 
-// Mods
+// Mods (not `following`: mods never change a pad's first hit, so no layout changes)
 
 /** What is wrong with an effect, or null. */
 function effectProblem(effect: ModEffect): string | null {
@@ -582,21 +575,22 @@ export const remove =
  * loop or mod leave the song. A matrix takes its pads and hits, not its loop or
  * samples (decision 9); a sample as `removeSample`.
  */
-export const removeAnyway =
-  (kind: ReferableKind, id: Id): Command =>
-  (project, ctx) => {
+export const removeAnyway = (kind: ReferableKind, id: Id): Command => (kind === 'sample' ? removeSample(id) : following(removeOther(kind, id)));
+
+/** `removeAnyway` of anything but a sample (which follows by itself), without following. */
+const removeOther =
+  (kind: Exclude<ReferableKind, 'sample'>, id: Id): Command =>
+  (project) => {
     const key = collection[kind];
     if (project[key][id] === undefined) return notFound(id);
     const none = new Set<Id>();
     switch (kind) {
-      case 'sample':
-        return removeSample(id)(project, ctx);
       case 'matrix':
         return ok(dropMatrix(project, id));
       case 'pad':
-        return ok(followMatrices(project, dropParts(project, { pads: new Set([id]), hits: none, loop: null })));
+        return ok(dropParts(project, { pads: new Set([id]), hits: none, loop: null }));
       case 'hit':
-        return ok(followMatrices(project, dropParts(project, { pads: none, hits: new Set([id]), loop: null })));
+        return ok(dropParts(project, { pads: none, hits: new Set([id]), loop: null }));
       case 'loop':
         return ok(dropParts(project, { pads: none, hits: none, loop: id }));
       case 'mod':
