@@ -63,6 +63,31 @@ export const addSample =
     return ok(addOwnMatrix(setSampleIn({ ...project, audio: { ...project.audio, [audioId]: audio } }, sample), sample, ctx));
   };
 
+export interface NewSlicedSample {
+  readonly name: string;
+  readonly audio: AudioData;
+  /** Its length in whole bars. */
+  readonly bars: number;
+  /** Where its slices start, as parts 0–1 of it. */
+  readonly markers: readonly number[];
+}
+
+/**
+ * Adds a file that is already sliced, as a REX file is: `addSample`, then
+ * `setSlicing` with its bars and markers, in one step. Its own matrix gets a
+ * pad per slice and a loop playing them, as when it is sliced in Slice.
+ * Markers closer than MIN_SLICE to the one before, or to its end, are left out.
+ */
+export const addSlicedSample =
+  ({ name, audio, bars, markers }: NewSlicedSample): Command =>
+  (project, ctx) => {
+    const added = addSample({ name, audio })(project, ctx);
+    if (!added.ok) return added;
+    const sample = Object.values(added.project.samples).find((s) => !(s.id in project.samples));
+    if (sample === undefined) return invalid('The sample was not added');
+    return setSlicing(sample.id, bars, cleanMarkers(markers, sample.duration))(added.project, ctx);
+  };
+
 /** A sample as it is once sliced, or not to be sliced: no longer waiting to be sliced. */
 function withoutUnsliced(sample: Sample): Sample {
   const { unsliced, ...rest } = sample;

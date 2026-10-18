@@ -3,6 +3,7 @@ import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Command } from './command';
 import {
   addSample,
+  addSlicedSample,
   addTrim,
   cueMarkers,
   fileSamples,
@@ -558,5 +559,28 @@ describe("Don't slice on a sliced sample", () => {
     expect(setSlicing(id, null)(start, ctx).ok).toBe(false);
     expect(unsliceTakes(start, id)).toEqual([]);
     expect(unsliceUsages(start, id)).toEqual([]);
+  });
+});
+
+describe('a file that is already sliced (REX)', () => {
+  it('is added sliced over its bars, with a pad per slice and its loop, in one step', () => {
+    const project = run(emptyProject(), addSlicedSample({ name: 'loop.rx2', audio: constantAudio(2), bars: 1, markers: [0, 0.25, 0.5, 0.75] }));
+    const sample = Object.values(project.samples)[0]!;
+    expect(sample.bars).toBe(1);
+    expect(sample.markers).toEqual([0, 0.25, 0.5, 0.75]);
+    expect(sample.unsliced).toBeUndefined();
+    const own = ownMatrix(project, sample.id)!;
+    expect(own.pads).toHaveLength(4);
+    expect(own.loop).not.toBeNull();
+    expect(matrixSequence(project, own.id).map((s) => s.step)).toEqual([0, 4, 8, 12]);
+  });
+
+  it('leaves out markers on top of each other', () => {
+    const project = run(emptyProject(), addSlicedSample({ name: 'loop.rx2', audio: constantAudio(2), bars: 1, markers: [0, 0, 0.5, 0.5000001] }));
+    expect(Object.values(project.samples)[0]!.markers).toEqual([0, 0.5]);
+  });
+
+  it('adds nothing when the audio is empty', () => {
+    expect(addSlicedSample({ name: 'loop.rx2', audio: constantAudio(0), bars: 1, markers: [0] })(emptyProject(), ctx).ok).toBe(false);
   });
 });
