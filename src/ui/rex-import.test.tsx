@@ -42,7 +42,7 @@ function services(): Services {
 }
 
 async function setup(): Promise<Store> {
-  const store = createStore({ ...initialState(createProject()), view: 'import' });
+  const store = createStore({ ...initialState(createProject()), view: 'samples' });
   render(<App store={store} services={services()} />);
   await act(async () => {});
   return store;

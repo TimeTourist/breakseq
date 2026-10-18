@@ -19,12 +19,12 @@ export function MatrixOrigin({ matrix, parts }: { readonly matrix: Matrix; reado
   const toImport = () => {
     if (sample === undefined) return;
     store.dispatch({ type: 'trimming', sampleId: sample.id });
-    store.dispatch({ type: 'view', view: 'import' });
+    store.dispatch({ type: 'view', view: 'samples' });
   };
   const link = (part: Part) => {
     switch (part) {
       case 'matrix':
-        return { text: `matrix ${matrix.name}`, title: 'Open the matrix in Hits', go: () => open({ matrix: matrix.id, pad: null, hit: null }, 'hits') };
+        return { text: `matrix ${matrix.name}`, title: 'Open the matrix in Hits', go: () => open({ matrix: matrix.id, pad: null, hit: null }, 'pads') };
       case 'slice':
         return sample === undefined || sample.bars === null
           ? null
@@ -33,7 +33,7 @@ export function MatrixOrigin({ matrix, parts }: { readonly matrix: Matrix; reado
               title: `Open ${sliceName(sample)} in Slice`,
               go: () => {
                 store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
-                store.dispatch({ type: 'view', view: 'slice' });
+                store.dispatch({ type: 'view', view: 'samples' });
               },
             };
       case 'trim':

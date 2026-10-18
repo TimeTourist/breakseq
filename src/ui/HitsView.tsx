@@ -209,7 +209,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
     while (names.has(`Matrix ${n}`)) n += 1;
     runAndOpen(createMatrix(`Matrix ${n}`), 'matrices', (id) => {
       store.dispatch({ type: 'fold', matrixIds: [id], folded: false });
-      open({ matrix: id, pad: null, hit: null }, 'hits');
+      open({ matrix: id, pad: null, hit: null }, 'pads');
     });
   };
 
@@ -260,7 +260,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                 title="The matrix: its config applies to every pad · drag onto a pad or matrix to copy it there"
                 draggable
                 onDragStart={dragStart(MATRIX_MIME, m.id)}
-                onClick={() => open({ matrix: m.id, pad: null, hit: null }, 'hits')}
+                onClick={() => open({ matrix: m.id, pad: null, hit: null }, 'pads')}
               >
                 <MatrixKindIcon kind={kind} />
                 <span className="label grow ellipsis">{m.name}</span>
@@ -287,7 +287,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                       title="Drag onto a pad or matrix to copy it there"
                       draggable
                       onDragStart={dragStart(PAD_MIME, p.id)}
-                      onClick={() => open({ pad: p.id, hit: null }, 'hits')}
+                      onClick={() => open({ pad: p.id, hit: null }, 'pads')}
                     >
                       {padLabel(p)}
                       <InSongMark heard={heard.pads.has(p.id)} />
@@ -303,7 +303,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                           title={`${h.name}${by !== null ? ` · plays ${by} instead` : ''}${i === 0 && p.choice === 'top' ? ' · plays by default' : ''} · drag onto a pad or matrix to copy it there`}
                           draggable
                           onDragStart={dragStart(HIT_MIME, id)}
-                          onClick={() => open({ pad: p.id, hit: id }, 'hits')}
+                          onClick={() => open({ pad: p.id, hit: id }, 'pads')}
                         >
                           {baseName(h.name).replace(/^.*\s(\d{2,})$/, '$1')}
                           {by !== null && `→${by}`}
@@ -329,7 +329,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
             <h1>Hits</h1>
             <p className="muted">No hits yet. Every imported sample gets a matrix with one, or make a matrix and drag hits into it.</p>
             <div className="row nav-row">
-              <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'import' })}>
+              <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'samples' })}>
                 ← Import
               </button>
             </div>
@@ -411,11 +411,11 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
           <div className="row push">
             {!picked && pad.members.length > 0 && playControls('pad')}
             {matrix !== undefined && (
-              <button type="button" title={`An empty pad last in ${matrix.name}`} onClick={() => runAndOpen(addPad(matrix.id), 'pads', (id) => open({ pad: id, hit: null }, 'hits'))}>
+              <button type="button" title={`An empty pad last in ${matrix.name}`} onClick={() => runAndOpen(addPad(matrix.id), 'pads', (id) => open({ pad: id, hit: null }, 'pads'))}>
                 + Pad
               </button>
             )}
-            <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} onDeleted={() => open({ pad: null, hit: null, matrix: matrix?.id ?? null }, 'hits')} />
+            <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} onDeleted={() => open({ pad: null, hit: null, matrix: matrix?.id ?? null }, 'pads')} />
           </div>
         </div>
         {matrix !== undefined && (
@@ -459,7 +459,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                 }}
               >
                 <span className="member-num mono">{i + 1}</span>
-                <button type="button" className="link-text mono grow ellipsis" aria-current={id === hitId ? 'true' : undefined} onClick={() => open({ pad: pad.id, hit: id }, 'hits')}>
+                <button type="button" className="link-text mono grow ellipsis" aria-current={id === hitId ? 'true' : undefined} onClick={() => open({ pad: pad.id, hit: id }, 'pads')}>
                   {baseName(h.name)}
                 </button>
                 <span className="muted small">{i === 0 && pad.choice === 'top' ? 'default' : ''}</span>
@@ -551,17 +551,17 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
           </div>
           <div className="row push">
             {playControls('matrix')}
-            <button type="button" title="An empty pad last in the matrix" onClick={() => runAndOpen(addPad(matrix.id), 'pads', (id) => open({ pad: id, hit: null }, 'hits'))}>
+            <button type="button" title="An empty pad last in the matrix" onClick={() => runAndOpen(addPad(matrix.id), 'pads', (id) => open({ pad: id, hit: null }, 'pads'))}>
               + Pad
             </button>
             <button
               type="button"
               title="A copy of the whole matrix, with its own pads and hits, to change apart from this one"
-              onClick={() => runAndOpen(cloneMatrix(matrix.id), 'matrices', (id) => open({ matrix: id, pad: null, hit: null }, 'hits'))}
+              onClick={() => runAndOpen(cloneMatrix(matrix.id), 'matrices', (id) => open({ matrix: id, pad: null, hit: null }, 'pads'))}
             >
               Clone matrix
             </button>
-            <DeleteMatrix matrix={matrix} onError={onError} onDeleted={() => open({ matrix: null, pad: null, hit: null }, 'hits')} />
+            <DeleteMatrix matrix={matrix} onError={onError} onDeleted={() => open({ matrix: null, pad: null, hit: null }, 'pads')} />
           </div>
         </div>
 
@@ -575,7 +575,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                 sample.markers.map((m, i) => {
                   const toSlice = () => {
                     store.dispatch({ type: 'sliceTarget', sampleId: sample.id, slice: i });
-                    store.dispatch({ type: 'view', view: 'slice' });
+                    store.dispatch({ type: 'view', view: 'samples' });
                   };
                   return (
                     <button
@@ -990,11 +990,11 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
             <button
               type="button"
               title="A copy of this hit in the same pad, to change: reversed, pitched, shorter"
-              onClick={() => runAndOpen(addVariant(hit.id, `${hit.name} var`), 'hits', (id) => open({ hit: id }, 'hits'))}
+              onClick={() => runAndOpen(addVariant(hit.id, `${hit.name} var`), 'hits', (id) => open({ hit: id }, 'pads'))}
             >
               Variant
             </button>
-            <Delete kind="hit" id={hit.id} name={hit.name} onError={onError} onDeleted={() => open({ hit: null }, 'hits')} />
+            <Delete kind="hit" id={hit.id} name={hit.name} onError={onError} onDeleted={() => open({ hit: null }, 'pads')} />
           </div>
         </div>
 

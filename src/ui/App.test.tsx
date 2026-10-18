@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createProject, markUnsliced, sliceSample } from '../model';
@@ -55,7 +55,7 @@ function withM1(): Project {
   return run(project, sliceSample(Object.keys(project.samples)[0]!, 1, 4));
 }
 
-async function setup(project: Project = createProject(), view: View = 'import') {
+async function setup(project: Project = createProject(), view: View = 'samples') {
   const store = createStore({ ...initialState(project), view });
   render(<App store={store} services={fakeServices()} />);
   // Let the initial (empty) load settle.
@@ -66,21 +66,44 @@ async function setup(project: Project = createProject(), view: View = 'import') 
 const heading = () => screen.getByRole('heading', { level: 1 }).textContent;
 
 describe('App', () => {
-  it('switches views with the keys 1–6', async () => {
+  it('the tabs are Samples, Pads, Loops, Mods, Song, Project on keys 1–6', async () => {
     await setup();
-    expect(heading()).toBe('Import');
-    fireEvent.keyDown(window, { key: '6' });
+    const tabs = within(screen.getByRole('navigation', { name: 'Pipeline' }))
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+    expect(tabs).toEqual(['1Samples', '2Pads', '3Loops', '4Mods', '5Song', '6Project']);
+    expect(screen.getByRole('heading', { name: 'Import' })).toBeTruthy();
+    fireEvent.keyDown(window, { key: '5' });
     expect(heading()).toBe('Song');
     fireEvent.keyDown(window, { key: '2' });
-    expect(heading()).toMatch(/^Slice/);
-    fireEvent.keyDown(window, { key: '3' });
     expect(heading()).toBe('Hits');
+    fireEvent.keyDown(window, { key: '1' });
+    expect(screen.getByRole('heading', { name: 'Import' })).toBeTruthy();
+    fireEvent.keyDown(window, { key: '6' });
+    expect(heading()).toBe('Project');
+    // There is no seventh tab.
+    fireEvent.keyDown(window, { key: '7' });
+    expect(heading()).toBe('Project');
+  });
+
+  it('keys work when a checkbox or slider has focus', async () => {
+    const store = await setup();
+    for (const type of ['checkbox', 'range']) {
+      const control = Object.assign(document.createElement('input'), { type });
+      document.body.append(control);
+      control.focus();
+      fireEvent.keyDown(control, { key: '5' });
+      expect(store.getState().view).toBe('song');
+      fireEvent.keyDown(control, { key: '1' });
+      expect(store.getState().view).toBe('samples');
+      control.remove();
+    }
   });
 
   it('ignores the number keys while typing in a field', async () => {
-    await setup();
+    const store = await setup();
     fireEvent.keyDown(screen.getByLabelText('Tempo in BPM'), { key: '6' });
-    expect(heading()).toBe('Import');
+    expect(store.getState().view).toBe('samples');
   });
 });
 
@@ -136,7 +159,7 @@ describe('Slice', () => {
   it('plays the whole sample, and the button stops it while it plays', async () => {
     const services = fakeServices();
     const project = toSlice();
-    render(<App store={createStore({ ...initialState(project), view: 'slice' })} services={services} />);
+    render(<App store={createStore({ ...initialState(project), view: 'samples' })} services={services} />);
     await act(async () => {});
     const sample = Object.values(project.samples)[0]!;
 

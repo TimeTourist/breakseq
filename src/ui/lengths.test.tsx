@@ -77,7 +77,7 @@ describe('hit lengths', () => {
   });
 
   it('Slice boxes each slice up to the next on the 1/16 grid', async () => {
-    await setup(split(), 'slice');
+    await setup(split(), 'samples');
     const strip = screen.getByLabelText('Where the slices land on the 1/16 grid');
     const cells = within(strip).getAllByLabelText(/^Step /);
     expect(cells).toHaveLength(16);
@@ -87,7 +87,7 @@ describe('hit lengths', () => {
 
   it('Slice marks a step where two slices land, since the second is dropped', async () => {
     // A step is 0.125 s: 0.3 and 0.31 both land on step 3.
-    await setup(split([0, 0.3, 0.31, 1.06]), 'slice');
+    await setup(split([0, 0.3, 0.31, 1.06]), 'samples');
     const strip = screen.getByLabelText('Where the slices land on the 1/16 grid');
     const clashes = strip.querySelectorAll('.slice-step.clash');
     expect(clashes).toHaveLength(1);

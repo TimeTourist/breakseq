@@ -65,7 +65,7 @@ function hats() {
   return { project: apply(built, setStep(loop.id, 0, { padId: pad.id })), pad, loop, hits, matrix };
 }
 
-async function setup(project: Project, view: 'hits' | 'loops', selection: Partial<Selection>) {
+async function setup(project: Project, view: 'pads' | 'loops', selection: Partial<Selection>) {
   const start = initialState(project);
   const store = createStore({ ...start, view, selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
@@ -142,7 +142,7 @@ describe('from Loops to Hits', () => {
     const { project, loop, pad, matrix } = hats();
     const store = await setup(project, 'loops', { loop: loop.id });
     fireEvent.doubleClick(screen.getByRole('button', { name: 'Pad hat' }));
-    expect(store.getState().view).toBe('hits');
+    expect(store.getState().view).toBe('pads');
     expect(store.getState().selection).toMatchObject({ pad: pad.id, matrix: matrix.id });
 
     store.dispatch({ type: 'view', view: 'loops' });
@@ -152,7 +152,7 @@ describe('from Loops to Hits', () => {
     const row = chooser.getByText('hat').closest('.pad-row')!;
     const chip = within(row as HTMLElement).getByText('h2 1');
     fireEvent.doubleClick(chip);
-    expect(store.getState().view).toBe('hits');
+    expect(store.getState().view).toBe('pads');
     expect(store.getState().selection).toMatchObject({ pad: pad.id, hit: pad.members[1], matrix: matrix.id });
   });
 });
@@ -187,7 +187,7 @@ describe('a matrix in the shelf', () => {
     expect(steps.filter((s) => s.padId === pads[1])).toHaveLength(1);
 
     fireEvent.doubleClick(chip);
-    expect(store.getState().view).toBe('hits');
+    expect(store.getState().view).toBe('pads');
     expect(store.getState().selection).toMatchObject({ matrix: matrix.id, pad: null, hit: null });
   });
 });

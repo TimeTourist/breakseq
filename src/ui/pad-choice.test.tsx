@@ -58,7 +58,7 @@ function hats() {
   return { project: apply(built, setStep(loop.id, 0, { padId: pad.id })), pad, loop, hits };
 }
 
-async function setup(project: Project, view: 'hits' | 'loops', selection: Partial<Selection>) {
+async function setup(project: Project, view: 'pads' | 'loops', selection: Partial<Selection>) {
   const start = initialState(project);
   const store = createStore({ ...start, view, selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
@@ -69,7 +69,7 @@ async function setup(project: Project, view: 'hits' | 'loops', selection: Partia
 describe("the pad's choice in the GUI", () => {
   it('Hits sets how the pad picks', async () => {
     const { project, pad } = hats();
-    const store = await setup(project, 'hits', { pad: pad.id });
+    const store = await setup(project, 'pads', { pad: pad.id });
     const group = screen.getByRole('group', { name: 'Pad plays' });
     expect(group.querySelector('[aria-pressed="true"]')?.textContent).toBe('Top');
     fireEvent.click(screen.getByRole('button', { name: 'Round robin' }));

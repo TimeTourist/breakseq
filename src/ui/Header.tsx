@@ -7,9 +7,8 @@ import type { View } from './store';
 import { VIEWS } from './store';
 
 const LABELS: Record<View, string> = {
-  import: 'Import',
-  slice: 'Slice',
-  hits: 'Hits',
+  samples: 'Samples',
+  pads: 'Pads',
   loops: 'Loops',
   mods: 'Mods',
   song: 'Song',

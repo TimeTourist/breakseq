@@ -57,7 +57,7 @@ function amenAndSnares(): Project {
 }
 
 async function setup(project: Project): Promise<Store> {
-  const store = createStore({ ...initialState(project), view: 'slice' });
+  const store = createStore({ ...initialState(project), view: 'samples' });
   render(<App store={store} services={services()} />);
   await act(async () => {});
   return store;

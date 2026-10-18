@@ -49,7 +49,7 @@ function apply(project: Project, ...commands: Command[]): Project {
 
 async function open(project: Project, selection: { matrix?: string; hit?: string }) {
   const start = initialState(project);
-  const store = createStore({ ...start, view: 'hits', selection: { ...start.selection, ...selection } });
+  const store = createStore({ ...start, view: 'pads', selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
   await act(async () => {});
   return store;
@@ -84,7 +84,7 @@ describe('slice lines on the matrix in Hits', () => {
     const store = await open(project, { matrix: matrixOf(project).id });
     fireEvent.doubleClick(screen.getByLabelText(/^Slice 03:/));
     await act(async () => {});
-    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: sample.id, sliceSelected: 2 });
+    expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample.id, sliceSelected: 2 });
     expect(screen.getByRole('button', { name: /^Marker 03 at/ }).getAttribute('aria-pressed')).toBe('true');
   });
 });

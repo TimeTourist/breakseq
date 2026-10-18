@@ -141,12 +141,12 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     const own = ownMatrix(project, sampleId);
     if (own === undefined) return;
     const pad = own.pads.length === 1 ? own.pads[0]! : null;
-    open({ matrix: own.id, pad, hit: null }, 'hits');
+    open({ matrix: own.id, pad, hit: null }, 'pads');
   };
 
   const goSlice = (id: string) => {
     store.dispatch({ type: 'sliceTarget', sampleId: id });
-    store.dispatch({ type: 'view', view: 'slice' });
+    store.dispatch({ type: 'view', view: 'samples' });
   };
 
   return (
