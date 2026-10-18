@@ -254,7 +254,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
               )}
               <button
                 type="button"
-                className="list-item break-head grow"
+                className="list-item matrix-head grow"
                 aria-label={`Matrix ${m.name}`}
                 aria-current={matrixOpen?.id === m.id ? 'true' : undefined}
                 title="The matrix: its config applies to every pad · drag onto a pad or matrix to copy it there"
@@ -472,7 +472,7 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                 <button type="button" className="icon-button small" aria-label={`Move ${h.name} down`} disabled={i === pad.members.length - 1} onClick={() => move(id, i + 1)}>
                   ↓
                 </button>
-                <button type="button" className="icon-button small" aria-label={`Remove ${h.name} from pad`} onClick={() => onError(run(removePadMember(pad.id, id)))}>
+                <button type="button" className="icon-button small" aria-label={`Delete ${h.name}`} title={`Delete ${h.name}`} onClick={() => onError(run(removePadMember(pad.id, id)))}>
                   ×
                 </button>
               </li>
@@ -769,10 +769,10 @@ export function HitsView({ transport }: { readonly transport: HitsPlay }) {
                 key={from}
                 type="button"
                 aria-pressed={stretch.from === from || (!hasAbove && stretch.from === null && from === 'break')}
-                title={from === 'break' ? 'A grid from the start of the sample, like a sampler stretching the whole break' : 'Grains start with the hit, for clean attacks'}
+                title={from === 'break' ? 'A grid from the start of the sample, like a sampler stretching the whole sample' : 'Grains start with the hit, for clean attacks'}
                 onClick={() => set({ from }, 'from')}
               >
-                {from === 'break' ? 'Break' : 'Hit'}
+                {from === 'break' ? 'Sample' : 'Hit'}
               </button>
             ))}
           </div>

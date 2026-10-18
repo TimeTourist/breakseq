@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addClip, addSample, cloneMatrix, createProject, setBpm, setHitSource, setSlicing } from '../model';
+import { addClip, addSample, addTrim, createProject, setBpm, setHitSource, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -221,39 +221,48 @@ describe('Delete matrix', () => {
   });
 });
 
-// TODO(fas-22 Task 7b): Import's Delete (trims via removeSample); only the model names are switched here.
 describe('Delete in Import', () => {
-  it('in Import asks even for a break nothing else uses, listing what goes with it', async () => {
-    const p = split(cloneMatrix(matrixOf(split()).id));
-    const { store } = await setup(p, { view: 'import' });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1 copy' }));
+  /** split with a second trim of the file, which nothing else uses. */
+  const twoTrims = () => split(addTrim(sampleOf(split()).id));
+
+  it('in Import asks even for a trim nothing else uses, listing what goes with it', async () => {
+    const { store } = await setup(twoTrims(), { view: 'import' });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 2' }));
     const dialog = deleteDialog();
-    expect(dialog.getAttribute('aria-label')).toBe('Delete amen 1 copy?');
-    expect(within(dialog).getByText('loop amen 1 copy')).toBeTruthy();
+    expect(dialog.getAttribute('aria-label')).toBe('Delete amen trim 2?');
+    expect(within(dialog).getByText('matrix amen 2')).toBeTruthy();
     expect(within(dialog).queryByText('Goes silent in')).toBeNull();
     answer(true);
-    expect(Object.values(store.getState().history.present.matrices).map((b) => b.name)).toEqual(['amen 1']);
+    expect(Object.values(store.getState().history.present.matrices).map((m) => m.name)).toEqual(['amen 1']);
+    expect(Object.values(store.getState().history.present.samples).map((s) => s.trim)).toEqual([1]);
+  });
+
+  it('a trim heard in the song lists where it goes silent', async () => {
+    await setup(split(), { view: 'import' });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 1' }));
+    expect(within(deleteDialog()).getByText('Song')).toBeTruthy();
+    expect(within(deleteDialog()).getByText('4 pads')).toBeTruthy();
   });
 
   it('Escape closes the dialog without deleting', async () => {
-    const p = split();
-    const { store } = await setup(p, { view: 'import' });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete break amen 1' }));
+    const { store } = await setup(split(), { view: 'import' });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 1' }));
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(Object.keys(store.getState().history.present.matrices)).toHaveLength(1);
+    expect(Object.keys(store.getState().history.present.samples)).toHaveLength(1);
   });
 
   it('Delete file in Import takes every trim of the file, after asking', async () => {
-    const p = split(cloneMatrix(matrixOf(split()).id));
-    const { store } = await setup(p, { view: 'import' });
+    const { store } = await setup(twoTrims(), { view: 'import' });
     fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
     answer(false);
-    expect(Object.keys(store.getState().history.present.matrices)).toHaveLength(2);
+    expect(Object.keys(store.getState().history.present.samples)).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
-    expect(within(deleteDialog()).getByText('break amen 1 (16 pads, 17 hits, loop amen 1)')).toBeTruthy();
+    expect(within(deleteDialog()).getByText('amen trim 1 (matrix amen 1, 4 pads, 4 hits)')).toBeTruthy();
+    expect(within(deleteDialog()).getByText('amen trim 2 (matrix amen 2, 1 pad, 1 hit)')).toBeTruthy();
     answer(true);
     expect(store.getState().history.present.matrices).toEqual({});
+    expect(store.getState().history.present.samples).toEqual({});
     expect(store.getState().history.present.audio).toEqual({});
   });
 });

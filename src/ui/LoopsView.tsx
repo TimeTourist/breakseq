@@ -1,18 +1,31 @@
 import { Fragment, useState } from 'react';
 import type { Trigger } from '../engine';
 import type { Id, LoopKind, Project } from '../model';
-import { STEPS_PER_BAR, baseName, createLoop, holds, holdsIn, loopBreaks, moveSteps, placeBreak, renameLoop, sequence, setLoopKind, setStep, slotHeard, swapBreak } from '../model';
-import { STEP_MIME, copies, useDropTargets } from './dnd';
+import {
+  STEPS_PER_BAR,
+  baseName,
+  createLoop,
+  holds,
+  holdsIn,
+  loopMatrices,
+  matrixOfPad,
+  matrixSteps,
+  moveSteps,
+  padSteps,
+  placeMatrix,
+  renameLoop,
+  sequence,
+  setLoopKind,
+  setStep,
+  swapMatrix,
+} from '../model';
+import { MATRIX_MIME, PAD_MIME, STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { CHOICE_LABEL, HIT_COLOR, lengthText, padGroups, padLabel, padSteps, replacedBy } from './labels';
+import { CHOICE_LABEL, HIT_COLOR, lengthText, padGroups, padLabel, padSilent, replacedBy } from './labels';
 import { LoopLength } from './LoopLength';
 import { Delete } from './DeleteButton';
 import { InSong, InSongMark, useHeard } from './InSong';
 import type { Selection } from './store';
-
-export const PAD_MIME = 'application/x-breakseq-pad';
-/** A break's parent: dropping it lays out all its slices. */
-export const BREAK_MIME = 'application/x-breakseq-break';
 
 /** The loop open in Loops: the selected one, else the first. */
 export function currentLoopId(project: Project, selection: Selection): Id | null {
@@ -20,8 +33,8 @@ export function currentLoopId(project: Project, selection: Selection): Id | null
   return Object.keys(project.loops)[0] ?? null;
 }
 
-/** What the shelf's hide and fold remember a group by: its break, or its name ("One-shots", "Built"). */
-const groupKey = (group: { readonly name: string; readonly breakId?: Id }): string => group.breakId ?? group.name;
+/** What the shelf's hide and fold remember a group by: its matrix, or its name ("One-shots"). */
+const groupKey = (group: { readonly name: string; readonly matrixId?: Id }): string => group.matrixId ?? group.name;
 
 interface LoopsViewProps {
   /** The trigger under the playhead while the loop plays. */
@@ -39,7 +52,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const shelfHidden = useSelect((s) => s.shelfHidden);
   const shelfOpen = useSelect((s) => s.shelfOpen);
   const [shelfPad, setShelfPad] = useState<Id | null>(null);
-  const [shelfBreak, setShelfBreak] = useState<Id | null>(null);
+  const [shelfMatrix, setShelfMatrix] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
   const drops = useDropTargets();
   /** How many steps what is dragged from the shelf takes, to show where it lands. */
@@ -55,11 +68,13 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const overStep = drops.over?.startsWith('step:') === true ? Number(drops.over.slice('step:'.length)) : null;
   const landing =
     loop === undefined || dragSteps === null || overStep === null ? null : { start: overStep, length: Math.min(dragSteps, loop.steps.length - overStep) };
-  /** Slot pads past their break's last slice: they play nothing until it has more. */
-  const silent = new Set(Object.values(project.breaks).flatMap((b) => b.pads.filter((_, slot) => !slotHeard(b, slot))));
-  const swappable = Object.values(project.breaks);
+  /** Pads past their sample's last slice: they play nothing until it has more. */
+  const silent = new Set(Object.values(project.pads).filter((p) => padSilent(project, p)).map((p) => p.id));
+  const swappable = Object.values(project.matrices);
   const groups = padGroups(project);
-  const breakSteps = (id: Id) => (project.breaks[id]?.bars ?? 1) * STEPS_PER_BAR;
+  /** Opens a pad, or a hit in it, in Hits, with the matrix it is a row of. */
+  const openPad = (padId: Id, hit: Id | null = null) => open({ pad: padId, hit, matrix: matrixOfPad(project, padId)?.id ?? null }, 'hits');
+  const openMatrix = (matrixId: Id) => open({ matrix: matrixId, pad: null, hit: null }, 'hits');
   const allOpen = groups.length > 0 && groups.every((g) => shelfOpen.includes(groupKey(g)));
 
   const newLoop = (kind: LoopKind) => {
@@ -129,14 +144,9 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   />
                   <span
                     className="label grow ellipsis"
-                    title={group.breakId === undefined ? undefined : 'Click to play it once, double-click to edit it in Hits'}
-                    onClick={() => {
-                      const parent = group.breakId === undefined ? null : project.breaks[group.breakId]?.parent;
-                      if (parent != null) services.player.playHit(project, parent);
-                    }}
+                    title={group.matrixId === undefined ? undefined : 'Double-click to edit the matrix in Hits'}
                     onDoubleClick={() => {
-                      const parent = group.breakId === undefined ? null : project.breaks[group.breakId]?.parent;
-                      if (parent != null) open({ hit: parent, pad: null }, 'hits');
+                      if (group.matrixId !== undefined) openMatrix(group.matrixId);
                     }}
                   >
                     {group.name}
@@ -146,7 +156,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
               </div>
               {opened && group.items.map((p) => (
                 <div key={p.id} className={`pad-row${silent.has(p.id) ? ' silent' : ''}`}>
-                  <span className="pad-row-name mono" title="Double-click to edit in Hits" onDoubleClick={() => open({ pad: p.id, hit: null }, 'hits')}>
+                  <span className="pad-row-name mono" title="Double-click to edit in Hits" onDoubleClick={() => openPad(p.id)}>
                   {padLabel(p)}
                 </span>
                   {p.members.map((m, i) => {
@@ -158,7 +168,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`}
                       title={`${h.name} · click to play it once, double-click to edit it in Hits`}
                       onClick={() => services.player.playHit(project, m)}
-                      onDoubleClick={() => open({ pad: p.id, hit: m }, 'hits')}
+                      onDoubleClick={() => openPad(p.id, m)}
                     >
                         {baseName(h.name).replace(/^.*\s(\d{2,})$/, '$1')}
                         {by !== null && `→${by}`}
@@ -182,7 +192,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
         <main className="view">
           <div className="view-head">
             <h1>Loops</h1>
-            <p className="muted">No loops yet. Slice a break to get its loop, or make a new loop.</p>
+            <p className="muted">No loops yet. Slice a sample to get its loop, or make a new loop.</p>
           <div className="row nav-row">
             <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'slice' })}>
               ← Slice
@@ -213,11 +223,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   };
   /** A pad from the shelf, or another step: moved, or copied with Ctrl (or Alt). */
   const dropOnStep = (index: number) =>
-    drops.bind(`step:${index}`, [PAD_MIME, BREAK_MIME, STEP_MIME], (e, type) => {
+    drops.bind(`step:${index}`, [PAD_MIME, MATRIX_MIME, STEP_MIME], (e, type) => {
       if (type === PAD_MIME) {
         place(index, e.dataTransfer.getData(PAD_MIME));
-      } else if (type === BREAK_MIME) {
-        setError(run(placeBreak(loop.id, e.dataTransfer.getData(BREAK_MIME), index)));
+      } else if (type === MATRIX_MIME) {
+        setError(run(placeMatrix(loop.id, e.dataTransfer.getData(MATRIX_MIME), index)));
       } else {
         // A block of steps, grabbed at one of them: that one lands here.
         const { from, count, grab } = JSON.parse(e.dataTransfer.getData(STEP_MIME)) as { from: number; count: number; grab: number };
@@ -237,13 +247,13 @@ export function LoopsView({ playhead }: LoopsViewProps) {
     });
   const clickStep = (index: number, shift: boolean) => {
     // Shift-click selects every step from the selected one to here.
-    if (shift && selectedStep !== null && shelfPad === null && shelfBreak === null) {
+    if (shift && selectedStep !== null && shelfPad === null && shelfMatrix === null) {
       setRangeEnd(index === selectedStep ? null : index);
       return;
     }
     setRangeEnd(null);
     if (shelfPad !== null) place(index, shelfPad);
-    if (shelfBreak !== null) setError(run(placeBreak(loop.id, shelfBreak, index)));
+    if (shelfMatrix !== null) setError(run(placeMatrix(loop.id, shelfMatrix, index)));
     open({ step: index }, 'loops');
   };
 
@@ -289,36 +299,28 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           </p>
         )}
 
-        {loopBreaks(project, loop).length > 0 && swappable.length > 1 && (
-          <div className="row break-swaps" aria-label="Breaks in the loop">
-            {loopBreaks(project, loop).map((b) => (
-              <div key={b.id} className="field inline">
-                <span className="muted">Break</span>
-                <button
-                  type="button"
-                  className="link-text mono"
-                  title="Open the break in Hits"
-                  onClick={() => {
-                    const hit = b.parent ?? project.pads[b.pads[0] ?? '']?.members[0];
-                    if (hit !== undefined) open({ hit, pad: null }, 'hits');
-                  }}
-                >
-                  {b.name}
+        {loopMatrices(project, loop).length > 0 && swappable.length > 1 && (
+          <div className="row matrix-swaps" aria-label="Matrices in the loop">
+            {loopMatrices(project, loop).map((m) => (
+              <div key={m.id} className="field inline">
+                <span className="muted">Matrix</span>
+                <button type="button" className="link-text mono" title="Open the matrix in Hits" onClick={() => openMatrix(m.id)}>
+                  {m.name}
                 </button>
                 →
                 <select
-                  aria-label={`Swap ${b.name} for`}
+                  aria-label={`Swap ${m.name} for`}
                   value=""
                   onChange={(e) => {
-                    if (e.target.value !== '') setError(run(swapBreak(loop.id, b.id, e.target.value)));
+                    if (e.target.value !== '') setError(run(swapMatrix(loop.id, m.id, e.target.value)));
                   }}
                 >
                   <option value="">swap for…</option>
                   {swappable
-                    .filter((o) => o.id !== b.id)
+                    .filter((o) => o.id !== m.id)
                     .map((o) => (
                       <option key={o.id} value={o.id}>
-                        {o.bars === null ? `${o.name} (one-shot)` : o.name}
+                        {o.name}
                       </option>
                     ))}
                 </select>
@@ -365,7 +367,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       aria-label={`Bar ${bar + 1}, step ${s + 1}: ${pad === undefined ? 'empty' : cell?.memberId == null && pad.choice !== 'top' ? `${pad.name}, ${CHOICE_LABEL[pad.choice].toLowerCase()}` : `${pad.name}, member ${memberIndex + 1}`}`}
                       onClick={(e) => clickStep(index, e.shiftKey)}
                       onDoubleClick={() => {
-                        if (pad !== undefined) open({ pad: pad.id, hit: null }, 'hits');
+                        if (pad !== undefined) openPad(pad.id);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -407,76 +409,74 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             <p className="muted small">Nothing ticked under Show in Pads, to the left.</p>
           )}
           {groups.filter((group) => !shelfHidden.includes(groupKey(group))).map((group) => (
-            <div key={group.breakId ?? group.name} className="shelf-group">
+            <div key={groupKey(group)} className="shelf-group">
               <span className="muted small shelf-label ellipsis" title={group.name}>
                 {group.name}
               </span>
               <div className="row">
-                {group.breakId !== undefined && (
+                {group.matrixId !== undefined && (() => {
+                  const matrixId = group.matrixId;
+                  return (
                   <button
                     type="button"
                     draggable
                     className="chip parent-chip"
-                    aria-pressed={shelfBreak === group.breakId}
-                    aria-label={`Break ${group.name}: lay out all its slices`}
-                    title="The whole break: lays out all its slices from the step. Double-click to edit it in Hits"
-                    onDoubleClick={() => {
-                      const parent = project.breaks[group.breakId!]?.parent;
-                      if (parent != null) open({ hit: parent, pad: null }, 'hits');
-                    }}
+                    aria-pressed={shelfMatrix === matrixId}
+                    aria-label={`Matrix ${group.name}: lay out all its pads`}
+                    title="The whole matrix: lays out its pads one after another from the step. Double-click to edit it in Hits"
+                    onDoubleClick={() => openMatrix(matrixId)}
                     onClick={() => {
-                      setShelfBreak(shelfBreak === group.breakId ? null : (group.breakId ?? null));
+                      setShelfMatrix(shelfMatrix === matrixId ? null : matrixId);
                       setShelfPad(null);
-                      const parent = project.breaks[group.breakId!]?.parent;
-                      if (parent != null) services.player.playHit(project, parent);
                     }}
                     onDragStart={(e) => {
-                      e.dataTransfer.setData(BREAK_MIME, group.breakId!);
+                      e.dataTransfer.setData(MATRIX_MIME, matrixId);
                       e.dataTransfer.effectAllowed = 'copy';
-                      setDragSteps(breakSteps(group.breakId!));
+                      setDragSteps(matrixSteps(project, matrixId));
                     }}
                     onDragEnd={() => {
                       setDragSteps(null);
                       drops.clear();
                     }}
                   >
-                    {baseName(group.name)} ▸ all <span className="chip-steps">{lengthText(breakSteps(group.breakId!))}</span>
+                    {baseName(group.name)} ▸ all <span className="chip-steps">{lengthText(matrixSteps(project, matrixId))}</span>
                   </button>
-                )}
+                  );
+                })()}
                 {group.items.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     draggable
                     className={`chip mono${silent.has(p.id) ? ' silent' : ''}`}
-                    onDoubleClick={() => open({ pad: p.id, hit: null }, 'hits')}
+                    onDoubleClick={() => openPad(p.id)}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
-                    title={silent.has(p.id) ? `${p.name}: silent, the break has fewer slices` : `${p.name} · ${lengthText(padSteps(project, p))} · double-click to edit in Hits`}
+                    title={silent.has(p.id) ? `${p.name}: silent, its sample has fewer slices` : `${p.name} · ${lengthText(Math.max(1, padSteps(project, p)))} · double-click to edit in Hits`}
                     style={{ color: HIT_COLOR, boxShadow: `inset 0 -3px 0 ${HIT_COLOR}` }}
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);
-                      setShelfBreak(null);
+                      setShelfMatrix(null);
                       if (p.members[0] !== undefined) services.player.playHit(project, p.members[0]);
                     }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData(PAD_MIME, p.id);
                       e.dataTransfer.effectAllowed = 'copy';
-                      setDragSteps(padSteps(project, p));
+                      setDragSteps(Math.max(1, padSteps(project, p)));
                     }}
                     onDragEnd={() => {
                       setDragSteps(null);
                       drops.clear();
                     }}
                   >
-                    {padLabel(p)} <span className="chip-steps">·{padSteps(project, p)}</span>
+                    {padLabel(p)} <span className="chip-steps">·{Math.max(1, padSteps(project, p))}</span>
                   </button>
                 ))}
               </div>
             </div>
           ))}
           </div>
-          <p className="muted small">Drag a pad onto a step, or select it and click steps. A click plays it once; a double-click edits it in Hits.</p>
+          <p className="muted small">Drag a pad or a whole matrix onto a step, or select it and click steps. A click on a pad plays it once; a double-click edits it in Hits.</p>
         </section>
       </main>
 
@@ -497,7 +497,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   <span className="mono" style={{ color: HIT_COLOR }}>
                     {stepPad.name}
                   </span>
-                  <button type="button" className="link-text small" onClick={() => open({ pad: stepPad.id, hit: null }, 'hits')}>
+                  <button type="button" className="link-text small" onClick={() => openPad(stepPad.id)}>
                     Hits →
                   </button>
                 </div>

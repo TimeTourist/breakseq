@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, setBpm, setBreak, setMarkers } from '../model';
+import { addSample, createProject, setBpm, setSlicing, setMarkers } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player } from './playback';
@@ -50,8 +50,8 @@ function split(markers: number[] = [0, 0.25, 0.5]): Project {
     if (!r.ok) throw new Error(JSON.stringify(r.error));
     return r.project;
   }, createProject());
-  const id = Object.keys(project.breaks)[0]!;
-  for (const c of [setBreak(id, 1), setMarkers(id, markers.map((m) => m / 2))]) {
+  const id = Object.keys(project.samples)[0]!;
+  for (const c of [setSlicing(id, 1), setMarkers(id, markers.map((m) => m / 2))]) {
     const r = c(project, ctx);
     if (!r.ok) throw new Error(JSON.stringify(r.error));
     project = r.project;
@@ -68,7 +68,7 @@ async function setup(project: Project, view: View) {
 const boxes = (row: Element) => [...row.querySelectorAll<HTMLElement>('.hold')].map((b) => b.style.gridColumn);
 
 describe('hit lengths', () => {
-  it('Loops boxes each slice of the laid out parent up to the next: 2, 2 and 12 steps', async () => {
+  it('Loops boxes each slice of the laid out matrix up to the next: 2, 2 and 12 steps', async () => {
     await setup(split(), 'loops');
     const steps = screen.getAllByRole('button', { name: /^Bar 1, step \d+:/ });
     expect(steps).toHaveLength(16);

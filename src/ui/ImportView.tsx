@@ -1,32 +1,54 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import type { Break, Loop, Project } from '../model';
-import { addSample, addTrim, bpmOf, breakTakes, fileBreaks, fileUsages, isUnsliced, makeOneShot, markBreak, oneShotTakes, oneShotUsages, removeFile, sliceName, trimName, unlikelyBpm } from '../model';
+import type { Id, Loop, Project, Sample } from '../model';
+import {
+  addSample,
+  addTrim,
+  fileSamples,
+  fileUsages,
+  findUsages,
+  isUnsliced,
+  markUnsliced,
+  ownMatrix,
+  removeFile,
+  removeSample,
+  sampleBpm,
+  sampleTakes,
+  setSlicing,
+  sliceName,
+  trimName,
+  unlikelyBpm,
+  unsliceTakes,
+  unsliceUsages,
+} from '../model';
 import { decodeAudioFile, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
-// TODO(fas-22 Task 7b): use DeleteMatrix (props matrix) or removeSample here; aliased so the module resolves until then.
-import { DeleteMatrix as DeleteBreak } from './DeleteMatrix';
 import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
 import { TrimEditor } from './TrimEditor';
 import { InSong, useHeard } from './InSong';
 import { middleEllipsis } from './labels';
 
-/** Every break, in import order: each imported file is one, a one-shot being a break with one slot. */
-export const sources = (project: Project): Break[] => Object.values(project.breaks);
+/** Every sample (trim), in import order. */
+export const sources = (project: Project): Sample[] => Object.values(project.samples);
 
-/** The loops that play a break's pads, its own loop first. */
-export function breakLoops(project: Project, brk: Break): Loop[] {
-  const pads = new Set(brk.pads);
-  const own = brk.loop === null ? undefined : project.loops[brk.loop];
-  const others = Object.values(project.loops).filter((l) => l.id !== brk.loop && l.steps.some((st) => st.padId !== null && pads.has(st.padId)));
-  return [...(own === undefined ? [] : [own]), ...others];
+/** The loops that play the pads of a sample's own matrix, its own loop first. */
+export function sampleLoops(project: Project, sampleId: Id): Loop[] {
+  const own = ownMatrix(project, sampleId);
+  if (own === undefined) return [];
+  const pads = new Set(own.pads);
+  const first = own.loop === null ? undefined : project.loops[own.loop];
+  const others = Object.values(project.loops).filter((l) => l.id !== own.loop && l.steps.some((st) => st.padId !== null && pads.has(st.padId)));
+  return [...(first === undefined ? [] : [first]), ...others];
 }
 
-/** The breaks grouped by file, files in import order and each file's trims in trim order. */
-function files(project: Project): [string, Break[]][] {
-  const order = [...new Set(sources(project).flatMap((b) => project.samples[b.sampleId]?.audioId ?? []))];
-  return order.map((audioId) => [audioId, fileBreaks(project, audioId)]);
+/** The samples grouped by file, files in import order and each file's trims in trim order. */
+function files(project: Project): [string, Sample[]][] {
+  const order = [...new Set(sources(project).map((s) => s.audioId))];
+  return order.map((audioId) => [audioId, fileSamples(project, audioId)]);
 }
+
+/** What a sample is called in Import: its own matrix's name, or its trim's when that is gone. */
+const sampleLabel = (project: Project, sample: Sample): string => ownMatrix(project, sample.id)?.name ?? trimName(sample);
 
 interface ImportViewProps {
   /** Where Play is in the open Trim's sample, in seconds from its start, while it plays it. */
@@ -45,9 +67,11 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
   const trimming = useSelect((s) => s.trimming);
   // The file whose ▶ plays it whole, once.
   const [previewing, setPreviewing] = useState<string | null>(null);
-  /** The sliced break One-shot is asking about. */
-  const [toOneShot, setToOneShot] = useState<string | null>(null);
-  const asked = toOneShot === null ? undefined : project.breaks[toOneShot];
+  /** The sliced sample Don't slice is asking about. */
+  const [toUnslice, setToUnslice] = useState<string | null>(null);
+  const asked = toUnslice === null ? undefined : project.samples[toUnslice];
+  /** The samples a hit heard in the song plays. */
+  const heardSamples = new Set([...heard.hits].flatMap((h) => project.hits[h]?.sampleId ?? []));
   useEffect(() => {
     if (previewing === null) return;
     return () => services.player.stopAudition();
@@ -62,7 +86,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     setPreviewing(audioId);
     services.player.audition(audio, 0, (audio.channels[0]?.length ?? 0) / audio.sampleRate, () => setPreviewing((p) => (p === audioId ? null : p)), false);
   };
-  const setTrimming = (breakId: string | null) => store.dispatch({ type: 'trimming', breakId });
+  const setTrimming = (sampleId: string | null) => store.dispatch({ type: 'trimming', sampleId });
   // A Trim opened from elsewhere, as from Slice, is brought into view.
   const trimCell = useRef<HTMLTableCellElement>(null);
   // A click anywhere but the open Trim, its row, the header, a dialog or a button in the table closes it.
@@ -71,7 +95,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     if (trimming === null) return;
     const onDown = (e: PointerEvent) => {
       if (e.target instanceof Element && e.target.closest('[data-trim-open], .header, .dialog-backdrop, .sources button') !== null) return;
-      store.dispatch({ type: 'trimming', breakId: null });
+      store.dispatch({ type: 'trimming', sampleId: null });
     };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
@@ -93,7 +117,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
       try {
         const bytes = await file.arrayBuffer();
         const audio = decodeAudioFile(bytes);
-        // A WAV with cue markers becomes a break, not sliced: Slice offers its cues.
+        // A WAV with cue markers is marked Slice, not sliced: Slice offers its cues.
         const error = run(addSample({ name: file.name, audio, cues: readCues(bytes) }));
         if (error !== null) failed.push(`${file.name}: ${error}`);
       } catch (e) {
@@ -103,14 +127,16 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     setErrors(failed);
   };
 
-  /** A one-shot's own hit, open in Hits. */
-  const goHit = (id: string) => {
-    const hit = project.pads[project.breaks[id]?.pads[0] ?? '']?.members[0];
-    if (hit !== undefined) store.dispatch({ type: 'select', selection: { hit, pad: null }, view: 'hits' });
+  /** A sample's own matrix, open in Hits: a sliced one on its own, a sample not sliced on its one pad. */
+  const goHits = (sampleId: string) => {
+    const own = ownMatrix(project, sampleId);
+    if (own === undefined) return;
+    const pad = own.pads.length === 1 ? own.pads[0]! : null;
+    open({ matrix: own.id, pad, hit: null }, 'hits');
   };
 
   const goSlice = (id: string) => {
-    store.dispatch({ type: 'sliceTarget', breakId: id });
+    store.dispatch({ type: 'sliceTarget', sampleId: id });
     store.dispatch({ type: 'view', view: 'slice' });
   };
 
@@ -118,7 +144,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     <main className="view">
       <div className="view-head">
         <h1>Import</h1>
-        <p className="muted">Every file gets a hit and a pad. Breaks continue to Slice.</p>
+        <p className="muted">Every file gets a matrix with a pad and a hit. Samples to slice continue to Slice.</p>
       </div>
 
       <div
@@ -179,25 +205,25 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                   <th>Creates</th>
                 </tr>
               </thead>
-              {files(project).map(([audioId, breaks]) => (
+              {files(project).map(([audioId, samples]) => (
                 <tbody key={audioId} className="file-group">
-                  {breaks.map((brk, i) => {
-                    const sample = project.samples[brk.sampleId];
-                    if (sample === undefined) return null;
-                    const bpm = bpmOf(project, brk);
-                    const loops = breakLoops(project, brk);
+                  {samples.map((sample, i) => {
+                    const name = sampleLabel(project, sample);
+                    const own = ownMatrix(project, sample.id);
+                    const bpm = sampleBpm(sample);
+                    const loops = sampleLoops(project, sample.id);
                     const loop = loops[0];
-                    const hit = brk.parent ?? project.pads[brk.pads[0] ?? '']?.members[0];
-                    const unsliced = isUnsliced(brk);
+                    const unsliced = isUnsliced(sample);
+                    const sliced = sample.bars !== null;
                     return (
-                      <Fragment key={brk.id}>
+                      <Fragment key={sample.id}>
                         <tr
-                          data-trim-open={trimming === brk.id || undefined}
-                          title={brk.bars === null && !unsliced ? 'Double-click to edit the hit' : 'Double-click to slice'}
+                          data-trim-open={trimming === sample.id || undefined}
+                          title={!sliced && !unsliced ? 'Double-click to edit it in Hits' : 'Double-click to slice'}
                           onDoubleClick={(e) => {
                             if ((e.target as HTMLElement).closest('button, input') !== null) return;
-                            if (brk.bars !== null || unsliced) goSlice(brk.id);
-                            else goHit(brk.id);
+                            if (sliced || unsliced) goSlice(sample.id);
+                            else goHits(sample.id);
                           }}
                         >
                           <td className="file">
@@ -208,9 +234,9 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                   label="Delete file"
                                   name={sample.name}
                                   usages={fileUsages(project, audioId)}
-                                  goes={breaks.map((b) => `${b.bars === null && !isUnsliced(b) ? 'one-shot' : 'break'} ${b.name} (${breakTakes(project, b.id).join(', ')})`)}
+                                  goes={samples.map((s) => `${trimName(s)} (${sampleTakes(project, s.id).join(', ')})`)}
                                   onDelete={() => run(removeFile(audioId))}
-                                  onDeleted={() => trimming !== null && breaks.some((b) => b.id === trimming) && setTrimming(null)}
+                                  onDeleted={() => trimming !== null && samples.some((s) => s.id === trimming) && setTrimming(null)}
                                   onError={(e) => setErrors(e === null ? [] : [e])}
                                 />
                                 <button
@@ -229,10 +255,10 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                   aria-label={`New trim of ${sample.name}`}
                                   title="New trim: another trim of the same file, on a row of its own"
                                   onClick={() => {
-                                    const before = store.getState().history.present.breaks;
+                                    const before = store.getState().history.present.samples;
                                     if (run(addTrim(sample.id)) !== null) return;
-                                    const added = Object.values(store.getState().history.present.breaks).find((b) => !(b.id in before));
-                                    if (added !== undefined) setTrimming(added.id);
+                                    const added = Object.keys(store.getState().history.present.samples).find((id) => !(id in before));
+                                    if (added !== undefined) setTrimming(added);
                                   }}
                                 >
                                   <NewCropIcon />
@@ -247,14 +273,23 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                             <div className="row nowrap trim-of">
                               <span className="mono">{sample.trim}</span>
                               <div className="trim-actions">
-                                <DeleteBreak icon brk={brk} onError={(e) => setErrors(e === null ? [] : [e])} onDeleted={() => trimming === brk.id && setTrimming(null)} />
+                                <DeleteButton
+                                  icon
+                                  label="Delete trim"
+                                  name={trimName(sample)}
+                                  usages={findUsages(project, 'sample', sample.id)}
+                                  goes={sampleTakes(project, sample.id)}
+                                  onDelete={() => run(removeSample(sample.id))}
+                                  onDeleted={() => trimming === sample.id && setTrimming(null)}
+                                  onError={(e) => setErrors(e === null ? [] : [e])}
+                                />
                                 <button
                                   type="button"
                                   className="icon-button small"
-                                  aria-expanded={trimming === brk.id}
+                                  aria-expanded={trimming === sample.id}
                                   aria-label={`Trim ${trimName(sample)}`}
-                                  title={trimming === brk.id ? 'Close the Trim' : 'Trim: set where the sample starts and ends'}
-                                  onClick={() => setTrimming(trimming === brk.id ? null : brk.id)}
+                                  title={trimming === sample.id ? 'Close the Trim' : 'Trim: set where the sample starts and ends'}
+                                  onClick={() => setTrimming(trimming === sample.id ? null : sample.id)}
                                 >
                                   <CropIcon />
                                 </button>
@@ -262,26 +297,28 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                             </div>
                           </td>
                           <td>
-                            <div className="segmented" role="group" aria-label={`Type of ${brk.name}`}>
+                            <div className="segmented" role="group" aria-label={`Type of ${name}`}>
                               <button
                                 type="button"
-                                aria-pressed={brk.bars !== null || unsliced}
+                                aria-pressed={sliced || unsliced}
+                                title="Slice it in Slice into a matrix with a pad per slice"
                                 onClick={() => {
-                                  if (brk.bars === null && !unsliced) run(markBreak(brk.id, true));
+                                  if (!sliced && !unsliced) run(markUnsliced(sample.id));
                                 }}
                               >
-                                Break
+                                Slice
                               </button>
                               <button
                                 type="button"
-                                aria-pressed={brk.bars === null && !unsliced}
+                                aria-pressed={!sliced && !unsliced}
+                                title="Play it whole: a matrix with one pad"
                                 onClick={() => {
-                                  if (unsliced) run(markBreak(brk.id, false));
+                                  if (unsliced) run(setSlicing(sample.id, null));
                                   // Its slicing goes: ask first, as Delete does.
-                                  else if (brk.bars !== null) setToOneShot(brk.id);
+                                  else if (sliced) setToUnslice(sample.id);
                                 }}
                               >
-                                One-shot
+                                Don't slice
                               </button>
                             </div>
                           </td>
@@ -290,7 +327,7 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                               `${Math.round(sample.duration * 1000)} ms`
                             ) : (
                               <span className="bars" title="Bars are set in Slice">
-                                {brk.bars} bar{brk.bars === 1 ? '' : 's'} · {bpm.toFixed(2)} BPM
+                                {sample.bars} bar{sample.bars === 1 ? '' : 's'} · {bpm.toFixed(2)} BPM
                                 {unlikelyBpm(bpm) && <span className="warn-text">check bars in Slice</span>}
                               </span>
                             )}
@@ -298,32 +335,34 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                           <td>
                             <div className="row creates">
                               {unsliced ? (
-                                <button type="button" className="link-text small" title={`Slice ${brk.name} in Slice: set its bars and how to slice it`} onClick={() => goSlice(brk.id)}>
+                                <button type="button" className="link-text small" title={`Slice ${name} in Slice: set its bars and how to slice it`} onClick={() => goSlice(sample.id)}>
                                   Create Slices →
                                 </button>
-                              ) : brk.bars === null ? (
-                                <span>
-                                  1 hit{' '}
-                                  <button type="button" className="link-text small" title={`Hit ${brk.name}, in Hits`} onClick={() => goHit(brk.id)}>
-                                    Hits →
-                                  </button>
-                                </span>
+                              ) : !sliced ? (
+                                own !== undefined && (
+                                  <span>
+                                    1 hit{' '}
+                                    <button type="button" className="link-text small" title={`Matrix ${own.name}, in Hits`} onClick={() => goHits(sample.id)}>
+                                      Hits →
+                                    </button>
+                                  </span>
+                                )
                               ) : (
                                 <>
                                   <span>
-                                    {brk.markers.length}{' '}
-                                    <button type="button" className="link-text small" title={`${brk.markers.length} slices: ${sliceName(project, brk)}, in Slice`} onClick={() => goSlice(brk.id)}>
+                                    {sample.markers.length}{' '}
+                                    <button type="button" className="link-text small" title={`${sample.markers.length} slices: ${sliceName(sample)}, in Slice`} onClick={() => goSlice(sample.id)}>
                                       Slice →
                                     </button>
                                   </span>
-                                  <span>
-                                    {brk.markers.length}{' '}
-                                    {hit !== undefined && (
-                                      <button type="button" className="link-text small" title={`${brk.markers.length} pads: break ${brk.name}, in Hits`} onClick={() => open({ hit, pad: null }, 'hits')}>
+                                  {own !== undefined && (
+                                    <span>
+                                      {own.pads.length}{' '}
+                                      <button type="button" className="link-text small" title={`${own.pads.length} pads: matrix ${own.name}, in Hits`} onClick={() => goHits(sample.id)}>
                                         Hits →
                                       </button>
-                                    )}
-                                  </span>
+                                    </span>
+                                  )}
                                   {loop !== undefined && (
                                     <span>
                                       {loops.length}{' '}
@@ -339,11 +378,11 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
                                   )}
                                 </>
                               )}
-                              <InSong heard={heard.breaks.has(brk.id)} />
+                              <InSong heard={heardSamples.has(sample.id)} />
                             </div>
                           </td>
                         </tr>
-                        {trimming === brk.id && (
+                        {trimming === sample.id && (
                           <tr data-trim-open>
                             <td colSpan={5} className="trim-cell" ref={trimCell}>
                               <TrimEditor sample={sample} played={playheadSeconds} />
@@ -361,14 +400,14 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
       </section>
       {asked !== undefined && (
         <ConfirmDelete
-          name={asked.name}
-          question={`Make ${asked.name} a one-shot?`}
-          action="Make one-shot"
-          goes={oneShotTakes(project, asked.id)}
-          usages={oneShotUsages(project, asked.id)}
+          name={sampleLabel(project, asked)}
+          question={`Don't slice ${sampleLabel(project, asked)}?`}
+          action="Don't slice"
+          goes={unsliceTakes(project, asked.id)}
+          usages={unsliceUsages(project, asked.id)}
           onAnswer={(yes) => {
-            setToOneShot(null);
-            if (yes) run(makeOneShot(asked.id));
+            setToUnslice(null);
+            if (yes) run(setSlicing(asked.id, null));
           }}
         />
       )}

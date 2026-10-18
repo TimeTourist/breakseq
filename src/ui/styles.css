@@ -2062,7 +2062,7 @@ input[type='search'] {
 
 /* Hits: each matrix's pads in order, a pad's hits beside it. */
 
-.break-head {
+.matrix-head {
   margin-top: 4px;
 }
 

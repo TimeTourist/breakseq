@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, setBreak, sliceBreak } from '../model';
+import { addSample, createProject, markUnsliced, sliceSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -43,7 +43,7 @@ function fakeServices(): Services {
   };
 }
 
-/** A project with a sliced one-bar break, so M1 exists. */
+/** A project with a sample sliced over one bar, so its loop exists. */
 function withM1(): Project {
   const ctx = sequentialIds();
   const run = (project: Project, command: Command) => {
@@ -51,10 +51,8 @@ function withM1(): Project {
     if (!result.ok) throw new Error(JSON.stringify(result.error));
     return result.project;
   };
-  let project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(0.5) }));
-  const id = Object.keys(project.breaks)[0]!;
-  project = run(project, setBreak(id, 1));
-  return run(project, sliceBreak(id, 1, 4));
+  const project = run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(0.5) }));
+  return run(project, sliceSample(Object.keys(project.samples)[0]!, 1, 4));
 }
 
 async function setup(project: Project = createProject(), view: View = 'import') {
@@ -125,25 +123,24 @@ describe('Song', () => {
 });
 
 describe('Slice', () => {
-  /** A project with an unsliced one-bar break. */
-  function withBreak(): Project {
+  /** A project with a sample marked to be sliced, not sliced yet. */
+  function toSlice(): Project {
     const ctx = sequentialIds();
     const added = addSample({ name: 'amen.wav', audio: constantAudio(0.5) })(createProject(), ctx);
     if (!added.ok) throw new Error('addSample failed');
-    const id = Object.keys(added.project.breaks)[0]!;
-    const asBreak = setBreak(id, 1)(added.project, ctx);
-    if (!asBreak.ok) throw new Error('setBreak failed');
-    return asBreak.project;
+    const marked = markUnsliced(Object.keys(added.project.samples)[0]!)(added.project, ctx);
+    if (!marked.ok) throw new Error('markUnsliced failed');
+    return marked.project;
   }
 
-  it('plays the whole break, and the button stops it while it plays', async () => {
+  it('plays the whole sample, and the button stops it while it plays', async () => {
     const services = fakeServices();
-    const project = withBreak();
+    const project = toSlice();
     render(<App store={createStore({ ...initialState(project), view: 'slice' })} services={services} />);
     await act(async () => {});
     const sample = Object.values(project.samples)[0]!;
 
-    fireEvent.click(screen.getByRole('button', { name: 'Play break' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play sample' }));
 
     expect(services.player.audition).toHaveBeenCalledWith(
       project.audio[sample.audioId],
@@ -152,13 +149,13 @@ describe('Slice', () => {
       expect.any(Function),
       true,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Stop break' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop sample' }));
     expect(services.player.stopAudition).toHaveBeenCalled();
 
     // The player reports the end; the button goes back to Play.
     const onEnded = vi.mocked(services.player.audition).mock.calls[0]![3]!;
     act(() => onEnded());
-    expect(screen.getByRole('button', { name: 'Play break' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Play sample' })).toBeTruthy();
   });
 });
 
