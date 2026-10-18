@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addClip, addSample, createProject, setBpm, setBreak, setSongLoop } from '../model';
+import { addClip, addSample, createProject, setBpm, setSlicing, setSongLoop } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -58,7 +58,7 @@ function song(...more: Command[]): Project {
     return r.project;
   };
   let project = [addSample({ name: 'amen.wav', audio: constantAudio(2) }), setBpm(120)].reduce(run, createProject());
-  project = run(project, setBreak(Object.keys(project.breaks)[0]!, 1));
+  project = run(project, setSlicing(Object.keys(project.samples)[0]!, 1));
   project = run(project, addClip('main', Object.keys(project.loops)[0]!, 0, 16));
   return more.reduce(run, project);
 }

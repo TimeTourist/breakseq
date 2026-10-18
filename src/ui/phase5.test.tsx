@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioData, Command, Project } from '../model';
-import { addSample, createLoop, createMod, createProject, setBreak, setSongCell, setStep } from '../model';
+import { addSample, createLoop, createMod, createProject, setSlicing, setSongCell, setStep } from '../model';
 import { sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import { CLIP_MIME } from './SongView';
@@ -76,12 +76,12 @@ function hits(): AudioData {
 describe('Transients in Slice', () => {
   it('puts markers on the hits', async () => {
     const project = apply(createProject(), addSample({ name: 'break.wav', audio: hits() }));
-    const store = await setup(apply(project, setBreak(Object.keys(project.breaks)[0]!, 1)), 'slice');
+    const store = await setup(apply(project, setSlicing(Object.keys(project.samples)[0]!, 1)), 'slice');
 
     fireEvent.click(button('Transients'));
 
     // Markers are parts of the 2 s break.
-    const markers = Object.values(present(store).breaks)[0]!.markers;
+    const markers = Object.values(present(store).samples)[0]!.markers;
     expect(markers.map((m) => Math.round(m * 200) / 100)).toEqual([0, 0.25, 0.8, 1.4]);
   });
 });

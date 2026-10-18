@@ -226,7 +226,7 @@ export function ModsView() {
         <div className="panel stack-tight">
           <span className="label">With the hit's own stretch</span>
           <div className="segmented full" role="group" aria-label="With the hit's own stretch">
-            <button type="button" aria-pressed={settings.combine === 'multiply'} title="Times the hit's stretch: 2× makes a break on Fit to tempo twice as long as its steps" onClick={() => set({ combine: 'multiply' }, 'combine')}>
+            <button type="button" aria-pressed={settings.combine === 'multiply'} title="Times the hit's stretch: 2× makes a hit on Fit to tempo twice as long as its steps" onClick={() => set({ combine: 'multiply' }, 'combine')}>
               Multiply
             </button>
             <button type="button" aria-pressed={settings.combine === 'replace'} title="Instead of the hit's stretch" onClick={() => set({ combine: 'replace' }, 'combine')}>
