@@ -6,7 +6,7 @@ import { MIN_SLICE, baseName, defaultMatrixName, gridMarkers, markerGrid, sliceW
 import { sampleBpm } from './owners';
 import { matrixSequence, matrixSteps } from './lengths';
 import { emptyStep } from './project';
-import { renameMatrixIn } from './names';
+import { renameMatrixIn, renumberRows } from './names';
 import type { AudioData, Id, Loop, Matrix, Pad, Project, Sample, SampleChannel, Step } from './types';
 import { NO_CONFIG, STEPS_PER_BAR } from './types';
 
@@ -236,17 +236,24 @@ const sameSteps = (a: readonly Step[], b: readonly Step[]) =>
   a.length === b.length && a.every((s, i) => s.padId === b[i]!.padId && s.memberId === b[i]!.memberId && !s.ignoreMods && !b[i]!.ignoreMods);
 
 /**
- * The matrix's own loop follows a change while it is still exactly as the
- * matrix laid it out before: once edited by hand, it is left alone. Other
- * loops are never touched.
+ * The matrix's own loop follows a change while it was exactly as the matrix
+ * laid it out before: once edited by hand, it is left alone. Other loops are
+ * never touched.
  */
-function followLoop(before: Project, after: Project, matrixId: Id): Project {
+export function followMatrix(before: Project, after: Project, matrixId: Id): Project {
   const was = before.matrices[matrixId];
   const matrix = after.matrices[matrixId];
+  const old = was?.loop == null ? undefined : before.loops[was.loop];
   const loop = matrix?.loop == null ? undefined : after.loops[matrix.loop];
-  if (was === undefined || matrix === undefined || loop === undefined) return after;
-  if (!sameSteps(loop.steps, laidOut(before, was))) return after;
-  return { ...after, loops: { ...after.loops, [loop.id]: { ...loop, steps: laidOut(after, matrix) } } };
+  if (was === undefined || matrix === undefined || old === undefined || loop === undefined || old.id !== loop.id) return after;
+  if (!sameSteps(old.steps, laidOut(before, was))) return after;
+  const steps = laidOut(after, matrix);
+  return sameSteps(loop.steps, steps) ? after : { ...after, loops: { ...after.loops, [loop.id]: { ...loop, steps } } };
+}
+
+/** `followMatrix` for every matrix with its own loop. */
+export function followMatrices(before: Project, after: Project): Project {
+  return Object.values(after.matrices).reduce((next, m) => (m.loop === null ? next : followMatrix(before, next, m.id)), after);
 }
 
 /**
@@ -288,7 +295,7 @@ export const setSlicing =
       const loop: Loop = { id: ctx.newId(), name: baseName(matrix.name), kind: 'main', steps: laidOut(next, matrix) };
       return ok(setMatrixIn({ ...next, loops: { ...next.loops, [loop.id]: loop } }, { ...matrix, loop: loop.id }));
     }
-    return ok(followLoop(project, next, own.id));
+    return ok(followMatrix(project, next, own.id));
   };
 
 /** Names row `row`'s pad and its top hit after the row ("amen 1 01"), if they still have the matrix's plain name. */
@@ -393,9 +400,17 @@ export interface Parts {
  * Removes pads with their hits, other hits and a loop, silencing where they
  * were used: pads leave their matrices and hits their pads, steps with the
  * pads are emptied, steps locked to the hits fall back to member 1, and the
- * loop leaves the song and its matrix. Pads that become empty stay.
+ * loop leaves the song and its matrix. Pads that become empty stay. The rows
+ * after a removed pad are renamed (`renumberRows`), and variants of a removed
+ * hit are variants no more.
  */
-export function dropParts(project: Project, { pads, hits: others, loop }: Parts): Project {
+export function dropParts(project: Project, parts: Parts): Project {
+  const dropped = dropPartsOnly(project, parts);
+  const changed = Object.values(project.matrices).filter((m) => m.pads.some((p) => parts.pads.has(p)));
+  return changed.reduce((next, m) => renumberRows(next, m.id), dropped);
+}
+
+function dropPartsOnly(project: Project, { pads, hits: others, loop }: Parts): Project {
   const hits = new Set([...others, ...[...pads].flatMap((p) => project.pads[p]?.members ?? [])]);
   const step = (s: Step): Step => (s.padId !== null && pads.has(s.padId) ? emptyStep : s.memberId !== null && hits.has(s.memberId) ? { ...s, memberId: null } : s);
   return {
@@ -404,7 +419,7 @@ export function dropParts(project: Project, { pads, hits: others, loop }: Parts)
       m.pads.some((p) => pads.has(p)) || (loop !== null && m.loop === loop) ? { ...m, pads: m.pads.filter((p) => !pads.has(p)), loop: m.loop === loop ? null : m.loop } : m,
     ),
     pads: mapValues(keep(project.pads, (id) => pads.has(id)), (p) => (p.members.some((m) => hits.has(m)) ? { ...p, members: p.members.filter((m) => !hits.has(m)) } : p)),
-    hits: keep(project.hits, (id) => hits.has(id)),
+    hits: mapValues(keep(project.hits, (id) => hits.has(id)), (h) => (h.variantOf !== null && hits.has(h.variantOf) ? { ...h, variantOf: null } : h)),
     loops: mapValues(keep(project.loops, (id) => id === loop), (l) => (l.steps.some((s) => step(s) !== s) ? { ...l, steps: l.steps.map(step) } : l)),
     song: loop === null || !project.song.clips.some((c) => c.ref === loop) ? project.song : { ...project.song, clips: project.song.clips.filter((c) => c.ref !== loop) },
   };
@@ -475,7 +490,7 @@ export const removeSample =
     const next = own === undefined ? dropped : { ...dropped, matrices: keep(dropped.matrices, (id) => id === own.id) };
     const samples = keep(next.samples, (id) => id === sampleId);
     const fileUsed = Object.values(samples).some((s) => s.audioId === sample.audioId);
-    return ok({ ...next, samples, audio: fileUsed ? next.audio : keep(next.audio, (id) => id === sample.audioId) });
+    return ok(followMatrices(project, { ...next, samples, audio: fileUsed ? next.audio : keep(next.audio, (id) => id === sample.audioId) }));
   };
 
 /** Where a file's trims are used outside the file, each place once; it goes silent when the file is removed. */
@@ -529,7 +544,7 @@ export const trimSample =
     const from = Math.max(0, Math.min(start, length));
     const to = Math.max(0, Math.min(end, length));
     if (to - from < MIN_SLICE) return invalid('The trimmed sample is too short');
-    return ok(setSampleIn(project, { ...sample, offset: from, duration: to - from }));
+    return ok(followMatrices(project, setSampleIn(project, { ...sample, offset: from, duration: to - from })));
   };
 
 /** Markers as `setMarkers` keeps them: sorted, the first at 0, none at or past the end. */
@@ -595,7 +610,7 @@ function changeOwnRows(before: Project, sample: Sample, changed: Project, ctx: C
   if (own === undefined) return changed;
   const now = changed.matrices[own.id]?.sampleId;
   const count = now == null ? 0 : (changed.samples[now]?.markers.length ?? 0);
-  return followLoop(before, ensureRows(changed, own.id, sample.markers.length, count, ctx.newId), own.id);
+  return followMatrix(before, ensureRows(changed, own.id, sample.markers.length, count, ctx.newId), own.id);
 }
 
 /**
@@ -633,7 +648,7 @@ export const setGrid =
 /** Slices a sample over `bars` bars with its markers on an equal grid. */
 export const sliceSample = (sampleId: Id, bars: number, grid: SliceGrid = 16): Command => setSlicing(sampleId, bars, gridMarkers(bars, grid));
 
-/** Makes a hit play another slice, of this sample or another, keeping its own config and region. */
+/** Makes a hit play another slice, of this sample or another, keeping its own config and region. On another sample it is no longer a variant. */
 export const setHitSource =
   (hitId: Id, sampleId: Id, slice: number | null): Command =>
   (project) => {
@@ -641,7 +656,8 @@ export const setHitSource =
     if (hit === undefined) return notFound(hitId);
     if (project.samples[sampleId] === undefined) return notFound(sampleId);
     if (slice !== null && (!Number.isInteger(slice) || slice < 0)) return invalid('A slice is a whole number from 0');
-    return ok({ ...project, hits: { ...project.hits, [hitId]: { ...hit, sampleId, slice } } });
+    const variantOf = sampleId === hit.sampleId ? hit.variantOf : null;
+    return ok(followMatrices(project, { ...project, hits: { ...project.hits, [hitId]: { ...hit, sampleId, slice, variantOf } } }));
   };
 
 /** The samples (trims) of a file, in trim order. */

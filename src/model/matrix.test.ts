@@ -13,6 +13,7 @@ import {
   createMatrix,
   loopMatrices,
   movePad,
+  renamePad,
   placeMatrix,
   remove,
   removeAnyway,
@@ -91,6 +92,27 @@ describe('pads and matrices', () => {
     expect(movePad(matrixId, 'nope', 0)(project, ctx).ok).toBe(false);
   });
 
+  it('pads are named after their row and renamed when a row moves, unless named by hand', () => {
+    const { project: p0, matrixId } = amen();
+    const { project: p1, matrixId: snaresId, padId } = snares(p0, [rowHit(p0, matrixId, 1).id]);
+    const names = (p: Project, m: Id) => pads(p, m).map((id) => p.pads[id]!.name);
+    // A copy is named after the row it lands on; its hits keep their names.
+    const copied = run(p1, copyPad(pads(p1, matrixId)[4]!, snaresId), addPad(snaresId));
+    expect(names(copied, snaresId)).toEqual(['Snares 01', 'Snares 02', 'Snares 03']);
+    expect(rowHit(copied, snaresId, 1).name).toBe('amen 1 05');
+    const fromMatrix = run(copied, copyMatrix(matrixId, { matrixId: snaresId }));
+    expect(names(fromMatrix, snaresId).slice(3, 5)).toEqual(['Snares 04', 'Snares 05']);
+    // Moving and removing renumbers rows with such names; a name typed by hand stays.
+    const named = run(copied, renamePad(pads(copied, snaresId)[2]!, 'Ghost'));
+    const moved = run(named, movePad(snaresId, pads(named, snaresId)[1]!, 0));
+    expect(names(moved, snaresId)).toEqual(['Snares 01', 'Snares 02', 'Ghost']);
+    expect(moved.pads[padId]!.name).toBe('Snares 02');
+    expect(rowHit(moved, snaresId, 0).name).toBe('amen 1 05');
+    const removed = run(moved, removeAnyway('pad', pads(moved, snaresId)[0]!));
+    expect(names(removed, snaresId)).toEqual(['Snares 01', 'Ghost']);
+    expect(removed.pads[padId]!.name).toBe('Snares 01');
+  });
+
   it("a pad's and a matrix's config are layers over their hits", () => {
     const { project, matrixId } = amen();
     const padId = pads(project, matrixId)[1]!;
@@ -152,7 +174,7 @@ describe('copies (decision 8)', () => {
     const next = run(project, copyPad(padId, amenId));
     const added = next.pads[pads(next, amenId).at(-1)!]!;
     expect(pads(next, amenId)).toHaveLength(17);
-    expect(added).toMatchObject({ name: 'Snares 01', choice: 'roundRobin', config: { ...NO_CONFIG, pan: 0.5 } });
+    expect(added).toMatchObject({ name: 'amen 1 17', choice: 'roundRobin', config: { ...NO_CONFIG, pan: 0.5 } });
     expect(added.id).not.toBe(padId);
     expect(added.members).toHaveLength(2);
     expect(added.members.some((m) => members(next, padId).includes(m))).toBe(false);
@@ -166,7 +188,7 @@ describe('copies (decision 8)', () => {
     const second = pads(project, matrixId)[1]!;
     const next = run(project, copyMatrix(matrixId, { matrixId: amenId }));
     const added = pads(next, amenId).slice(16).map((p) => next.pads[p]!);
-    expect(added.map((p) => p.name)).toEqual(['Snares 01', 'Snares 02']);
+    expect(added.map((p) => p.name)).toEqual(['amen 1 17', 'amen 1 18']);
     expect(added.map((p) => p.config.pitch)).toEqual([-2, 0]);
     expect(added.map((p) => p.choice)).toEqual(['top', 'top']);
     expect(added.map((p) => p.members.length)).toEqual([1, 0]);

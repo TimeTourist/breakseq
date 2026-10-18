@@ -3,8 +3,8 @@ import { DEFAULT_GRAIN, DELAY_STEPS, MAX_CUTOFF, MIN_CUTOFF, NO_CONFIG, NO_FILTE
 import type { DelaySteps, DistMode, FilterType, GrainFrom } from './types';
 import { matrixOfPad, padOfHit, sampleBpm } from './owners';
 
-/** A file name without its audio extension: "amen.wav 01" → "amen 01". */
-export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc)(?=\s|$)/gi, '');
+/** A file name without its audio extension: "amen.wav 01" → "amen 01", "120Stereo.rx2 1" → "120Stereo 1". */
+export const baseName = (name: string): string => name.replace(/\.(wav|wave|aif|aiff|aifc|rx2)(?=\s|$)/gi, '');
 
 /** The shortest slice markers may make, in seconds. */
 export const MIN_SLICE = 0.001;

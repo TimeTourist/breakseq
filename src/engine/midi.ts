@@ -46,10 +46,15 @@ export const triggerSeconds = (t: Trigger): number =>
 
 const round = (x: number, places: number) => x.toFixed(places);
 
-/** What makes two triggers the same sound: hit, region, pitch, volume, direction and stretch, to a hundredth. */
-const soundKey = (t: Trigger): string =>
-  [
-    t.hitId,
+/**
+ * What makes two triggers the same sound: the sample and slice played, region,
+ * pitch, volume, pan, direction, stretch, dist and filter, to a hundredth. Not
+ * the hit: copies that sound the same are one piece.
+ */
+const soundKey = (project: Project, t: Trigger): string => {
+  const hit: Hit | undefined = project.hits[t.hitId];
+  return [
+    hit === undefined ? t.hitId : `${hit.sampleId}:${hit.slice ?? '-'}`,
     round(t.region.start, 6),
     round(t.region.end, 6),
     round(t.pitch, 2),
@@ -60,6 +65,7 @@ const soundKey = (t: Trigger): string =>
     t.dist === null ? '-' : `${t.dist.mode}:${round(t.dist.amount, 3)}`,
     t.filter === null ? '-' : `${t.filter.type}:${round(t.filter.cutoff, 1)}:${round(t.filter.resonance, 3)}`,
   ].join('|');
+};
 
 /** Whether a trigger sounds as its hit does on its own: no variant, no mod. */
 function isPlain(project: Project, t: Trigger): boolean {
@@ -93,7 +99,7 @@ export function midiPlan(project: Project, take: { readonly triggers: readonly T
 
   const firsts = new Map<string, { trigger: Trigger; seconds: number; order: number[] }>();
   for (const t of triggers) {
-    const key = soundKey(t);
+    const key = soundKey(project, t);
     if (firsts.has(key)) continue;
     const hit = project.hits[t.hitId];
     const sample = hit === undefined ? undefined : project.samples[hit.sampleId];
@@ -117,7 +123,7 @@ export function midiPlan(project: Project, take: { readonly triggers: readonly T
   const notes: Note[] = [
     ...triggers.map((t): Note => {
       const next = cuts.find((c) => c > t.time + 1e-9);
-      return { time: t.time, length: Math.min(triggerSeconds(t), next === undefined ? Infinity : next - t.time), piece: index.get(soundKey(t))! };
+      return { time: t.time, length: Math.min(triggerSeconds(t), next === undefined ? Infinity : next - t.time), piece: index.get(soundKey(project, t))! };
     }),
     ...take.tapes.map((tape, i): Note => ({ time: tape.time, length: tape.end - tape.time, piece: hits.length + i })),
   ].sort((a, b) => a.time - b.time);

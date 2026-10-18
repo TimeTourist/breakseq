@@ -222,11 +222,11 @@ describe('Hits: matrices, pads and their hits', () => {
     expect(screen.getByRole('button', { name: /^Undo: add 4 hits/ })).toBeTruthy();
   });
 
-  it('a pad dragged onto a matrix becomes a copy of it last there, and a hit a new pad', async () => {
+  it('a pad dragged onto a matrix becomes a copy of it last there, named after its row, and a hit a new pad', async () => {
     const store = await setup(breakAndOneShot(createMatrix('Snares')), 'hits');
     const snares = () => Object.values(present(store).matrices).find((m) => m.name === 'Snares')!;
     drag(within(side()).getByRole('button', { name: 'Pad amen 1 03' }), within(side()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
-    expect(snares().pads.map((p) => present(store).pads[p]!.name)).toEqual(['Snares 01', 'amen 1 03']);
+    expect(snares().pads.map((p) => present(store).pads[p]!.name)).toEqual(['Snares 01', 'Snares 02']);
     const chip = within(side()).getAllByRole('button').find((b) => b.className.includes('hit-chip') && b.textContent === 'snare 1')!;
     drag(chip, within(side()).getByRole('button', { name: 'Matrix Snares' }).parentElement!);
     const added = present(store).pads[snares().pads[2]!]!;
