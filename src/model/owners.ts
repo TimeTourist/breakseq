@@ -34,7 +34,7 @@ export function matrixKind(matrix: Matrix): 'break' | 'one-shot' {
   return matrix.pads.length > 1 ? 'break' : 'one-shot';
 }
 
-/** A sample's tempo, from its length and bars in 4/4 (as breakBpm); null when it is not sliced. */
-export function sampleBpm(sample: Sample): number | null {
+/** A sample's tempo, from its length and bars in 4/4; null when it is not sliced. */
+export function sampleBpm(sample: Pick<Sample, 'duration' | 'bars'>): number | null {
   return sample.bars === null ? null : (sample.bars * 4 * 60) / sample.duration;
 }

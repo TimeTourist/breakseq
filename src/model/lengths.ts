@@ -2,7 +2,7 @@ import type { Hit, Id, Pad, Project, Step } from './types';
 import { STEPS_PER_BAR } from './types';
 import { effectiveHit, hitSound, hitStretch, sliceWindow, slotStep } from './sound';
 
-/** How long a hit sounds, in seconds: its region at its pitch and stretch and its parent's, without mods. */
+/** How long a hit sounds, in seconds: its region at its pitch and stretch and those of its pad and matrix layers, without mods. */
 export function hitSeconds(project: Project, hit: Hit): number {
   const sound = hitSound(project, hit);
   if (sound === null) return 0;

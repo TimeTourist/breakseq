@@ -101,6 +101,16 @@ p {
   color: var(--error);
 }
 
+.notice {
+  margin: 0;
+  padding: 8px 16px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border-strong);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

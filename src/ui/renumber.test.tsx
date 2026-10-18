@@ -132,6 +132,31 @@ describe('the renumber dialog', () => {
     expect(store.getState().sliceTarget).toBe(fresh.id);
   });
 
+  it('a trim with no matrix of its own offers only Renumber', async () => {
+    // Two copies of slice 02 in Snares: they stay on the old trim when amen's matrix moves to a new one.
+    const base = amenAndSnares();
+    const snares = Object.values(base.matrices).find((m) => m.name === 'Snares')!;
+    const original = Object.values(base.hits).find((h) => h.slice === 1 && ownMatrix(base, h.sampleId) !== undefined)!;
+    const more = copyHits([original.id], snares.pads[0]!)(base, sequentialIds());
+    if (!more.ok) throw new Error('copy failed');
+    const store = await setup(more.project);
+    const first = samples(store)[0]!;
+    fireEvent.click(screen.getByRole('button', { name: 'Play slice 01' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New trim' }));
+    // The old trim stays in Slice, with no matrix; go back to it.
+    act(() => void store.dispatch({ type: 'sliceTarget', sampleId: first.id }));
+    expect(ownMatrix(present(store), first.id)).toBeUndefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Play slice 01' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).queryByRole('button', { name: 'New trim' })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Renumber' })).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(samples(store)).toHaveLength(2);
+  });
+
   it('asks before a grid or the bars renumber too, and not when a marker only moves', async () => {
     const store = await setup(amenAndSnares());
     fireEvent.click(screen.getByRole('button', { name: '1/8' }));

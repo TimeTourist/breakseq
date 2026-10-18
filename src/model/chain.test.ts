@@ -242,6 +242,18 @@ describe('rows follow what pads play, in a matrix edited by hand (decision 12)',
   });
 });
 
+describe('slicing on a coarser grid', () => {
+  it('1/8 grid gives 32 pads over 4 bars, none silent', () => {
+    const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const sampleId = Object.keys(start.samples)[0]!;
+    const project = run(start, sliceSample(sampleId, 4, 8));
+    const matrix = ownMatrix(project, sampleId)!;
+    expect(project.samples[sampleId]!.markers).toHaveLength(32);
+    expect(matrix.pads).toHaveLength(32);
+    expect(matrix.pads.every((id) => project.pads[id]!.members.length > 0)).toBe(true);
+  });
+});
+
 describe('the automatic loop', () => {
   it('the automatic loop follows until edited by hand', () => {
     const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));

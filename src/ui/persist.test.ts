@@ -134,7 +134,9 @@ describe('an autosave from before Matrix', () => {
     // `old` lacks `matrices`, so the type says no; it is saved as an old project would be.
     await indexedDbStorage(factory).save(old as never);
 
-    expect(await indexedDbStorage(factory).load()).toBeNull();
+    const storage = indexedDbStorage(factory);
+    expect(await storage.load()).toBeNull();
+    expect(storage.setAside?.()).toBe(true);
     const kept = await backups.list();
     expect(kept).toHaveLength(2);
     expect(kept.map((b) => b.id)).toContain('b-1');
