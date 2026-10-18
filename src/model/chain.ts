@@ -6,7 +6,7 @@ import { MIN_SLICE, baseName, defaultMatrixName, gridMarkers, markerGrid, sliceW
 import { sampleBpm } from './owners';
 import { matrixSequence, matrixSteps } from './lengths';
 import { emptyStep } from './project';
-import { renameMatrixIn, renumberRows } from './names';
+import { renameMatrixIn, renumberRows, rowName } from './names';
 import type { AudioData, Id, Loop, Matrix, Pad, Project, Sample, SampleChannel, Step } from './types';
 import { NO_CONFIG, STEPS_PER_BAR } from './types';
 
@@ -202,6 +202,8 @@ function padSlice(project: Project, padId: Id, sampleId: Id): number | null {
  * are, since a matrix is free to edit (decision 12): a pad added by hand is no
  * row, and a row removed by hand is not made again for an older slice. Rows
  * are never taken away; one past the last slice is silent until there are more.
+ * A new pad is named after its row ("amen 1 17"), its hit after its slice; a
+ * one-shot's pad has the matrix's plain name.
  */
 function ensureRows(project: Project, matrixId: Id, from: number, count: number, newId: () => Id): Project {
   const matrix = project.matrices[matrixId];
@@ -215,7 +217,7 @@ function ensureRows(project: Project, matrixId: Id, from: number, count: number,
   const added: Id[] = [];
   for (const slice of missing) {
     const hit = slotHit(newId(), slotName(matrix.name, sample, slice), sample.id, slice);
-    const pad: Pad = { id: newId(), name: hit.name, members: [hit.id], choice: 'top', config: NO_CONFIG };
+    const pad: Pad = { id: newId(), name: sample.bars === null ? hit.name : rowName(matrix.name, matrix.pads.length + added.length), members: [hit.id], choice: 'top', config: NO_CONFIG };
     hits[hit.id] = hit;
     pads[pad.id] = pad;
     added.push(pad.id);
@@ -255,6 +257,18 @@ export function followMatrix(before: Project, after: Project, matrixId: Id): Pro
 export function followMatrices(before: Project, after: Project): Project {
   return Object.values(after.matrices).reduce((next, m) => (m.loop === null ? next : followMatrix(before, next, m.id)), after);
 }
+
+/**
+ * A command after which the matrices' own loops follow the change, each while
+ * it was exactly as its matrix laid it out (`followMatrices`). Wrap a command
+ * once: commands built from wrapped ones use their unwrapped core.
+ */
+export const following =
+  (command: Command): Command =>
+  (project, ctx) => {
+    const result = command(project, ctx);
+    return result.ok ? ok(followMatrices(project, result.project)) : result;
+  };
 
 /**
  * The markers a sample gets when sliced over `bars` bars without markers given
@@ -480,9 +494,8 @@ export function sampleTakes(project: Project, sampleId: Id): string[] {
  * steps locked to a removed hit fall back to member 1. Where it was used
  * (`findUsages(…, 'sample', …)`) goes silent; its file goes with its last trim.
  */
-export const removeSample =
-  (sampleId: Id): Command =>
-  (project) => {
+export const removeSample = (sampleId: Id): Command =>
+  following((project) => {
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
     const own = ownMatrix(project, sampleId);
@@ -490,8 +503,8 @@ export const removeSample =
     const next = own === undefined ? dropped : { ...dropped, matrices: keep(dropped.matrices, (id) => id === own.id) };
     const samples = keep(next.samples, (id) => id === sampleId);
     const fileUsed = Object.values(samples).some((s) => s.audioId === sample.audioId);
-    return ok(followMatrices(project, { ...next, samples, audio: fileUsed ? next.audio : keep(next.audio, (id) => id === sample.audioId) }));
-  };
+    return ok({ ...next, samples, audio: fileUsed ? next.audio : keep(next.audio, (id) => id === sample.audioId) });
+  });
 
 /** Where a file's trims are used outside the file, each place once; it goes silent when the file is removed. */
 export function fileUsages(project: Project, audioId: Id): Usage[] {
@@ -534,9 +547,8 @@ export const setSampleChannel =
  * Trims a sample to `start`–`end` seconds of its file. Markers and regions are
  * parts of the sample and its slices, so they come along.
  */
-export const trimSample =
-  (sampleId: Id, start: number, end: number): Command =>
-  (project) => {
+export const trimSample = (sampleId: Id, start: number, end: number): Command =>
+  following((project) => {
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
     const audio = project.audio[sample.audioId];
@@ -544,8 +556,8 @@ export const trimSample =
     const from = Math.max(0, Math.min(start, length));
     const to = Math.max(0, Math.min(end, length));
     if (to - from < MIN_SLICE) return invalid('The trimmed sample is too short');
-    return ok(followMatrices(project, setSampleIn(project, { ...sample, offset: from, duration: to - from })));
-  };
+    return ok(setSampleIn(project, { ...sample, offset: from, duration: to - from }));
+  });
 
 /** Markers as `setMarkers` keeps them: sorted, the first at 0, none at or past the end. */
 const sortedMarkers = (markers: readonly number[]): number[] => [0, ...markers.filter((m) => m > 0 && m < 1)].sort((a, b) => a - b);
@@ -649,16 +661,15 @@ export const setGrid =
 export const sliceSample = (sampleId: Id, bars: number, grid: SliceGrid = 16): Command => setSlicing(sampleId, bars, gridMarkers(bars, grid));
 
 /** Makes a hit play another slice, of this sample or another, keeping its own config and region. On another sample it is no longer a variant. */
-export const setHitSource =
-  (hitId: Id, sampleId: Id, slice: number | null): Command =>
-  (project) => {
+export const setHitSource = (hitId: Id, sampleId: Id, slice: number | null): Command =>
+  following((project) => {
     const hit = project.hits[hitId];
     if (hit === undefined) return notFound(hitId);
     if (project.samples[sampleId] === undefined) return notFound(sampleId);
     if (slice !== null && (!Number.isInteger(slice) || slice < 0)) return invalid('A slice is a whole number from 0');
     const variantOf = sampleId === hit.sampleId ? hit.variantOf : null;
-    return ok(followMatrices(project, { ...project, hits: { ...project.hits, [hitId]: { ...hit, sampleId, slice, variantOf } } }));
-  };
+    return ok({ ...project, hits: { ...project.hits, [hitId]: { ...hit, sampleId, slice, variantOf } } });
+  });
 
 /** The samples (trims) of a file, in trim order. */
 export const fileSamples = (project: Project, audioId: Id): Sample[] =>
