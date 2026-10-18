@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Command, CommandContext, Project, StepEffect, TapeEffect } from './index';
 import {
-  addPadMember,
+  addPad,
   addSample,
   addVariant,
+  copyHits,
+  createMatrix,
+  findUsages,
+  setSlicing,
   guessBars,
   unlikelyBpm,
-  duplicateHit,
   seal,
   setBpm,
   setLoopLength,
@@ -17,14 +20,12 @@ import {
   createHistory,
   createLoop,
   createMod,
-  createPad,
   createProject,
   redo,
   heardInSong,
   remove,
   removeAnyway,
   removePadMember,
-  setBreak,
   addClip,
   moveSteps,
   addEffect,
@@ -37,7 +38,6 @@ import {
   setLoopKind,
   setSongCell,
   setStep,
-  sliceBreak,
   undo,
 } from './index';
 
@@ -81,127 +81,125 @@ describe('automatic chain', () => {
 });
 
 describe('removal', () => {
-  it('fails to remove a hit used in a pad and lists the pad', () => {
+  it('a hit in a pad is not in use by it: removing it takes it out of the pad', () => {
     const ctx = sequentialIds();
-    const project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
+    let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
     const hit = only(project.hits);
     const pad = only(project.pads);
+    project = run(project, ctx, addVariant(hit.id));
+    const variant = Object.values(project.hits).find((h) => h.variantOf === hit.id)!;
 
-    const result = remove('hit', hit.id)(project, ctx);
-
-    expect(result).toEqual({
-      ok: false,
-      error: { kind: 'in-use', usages: [{ kind: 'pad', id: pad.id, name: pad.name }] },
-    });
+    expect(findUsages(project, 'hit', variant.id)).toEqual([]);
+    project = run(project, ctx, remove('hit', variant.id));
+    expect(project.pads[pad.id]!.members).toEqual([hit.id]);
+    expect(Object.keys(project.hits)).toEqual([hit.id]);
   });
 
   it('removes an unused object', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
-    const hit = only(project.hits);
-    project = run(project, ctx, duplicateHit(hit.id), createPad('Mine'));
-    const copy = Object.values(project.hits).find((h) => h.variantOf === hit.id)!;
-    const mine = Object.values(project.pads).find((p) => p.name === 'Mine')!;
-    project = run(project, ctx, remove('pad', mine.id), remove('hit', copy.id));
+    let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }), createMatrix('Mine'));
+    const mine = Object.values(project.matrices).find((m) => m.name === 'Mine')!;
+    project = run(project, ctx, remove('pad', mine.pads[0]!));
     expect(Object.keys(project.pads)).toHaveLength(1);
-    expect(Object.keys(project.hits)).toEqual([hit.id]);
+    expect(project.matrices[mine.id]!.pads).toEqual([]);
+    project = run(project, ctx, remove('matrix', mine.id));
+    expect(Object.keys(project.matrices)).toHaveLength(1);
   });
 
-  it("a break's pads and parent are in use by the break", () => {
+  it("a matrix's own pad is not in use by the matrix: removing it takes it out", () => {
     const ctx = sequentialIds();
     let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const brk = only(project.breaks);
-    project = run(project, ctx, setBreak(brk.id, 1));
-    const result = remove('pad', project.breaks[brk.id]!.pads[0]!)(project, ctx);
-    expect(result.ok || result.error).toMatchObject({ kind: 'in-use', usages: expect.arrayContaining([{ kind: 'break', id: brk.id, name: 'amen 1' }]) });
-    expect(remove('hit', project.breaks[brk.id]!.parent!)(project, ctx).ok).toBe(false);
+    const matrix = only(project.matrices);
+    project = run(project, ctx, setSlicing(only(project.samples).id, 1));
+    // All sixteen rows play in its loop: a pad added last plays in none.
+    project = run(project, ctx, addPad(matrix.id));
+    const added = project.matrices[matrix.id]!.pads.at(-1)!;
+    expect(findUsages(project, 'pad', added)).toEqual([]);
+    const gone = run(project, ctx, remove('pad', added));
+    expect(gone.matrices[matrix.id]!.pads).toHaveLength(16);
+    expect(gone.pads[added]).toBeUndefined();
   });
 
   it('lists every kind of usage', () => {
     const ctx = sequentialIds();
     let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
     const pad = only(project.pads);
+    const hit = only(project.hits);
     project = run(project, ctx, createLoop('Beat', 'main', 1));
     const loop = only(project.loops);
-    project = run(project, ctx, setStep(loop.id, 0, { padId: pad.id }), setSongCell('main', 0, loop.id));
+    project = run(project, ctx, setStep(loop.id, 0, { padId: pad.id, memberId: hit.id }), setSongCell('main', 0, loop.id));
 
     const padResult = remove('pad', pad.id)(project, ctx);
-    expect(padResult.ok || padResult.error).toEqual({
-      kind: 'in-use',
-      usages: [
-        { kind: 'break', id: only(project.breaks).id, name: 'Snare 1' },
-        { kind: 'loop', id: loop.id, name: 'Beat' },
-      ],
-    });
+    expect(padResult.ok || padResult.error).toEqual({ kind: 'in-use', usages: [{ kind: 'loop', id: loop.id, name: 'Beat' }] });
+    const hitResult = remove('hit', hit.id)(project, ctx);
+    expect(hitResult.ok || hitResult.error).toEqual({ kind: 'in-use', usages: [{ kind: 'loop', id: loop.id, name: 'Beat' }] });
     const loopResult = remove('loop', loop.id)(project, ctx);
     expect(loopResult.ok || loopResult.error).toEqual({
       kind: 'in-use',
       usages: [{ kind: 'song', id: null, name: 'Song' }],
     });
   });
-  it('removing anyway leaves silence where it was used, but not from a break', () => {
+
+  it('removing anyway leaves silence where it was used', () => {
     const ctx = sequentialIds();
     let project = run(createProject(), ctx, addSample({ name: 'Snare', audio: constantAudio(0.2) }));
     const hit = only(project.hits);
-    project = run(project, ctx, duplicateHit(hit.id), createPad('Mine'), createLoop('Beat', 'main', 1));
+    const mine = only(project.pads);
+    project = run(project, ctx, addVariant(hit.id), createLoop('Beat', 'main', 1));
     const copy = Object.values(project.hits).find((h) => h.variantOf === hit.id)!;
-    const mine = Object.values(project.pads).find((p) => p.name === 'Mine')!;
     const loop = only(project.loops);
-    project = run(project, ctx, addPadMember(mine.id, copy.id), setStep(loop.id, 0, { padId: mine.id, memberId: copy.id }), setStep(loop.id, 1, { padId: mine.id }), setSongCell('main', 0, loop.id));
+    project = run(project, ctx, setStep(loop.id, 0, { padId: mine.id, memberId: copy.id }), setStep(loop.id, 1, { padId: mine.id }), setSongCell('main', 0, loop.id));
 
     const noHit = run(project, ctx, removeAnyway('hit', copy.id));
-    expect(noHit.pads[mine.id]!.members).toEqual([]);
+    expect(noHit.pads[mine.id]!.members).toEqual([hit.id]);
     expect(noHit.loops[loop.id]!.steps[0]).toMatchObject({ padId: mine.id, memberId: null });
 
     const noPad = run(project, ctx, removeAnyway('pad', mine.id));
     expect(noPad.loops[loop.id]!.steps.slice(0, 2).map((s) => s.padId)).toEqual([null, null]);
+    expect(Object.keys(noPad.hits)).toEqual([]);
 
     const noLoop = run(project, ctx, removeAnyway('loop', loop.id));
     expect(noLoop.song.clips).toEqual([]);
-
-    expect(removeAnyway('hit', hit.id)(project, ctx).ok).toBe(true);
   });
 
-  it("removing anyway still keeps a break's pads and parent", () => {
+  it("removing a matrix's own loop leaves the matrix without a loop", () => {
     const ctx = sequentialIds();
     let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const brk = only(project.breaks);
-    project = run(project, ctx, setBreak(brk.id, 1));
-    expect(removeAnyway('pad', project.breaks[brk.id]!.pads[0]!)(project, ctx).ok).toBe(false);
-    expect(removeAnyway('hit', project.breaks[brk.id]!.parent!)(project, ctx).ok).toBe(false);
+    project = run(project, ctx, setSlicing(only(project.samples).id, 1));
+    const matrix = only(project.matrices);
+    expect(matrix.loop).not.toBeNull();
+    const gone = run(project, ctx, remove('loop', matrix.loop!));
+    expect(gone.matrices[matrix.id]!.loop).toBeNull();
   });
 });
 
 describe('pad members', () => {
   it('steps that chose a removed member fall back to member 1', () => {
     const ctx = sequentialIds();
-    let project = run(
-      createProject(),
-      ctx,
-      addSample({ name: 'S1', audio: constantAudio(0.1) }),
-      addSample({ name: 'S2', audio: constantAudio(0.1) }),
-    );
+    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), addSample({ name: 'S2', audio: constantAudio(0.1) }), createMatrix('Snares'));
     const [h1, h2] = Object.keys(project.hits) as [string, string];
-    project = run(project, ctx, createPad('Snares', [h1, h2]));
-    const snares = Object.values(project.pads).find((p) => p.name === 'Snares')!;
-    project = run(project, ctx, createLoop('Beat', 'main', 1));
+    const snares = Object.values(project.pads).find((p) => p.name === 'Snares 01')!;
+    project = run(project, ctx, copyHits([h1, h2], snares.id), createLoop('Beat', 'main', 1));
+    const [c1, c2] = project.pads[snares.id]!.members as [string, string];
     const loop = only(project.loops);
-    project = run(project, ctx, setStep(loop.id, 4, { padId: snares.id, memberId: h2 }));
+    project = run(project, ctx, setStep(loop.id, 4, { padId: snares.id, memberId: c2 }));
 
-    project = run(project, ctx, removePadMember(snares.id, h2));
+    project = run(project, ctx, removePadMember(snares.id, c2));
 
-    expect(project.pads[snares.id]!.members).toEqual([h1]);
+    expect(project.pads[snares.id]!.members).toEqual([c1]);
+    expect(project.hits[c2]).toBeUndefined();
     expect(project.loops[loop.id]!.steps[4]).toMatchObject({ padId: snares.id, memberId: null });
   });
 
-  it('a hit can be a member of several pads', () => {
+  it('a hit sits in one pad: adding it to another pad adds a copy', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
+    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createMatrix('Mine'));
     const hit = only(project.hits);
-    project = run(project, ctx, createPad('Mine'));
-    const mine = Object.values(project.pads).find((p) => p.name === 'Mine')!;
-    project = run(project, ctx, addPadMember(mine.id, hit.id));
-    expect(Object.values(project.pads).filter((p) => p.members.includes(hit.id))).toHaveLength(2);
+    const mine = Object.values(project.pads).find((p) => p.name === 'Mine 01')!;
+    project = run(project, ctx, copyHits([hit.id], mine.id));
+    expect(Object.values(project.pads).filter((p) => p.members.includes(hit.id))).toHaveLength(1);
+    expect(project.pads[mine.id]!.members).toHaveLength(1);
+    expect(project.pads[mine.id]!.members[0]).not.toBe(hit.id);
   });
 });
 
@@ -279,17 +277,17 @@ describe('undo', () => {
 });
 
 describe('fas 3 model', () => {
-  it('duplicateHit marks the variant; chain pads are auto and built pads are not', () => {
+  it('addVariant marks the variant; a copy is no variant', () => {
     const ctx = sequentialIds();
-    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }));
+    let project = run(createProject(), ctx, addSample({ name: 'S1', audio: constantAudio(0.1) }), createMatrix('Mine'));
     const hit = only(project.hits);
     expect(hit.variantOf).toBeNull();
-    expect(only(project.pads).auto).toBe(true);
+    const mine = Object.values(project.pads).find((p) => p.name === 'Mine 01')!;
 
-    project = run(project, ctx, duplicateHit(hit.id), createPad('Mine', [hit.id]));
-    const variant = Object.values(project.hits).find((h) => h.id !== hit.id)!;
-    expect(variant.variantOf).toBe(hit.id);
-    expect(Object.values(project.pads).find((p) => p.name === 'Mine')!.auto).toBe(false);
+    project = run(project, ctx, addVariant(hit.id), copyHits([hit.id], mine.id));
+    const variant = Object.values(project.hits).find((h) => h.variantOf === hit.id)!;
+    expect(variant.id).not.toBe(hit.id);
+    expect(project.hits[project.pads[mine.id]!.members[0]!]!.variantOf).toBeNull();
   });
 
   it('setLoopLength lengthens with empty steps and shortens, keeping the steps that remain', () => {
@@ -377,24 +375,6 @@ describe('loop kind is a tag', () => {
 
     project = run(project, ctx, setLoopKind(main!.id, 'fill'));
     expect(project.loops[main!.id]).toMatchObject({ kind: 'fill', name: 'M1' });
-  });
-});
-
-describe('addVariant', () => {
-  it("adds the variant last to the original's own pad; a variant of a variant goes there too", () => {
-    const ctx = sequentialIds();
-    let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }));
-    const id = only(project.breaks).id;
-    project = run(project, ctx, sliceBreak(id, 1, 4));
-    const slicePad = project.pads[project.breaks[id]!.pads[1]!]!;
-    const original = slicePad.members[0]!;
-
-    project = run(project, ctx, addVariant(original));
-    const variant = Object.values(project.hits).find((h) => h.variantOf === original)!;
-    project = run(project, ctx, addVariant(variant.id));
-    const second = Object.values(project.hits).find((h) => h.variantOf === variant.id)!;
-
-    expect(project.pads[slicePad.id]!.members).toEqual([original, variant.id, second.id]);
   });
 });
 
@@ -604,13 +584,13 @@ describe('moving steps', () => {
 });
 
 describe('heard in the song', () => {
-  it('follows the song down: loop in the song, pads on its steps, their hits, and the breaks with their parents', () => {
+  it('follows the song down: loop in the song, pads on its steps, their hits, and their matrices', () => {
     const ctx = sequentialIds();
     let project = run(createProject(), ctx, addSample({ name: 'amen.wav', audio: constantAudio(1) }), addSample({ name: 'Snare', audio: constantAudio(0.2) }));
-    const amen = Object.values(project.breaks).find((b) => b.name === 'amen 1')!;
-    project = run(project, ctx, setBreak(amen.id, 1), createLoop('Beat', 'main', 1));
+    const amen = Object.values(project.matrices).find((m) => m.name === 'amen 1')!;
+    project = run(project, ctx, setSlicing(amen.sampleId!, 1), createLoop('Beat', 'main', 1));
     const beat = Object.values(project.loops).find((l) => l.name === 'Beat')!;
-    const slot = project.breaks[amen.id]!.pads[2]!;
+    const slot = project.matrices[amen.id]!.pads[2]!;
     expect(heardInSong(project).loops.size).toBe(0);
 
     project = run(project, ctx, setStep(beat.id, 0, { padId: slot }), setSongCell('main', 0, beat.id));
@@ -618,10 +598,9 @@ describe('heard in the song', () => {
     expect([...heard.loops]).toEqual([beat.id]);
     expect([...heard.pads]).toEqual([slot]);
     expect(heard.hits.has(project.pads[slot]!.members[0]!)).toBe(true);
-    expect(heard.hits.has(project.breaks[amen.id]!.parent!)).toBe(true);
-    expect([...heard.breaks]).toEqual([amen.id]);
+    expect([...heard.matrices]).toEqual([amen.id]);
     // The snare is in no loop in the song.
-    const snare = Object.values(project.breaks).find((b) => b.name === 'Snare 1')!;
-    expect(heard.breaks.has(snare.id)).toBe(false);
+    const snare = Object.values(project.matrices).find((m) => m.name === 'Snare 1')!;
+    expect(heard.matrices.has(snare.id)).toBe(false);
   });
 });
