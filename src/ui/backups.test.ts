@@ -9,6 +9,10 @@ describe('backups', () => {
     expect(backupDue(1000, 1000 + BACKUP_EVERY_MS)).toBe(true);
   });
 
+  it('a backup made before samples replaced breaks says 0 samples', () => {
+    expect(summaryText({ snapshot: null, loops: 3, clips: 8 })).toBe('0 samples · 3 loops · 8 clips');
+  });
+
   it('sums up a project by its active snapshot, samples, loops and clips', () => {
     const summary = summarize(createProject(), 'Groove');
     expect(summary).toEqual({ snapshot: 'Groove', samples: 0, loops: 0, clips: 0 });

@@ -125,17 +125,22 @@ describe('the database before backups', () => {
 });
 
 describe('an autosave from before Matrix', () => {
-  it('an autosave from before Matrix opens an empty project and leaves the backups', async () => {
+  it('an autosave from before Matrix opens empty, keeps the old data as a backup and leaves the backups', async () => {
     const factory = new IDBFactory();
     const { matrices: _matrices, ...old } = createProject();
     void _matrices;
     const backups = indexedDbBackups(factory, () => 'b-1');
     await backups.add(createProject(), { snapshot: null, samples: 0, loops: 0, clips: 0 }, 1);
-    // Put the old project in the autosave key through the storage, then strip it.
+    // `old` lacks `matrices`, so the type says no; it is saved as an old project would be.
     await indexedDbStorage(factory).save(old as never);
 
     expect(await indexedDbStorage(factory).load()).toBeNull();
-    expect((await backups.list()).map((b) => b.id)).toEqual(['b-1']);
+    const kept = await backups.list();
+    expect(kept).toHaveLength(2);
+    expect(kept.map((b) => b.id)).toContain('b-1');
+    // The old data survives as a backup that restoring refuses with the message.
+    const oldId = kept.find((b) => b.id !== 'b-1')!.id;
+    await expect(backups.restore(oldId)).rejects.toThrow('This project was made before Matrix');
   });
 
   it('restoring a backup from before Matrix is an error with the message', async () => {
@@ -143,6 +148,7 @@ describe('an autosave from before Matrix', () => {
     const { matrices: _matrices, ...old } = createProject();
     void _matrices;
     const backups = indexedDbBackups(factory, () => 'b-1');
+    // `old` lacks `matrices`: a backup from before Matrix.
     await backups.add(old as never, { snapshot: null, samples: 0, loops: 0, clips: 0 }, 1);
     await expect(backups.restore('b-1')).rejects.toThrow('This project was made before Matrix (phase 22). Open it in the tag fas-21-fore-matrix.');
   });

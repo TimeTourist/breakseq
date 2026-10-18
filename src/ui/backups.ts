@@ -9,7 +9,8 @@ export const BACKUP_EVERY_MS = 5 * 60 * 1000;
 export interface BackupSummary {
   /** The snapshot that was active when it was made. */
   readonly snapshot: string | null;
-  readonly samples: number;
+  /** Missing in backups made before it replaced `breaks`. */
+  readonly samples?: number;
   readonly loops: number;
   readonly clips: number;
 }
@@ -43,7 +44,7 @@ export const backupDue = (last: number | null, now: number): boolean => last ===
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** "2 samples · 3 loops · 8 clips". */
-export const summaryText = (s: BackupSummary): string => [plural(s.samples, 'sample'), plural(s.loops, 'loop'), plural(s.clips, 'clip')].join(' · ');
+export const summaryText = (s: BackupSummary): string => [plural(s.samples ?? 0, 'sample'), plural(s.loops, 'loop'), plural(s.clips, 'clip')].join(' · ');
 
 /** "14:32, 12 min ago"; on an earlier day the date goes first: "2026-10-15 14:32, 1 day ago". */
 export function backupTime(at: number, now: number): string {
