@@ -393,6 +393,23 @@ const place = (element: HTMLElement, rect: { left?: number; top?: number; width?
 };
 
 describe('Pads: the Take from shelf and drag', () => {
+  it('a drag near the top or bottom of the window scrolls the page, so a timeline scrolled out of view comes back', async () => {
+    await setupTaking(amenAndSnares());
+    place(document.querySelector<HTMLElement>('.header')!, { top: 0, width: 1000, height: 70 });
+    const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+    const transfer = dataTransfer();
+    fireEvent.dragStart(shelfSnare(), { dataTransfer: transfer });
+    dragAt('dragOver', shelf(), transfer, { clientY: 72 });
+    expect(scrollBy).toHaveBeenLastCalledWith({ top: expect.any(Number) as number });
+    expect((scrollBy.mock.lastCall![0] as ScrollToOptions).top).toBeLessThan(0);
+    dragAt('dragOver', shelf(), transfer, { clientY: window.innerHeight - 2 });
+    expect((scrollBy.mock.lastCall![0] as ScrollToOptions).top).toBeGreaterThan(0);
+    scrollBy.mockClear();
+    dragAt('dragOver', shelf(), transfer, { clientY: 400 });
+    expect(scrollBy).not.toHaveBeenCalled();
+    fireEvent.dragEnd(shelfSnare(), { dataTransfer: transfer });
+  });
+
   it('shows each matrix taken from with all hits and its hits', async () => {
     await setupTaking(amenAndSnares());
     const group = within(shelf()).getByRole('group', { name: 'Snares' });

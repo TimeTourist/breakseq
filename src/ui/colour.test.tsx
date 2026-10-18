@@ -59,7 +59,7 @@ async function setup(project: Project, view: 'pads' | 'mods', selection: Partial
 }
 
 describe('dist and filter in the GUI', () => {
-  it('Hits sets a hit to Crush with an amount, and a low-pass with a cutoff', async () => {
+  it('Pads sets a hit to Crush with an amount, and a low-pass with a cutoff', async () => {
     const project = apply(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const hit = Object.values(project.hits)[0]!;
     const store = await setup(project, 'pads', { hit: hit.id });
@@ -90,7 +90,7 @@ describe('dist and filter in the GUI', () => {
 });
 
 describe('reverb and delay in the GUI', () => {
-  it('Hits sends a hit to the reverb and the delay, with a size, a time and feedback', async () => {
+  it('Pads sends a hit to the reverb and the delay, with a size, a time and feedback', async () => {
     const project = apply(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const hit = Object.values(project.hits)[0]!;
     const store = await setup(project, 'pads', { hit: hit.id });

@@ -149,7 +149,7 @@ describe('a click in the shelf', () => {
   });
 });
 
-describe('from Loops to Hits', () => {
+describe('from Loops to Pads', () => {
   it('a double-click on a pad in the shelf opens it in Pads', async () => {
     const { project, loop, pad, matrix } = hats();
     const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
@@ -160,7 +160,7 @@ describe('from Loops to Hits', () => {
 });
 
 describe('a matrix in the shelf', () => {
-  it('lays out its pads one after another when dropped on a step, and a double-click opens it in Hits', async () => {
+  it('lays out its pads one after another when dropped on a step, and a double-click opens it in Pads', async () => {
     const { project, loop, matrix } = hats();
     const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
     const chip = screen.getByRole('button', { name: 'Matrix Hats: lay out all its pads' });

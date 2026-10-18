@@ -341,6 +341,7 @@ function Shell() {
             playingKey: playing && playingKey !== 'snapshot' ? playingKey : null,
             seconds: playhead.seconds,
             duration: playing && shown?.key === playingKey ? shown.take.buffer.duration : null,
+            shownKey: shown?.key ?? null,
             onPlay: play,
             onStop: stop,
           }}

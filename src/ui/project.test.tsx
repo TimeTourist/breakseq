@@ -79,6 +79,18 @@ const loopName = (store: Store) => Object.values(present(store).loops)[0]?.name;
 const snapshots = () => screen.getByRole('region', { name: 'Snapshots' });
 
 describe('Project', () => {
+  it('New snapshot looks off while it is off (no project folder), and primary once there is one (U17)', async () => {
+    const folder = memoryFolder('Amen');
+    await setup(build(createLoop('basic', 'main', 1)), [folder]);
+    const button = () => screen.getByRole('button', { name: 'New snapshot' });
+    expect((button() as HTMLButtonElement).disabled).toBe(true);
+    expect(button().classList.contains('primary')).toBe(false);
+    await click('New');
+    await answer('Keep the current work');
+    expect((button() as HTMLButtonElement).disabled).toBe(false);
+    expect(button().classList.contains('primary')).toBe(true);
+  });
+
   it('New keeps the work as "Start"; a change shows changed, and Save clears it', async () => {
     const folder = memoryFolder('Amen');
     const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(0.2) }), createLoop('M1', 'main', 1)), [folder]);

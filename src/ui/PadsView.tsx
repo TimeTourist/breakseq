@@ -11,7 +11,7 @@ import { InSong, useHeard } from './InSong';
 import { MatrixKindIcon } from './icons';
 import { isTyping } from './isTyping';
 import type { Dragged, DropTarget, PadsOpen, Placing, Zoom } from './pads';
-import { dropCommand, padsOpen, stepSelection } from './pads';
+import { autoscrollStep, dropCommand, padsOpen, stepSelection } from './pads';
 import { TakeFromShelf } from './TakeFromShelf';
 import { Timeline } from './Timeline';
 
@@ -30,6 +30,7 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
   const open = padsOpen(project, focus.matrix, selection);
   const placing = usePlacing(setError);
   const ask = usePadsKeys(open);
+  usePageAutoscroll();
   const what = open === null ? null : open.kind === 'pad' && open.pad.members.length === 0 ? null : open.kind;
   const matrixPlays = open !== null && transport.played !== null && transport.played.key === `matrix:${open.matrix.id}`;
 
@@ -235,4 +236,21 @@ function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix
       </div>
     </section>
   );
+}
+
+/**
+ * While something is dragged in Pads, the pointer near the top of the window
+ * (just under the sticky header) or its bottom scrolls the page, so a timeline
+ * scrolled out of view comes back to drop on, as the timeline's box scrolls sideways.
+ */
+function usePageAutoscroll() {
+  useEffect(() => {
+    const onDragOver = (e: DragEvent) => {
+      const top = document.querySelector('.header')?.getBoundingClientRect().bottom ?? 0;
+      const by = autoscrollStep(e.clientY, top, window.innerHeight);
+      if (by !== 0) window.scrollBy({ top: by });
+    };
+    document.addEventListener('dragover', onDragOver);
+    return () => document.removeEventListener('dragover', onDragOver);
+  }, []);
 }

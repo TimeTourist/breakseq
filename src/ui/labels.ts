@@ -24,28 +24,6 @@ export function padSilent(project: Project, pad: Pad): boolean {
   return hit !== undefined && hitSound(project, hit) === null;
 }
 
-/**
- * Pads grouped the way they belong together: each matrix's pads in order,
- * named after its matrix; then the pad of every one-shot (a matrix of one pad)
- * under One-shots. A silent pad shows only while a loop still plays it.
- */
-export function padGroups(project: Project, filter: (pad: Pad) => boolean = () => true): Group<Pad>[] {
-  const inLoops = new Set(Object.values(project.loops).flatMap((l) => l.steps.flatMap((s) => (s.padId === null ? [] : [s.padId]))));
-  const shown = (id: Id) => {
-    const pad = project.pads[id];
-    return pad !== undefined && filter(pad) && (!padSilent(project, pad) || inLoops.has(id)) ? [pad] : [];
-  };
-  const matrices = Object.values(project.matrices);
-  const oneShots = matrices.filter((m) => matrixKind(m) === 'one-shot').flatMap((m) => m.pads.flatMap(shown));
-  return [
-    ...matrices
-      .filter((m) => matrixKind(m) === 'break')
-      .map((m) => ({ name: m.name, items: m.pads.flatMap(shown), matrixId: m.id }))
-      .filter((g) => g.items.length > 0),
-    ...(oneShots.length > 0 ? [{ name: 'One-shots', items: oneShots }] : []),
-  ];
-}
-
 /** A matrix of the shelf in Loops: its pads in order, with its classification. */
 export interface ShelfGroup extends Group<Pad> {
   readonly matrixId: Id;

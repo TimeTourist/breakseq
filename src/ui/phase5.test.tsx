@@ -120,7 +120,7 @@ describe('Dragging in Song', () => {
 });
 
 describe('Double-click opens the editor', () => {
-  it('a loop in Song opens Loops, a mod opens Mods, a step opens its pad in Hits', async () => {
+  it('a loop in Song opens Loops, a mod opens Mods, a step opens its pad in Pads', async () => {
     let project = apply(createProject(), addSample({ name: 'snare.wav', audio: hits() }), createLoop(null, 'main', 2));
     const pad = Object.values(project.pads)[0]!;
     const hit = Object.values(project.hits)[0]!;
@@ -143,7 +143,7 @@ describe('Double-click opens the editor', () => {
     expect(state().view).toBe('pads');
     expect(state().selection.pad).toBe(pad.id);
 
-    // In Hits, a hit of the pad opens it for editing.
+    // In Pads, a hit of the pad opens it for editing.
     fireEvent.click(within(screen.getByRole('list', { name: 'Hits in this pad' })).getByRole('button', { name: 'snare 1' }));
     expect(state().selection.hit).toBe(hit.id);
     expect(screen.getByLabelText('Hit name')).toHaveProperty('value', hit.name);

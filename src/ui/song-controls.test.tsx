@@ -220,3 +220,13 @@ describe('copying clips', () => {
     ]);
   });
 });
+
+describe('Song lanes (U16)', () => {
+  it('each lane shows its name: Main, Fill, Mod A, Mod B', async () => {
+    await setup(song());
+    for (const name of ['Main', 'Fill', 'Mod A', 'Mod B']) {
+      const lane = screen.getByLabelText(`${name} lane`);
+      expect(lane.querySelector('.lane-label')?.textContent).toBe(name);
+    }
+  });
+});

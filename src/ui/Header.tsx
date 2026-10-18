@@ -159,7 +159,8 @@ function SnapshotButtons() {
       </button>
       <button
         type="button"
-        className="primary"
+        // Primary only while it can be used: switched off it looks like any button that is off.
+        className={busy || folder === null ? undefined : 'primary'}
         aria-expanded={naming}
         disabled={busy || folder === null}
         title={folder === null ? noFolder : 'Keep the work as a new snapshot'}

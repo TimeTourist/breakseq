@@ -10,7 +10,7 @@ export type View = (typeof VIEWS)[number];
 export interface Selection {
   readonly hit: Id | null;
   readonly pad: Id | null;
-  /** The matrix open on its own in Hits, while no pad or hit is. */
+  /** The matrix selected on its own in Pads, while no pad or hit is. */
   readonly matrix: Id | null;
   readonly loop: Id | null;
   /** Step index within the selected loop. */
@@ -49,20 +49,14 @@ export interface AppState {
   readonly focus: Focus;
   readonly projectFolder: ProjectFolderState;
   readonly view: View;
-  /** The sample open in Slice. */
+  /** The trim selected in Samples, shown with its slicing below the table. */
   readonly sliceTarget: string | null;
-  /** The slice Slice opens with selected, as when a matrix's slice line in Hits is double-clicked. */
-  readonly sliceSelected: number;
   readonly selection: Selection;
   /** The step in Song that Play starts from, set by a click in its ruler; Stop goes back to it. */
   readonly songCursor: number;
   /** A clip copied in Song with Ctrl+C, to paste with Ctrl+V. */
   readonly clipboard: Clip | null;
-  /** Whether Play in Hits loops what is open, or plays it once. */
-  readonly hitsLoop: boolean;
-  /** Matrices whose pads are shown in the Hits list; breaks are folded at first. */
-  readonly unfolded: readonly Id[];
-  /** The sample (trim) whose Trim is open in Import: what Play plays there. */
+  /** The sample (trim) whose Trim is open in Samples: what Play plays there. */
   readonly trimming: Id | null;
 }
 
@@ -80,14 +74,12 @@ export type Action =
   | { readonly type: 'takeFrom'; readonly matrix: Id; readonly on: boolean }
   | { readonly type: 'view'; readonly view: View }
   | { readonly type: 'place'; readonly place: Place }
-  | { readonly type: 'sliceTarget'; readonly sampleId: string | null; readonly slice?: number }
+  | { readonly type: 'sliceTarget'; readonly sampleId: string | null }
   /** Swaps in a project and starts a new undo history, as a loaded snapshot does. */
   | { readonly type: 'load'; readonly project: Project }
   | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> }
   | { readonly type: 'songCursor'; readonly step: number }
   | { readonly type: 'clipboard'; readonly clip: Clip | null }
-  | { readonly type: 'hitsLoop'; readonly loop: boolean }
-  | { readonly type: 'fold'; readonly matrixIds: readonly Id[]; readonly folded: boolean }
   | { readonly type: 'trimming'; readonly sampleId: Id | null };
 
 export const initialState = (project: Project = createProject()): AppState => ({
@@ -96,12 +88,9 @@ export const initialState = (project: Project = createProject()): AppState => ({
   projectFolder: { folder: null, active: null, saved: null, snapshots: [] },
   view: 'samples',
   sliceTarget: null,
-  sliceSelected: 0,
   selection: { hit: null, pad: null, matrix: null, loop: null, step: null, mod: null, previewLoop: null },
   songCursor: 0,
   clipboard: null,
-  hitsLoop: true,
-  unfolded: [],
   trimming: null,
 });
 
@@ -150,7 +139,7 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'place':
       return { state: { ...state, ...action.place }, error: null };
     case 'sliceTarget':
-      return { state: { ...state, sliceTarget: action.sampleId, sliceSelected: action.slice ?? 0 }, error: null };
+      return { state: { ...state, sliceTarget: action.sampleId }, error: null };
     case 'load':
       return { state: { ...withHistory(state, createHistory(action.project)), songCursor: 0 }, error: null };
     case 'projectFolder':
@@ -159,12 +148,6 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, songCursor: Math.max(0, Math.round(action.step)) }, error: null };
     case 'clipboard':
       return { state: { ...state, clipboard: action.clip }, error: null };
-    case 'hitsLoop':
-      return { state: { ...state, hitsLoop: action.loop }, error: null };
-    case 'fold': {
-      const others = state.unfolded.filter((id) => !action.matrixIds.includes(id));
-      return { state: { ...state, unfolded: action.folded ? others : [...others, ...action.matrixIds] }, error: null };
-    }
     case 'trimming':
       return { state: { ...state, trimming: action.sampleId }, error: null };
   }

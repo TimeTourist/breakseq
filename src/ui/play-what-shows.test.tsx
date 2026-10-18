@@ -60,6 +60,11 @@ describe('what Play plays', () => {
     expect(subjectOf(p, state(p, { view: 'pads', selection: { ...sel, pad: matrix.pads[1]! } }))).toBeNull();
   });
 
+  it('is in Mods nothing while there is no mod: Play stops (U18)', () => {
+    expect(Object.keys(p.mods)).toHaveLength(0);
+    expect(subjectOf(p, state(p, { view: 'mods' }))).toBeNull();
+  });
+
   it('is the song in Song and Project', () => {
     expect(subjectOf(p, state(p, { view: 'song' }))?.key).toBe(SONG_KEY);
     expect(subjectOf(p, state(p, { view: 'project' }))?.key).toBe(SONG_KEY);
@@ -182,7 +187,7 @@ describe('Clone matrix in Pads', () => {
     expect(copy.name).toBe('amen 1 copy');
     expect(store.getState().selection).toMatchObject({ matrix: copy.id, pad: null, hit: null });
     expect(store.getState().focus.matrix).toBe(copy.id);
-    expect(screen.getByRole('button', { name: /^Undo: add matrix amen 1 copy/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Undo: new matrix amen 1 copy/ })).toBeTruthy();
   });
 });
 

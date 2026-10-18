@@ -83,11 +83,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const silent = new Set(Object.values(project.pads).filter((p) => padSilent(project, p)).map((p) => p.id));
   const swappable = Object.values(project.matrices);
   const groups = shelfGroups(project, focus.matrix === null ? focus.takeFrom : [focus.matrix, ...focus.takeFrom]);
-  /** Opens a pad, or a hit in it, in Pads, with the matrix it is a row of in focus. */
-  const openPad = (padId: Id, hit: Id | null = null) => {
+  /** Opens a pad in Pads, with the matrix it is a row of in focus. */
+  const openPad = (padId: Id) => {
     const matrixId = matrixOfPad(project, padId)?.id ?? null;
     store.dispatch({ type: 'focus', matrix: matrixId });
-    open({ pad: padId, hit, matrix: matrixId }, 'pads');
+    open({ pad: padId, hit: null, matrix: matrixId }, 'pads');
   };
   const openMatrix = (matrixId: Id) => {
     store.dispatch({ type: 'focus', matrix: matrixId });
@@ -252,7 +252,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             {loopMatrices(project, loop).map((m) => (
               <div key={m.id} className="field inline">
                 <span className="muted">Matrix</span>
-                <button type="button" className="link-text mono" title="Open the matrix in Hits" onClick={() => openMatrix(m.id)}>
+                <button type="button" className="link-text mono" title="Open the matrix in Pads" onClick={() => openMatrix(m.id)}>
                   {m.name}
                 </button>
                 →
@@ -348,8 +348,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
         <section className="panel stack-tight">
           <div className="row spread">
             <h2 className="label">Pads</h2>
-            <button type="button" className="link-text small" onClick={() => open({}, 'pads')}>
-              Build pads in Hits →
+            <button type="button" className="link-text small" title="Opens Pads" onClick={() => open({}, 'pads')}>
+              Build pads →
             </button>
           </div>
           <div className="shelf">
@@ -360,36 +360,31 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                 <MatrixKindIcon kind={group.kind} /> {group.name}
               </span>
               <div className="row">
-                {(() => {
-                  const matrixId = group.matrixId;
-                  return (
-                  <button
-                    type="button"
-                    draggable
-                    className="chip parent-chip"
-                    aria-pressed={shelfMatrix === matrixId}
-                    aria-label={`Matrix ${group.name}: lay out all its pads`}
-                    title="The whole matrix: a click plays it once and selects it; it lays out its pads one after another from the step. Double-click to edit it in Pads"
-                    onDoubleClick={() => openMatrix(matrixId)}
-                    onClick={() => {
-                      setShelfMatrix(shelfMatrix === matrixId ? null : matrixId);
-                      void playMatrix(matrixId);
-                      setShelfPad(null);
-                    }}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData(MATRIX_MIME, matrixId);
-                      e.dataTransfer.effectAllowed = 'copy';
-                      setDragSteps(matrixSteps(project, matrixId));
-                    }}
-                    onDragEnd={() => {
-                      setDragSteps(null);
-                      drops.clear();
-                    }}
-                  >
-                    {baseName(group.name)} ▸ all <span className="chip-steps">{lengthText(matrixSteps(project, matrixId))}</span>
-                  </button>
-                  );
-                })()}
+                <button
+                  type="button"
+                  draggable
+                  className="chip parent-chip"
+                  aria-pressed={shelfMatrix === group.matrixId}
+                  aria-label={`Matrix ${group.name}: lay out all its pads`}
+                  title="The whole matrix: a click plays it once and selects it; it lays out its pads one after another from the step. Double-click to edit it in Pads"
+                  onDoubleClick={() => openMatrix(group.matrixId)}
+                  onClick={() => {
+                    setShelfMatrix(shelfMatrix === group.matrixId ? null : group.matrixId);
+                    void playMatrix(group.matrixId);
+                    setShelfPad(null);
+                  }}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(MATRIX_MIME, group.matrixId);
+                    e.dataTransfer.effectAllowed = 'copy';
+                    setDragSteps(matrixSteps(project, group.matrixId));
+                  }}
+                  onDragEnd={() => {
+                    setDragSteps(null);
+                    drops.clear();
+                  }}
+                >
+                  {baseName(group.name)} ▸ all <span className="chip-steps">{lengthText(matrixSteps(project, group.matrixId))}</span>
+                </button>
                 {group.items.map((p) => (
                   <button
                     key={p.id}
@@ -399,7 +394,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onDoubleClick={() => openPad(p.id)}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
-                    title={silent.has(p.id) ? `${p.name}: silent, its sample has fewer slices` : `${p.name} · ${lengthText(Math.max(1, padSteps(project, p)))} · double-click to edit in Hits`}
+                    title={silent.has(p.id) ? `${p.name}: silent, its sample has fewer slices` : `${p.name} · ${lengthText(Math.max(1, padSteps(project, p)))} · double-click to edit in Pads`}
                     style={{ color: HIT_COLOR, boxShadow: `inset 0 -3px 0 ${HIT_COLOR}` }}
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);
@@ -424,7 +419,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </div>
           ))}
           </div>
-          <p className="muted small">Drag a pad or a whole matrix onto a step, or select it and click steps. A click on a pad plays it once; a double-click edits it in Hits.</p>
+          <p className="muted small">Drag a pad or a whole matrix onto a step, or select it and click steps. A click on a pad plays it once; a double-click edits it in Pads.</p>
         </section>
       </main>
 
@@ -446,7 +441,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     {stepPad.name}
                   </span>
                   <button type="button" className="link-text small" onClick={() => openPad(stepPad.id)}>
-                    Hits →
+                    Pads →
                   </button>
                 </div>
               )}

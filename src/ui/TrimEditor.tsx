@@ -29,7 +29,7 @@ export function TrimEditor({
    * Play in the header, which plays the open Trim, looped: given, ▶ here is
    * that same Play, so one stops the other. Left out, ▶ auditions on its own.
    */
-  readonly transport?: { readonly playing: boolean; readonly onToggle: () => void };
+  readonly transport?: { readonly playing: boolean; readonly ready: boolean; readonly onToggle: () => void };
 }) {
   const project = useProject();
   const { services } = useApp();
@@ -157,7 +157,13 @@ export function TrimEditor({
               }}
             />
           ) : (
-            <PlayControls what="trim" playing={transport.playing} onToggle={transport.onToggle} title="Plays the trim looped, as Play at the top does" />
+            <PlayControls
+              what="trim"
+              playing={transport.playing}
+              disabled={!transport.playing && !transport.ready}
+              onToggle={transport.onToggle}
+              title="Plays the trim looped, as Play at the top does"
+            />
           )}
           <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>
             Reset

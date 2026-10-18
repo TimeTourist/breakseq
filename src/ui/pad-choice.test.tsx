@@ -68,7 +68,7 @@ async function setup(project: Project, view: 'pads' | 'loops', selection: Partia
 }
 
 describe("the pad's choice in the GUI", () => {
-  it('Hits sets how the pad picks', async () => {
+  it('Pads sets how the pad picks', async () => {
     const { project, pad } = hats();
     const store = await setup(project, 'pads', { pad: pad.id });
     const group = screen.getByRole('group', { name: 'Pad plays' });

@@ -76,6 +76,8 @@ export interface SamplesTransport {
   /** Seconds into what it plays, and how long that is. */
   readonly seconds: number | null;
   readonly duration: number | null;
+  /** The key of what Play would start now: the latest render, which may still be of what was shown before. */
+  readonly shownKey: string | null;
   readonly onPlay: () => void;
   readonly onStop: () => void;
 }
@@ -441,6 +443,8 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                                 played={playingKey === `sample:${sample.id}` ? transport.seconds : null}
                                 transport={{
                                   playing: playingKey === `sample:${sample.id}`,
+                                  // Until the trim's own render is in, Play would start what was shown before.
+                                  ready: transport.shownKey === `sample:${sample.id}`,
                                   onToggle: () => (playingKey === `sample:${sample.id}` ? transport.onStop() : transport.onPlay()),
                                 }}
                               />
