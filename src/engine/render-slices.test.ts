@@ -73,7 +73,6 @@ describe('MIDI export', () => {
   });
 });
 
-
 describe('a hit past the last slice', () => {
   it('a hit past the last slice is silent in generate, render, MIDI and REX', async () => {
     // b's hit plays slice 5 of a sample with one slice: past its last marker.
