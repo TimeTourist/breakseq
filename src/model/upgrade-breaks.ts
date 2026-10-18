@@ -1,4 +1,4 @@
-import { ensureSlots, slotHit, slotName } from './breaks';
+import { ensureSlots, slotHit, slotName } from './sound';
 import type { Break, Hit, Id, Pad, Project, Region, Sample } from './types';
 import { NO_DELAY, NO_DIST, NO_FILTER, NO_REVERB, NO_STRETCH, STEPS_PER_BAR } from './types';
 

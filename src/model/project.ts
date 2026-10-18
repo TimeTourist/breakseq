@@ -1,6 +1,6 @@
 import type { Clip, Hit, Id, Loop, LoopKind, Mod, ModEffect, ModRate, ModShape, Pad, Project, Sample, Song, SongRow, Step, StepTarget, SwapEffect, TapeEffect } from './types';
 import { NO_DELAY, NO_DIST, NO_FILTER, NO_REVERB, NO_STRETCH, STEPS_PER_BAR } from './types';
-import { defaultBreakName } from './breaks';
+import { defaultBreakName } from './sound';
 import { renameBreakIn } from './names';
 import { breaksFromSamples } from './upgrade-breaks';
 

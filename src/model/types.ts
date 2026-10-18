@@ -11,7 +11,10 @@ export interface AudioData {
   readonly channels: readonly Float32Array[];
 }
 
-/** Audio: an imported file, trimmed to a window of it. Only sound; what it is used for is its breaks'. */
+/**
+ * Audio: an imported file, trimmed to a window of it, and how that trim is
+ * sliced. Only sound; how it plays is its hits'.
+ */
 export interface Sample {
   readonly id: Id;
   readonly name: string;
@@ -26,40 +29,19 @@ export interface Sample {
   readonly trim: number;
   /** Cue markers in the file, in seconds from its start: offered in Slice. Absent when it has none. */
   readonly cues?: readonly number[];
+  /** Length in bars, giving its tempo; null when it is not sliced. */
+  readonly bars: number | null;
+  /**
+   * Where slices start, as parts 0–1 of the sample: sorted, the first at 0. [0]
+   * when not sliced. In parts rather than seconds, so they keep their steps when it is trimmed.
+   */
+  readonly markers: readonly number[];
+  /** Marked to be sliced in Import but not sliced yet (bars is null). Nothing is guessed or made before that. */
+  readonly unsliced?: true;
 }
 
 /** Stereo as the file is; Left or Right that channel in both; Mono the two averaged in both. */
 export type SampleChannel = 'stereo' | 'left' | 'right' | 'mono';
-
-/**
- * A sample cut into slots 01…N, one pad per slot, each pad with its slot's hit
- * on top. Slots count by number: pad 05 always plays the fifth slice, whatever
- * the markers or the sample under the break. A one-shot is a break with one
- * slot and no markers to move.
- */
-export interface Break {
-  readonly id: Id;
-  readonly name: string;
-  readonly sampleId: Id;
-  /** Its length in bars, which gives its tempo; null for a one-shot. */
-  readonly bars: number | null;
-  /**
-   * Where slices start, as parts 0–1 of the break: sorted, the first at 0. In
-   * parts rather than seconds, so they keep their steps when the sample changes.
-   */
-  readonly markers: readonly number[];
-  /** One pad per slot, in order. It grows with the markers but never shrinks: a slot past the last slice is silent. */
-  readonly pads: readonly Id[];
-  /** The break's own hit: a macro for the hits of its slices. null for a one-shot. */
-  readonly parent: Id | null;
-  /** The loop made for the break the first time it became one, or null. */
-  readonly loop: Id | null;
-  /**
-   * Marked Break in Import but not sliced yet (bars is null): it plays as a
-   * one-shot until it is sliced in Slice. Nothing is guessed or made before that.
-   */
-  readonly unsliced?: true;
-}
 
 export type Direction = 'forward' | 'reverse';
 
@@ -72,20 +54,20 @@ export interface Region {
 /**
  * Time stretch: the hit plays as short grains, each starting a little further
  * into the slice and laid over each other, so its length changes but its pitch
- * stays. Off is a factor of 1; Fit to tempo stretches by the break's tempo over
+ * stays. Off is a factor of 1; Fit to tempo stretches by the sample's tempo over
  * the song's, so a slice lasts as long as its steps in the song.
  */
 export type StretchMode = 'off' | 'fit' | 'factor';
-/** Where the grain grid starts: at the break's start in the sample, as when a sampler stretched the whole break, or at the hit's start. */
+/** Where the grain grid starts: at the sample's start, as when a sampler stretched the whole break, or at the hit's start. */
 export type GrainFrom = 'break' | 'hit';
 
 export interface HitStretch {
   readonly mode: StretchMode;
   /** Length factor for 'factor': 2 is twice as long. */
   readonly factor: number;
-  /** Grain length in ms; null takes the parent's, or DEFAULT_GRAIN. */
+  /** Grain length in ms; null takes the next layer's, or DEFAULT_GRAIN. */
   readonly grain: number | null;
-  /** null takes the parent's, or 'break'. */
+  /** null takes the next layer's, or 'break'. */
   readonly from: GrainFrom | null;
 }
 
@@ -95,7 +77,7 @@ export const NO_STRETCH: HitStretch = { mode: 'off', factor: 1, grain: null, fro
 
 /**
  * Dist colours a sound and keeps its level: Drive saturates and then clips,
- * Crush lowers the bit depth, Decimate the sample rate. Off takes the parent's.
+ * Crush lowers the bit depth, Decimate the sample rate. Off takes the next layer's.
  */
 export type DistMode = 'off' | 'drive' | 'crush' | 'decimate';
 export interface HitDist {
@@ -105,7 +87,7 @@ export interface HitDist {
 }
 export const NO_DIST: HitDist = { mode: 'off', amount: 0.5 };
 
-/** A low- or high-pass filter after dist. Off takes the parent's. */
+/** A low- or high-pass filter after dist. Off takes the next layer's. */
 export type FilterType = 'off' | 'lowpass' | 'highpass';
 export interface HitFilter {
   readonly type: FilterType;
@@ -120,7 +102,7 @@ export const MAX_CUTOFF = 20000;
 
 /**
  * Reverb a hit sends to the song's one reverb, which rings out beside the
- * voice: the next hit cuts the hit, not its reverb. Amount 0 takes the parent's.
+ * voice: the next hit cuts the hit, not its reverb. Amount 0 takes the next layer's.
  */
 export interface HitReverb {
   /** 0–1: how much of the hit is sent. */
@@ -133,7 +115,7 @@ export const NO_REVERB: HitReverb = { amount: 0, size: 0.5 };
 /** Delay times, in steps of 1/16 at the song's tempo: 1/16, 1/8, 3/16, 1/4. */
 export const DELAY_STEPS = [1, 2, 3, 4] as const;
 export type DelaySteps = (typeof DELAY_STEPS)[number];
-/** Echoes a hit sends to a delay beside the voice, like reverb. Amount 0 takes the parent's. */
+/** Echoes a hit sends to a delay beside the voice, like reverb. Amount 0 takes the next layer's. */
 export interface HitDelay {
   /** 0–1: how much of the hit is sent. */
   readonly amount: number;
@@ -143,20 +125,14 @@ export interface HitDelay {
 }
 export const NO_DELAY: HitDelay = { amount: 0, steps: 3, feedback: 0.4 };
 
-export interface Hit {
-  readonly id: Id;
-  readonly name: string;
-  /** The break it plays a slice of. */
-  readonly breakId: Id;
-  /** The slot it plays, from 0; null for the whole break. A slot past the break's last slice is silent. */
-  readonly slot: number | null;
-  readonly region: Region;
+/** What a hit has for itself, and its pad and matrix have for all under them. */
+export interface Config {
   readonly direction: Direction;
   /** Semitones. */
   readonly pitch: number;
   /** dB. */
   readonly volume: number;
-  /** −1 (left) to 1 (right); the parent's and mods' add to it. */
+  /** −1 (left) to 1 (right); the layers' and mods' add to it. */
   readonly pan: number;
   /** Milliseconds. */
   readonly fadeOut: number;
@@ -165,19 +141,58 @@ export interface Hit {
   readonly filter: HitFilter;
   readonly reverb: HitReverb;
   readonly delay: HitDelay;
+}
+
+export const NO_CONFIG: Config = {
+  direction: 'forward',
+  pitch: 0,
+  volume: 0,
+  pan: 0,
+  fadeOut: 0,
+  stretch: NO_STRETCH,
+  dist: NO_DIST,
+  filter: NO_FILTER,
+  reverb: NO_REVERB,
+  delay: NO_DELAY,
+};
+
+/** Plays a sample, or a slice of it, with its own config. A variant is a new hit on the same sample. */
+export interface Hit extends Config {
+  readonly id: Id;
+  readonly name: string;
+  readonly sampleId: Id;
+  /** The slice it plays, from 0; null for the whole sample. Past the last marker it is silent. */
+  readonly slice: number | null;
+  readonly region: Region;
   /** The hit this one was duplicated from, or null. */
   readonly variantOf: Id | null;
 }
 
-/** Ordered hits. Member 1 (index 0) is the default. */
+/** Ordered hits in a row (x). Member 1 (index 0) is the default. Its config is laid over all its hits. */
 export interface Pad {
   readonly id: Id;
   readonly name: string;
+  /** Each hit belongs to this pad only. */
   readonly members: readonly Id[];
-  /** Made by the automatic chain rather than built by hand. Only used to group pads in the GUI. */
-  readonly auto: boolean;
   /** How the pad picks a member when neither a step lock nor a mod has. */
   readonly choice: PadChoice;
+  readonly config: Config;
+}
+
+/**
+ * Pads in order (y), 01, 02 …, and config laid over all of them. With more than
+ * one pad it is a break, with one a one-shot: a classification, never chosen.
+ */
+export interface Matrix {
+  readonly id: Id;
+  readonly name: string;
+  /** Its pads in order (y); each pad belongs to this matrix only. */
+  readonly pads: readonly Id[];
+  readonly config: Config;
+  /** The sample it was made from: its rows follow that sample's slicing. null for one built by hand or copied. */
+  readonly sampleId: Id | null;
+  /** The loop the slicing made, or null. */
+  readonly loop: Id | null;
 }
 
 /** Top plays member 1; Round robin the next member each time the pad plays in the song; Random any; No repeat any but the last. */
@@ -385,7 +400,7 @@ export interface Song {
 export interface Project {
   readonly audio: Readonly<Record<Id, AudioData>>;
   readonly samples: Readonly<Record<Id, Sample>>;
-  readonly breaks: Readonly<Record<Id, Break>>;
+  readonly matrices: Readonly<Record<Id, Matrix>>;
   readonly hits: Readonly<Record<Id, Hit>>;
   readonly pads: Readonly<Record<Id, Pad>>;
   readonly loops: Readonly<Record<Id, Loop>>;
