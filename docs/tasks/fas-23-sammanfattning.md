@@ -52,7 +52,7 @@
    - I Chromium lästes texten i alla sex flikar igenom, även title och aria-label. Orden finns bara i ikonerna, i etiketten på matrisens rad och i dialogtexten "Tick the one-shots to start with" (beslut 6).
    - Inget enskilt test går igenom all text.
 7. **Testerna går igenom, typecheck och lint är gröna, drag och släpp är provat i en riktig webbläsare, och det finns en sammanfattning.**
-   - 615 tester i 68 filer passerar, och `npm run typecheck` och `npm run lint` är gröna.
+   - 626 tester i 68 filer passerar (efter slutgranskningen), och `npm run typecheck` och `npm run lint` är gröna.
    - Drag är provat med Playwright i Chromium i Task 6 och Task 9: kopia, ersätt, flytta till första plats och autoscroll. Skärmbilderna finns i `.playwright-mcp/fas23-*.png`.
 
 ## TODO(spec)
@@ -79,16 +79,16 @@ Det här är beslut som togs under bygget, inte av dig. Varje punkt säger vad d
   - *Om det är fel:* den som slicar medan matrisen loopar och klickar på slices för att höra dem får loopen stoppad vid varje klick. Ändringen är en rad i `SliceEditor.tsx`.
 - **Trimmens Loop/Once-knapp försvann.** Trimmens ▶ är Play i headern och loopar alltid. Ändringar av trimmen hörs först när loopen börjar om, vilket kan dröja upp till ~7 s.
   - *Om det är fel:* trimma på gehör går långsammare, och man kan inte spela trimmen en gång.
-- **Matrisens automatiska loop kan bli ett antal 1/16 som inte är hela takter** när matrisen växer, till exempel 20 steg.
-  - *Om det är fel:* loopen kan sluta mitt i en takt.
+- **Matrisens automatiska loop är alltid hela takter** (ändrat i slutgranskningen; det tidigare beslutet att den kunde bli till exempel 20 steg gäller inte längre). Blir matrisen längre avrundas loopen uppåt till hela takter, högst 16 takter, och pads efter slutet kommer inte med.
+  - *Om det är fel:* en loop som växer med ett steg får en hel takt tystnad på slutet, och en matrix som är längre än 16 takter hörs inte till slut i sin egen loop.
 - **Select räknas som skrivande.** Siffror och mellanslag går till listan, inte till flikar eller Play.
   - *Om det är fel:* med en lista i fokus byter 1–6 inte flik och mellanslag startar inte Play.
 
 ### Öppet och uppskjutet
 
-- **Tangenterna i Pads följer valet, inte elementet som har fokus.** Tabbar man till pad 06 och trycker →, går man från den valda paden, inte från 06. Det rättas efter den här uppgiften.
+- **Tangenterna i Pads följer nu elementet som har fokus** (rättat i slutgranskningen). Tabbar man till pad 06 och trycker →, går man från 06, och fokus flyttar med till pad 07.
 - **Ångra-texterna räknas fram ur skillnaden** mellan före och efter, inte ur kommandot. Ovanliga fall faller tillbaka på den allmänna texten ("change sample …"), och Clone heter "new matrix amen 1 copy".
-- **Mods med en mod men ingen loop spelar låten.** Specen säger nu bara att Mods utan mod inte har något att spela.
+- **Mods med en mod men ingen loop spelar låten.** Det är öppet med flit: specen säger bara att Mods utan mod inte har något att spela, och vad som ska spelas med en mod men utan loop är ditt beslut.
 - **Hyllans pekare** (finger eller mus) nollställs inte efter ett drag med finger. Det märks bara om man blandar finger och tangentbord.
 - **All hits på en hit lägger till i den paden.** En hit kan inte ersättas av många.
 - **Ett val används en gång.** Efter ett tryck på en pad måste man trycka på hitten i hyllan igen.
@@ -105,3 +105,18 @@ Det här är beslut som togs under bygget, inte av dig. Varje punkt säger vad d
 - **New trim från Bars 4 → 2** flyttar Amen-break 1 till den nya trimmen med 32 slices, men matrisen behåller 64 pads, och 33–64 blir tysta. Det är modellen från fas 22, men det såg förvånande ut i webbläsaren.
 - **Trim ▶ är avstängd** tills trimmens egen rendering är klar, så att den inte startar det som visades förut.
 - **Dialogen New trim / Renumber ger ingen knapp fokus,** så Enter i Bars öppnar den utan att välja något i den (U1).
+
+## Efter slutgranskningen
+
+Det här rättades efter granskningen av hela grenen, i commiten "Fas 23: final review fixes".
+
+- **Matrisen i fokus är inte en man tar från.** Om man tog från Snares och sedan satte Snares i fokus syntes Snares på hyllan i Pads utan någon knapp att stänga av den, och två gånger på hyllan i Loops. Nu syns den inte där så länge den är i fokus. Den ligger kvar i Take from och kommer tillbaka när fokus flyttas.
+- **Andra matrisers loopar följer en trim de spelar.** Om amen 1 hade en kopia av en pad från trim 2 följde amen 1:s loop inte med när trim 2:s markörer, takter eller grid ändrades, eller när trim 2 slutade vara slicad. Då slutade loopen följa för gott. Nu följer alla matrisers egna loopar med.
+- **Tangenterna går till dialogen när en dialog är öppen.** I + New matrix startade mellanslag på en kryssruta Play i stället för att kryssa i den, siffror bytte flik och Ctrl+Z ångrade under dialogen. Nu gör appens tangenter ingenting så länge en dialog är öppen, och Escape stänger dialogen. I Chromium kryssar mellanslag i rutan.
+- **Den automatiska loopen är hela takter**, som mest 16 takter. En matrix som tar 67 steg får en loop på 80 steg.
+- **Tangenterna i Pads stegar från knappen som har fokus**, och fokus flyttar med till det nya valet. Tidslinjen är ett enda tabbstopp: det valda, eller första paden.
+- **Efter en ersättning är kopian vald**, inte hitten som togs bort, så reglagen och Play stannar på en hit.
+- **Gamla texter:** Loops länkar "← Samples" i stället för "← Slice", och kommentarerna säger Pads och Samples i stället för Hits, Import och Slice. Trimmens ▶ säger "Rendering…" när man håller musen över den medan den är avstängd.
+- **Matrisens namn i Pads** ger inget fel medan man har tömt fältet. Felet kommer först när man lämnar fältet eller trycker Enter, och då står det gamla namnet kvar.
+- **Specen** säger att flikarna bytte namn i fas 23, och beskriver allt ovan.
+

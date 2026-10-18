@@ -7,7 +7,7 @@ import { backupDue, summarize } from './backups';
 import { followBrowserHistory } from './browserHistory';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
-import { isTyping } from './isTyping';
+import { isTyping, modalOpen } from './isTyping';
 import { LoopsView } from './LoopsView';
 import { ModsView } from './ModsView';
 import { PadsView } from './PadsView';
@@ -296,7 +296,7 @@ function Shell() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target)) return;
+      if (isTyping(e.target) || modalOpen()) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         store.dispatch({ type: e.shiftKey ? 'redo' : 'undo' });

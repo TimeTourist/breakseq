@@ -24,14 +24,14 @@ import {
   unsliceTakes,
   unsliceUsages,
 } from './chain';
-import { addVariant, copyPad, createLoop, removeAnyway, setStep, updateHit } from './commands';
+import { addVariant, copyPad, createLoop, movePad, removeAnyway, replaceHit, setBpm, setStep, updateHit } from './commands';
 import { addClip } from './clips';
 import { matrixSequence } from './lengths';
 import { sampleBpm } from './owners';
 import { emptySong } from './project';
 import { hitSound, sliceName, slotHit as newHit, trimName } from './sound';
 import type { Hit, Id, Matrix, Pad, Project } from './types';
-import { NO_CONFIG } from './types';
+import { MAX_LOOP_STEPS, NO_CONFIG } from './types';
 
 const ctx = sequentialIds();
 function run(project: Project, ...commands: Command[]): Project {
@@ -338,6 +338,69 @@ describe('the automatic loop', () => {
     expect(moved.loops[loop]).toEqual(project.loops[loop]);
     // The automatic one followed.
     expect(moved.loops[moved.matrices[matrixId]!.loop!]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 8]);
+  });
+});
+
+describe("another matrix's loop follows a trim it plays (M1)", () => {
+  /** amen 1 (one bar, four slices) with a copy of trim 2's row 01 first: trim 2 is the same file, one bar, four slices. */
+  function twoTrims() {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const withTrim = run(p0, addTrim(sampleId));
+    const trim2 = Object.values(withTrim.samples).find((s) => s.id !== sampleId)!.id;
+    const sliced = run(withTrim, setSlicing(trim2, 1, [0, 0.25, 0.5, 0.75]));
+    const copied = run(sliced, copyPad(ownMatrix(sliced, trim2)!.pads[0]!, matrixId));
+    const copy = copied.matrices[matrixId]!.pads.at(-1)!;
+    const project = run(copied, movePad(matrixId, copy, 0));
+    return { project, trim2, matrixId, loop: project.matrices[matrixId]!.loop! };
+  }
+  const starts = (p: Project, loop: Id) => p.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]));
+
+  it('setMarkers on trim 2 moves amen 1 along', () => {
+    const { project, trim2, loop } = twoTrims();
+    expect(starts(project, loop)).toEqual([0, 4, 8, 12, 16]);
+    const next = run(project, setMarkers(trim2, [0, 0.5]));
+    expect(starts(next, loop)).toEqual([0, 8, 12, 16, 20]);
+    // Still as laid out: it keeps following.
+    expect(starts(run(next, setMarkers(trim2, [0, 0.75])), loop)).toEqual([0, 12, 16, 20, 24]);
+  });
+
+  it('setGrid and setSlicing on trim 2 move it too', () => {
+    const { project, trim2, loop } = twoTrims();
+    expect(starts(run(project, setGrid(trim2, 8)), loop)).toEqual([0, 2, 6, 10, 14]);
+    expect(starts(run(project, setSlicing(trim2, 2, [0, 0.5])), loop)).toEqual([0, 16, 20, 24, 28]);
+  });
+
+  it("Don't slice on trim 2 moves it too", () => {
+    const { project, trim2, loop } = twoTrims();
+    // Its hit now plays the whole trim: 2 s, one bar at 120 BPM.
+    expect(starts(run(project, setBpm(120), setSlicing(trim2, null)), loop)).toEqual([0, 16, 20, 24, 28]);
+  });
+});
+
+describe('the automatic loop is whole bars', () => {
+  /** amen 1 at 120 BPM (a step is 0.125 s) and a one-shot of `seconds`. */
+  function withOneShot(seconds: number) {
+    const { project: p0, matrixId } = amen(4);
+    const project = run(p0, setBpm(120), addSample({ name: 'long.wav', audio: constantAudio(seconds) }));
+    const oneShot = by(project.hits, (h) => h.name === 'long 1');
+    return { project, matrixId, oneShot, loop: project.matrices[matrixId]!.loop! };
+  }
+
+  it('replacing the last pad\'s hit makes 67 steps a loop of 80', () => {
+    // 6.8 s is 54.4 steps, 55 rounded up: 12 + 55 = 67.
+    const { project, matrixId, oneShot, loop } = withOneShot(6.8);
+    const next = run(project, replaceHit(rowHit(project, matrixId, 3).id, oneShot.id));
+    expect(next.loops[loop]!.steps).toHaveLength(80);
+    expect(next.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 4, 8, 12]);
+  });
+
+  it('is at most MAX_LOOP_STEPS long', () => {
+    // 40 s is 320 steps.
+    const { project, matrixId, oneShot, loop } = withOneShot(40);
+    const first = run(project, replaceHit(rowHit(project, matrixId, 0).id, oneShot.id));
+    expect(first.loops[loop]!.steps).toHaveLength(MAX_LOOP_STEPS);
+    // The pads after the end are left out.
+    expect(first.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0]);
   });
 });
 

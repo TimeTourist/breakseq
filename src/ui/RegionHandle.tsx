@@ -14,7 +14,7 @@ interface RegionHandleProps {
 }
 
 /**
- * One end of a region over a waveform or timeline, the same in Trim, Hits and
+ * One end of a region over a waveform or timeline, the same in Trim, Pads and
  * Song: dragged, or focused and moved with ←/→. One drag is one undo step.
  */
 export function RegionHandle({ which, left, label, title, className = '', onDrag, onNudge, onDone }: RegionHandleProps) {

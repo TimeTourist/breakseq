@@ -8,3 +8,6 @@ export const isTyping = (target: EventTarget | null): boolean =>
     target.tagName === 'TEXTAREA' ||
     target.tagName === 'SELECT' ||
     (target.tagName === 'INPUT' && TEXT_INPUTS.has((target as HTMLInputElement).type)));
+
+/** Whether a modal dialog is open (New matrix, a question): the keys are its own then, and the app's stay out of the way. */
+export const modalOpen = (): boolean => document.querySelector('[aria-modal="true"]') !== null;

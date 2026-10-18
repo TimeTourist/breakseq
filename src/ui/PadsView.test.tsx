@@ -456,6 +456,8 @@ describe('Pads: the Take from shelf and drag', () => {
     expect(present(store).hits[members[0]!]!.name).toMatch(/^snare_01/);
     expect(members[1]).toBe(second);
     expect(present(store).hits[first]).toBeUndefined();
+    // The copy is selected, not the hit that went.
+    expect(store.getState().selection).toMatchObject({ pad: m.pads[1], hit: members[0] });
   });
 
   it('dropping between hits moves within the pad, also to first', async () => {
@@ -656,6 +658,31 @@ describe('Pads: keys', () => {
     expect(player.playHit).toHaveBeenLastCalledWith(expect.anything(), pad2.members[1]);
   });
 
+  it('keys step from the focused pad or hit, and focus follows the selection (roving tabindex)', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id, { selection: { ...initialState(p).selection, pad: m.pads[0]!, hit: null } });
+    const pad2 = p.pads[m.pads[1]!]!;
+    // One button of the timeline is in the Tab order: the selected one.
+    const tabbable = () => Array.from(timeline().querySelectorAll<HTMLElement>('.pad-head, .hit-chip')).filter((b) => b.tabIndex === 0);
+    expect(tabbable()).toEqual([within(timeline()).getByRole('button', { name: 'Pad amen 1 01' })]);
+    // From pad 03's button, not from the selected pad 01.
+    const pad3 = within(timeline()).getByRole('button', { name: 'Pad amen 1 03' });
+    pad3.focus();
+    fireEvent.keyDown(pad3, { key: 'ArrowRight' });
+    expect(store.getState().selection).toMatchObject({ pad: m.pads[3], hit: null });
+    await act(async () => {});
+    expect(document.activeElement).toBe(within(timeline()).getByRole('button', { name: 'Pad amen 1 04' }));
+    expect(tabbable()).toEqual([document.activeElement]);
+    // From pad 02's first hit, down to its second.
+    const first = hitsIn(columns()[1]!)[0]!;
+    first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowDown' });
+    expect(store.getState().selection).toMatchObject({ pad: pad2.id, hit: pad2.members[1] });
+    await act(async () => {});
+    expect(document.activeElement).toBe(hitsIn(columns()[1]!)[1]);
+  });
+
   it('keys stay out of fields and sliders', async () => {
     const p = amen();
     const m = matrixNamed(p, 'amen 1');
@@ -711,3 +738,47 @@ function setPadChoiceCmd(): Command {
     return setPadChoice(m.pads[1]!, 'roundRobin')(project, c);
   };
 }
+
+describe('the matrix in focus is not taken from', () => {
+  it('focusing a matrix taken from takes it off the shelf, and it comes back when focus moves on', async () => {
+    const p = amenAndSnares();
+    const { store } = await setupTaking(p);
+    const snares = matrixNamed(p, 'Snares').id;
+    fireEvent.change(screen.getByRole('combobox', { name: 'Matrix in focus' }), { target: { value: snares } });
+    expect(store.getState().focus.matrix).toBe(snares);
+    expect(screen.queryByRole('region', { name: 'Take from shelf' })).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Matrix in focus' }), { target: { value: matrixNamed(p, 'amen 1').id } });
+    expect(within(shelf()).getByRole('group', { name: 'Snares' })).toBeTruthy();
+  });
+});
+
+describe('Pads: the matrix name', () => {
+  it('an empty name is a draft: no error while typing, the error and the old name on blur', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id);
+    const input = screen.getByRole('textbox', { name: 'Matrix name' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input.value).toBe('');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(present(store).matrices[m.id]!.name).toBe('amen 1');
+    fireEvent.change(input, { target: { value: 'think' } });
+    expect(present(store).matrices[m.id]!.name).toBe('think');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert').textContent).toMatch(/needs a name/);
+    expect(input.value).toBe('think');
+  });
+
+  it('Enter commits the draft too', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    await setup(p, m.id);
+    const input = screen.getByRole('textbox', { name: 'Matrix name' }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: ' ' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('alert').textContent).toMatch(/needs a name/);
+    expect(input.value).toBe('amen 1');
+  });
+});

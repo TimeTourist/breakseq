@@ -162,7 +162,7 @@ export function TrimEditor({
               playing={transport.playing}
               disabled={!transport.playing && !transport.ready}
               onToggle={transport.onToggle}
-              title="Plays the trim looped, as Play at the top does"
+              title={!transport.playing && !transport.ready ? 'Rendering…' : 'Plays the trim looped, as Play at the top does'}
             />
           )}
           <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>

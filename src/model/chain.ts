@@ -8,7 +8,7 @@ import { matrixSequence, matrixSteps } from './lengths';
 import { emptyStep } from './project';
 import { renameMatrixIn, renumberRows, rowName } from './names';
 import type { AudioData, Id, Loop, Matrix, Pad, Project, Sample, SampleChannel, Step } from './types';
-import { NO_CONFIG, STEPS_PER_BAR } from './types';
+import { MAX_LOOP_STEPS, NO_CONFIG, STEPS_PER_BAR } from './types';
 
 export { MIN_SLICE, baseName, gridMarkers };
 
@@ -225,12 +225,17 @@ function ensureRows(project: Project, matrixId: Id, from: number, count: number,
   return setMatrixIn({ ...project, hits, pads }, { ...matrix, pads: [...matrix.pads, ...added] });
 }
 
-/** The steps of a loop that plays a matrix's pads in order: its sample's bars, or longer if its pads take more. */
+/**
+ * The steps of a loop that plays a matrix's pads in order: its sample's bars,
+ * or longer if its pads take more, up to whole bars (a loop of whole bars
+ * stays in time in the song) and at most MAX_LOOP_STEPS; pads past the end are left out.
+ */
 function laidOut(project: Project, matrix: Matrix): Step[] {
   const bars = matrix.sampleId === null ? null : (project.samples[matrix.sampleId]?.bars ?? null);
-  const length = Math.max((bars ?? 1) * STEPS_PER_BAR, matrixSteps(project, matrix.id));
+  const taken = Math.ceil(matrixSteps(project, matrix.id) / STEPS_PER_BAR) * STEPS_PER_BAR;
+  const length = Math.min(MAX_LOOP_STEPS, Math.max((bars ?? 1) * STEPS_PER_BAR, taken));
   const steps: Step[] = Array.from({ length }, () => emptyStep);
-  for (const { padId, step } of matrixSequence(project, matrix.id)) steps[step] = { ...emptyStep, padId };
+  for (const { padId, step } of matrixSequence(project, matrix.id)) if (step < length) steps[step] = { ...emptyStep, padId };
   return steps;
 }
 
@@ -300,16 +305,16 @@ export const setSlicing =
     const nextMarkers = markers ?? markersForBars(sample, bars);
     const sliced: Sample = { ...withoutUnsliced(sample), bars, markers: nextMarkers };
     const own = ownMatrix(project, sampleId);
-    if (own === undefined) return ok(setSampleIn(project, sliced));
+    if (own === undefined) return ok(followMatrices(project, setSampleIn(project, sliced)));
     // A one-shot's pad and hit become row 01's.
     let next = sample.bars === null ? renameRow(project, own, sliced, 0) : project;
     next = ensureRows(setSampleIn(next, sliced), own.id, sample.markers.length, nextMarkers.length, ctx.newId);
     if (own.loop === null) {
       const matrix = next.matrices[own.id]!;
       const loop: Loop = { id: ctx.newId(), name: baseName(matrix.name), kind: 'main', steps: laidOut(next, matrix) };
-      return ok(setMatrixIn({ ...next, loops: { ...next.loops, [loop.id]: loop } }, { ...matrix, loop: loop.id }));
+      return ok(followMatrices(project, setMatrixIn({ ...next, loops: { ...next.loops, [loop.id]: loop } }, { ...matrix, loop: loop.id })));
     }
-    return ok(followMatrix(project, next, own.id));
+    return ok(followMatrices(project, next));
   };
 
 /** Names row `row`'s pad and its top hit after the row ("amen 1 01"), if they still have the matrix's plain name. */
@@ -452,7 +457,7 @@ function unslice(project: Project, sample: Sample) {
   if (own !== undefined) {
     next = renamePadAndHit(setMatrixIn(next, { ...next.matrices[own.id]!, loop: null }), kept, slotName(own.name, sample, 0), baseName(own.name));
   }
-  return ok(next);
+  return ok(followMatrices(project, next));
 }
 
 /** What goes with a matrix: its pads and their hits, not its loop or samples (decision 9). */
@@ -615,14 +620,15 @@ function toNewTrim(project: Project, sample: Sample, patch: Pick<Sample, 'marker
 
 /**
  * After a change to a sample's slicing (`changed`), its own matrix gets rows
- * for new slices and its loop follows, as `setSlicing` does.
+ * for new slices and the matrices' own loops follow, as `setSlicing` does:
+ * any matrix may play the sample.
  */
 function changeOwnRows(before: Project, sample: Sample, changed: Project, ctx: CommandContext): Project {
   const own = ownMatrix(before, sample.id);
-  if (own === undefined) return changed;
+  if (own === undefined) return followMatrices(before, changed);
   const now = changed.matrices[own.id]?.sampleId;
   const count = now == null ? 0 : (changed.samples[now]?.markers.length ?? 0);
-  return followMatrix(before, ensureRows(changed, own.id, sample.markers.length, count, ctx.newId), own.id);
+  return followMatrices(before, ensureRows(changed, own.id, sample.markers.length, count, ctx.newId));
 }
 
 /**

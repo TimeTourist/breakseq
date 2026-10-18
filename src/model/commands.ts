@@ -10,7 +10,7 @@ import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEffect, Pad, PadChoice, Project, Sample, Song, SongRow, Step } from './types';
-import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR } from './types';
+import { MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR } from './types';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
 
@@ -293,9 +293,6 @@ export const createLoop =
     };
     return ok({ ...project, loops: { ...project.loops, [loop.id]: loop } });
   };
-
-/** The longest loop: 16 bars. */
-export const MAX_LOOP_STEPS = 16 * STEPS_PER_BAR;
 
 /** Changes a loop's length in steps of 1/16. New steps are empty; steps past the new end are dropped. */
 export const setLoopLength =

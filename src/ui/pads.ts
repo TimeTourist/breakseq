@@ -162,6 +162,14 @@ export function dropCommand(dragged: Dragged, target: DropTarget): Command {
   }
 }
 
+/** The copy that took a replaced hit's place in its pad, or null when the drop replaced nothing. */
+export function replacedWith(before: Project, after: Project, target: DropTarget): Id | null {
+  if (target.kind !== 'replace' || after.hits[target.hitId] !== undefined) return null;
+  const at = before.pads[target.padId]?.members.indexOf(target.hitId) ?? -1;
+  const copy = at < 0 ? undefined : after.pads[target.padId]?.members[at];
+  return copy === undefined || before.hits[copy] !== undefined ? null : copy;
+}
+
 /** How near the edge of a scrolling box a drag starts to scroll it, and the most it scrolls per dragover. */
 export const AUTOSCROLL_EDGE_PX = 48;
 export const AUTOSCROLL_MAX_PX = 24;

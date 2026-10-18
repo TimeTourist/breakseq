@@ -29,6 +29,7 @@ import { LoopLength } from './LoopLength';
 import { Delete } from './DeleteButton';
 import { InSong, InSongMark, useHeard } from './InSong';
 import type { Selection } from './store';
+import { takenFrom } from './store';
 import type { Services } from './services';
 
 /**
@@ -82,7 +83,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   /** Pads past their sample's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.pads).filter((p) => padSilent(project, p)).map((p) => p.id));
   const swappable = Object.values(project.matrices);
-  const groups = shelfGroups(project, focus.matrix === null ? focus.takeFrom : [focus.matrix, ...focus.takeFrom]);
+  const groups = shelfGroups(project, focus.matrix === null ? takenFrom(focus) : [focus.matrix, ...takenFrom(focus)]);
   /** Opens a pad in Pads, with the matrix it is a row of in focus. */
   const openPad = (padId: Id) => {
     const matrixId = matrixOfPad(project, padId)?.id ?? null;
@@ -142,7 +143,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             <p className="muted">No loops yet. Slice a sample to get its loop, or make a new loop.</p>
           <div className="row nav-row">
             <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'samples' })}>
-              ← Slice
+              ← Samples
             </button>
           </div>
           </div>

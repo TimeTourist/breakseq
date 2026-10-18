@@ -222,7 +222,9 @@ describe('one thing plays at a time in Samples', () => {
     await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) })), makeServices(player));
     fireEvent.click(button('Trim amen trim 1'));
     expect((button('Play trim') as HTMLButtonElement).disabled).toBe(true);
+    expect(button('Play trim').title).toBe('Rendering…');
     await waitFor(() => expect((button('Play trim') as HTMLButtonElement).disabled).toBe(false));
+    expect(button('Play trim').title).toBe('Plays the trim looped, as Play at the top does');
     fireEvent.click(button('Play trim'));
     expect(player.play).toHaveBeenCalledTimes(1);
   });

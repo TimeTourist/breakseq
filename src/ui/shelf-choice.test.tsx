@@ -88,6 +88,13 @@ describe('the pad shelf in Loops follows the focus', () => {
     expect(shelf()).toEqual(['Hats', 'h1 1']);
   });
 
+  it('the matrix in focus shows once, also when it is taken from', async () => {
+    const { project, loop, matrix } = hats();
+    const h1 = Object.values(project.matrices).find((m) => m.name === 'h1 1')!;
+    await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [matrix.id, h1.id] });
+    expect(Array.from(document.querySelectorAll('.shelf-label')).map((e) => e.textContent!.trim())).toEqual(['Hats', 'h1 1']);
+  });
+
   it('changing focus in Loops changes it in Pads', async () => {
     const { project, loop, matrix } = hats();
     const h1 = Object.values(project.matrices).find((m) => m.name === 'h1 1')!;

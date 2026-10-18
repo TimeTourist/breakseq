@@ -89,6 +89,8 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
   const steps = lengths.reduce((a, b) => a + b, 0);
   const selectedPad = open.kind === 'matrix' ? null : open.pad.id;
   const selectedHit = open.kind === 'hit' ? open.hit.id : null;
+  // Roving tabindex: the selected pad or hit is the timeline's one Tab stop, else the first pad; arrows go on from there.
+  const tabPad = selectedHit !== null ? null : (selectedPad ?? pads[0]?.id ?? null);
   const [hover, setHover] = useState<Over | null>(null);
   // A drag that ends, dropped or not, leaves no mark.
   useEffect(() => {
@@ -190,6 +192,7 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
                 className={`pad-column${column.steps === 0 ? ' empty' : ''}${pad.id === selectedPad ? ' current' : ''}${padSilent(project, pad) ? ' silent' : ''}${stepPx < 6 ? ' coarse' : ''}`}
                 style={raster}
                 data-drop={target?.kind === 'add' && target.padId === pad.id ? 'add' : undefined}
+                data-pad={pad.id}
                 {...dropOn(pad.id)}
               >
                 <button
@@ -197,6 +200,7 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
                   className="pad-head"
                   aria-label={`Pad ${pad.name}`}
                   aria-current={pad.id === selectedPad && selectedHit === null ? 'true' : undefined}
+                  tabIndex={pad.id === tabPad ? 0 : -1}
                   title={`${pad.name} · ${column.steps === 0 ? 'empty: takes no steps' : `${column.steps}/16`} · ${CHOICE_LABEL[pad.choice]}`}
                   onClick={() => {
                     // With something picked, the tap is the column's: it adds.
@@ -242,6 +246,7 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
                             className={`hit-chip mono${i === 0 ? ' first' : ''}${replaced ? ' replaced' : ''}`}
                             aria-label={shown === hit.name ? hit.name : `${shown}, ${hit.name}`}
                             aria-current={id === selectedHit ? 'true' : undefined}
+                            tabIndex={id === selectedHit ? 0 : -1}
                             title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it; drag it between hits to move it, or onto another pad or hit`}
                             data-hit={id}
                             data-drop={target?.kind === 'replace' && target.hitId === id ? 'replace' : undefined}
