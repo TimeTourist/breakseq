@@ -1,5 +1,5 @@
-import type { Hit, Id, Matrix, Pad, Project } from '../model';
-import { baseName, matrixOfPad, padOfHit } from '../model';
+import type { Command, Hit, Id, Matrix, Pad, Project } from '../model';
+import { baseName, copyHits, copyMatrix, matrixOfPad, movePadMember, ok, padOfHit, replaceHit, sequence, setPadChoice } from '../model';
 import { replacedBy } from './labels';
 import type { Selection } from './store';
 
@@ -87,3 +87,125 @@ export function nextMatrixName(project: Project): string {
   while (names.has(`Matrix ${n}`)) n += 1;
   return `Matrix ${n}`;
 }
+
+/** What is dragged, or picked by a tap: a hit, or all hits of a matrix. */
+export type Dragged = { readonly kind: 'hit'; readonly hitId: Id } | { readonly kind: 'matrix'; readonly matrixId: Id };
+
+/** Where on a hit the pointer is: its top or bottom edge (between hits), or on it. */
+export type Zone = 'before' | 'on' | 'after';
+
+/** What the pointer is over in the timeline: a pad, and the hit in it if any. */
+export interface Over {
+  readonly padId: Id;
+  readonly hitId: Id | null;
+  readonly zone: Zone;
+}
+
+/** What a drop does (decisions 4, 12, 13): adds copies last to a pad, replaces a hit, or moves a hit within its pad to index `to`. */
+export type DropTarget =
+  | { readonly kind: 'add'; readonly padId: Id }
+  | { readonly kind: 'replace'; readonly padId: Id; readonly hitId: Id }
+  | { readonly kind: 'move'; readonly padId: Id; readonly hitId: Id; readonly to: number };
+
+/** The part of a hit's height at its top and at its bottom that counts as between hits. */
+const EDGE = 0.3;
+
+/** The zone of a hit at `y`, for a hit `height` high from `top`. */
+export function zoneOf(y: number, top: number, height: number): Zone {
+  if (height <= 0) return 'on';
+  const at = (y - top) / height;
+  return at < EDGE ? 'before' : at > 1 - EDGE ? 'after' : 'on';
+}
+
+/**
+ * What dropping `dragged` over `over` does, or null when it does nothing. A
+ * hit dropped between hits of its own pad moves there; on a hit, a hit
+ * replaces it (from another pad, all of the hit replaces); anywhere else in a
+ * pad, and all hits of a matrix anywhere, it adds copies last.
+ */
+export function dropTarget(project: Project, dragged: Dragged, over: Over): DropTarget | null {
+  if (dragged.kind === 'matrix' || over.hitId === null) return { kind: 'add', padId: over.padId };
+  const pad = project.pads[over.padId];
+  if (pad === undefined) return null;
+  if (dragged.hitId === over.hitId) return null;
+  if (pad.members.includes(dragged.hitId) && over.zone !== 'on') {
+    const to = pad.members.filter((m) => m !== dragged.hitId).indexOf(over.hitId) + (over.zone === 'after' ? 1 : 0);
+    return to === pad.members.indexOf(dragged.hitId) ? null : { kind: 'move', padId: pad.id, hitId: dragged.hitId, to };
+  }
+  return { kind: 'replace', padId: pad.id, hitId: over.hitId };
+}
+
+/** A pad on Top that now has more than one hit turns Round robin, so what was added is heard. */
+const roundRobinIfMore =
+  (padId: Id): Command =>
+  (project, ctx) => {
+    const pad = project.pads[padId];
+    return pad !== undefined && pad.choice === 'top' && pad.members.length > 1 ? setPadChoice(padId, 'roundRobin')(project, ctx) : ok(project);
+  };
+
+/** The command for a drop, as one undo step. */
+export function dropCommand(dragged: Dragged, target: DropTarget): Command {
+  switch (target.kind) {
+    case 'add':
+      return sequence(dragged.kind === 'hit' ? copyHits([dragged.hitId], target.padId) : copyMatrix(dragged.matrixId, { padId: target.padId }), roundRobinIfMore(target.padId));
+    case 'replace':
+      return dragged.kind === 'hit' ? replaceHit(target.hitId, dragged.hitId) : dropCommand(dragged, { kind: 'add', padId: target.padId });
+    case 'move':
+      return movePadMember(target.padId, target.hitId, target.to);
+  }
+}
+
+/** How near the edge of a scrolling box a drag starts to scroll it, and the most it scrolls per dragover. */
+export const AUTOSCROLL_EDGE_PX = 48;
+export const AUTOSCROLL_MAX_PX = 24;
+
+/**
+ * How far to scroll a box from `start` to `end` with the pointer at `at` while
+ * dragging (U4): back near the start, on near the end, faster nearer the edge.
+ */
+export function autoscrollStep(at: number, start: number, end: number): number {
+  const edge = Math.min(AUTOSCROLL_EDGE_PX, (end - start) / 3);
+  if (edge <= 0) return 0;
+  if (at < start + edge) return -Math.round(AUTOSCROLL_MAX_PX * Math.min(1, (start + edge - at) / edge));
+  if (at > end - edge) return Math.round(AUTOSCROLL_MAX_PX * Math.min(1, (at - (end - edge)) / edge));
+  return 0;
+}
+
+/**
+ * Where an arrow key takes the selection in Pads, or null at an end: ←/→
+ * from pad to pad (from the matrix to its first or last), ↑/↓ through the
+ * selected pad's hits, ↑ from its first back to the pad.
+ */
+export function stepSelection(open: PadsOpen, key: string): { pad: Id; hit: Id | null } | null {
+  const pads = open.matrix.pads;
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    const step = key === 'ArrowRight' ? 1 : -1;
+    const at = open.kind === 'matrix' ? (step === 1 ? 0 : pads.length - 1) : pads.indexOf(open.pad.id) + step;
+    const pad = pads[at];
+    return at < 0 || pad === undefined ? null : { pad, hit: null };
+  }
+  if ((key !== 'ArrowUp' && key !== 'ArrowDown') || open.kind === 'matrix') return null;
+  const members = open.pad.members;
+  const at = (open.kind === 'hit' ? members.indexOf(open.hit.id) : -1) + (key === 'ArrowDown' ? 1 : -1);
+  if (at === -1 && open.kind === 'hit') return { pad: open.pad.id, hit: null };
+  const hit = members[at];
+  return at < 0 || hit === undefined ? null : { pad: open.pad.id, hit };
+}
+
+/**
+ * Drag and tap to place in Pads: what is dragged or picked (decision 8), and
+ * how it is placed. Picking is for touch: a tap on a hit or all hits on the
+ * shelf, then on a pad or a hit.
+ */
+export interface Placing {
+  readonly dragging: Dragged | null;
+  readonly picked: Dragged | null;
+  readonly startDrag: (dragged: Dragged) => void;
+  readonly endDrag: () => void;
+  readonly pick: (dragged: Dragged | null) => void;
+  readonly place: (dragged: Dragged, target: DropTarget) => void;
+}
+
+/** Whether two drags or picks are of the same thing. */
+export const sameDragged = (a: Dragged | null, b: Dragged | null): boolean =>
+  a !== null && b !== null && (a.kind === 'hit' ? b.kind === 'hit' && a.hitId === b.hitId : b.kind === 'matrix' && a.matrixId === b.matrixId);

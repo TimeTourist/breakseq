@@ -227,6 +227,9 @@ function Shell() {
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   // While it plays, Pads keeps playing the selection it started with; a click on a hit auditions it on top.
   const [held, setHeld] = useState<Selection | null>(null);
+  // A new matrix in focus plays whole: what was held was of the matrix before.
+  const focusMatrix = useSelect((s) => s.focus.matrix);
+  useEffect(() => setHeld((h) => (h === null ? null : { ...h, pad: null, hit: null })), [focusMatrix]);
   const { shown, rendering, error: renderError, newTake } = useTake(held);
   const { error: saveError, backups, restore, notice, dismissNotice } = useAutosave();
   const playhead = usePlayhead(playing, () => {

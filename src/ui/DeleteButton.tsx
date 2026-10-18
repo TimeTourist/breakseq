@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Usage } from '../model';
 import { findUsages, removeAnyway } from '../model';
@@ -20,6 +20,8 @@ interface DeleteButtonProps {
   readonly goes?: readonly string[];
   /** A trash icon instead of the label, which is then its tooltip: in tight rows. */
   readonly icon?: boolean;
+  /** Asks again each time this changes, as the Delete key does in Pads. */
+  readonly ask?: number | undefined;
 }
 
 interface ConfirmDeleteProps {
@@ -92,9 +94,16 @@ export const usageText = (u: Usage) => (u.kind === 'song' ? 'Song' : `${u.kind} 
  * Delete, the same everywhere: it always asks first, in a dialog listing what
  * goes with it and where it goes silent.
  */
-export function DeleteButton({ label, name, usages, onDelete, onDeleted, onError, goes = [], icon = false }: DeleteButtonProps) {
+export function DeleteButton({ label, name, usages, onDelete, onDeleted, onError, goes = [], icon = false, ask = 0 }: DeleteButtonProps) {
   const where = usages.map(usageText).join(', ');
   const [asking, setAsking] = useState(false);
+  // Only a change after it is shown asks: not the count it was shown with.
+  const asked = useRef(ask);
+  useEffect(() => {
+    if (ask === asked.current) return;
+    asked.current = ask;
+    setAsking(true);
+  }, [ask]);
   return (
     <>
     <button
@@ -130,10 +139,12 @@ interface DeleteProps {
   readonly name: string;
   readonly onDeleted?: (() => void) | undefined;
   readonly onError: (error: string | null) => void;
+  /** Asks again each time this changes. */
+  readonly ask?: number | undefined;
 }
 
 /** Delete for a pad, hit, loop or mod. A pad takes its hits with it, a hit leaves its pad. */
-export function Delete({ kind, id, name, onDeleted, onError }: DeleteProps) {
+export function Delete({ kind, id, name, onDeleted, onError, ask }: DeleteProps) {
   const project = useProject();
   const run = useRun();
   const hits = kind === 'pad' ? (project.pads[id]?.members.length ?? 0) : 0;
@@ -146,6 +157,7 @@ export function Delete({ kind, id, name, onDeleted, onError }: DeleteProps) {
       onDelete={() => run(removeAnyway(kind, id))}
       onDeleted={onDeleted}
       onError={onError}
+      ask={ask}
     />
   );
 }
