@@ -112,7 +112,7 @@ describe('Pads: a hit', () => {
   it('the pitch slider changes the hit, and one whole drag is one undo step', async () => {
     const store = await setup(build(addSample({ name: 'kick.wav', audio: constantAudio(0.2) })), 'pads');
     const before = present(store);
-    fireEvent.click(screen.getAllByRole('button', { name: /^Hit / })[0]!);
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.pad-hits button')!);
     const pitch = screen.getByRole('slider', { name: /Pitch/ });
 
     fireEvent.change(pitch, { target: { value: '2' } });

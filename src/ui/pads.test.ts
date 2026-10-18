@@ -85,6 +85,17 @@ describe('hit labels', () => {
     expect(label(2)).toBe('→think 07');
   });
 
+  it('show a one-shot named in digits as →808, not as a slice of the trim', () => {
+    let p = apply(amen(), addSample({ name: '808.wav', audio: constantAudio(0.2) }));
+    const kick = Object.values(p.samples).find((s) => s.name === '808.wav')!;
+    const own = Object.values(p.matrices).find((m) => m.sampleId === kick.id)!;
+    p = apply(p, renameMatrix(own.id, '808'));
+    const m = matrixOf(p, 'amen 1');
+    const row = p.pads[m.pads[2]!]!;
+    p = apply(p, setHitSource(row.members[0]!, kick.id, null));
+    expect(hitLabel(p, row.id, 2, p.hits[row.members[0]!]!)).toBe('→808');
+  });
+
   it('show a hit of a matrix built by hand by its name', () => {
     let p = apply(amen(), addSample({ name: 'snare.wav', audio: constantAudio(0.2) }), createMatrix('Snares'));
     const snares = matrixOf(p, 'Snares');

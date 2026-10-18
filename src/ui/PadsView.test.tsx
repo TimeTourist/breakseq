@@ -83,6 +83,8 @@ async function setup(project: Project, focus: string | null, patch: Partial<AppS
 const timeline = () => screen.getByRole('region', { name: 'Timeline' });
 const columns = () => Array.from(timeline().querySelectorAll<HTMLElement>('.pad-column'));
 const present = (store: Store) => store.getState().history.present;
+/** The hit buttons of a pad column, top down. */
+const hitsIn = (column: HTMLElement) => Array.from(column.querySelectorAll<HTMLButtonElement>('.pad-hits button'));
 
 describe('Pads: the timeline', () => {
   it('pads lay out by their length with their hits downwards', async () => {
@@ -95,14 +97,17 @@ describe('Pads: the timeline', () => {
     const step = widths[0]! / 4;
     expect(widths.map((w) => Math.round(w / step))).toEqual([4, 2, 6, 4]);
     // Pad 02: its own hit first, marked, and the copy under it.
-    const hits = within(cols[1]!).getAllByRole('button', { name: /^Hit / });
+    const hits = hitsIn(cols[1]!);
     expect(hits.map((h) => h.textContent)).toEqual(['02', '02→04']);
+    // The accessible name starts with what is shown, for voice control.
+    expect(hits.map((h) => h.getAttribute('aria-label'))).toEqual([`02, ${p.hits[p.pads[m.pads[1]!]!.members[0]!]!.name}`, `02→04, ${p.hits[p.pads[m.pads[1]!]!.members[1]!]!.name}`]);
     expect(hits[0]!.className).toContain('first');
     expect(hits[1]!.className).not.toContain('first');
     expect(within(cols[1]!).getByRole('button', { name: 'Pad amen 1 02' }).textContent).toContain('02');
   });
 
-  it('fit zoom fits 64 pads without page scroll', async () => {
+  // The page itself not scrolling sideways at 400 px is checked in a real browser (happy-dom has no layout).
+  it('fit zoom keeps 64 pads readable: each column at least 24 px with its number, hits hidden until the pad is selected', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400);
     const p = apply(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(16) }));
     const q = apply(p, sliceSample(Object.keys(p.samples)[0]!, 4));
@@ -114,6 +119,10 @@ describe('Pads: the timeline', () => {
     expect(cols.map((c) => c.querySelector('.pad-number')?.textContent)).toEqual(Array.from({ length: 64 }, (_, i) => String(i + 1).padStart(2, '0')));
     expect(Math.min(...cols.map((c) => parseFloat(c.style.width)))).toBeGreaterThanOrEqual(24);
     expect(timeline().className).toContain('timeline-scroll');
+    // Too narrow for a hit's label: only the number and the first hit's waveform, until the pad is selected.
+    expect(hitsIn(cols[6]!)).toHaveLength(0);
+    fireEvent.click(within(cols[6]!).getByRole('button', { name: /^Pad / }));
+    expect(hitsIn(columns()[6]!)).toHaveLength(1);
     // 1 bar: 16 steps per width.
     fireEvent.click(screen.getByRole('button', { name: '1 bar' }));
     expect(parseFloat(columns()[0]!.style.width)).toBe(25);
@@ -129,8 +138,8 @@ describe('Pads: the timeline', () => {
     p = apply(p, setHitSource(row(3).members[0]!, m.sampleId!, 0), setHitSource(row(2).members[0]!, think.id, 6));
     await setup(p, m.id);
     const cols = columns();
-    expect(within(cols[3]!).getAllByRole('button', { name: /^Hit / })[0]!.textContent).toBe('04→01');
-    expect(within(cols[2]!).getAllByRole('button', { name: /^Hit / })[0]!.textContent).toBe('→think 07');
+    expect(hitsIn(cols[3]!)[0]!.textContent).toBe('04→01');
+    expect(hitsIn(cols[2]!)[0]!.textContent).toBe('→think 07');
   });
 
   it('shortens long names in the middle, with the whole name in the title', async () => {
@@ -139,7 +148,7 @@ describe('Pads: the timeline', () => {
     const snares = matrixNamed(p, 'Snares');
     const q = apply(p, copyHits([Object.values(p.hits).find((h) => h.name.startsWith(long))!.id], snares.pads[0]!));
     await setup(q, snares.id);
-    const hit = within(columns()[0]!).getAllByRole('button', { name: /^Hit / })[0]!;
+    const hit = hitsIn(columns()[0]!)[0]!;
     expect(hit.textContent).toContain('…');
     expect(hit.textContent!.startsWith('a-very')).toBe(true);
     const name = Object.values(q.hits).find((h) => h.name.startsWith(long))!.name;
@@ -195,7 +204,7 @@ describe('Pads: the controls', () => {
     expect(within(pad).getByRole('button', { name: 'Delete pad amen 1 02' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Matrix controls' })).toBeNull();
 
-    const hit = within(columns()[1]!).getAllByRole('button', { name: /^Hit / })[1]!;
+    const hit = hitsIn(columns()[1]!)[1]!;
     fireEvent.click(hit);
     // A click plays it.
     expect(player.playHit).toHaveBeenCalledTimes(1);
@@ -218,6 +227,23 @@ describe('Pads: the controls', () => {
     fireEvent.click(screen.getByRole('button', { name: '1 bar' }));
     fireEvent.change(within(columns()[1]!).getByRole('combobox', { name: 'How amen 1 02 picks' }), { target: { value: 'roundRobin' } });
     expect(present(store).pads[m.pads[1]!]!.choice).toBe('roundRobin');
+  });
+
+  it('a pad moves left and right in the timeline, not past its ends', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id, { selection: { ...initialState(p).selection, pad: m.pads[0]! } });
+    const name = p.pads[m.pads[0]!]!.name;
+    expect(screen.getByRole('button', { name: `Move ${name} left` })).toHaveProperty('disabled', true);
+    fireEvent.click(screen.getByRole('button', { name: `Move ${name} right` }));
+    expect(present(store).matrices[m.id]!.pads.slice(0, 2)).toEqual([m.pads[1], m.pads[0]]);
+    // Still selected, now in row 02.
+    const moved = present(store).pads[m.pads[0]!]!;
+    fireEvent.click(screen.getByRole('button', { name: `Move ${moved.name} left` }));
+    expect(present(store).matrices[m.id]!.pads).toEqual(m.pads);
+    const last = present(store).pads[m.pads[3]!]!;
+    act(() => void store.dispatch({ type: 'select', selection: { pad: last.id, hit: null } }));
+    expect(screen.getByRole('button', { name: `Move ${last.name} right` })).toHaveProperty('disabled', true);
   });
 
   it('deleting a hit asks first', async () => {
@@ -291,5 +317,26 @@ describe('Pads: Play', () => {
     expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
     // The focus bar's ▶ is the same Play.
     expect(screen.getByRole('button', { name: 'Stop hit' })).toBeTruthy();
+  });
+
+  it('while it plays, a click on a hit auditions it once on top, and the groove keeps its take', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { player, services: s } = await setup(p, m.id);
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(player.play).toHaveBeenCalledTimes(1);
+    fireEvent.click(hitsIn(columns()[1]!)[1]!);
+    await settle();
+    expect(player.playHit).toHaveBeenCalledTimes(1);
+    expect(player.stopAudition).toHaveBeenCalledTimes(1); // only by the first Play
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(player.replace).not.toHaveBeenCalled();
+    expect(s.renderPreview).not.toHaveBeenCalled();
+    // The hit is selected for its controls; stopped, Play plays it.
+    expect(screen.getByRole('region', { name: 'Hit controls' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
   });
 });

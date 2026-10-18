@@ -17,7 +17,7 @@ import type { Services } from './services';
 import { ProjectView } from './ProjectView';
 import { SamplesView } from './SamplesView';
 import { SongView } from './SongView';
-import type { Store, View } from './store';
+import type { AppState, Selection, Store, View } from './store';
 import { VIEWS } from './store';
 
 export const RENDER_DEBOUNCE_MS = 300;
@@ -41,8 +41,10 @@ export interface ShownTake {
 /**
  * Renders what the view plays (see subjectOf) shortly after every change, and
  * on demand for a new random take. A new subject renders straight away.
+ * `held`: the selection Pads plays while the transport runs, so selecting
+ * something else there does not change what plays.
  */
-function useTake() {
+function useTake(held: Selection | null) {
   const { services, store } = useApp();
   const latestFull = useProject();
   // Marking or turning the song's loop on or off is no reason for a new take.
@@ -50,8 +52,13 @@ function useTake() {
   if (stable.current !== latestFull && !sameRender(stable.current, latestFull)) stable.current = latestFull;
   const full = stable.current;
   // Only a change of what plays, not of every selection, renders anew.
-  const key = useSelect((s) => subjectOf(full, s)?.key ?? null);
-  const subject = useMemo(() => (key === null ? null : subjectOf(full, store.getState())), [full, key, store]);
+  // Read through a ref: holding what already plays is no reason to render it again.
+  const heldRef = useRef(held);
+  heldRef.current = held;
+  const playedState = (s: AppState): AppState => (heldRef.current !== null && s.view === 'pads' ? { ...s, selection: heldRef.current } : s);
+  const key = useSelect((s) => subjectOf(full, playedState(s))?.key ?? null);
+  // playedState reads the latest held through its ref; only a new key renders anew.
+  const subject = useMemo(() => (key === null ? null : subjectOf(full, playedState(store.getState()))), [full, key, store]);
   const [shown, setShown] = useState<ShownTake | null>(null);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,14 +222,17 @@ function usePlayhead(playing: boolean, onEnded: () => void): { trigger: Trigger 
 function Shell() {
   const { store, services } = useApp();
   const view = useSelect((s) => s.view);
-  const { shown, rendering, error: renderError, newTake } = useTake();
-  const { error: saveError, backups, restore, notice, dismissNotice } = useAutosave();
   const [playing, setPlaying] = useState(false);
   // What is playing: a subject's key, or a snapshot played from Project, which is not the song.
   const [playingKey, setPlayingKey] = useState<string | null>(null);
+  // While it plays, Pads keeps playing the selection it started with; a click on a hit auditions it on top.
+  const [held, setHeld] = useState<Selection | null>(null);
+  const { shown, rendering, error: renderError, newTake } = useTake(held);
+  const { error: saveError, backups, restore, notice, dismissNotice } = useAutosave();
   const playhead = usePlayhead(playing, () => {
     setPlaying(false);
     setPlayingKey(null);
+    setHeld(null);
   });
   const bpm = useSelect((s) => s.history.present.song.bpm);
   const songLoop = useSelect((s) => s.history.present.song.loop ?? null);
@@ -247,6 +257,8 @@ function Shell() {
     services.player.play(next.take, next.key === SONG_KEY ? store.getState().songCursor * step : 0, next.once);
     setPlayingKey(next.key);
     setPlaying(true);
+    const now = store.getState();
+    setHeld((h) => (now.view !== 'pads' ? null : (h ?? now.selection)));
   };
   const play = () => {
     if (shown !== null) start(shown);
@@ -255,6 +267,7 @@ function Shell() {
     services.player.stop();
     setPlaying(false);
     setPlayingKey(null);
+    setHeld(null);
   };
 
   // While playing, a new render of the same thing takes over where its loop ends;

@@ -13,6 +13,8 @@ import { Waveform } from './Waveform';
 const UNMEASURED_PX = 960;
 /** About how wide a character of a hit's label is, to shorten it to its column. */
 const CHAR_PX = 7;
+/** In Fit, a column narrower than ~4 characters shows only its number and first hit's waveform. */
+const HITS_MIN_PX = 4 * CHAR_PX + 10;
 const ZOOM_LABEL: Record<Zoom, string> = { fit: 'Fit', '1 bar': '1 bar' };
 /** How a pad picks, short enough for its column. */
 const CHOICE_SHORT: Record<Pad['choice'], string> = { top: 'Top', roundRobin: 'RR', random: 'Random', noRepeat: 'No repeat' };
@@ -98,6 +100,7 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
             const sound = first === undefined ? null : hitSound(project, first);
             const audio = sound === null ? undefined : sampleAudio(project, sound.sample);
             const roomy = zoom === '1 bar' || pad.id === selectedPad;
+            const showHits = roomy || column.width >= HITS_MIN_PX;
             const chars = Math.min(32, Math.max(4, Math.floor((column.width - 10) / CHAR_PX)));
             const raster = {
               width: column.width,
@@ -142,32 +145,32 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError }:
                     ))}
                   </select>
                 )}
-                <ol className="pad-hits" aria-label={`Hits of ${pad.name}`}>
-                  {pad.members.map((id, i) => {
-                    const hit = project.hits[id];
-                    if (hit === undefined) return null;
-                    const label = hitLabel(project, pad.id, row, hit);
-                    const replaced = label.includes('→');
-                    return (
-                      <li key={id}>
-                        <button
-                          type="button"
-                          className={`hit-chip mono${i === 0 ? ' first' : ''}${replaced ? ' replaced' : ''}`}
-                          aria-label={`Hit ${hit.name}`}
-                          aria-current={id === selectedHit ? 'true' : undefined}
-                          title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it`}
-                          onClick={() => playHit(pad.id, id)}
-                        >
-                          <span className="hit-label">
-                            {middleEllipsis(label, chars)}
-                            {hit.direction === 'reverse' ? ' ◂' : ''}
-                          </span>
-                          <InSongMark heard={heard.hits.has(id)} />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ol>
+                {showHits && (
+                  <ol className="pad-hits" aria-label={`Hits of ${pad.name}`}>
+                    {pad.members.map((id, i) => {
+                      const hit = project.hits[id];
+                      if (hit === undefined) return null;
+                      const label = hitLabel(project, pad.id, row, hit);
+                      const replaced = label.includes('→');
+                      const shown = `${middleEllipsis(label, chars)}${hit.direction === 'reverse' ? ' ◂' : ''}`;
+                      return (
+                        <li key={id}>
+                          <button
+                            type="button"
+                            className={`hit-chip mono${i === 0 ? ' first' : ''}${replaced ? ' replaced' : ''}`}
+                            aria-label={shown === hit.name ? hit.name : `${shown}, ${hit.name}`}
+                            aria-current={id === selectedHit ? 'true' : undefined}
+                            title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it`}
+                            onClick={() => playHit(pad.id, id)}
+                          >
+                            <span className="hit-label">{shown}</span>
+                            <InSongMark heard={heard.hits.has(id)} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
               </div>
             );
           })}
