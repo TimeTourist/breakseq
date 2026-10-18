@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project, Renumber } from '../model';
 
@@ -37,21 +37,24 @@ export function RenumberDialog({ project, conflict, canNewTrim, onAnswer }: Renu
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onAnswer]);
+  // The dialog itself takes focus, not a button in it: the Enter or blur that opened it must not answer it.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => box.current?.focus(), []);
   const question = renumberQuestion(project, conflict, canNewTrim);
   return createPortal(
     <div className="dialog-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onAnswer(null)}>
-      <div className="dialog panel stack confirm-delete" role="alertdialog" aria-modal="true" aria-label={question}>
+      <div ref={box} tabIndex={-1} className="dialog panel stack confirm-delete" role="alertdialog" aria-modal="true" aria-label={question}>
         <h2>{question}</h2>
         <p className="muted small">
           {canNewTrim && 'New trim leaves everything that plays them as it is. '}Renumber counts slices by number, so a slice that moves up plays where the old one did. Escape cancels.
         </p>
         <div className="row confirm-buttons">
           {canNewTrim && (
-            <button type="button" autoFocus onClick={() => onAnswer(true)}>
+            <button type="button" onClick={() => onAnswer(true)}>
               New trim
             </button>
           )}
-          <button type="button" autoFocus={!canNewTrim} onClick={() => onAnswer(false)}>
+          <button type="button" onClick={() => onAnswer(false)}>
             Renumber
           </button>
         </div>

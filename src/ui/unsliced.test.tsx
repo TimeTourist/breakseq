@@ -81,17 +81,17 @@ const sample = (store: Store, i = 0) => Object.values(project(store).samples)[i]
 const own = (store: Store, i = 0) => ownMatrix(project(store), sample(store, i).id)!;
 
 describe('a sample is sliced in Slice, not in Import', () => {
-  it('Slice in Import makes nothing: it shows Create Slices →, which opens it in Slice', async () => {
+  it('Slice in the table makes nothing: it shows Create Slices ↓, which selects it for slicing below', async () => {
     const store = await setup(build(...oneShot('amen.wav', false)), 'samples');
     fireEvent.click(button('Slice'));
     expect(sample(store)).toMatchObject({ bars: null, unsliced: true });
     expect(own(store)).toMatchObject({ loop: null });
     expect(own(store).pads).toHaveLength(1);
     expect(pressed('Slice')).toBe('true');
-    expect(screen.queryByRole('button', { name: 'Slice →' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Slice ↓' })).toBeNull();
     // Only the length: no bars or BPM before it is sliced.
     expect(screen.getByText('2000 ms')).toBeTruthy();
-    fireEvent.click(button('Create Slices →'));
+    fireEvent.click(button('Create Slices ↓'));
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample(store).id });
     expect(screen.getByText(/Not sliced yet/)).toBeTruthy();
   });
@@ -100,14 +100,13 @@ describe('a sample is sliced in Slice, not in Import', () => {
     const store = await setup(build(...oneShot('amen.wav', true)), 'samples');
     fireEvent.click(button("Don't slice"));
     expect('unsliced' in sample(store)).toBe(false);
-    expect(screen.queryByRole('button', { name: 'Create Slices →' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create Slices ↓' })).toBeNull();
   });
 
-  it('Slice lists the samples on the left, the unsliced ones marked; a click opens one', async () => {
+  it('the table marks the unsliced trims; a click selects one for slicing below', async () => {
     const store = await setup(build(...oneShot('amen.wav', true), ...oneShot('think.wav', true)), 'samples');
-    const list = screen.getByRole('complementary', { name: 'Samples' });
-    expect([...list.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['amen 1not sliced', 'think 1not sliced']);
-    fireEvent.click(screen.getByRole('button', { name: /^think 1/ }));
+    expect(screen.getAllByText('not sliced')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Select think trim 1' }));
     expect(screen.getByRole('heading', { name: 'think 1' })).toBeTruthy();
     expect(store.getState().sliceTarget).toBe(sample(store, 1).id);
   });
@@ -169,6 +168,6 @@ describe("Don't slice on a sliced sample", () => {
     expect(sample(store)).toMatchObject({ bars: null });
     expect(own(store)).toMatchObject({ loop: null });
     expect(own(store).pads).toHaveLength(1);
-    expect(screen.getByText('1 hit')).toBeTruthy();
+    expect(screen.getByText(/^1 pad, 1 hit/)).toBeTruthy();
   });
 });

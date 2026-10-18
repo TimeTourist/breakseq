@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createProject, ownMatrix, setSlicing } from '../model';
@@ -74,7 +74,7 @@ const own = (store: Store) => ownMatrix(store.getState().history.present, sample
 const markers = (store: Store) => sample(store).markers.map((m) => m * 2);
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
-describe('Trim in Import', () => {
+describe('Trim in Samples', () => {
   it('the start and end fields set the window, and one edit is one undo step', async () => {
     const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'samples');
     fireEvent.click(button('Trim amen trim 1'));
@@ -90,8 +90,8 @@ describe('Trim in Import', () => {
   });
 });
 
-describe('Markers in Slice', () => {
-  /** A 2 s, one-bar sample with markers on 1/16, open in Slice. */
+describe('Markers in Samples', () => {
+  /** A 2 s, one-bar sample with markers on 1/16, selected in Samples. */
   async function sliceSetup() {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
     const result = setSlicing(Object.keys(project.samples)[0]!, 1)(project, ctx);
@@ -99,7 +99,7 @@ describe('Markers in Slice', () => {
     return setup(result.project, 'samples');
   }
 
-  it('← Trim opens the sample’s Trim in Import', async () => {
+  it('← Trim opens the sample’s Trim in the table', async () => {
     const store = await sliceSetup();
     fireEvent.click(screen.getByRole('button', { name: '← Trim' }));
     expect(store.getState()).toMatchObject({ view: 'samples', trimming: sample(store).id });
@@ -148,32 +148,28 @@ describe('Markers in Slice', () => {
 });
 
 describe('Playing while trimming', () => {
-  it('a sliced sample plays looped by default, follows the trim while it plays, and Loop off restarts it once', async () => {
+  // U7: the Trim's ▶ is Play at the top, which plays the open Trim looped; there is no second playback.
+  it("a sliced sample's ▶ plays the trim at the top, looped", async () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
     const sliced = setSlicing(Object.keys(project.samples)[0]!, 1)(project, ctx);
     if (!sliced.ok) throw new Error('setSlicing failed');
     await setup(sliced.project, 'samples');
     const player = fakeServices().player;
     fireEvent.click(button('Trim amen trim 1'));
-
+    await waitFor(() => expect((button('Play') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(button('Play trim'));
-    expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(true);
-
-    fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '100' } });
-    expect(player.setAuditionRegion).toHaveBeenCalledWith(0.1, expect.closeTo(1.9, 6));
-
-    // The Trim's Loop comes first; Slice has one of its own.
-    const trimLoop = () => screen.getAllByRole('button', { name: 'Loop' })[0]!;
-    fireEvent.click(trimLoop());
-    expect(trimLoop().getAttribute('aria-pressed')).toBe('false');
-    expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(false);
+    expect(vi.mocked(player.play).mock.calls.at(-1)?.[2]).toBe(false);
+    expect(player.audition).not.toHaveBeenCalled();
+    // Looped as Play at the top plays it: the Trim has no Loop of its own.
+    expect(within(document.querySelector('.trim')!).queryByRole('button', { name: 'Loop' })).toBeNull();
   });
 
   it('a sample not sliced loops by default, as everything does', async () => {
     await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'samples');
     fireEvent.click(button('Trim snare trim 1'));
+    await waitFor(() => expect((button('Play') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(button('Play trim'));
-    expect(vi.mocked(fakeServices().player.audition).mock.calls.at(-1)?.[4]).toBe(true);
+    expect(vi.mocked(fakeServices().player.play).mock.calls.at(-1)?.[2]).toBe(false);
   });
 });
 
@@ -185,7 +181,7 @@ describe('files, trims and matrices in the GUI', () => {
     return result.project;
   }
 
-  it('Import makes a new trim of a file on a row of its own, with its Trim open', async () => {
+  it('Samples makes a new trim of a file on a row of its own, with its Trim open', async () => {
     const store = await setup(await sliced(), 'samples');
     fireEvent.click(screen.getByRole('button', { name: 'New trim of amen.wav' }));
     expect(Object.values(store.getState().history.present.matrices).map((m) => m.name)).toEqual(['amen 1', 'amen 2']);
@@ -208,24 +204,25 @@ describe('files, trims and matrices in the GUI', () => {
     // ← Trim ← Slice and the file, the full names in their titles.
     const origin = screen.getByRole('button', { name: '← Slice' }).closest('.origin')!;
     expect([...origin.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['← Trim', '← Slice', 'amen.wav']);
-    expect(screen.getByRole('button', { name: '← Slice' }).title).toBe('Open amen slice 1 in Slice');
+    expect(screen.getByRole('button', { name: '← Slice' }).title).toBe('Open amen slice 1 in Samples');
     fireEvent.click(screen.getByRole('button', { name: '← Slice' }));
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample.id });
   });
 
-  it('Slice has no Replace sample; Hits → opens the matrix, and Make one-shot makes a one-shot of the slice', async () => {
+  it('Slicing has no Replace sample; Pads → opens the matrix in focus, and New matrix from slice makes a matrix of the slice', async () => {
     const store = await setup(await sliced(), 'samples');
     expect(screen.queryByRole('button', { name: 'Replace sample…' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Make one-shot' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New matrix from slice' }));
     const matrices = Object.values(store.getState().history.present.matrices);
     expect(matrices.map((m) => m.name)).toEqual(['amen 1', 'amen 2']);
     expect(matrices[1]!.pads).toHaveLength(1);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Hits →' })[0]!);
-    expect(store.getState()).toMatchObject({ view: 'pads', selection: { matrix: matrices[0]!.id, pad: null, hit: null } });
+    const slicing = screen.getByRole('region', { name: 'Slicing' });
+    fireEvent.click(within(slicing).getAllByRole('button', { name: 'Pads →' })[0]!);
+    expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: matrices[0]!.id }, selection: { matrix: matrices[0]!.id, pad: null, hit: null } });
   });
 });
 
-describe('the open Trim in Import', () => {
+describe('the open Trim in Samples', () => {
   it('opens and closes again and again, even where scrolling returns a promise', async () => {
     // Newer browsers' scroll methods return a promise; an effect that returned one crashed the app.
     const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => Promise.resolve() as unknown as void);
@@ -245,12 +242,12 @@ describe('the open Trim in Import', () => {
     fireEvent.pointerDown(screen.getByLabelText('Start ms'));
     fireEvent.pointerDown(document.querySelector('.header')!);
     expect(store.getState().trimming).not.toBeNull();
-    fireEvent.pointerDown(screen.getByRole('heading', { name: 'Import' }));
+    fireEvent.pointerDown(screen.getByRole('heading', { name: 'Samples' }));
     expect(store.getState().trimming).toBeNull();
   });
 });
 
-describe('Creates in Import', () => {
+describe('Creates in Samples', () => {
   it('counts the slices, pads and the loops that play the matrix, own loop first', async () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
     const id = Object.keys(project.samples)[0]!;
@@ -258,16 +255,16 @@ describe('Creates in Import', () => {
     if (!sliced.ok) throw new Error('setSlicing failed');
     const matrix = ownMatrix(sliced.project, id)!;
     const store = await setup(sliced.project, 'samples');
-    const row = screen.getByRole('button', { name: 'Slice →' }).closest('tr')!;
-    expect(row.textContent).toContain('16 Slice →');
-    expect(row.textContent).toContain('16 Hits →');
+    const row = screen.getByRole('button', { name: 'Slice ↓' }).closest('tr')!;
+    expect(row.textContent).toContain('16 Slice ↓');
+    expect(row.textContent).toContain('16 pads, 16 hits Pads →');
     expect(row.textContent).toContain('1 Loops →');
     fireEvent.click(screen.getByRole('button', { name: 'Loops →' }));
     expect(store.getState()).toMatchObject({ view: 'loops', selection: { loop: matrix.loop } });
   });
 });
 
-describe('two trims and a file in Import', () => {
+describe('two trims and a file in Samples', () => {
   it('a press on another Trim opens that one, closing the first', async () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
     const store = await setup(project, 'samples');
