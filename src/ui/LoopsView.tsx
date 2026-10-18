@@ -22,7 +22,9 @@ import {
 } from '../model';
 import { MATRIX_MIME, PAD_MIME, STEP_MIME, copies, useDropTargets } from './dnd';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
-import { CHOICE_LABEL, HIT_COLOR, lengthText, padGroups, padLabel, padSilent, replacedBy } from './labels';
+import { FocusBar } from './FocusBar';
+import { MatrixKindIcon } from './icons';
+import { CHOICE_LABEL, HIT_COLOR, lengthText, padLabel, padSilent, shelfGroups } from './labels';
 import { LoopLength } from './LoopLength';
 import { Delete } from './DeleteButton';
 import { InSong, InSongMark, useHeard } from './InSong';
@@ -46,9 +48,6 @@ export function currentLoopId(project: Project, selection: Selection): Id | null
   return Object.keys(project.loops)[0] ?? null;
 }
 
-/** What the shelf's hide and fold remember a group by: its matrix, or its name ("One-shots"). */
-const groupKey = (group: { readonly name: string; readonly matrixId?: Id }): string => group.matrixId ?? group.name;
-
 interface LoopsViewProps {
   /** The trigger under the playhead while the loop plays. */
   readonly playhead: Trigger | null;
@@ -62,8 +61,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const seal = useSeal();
   const open = useOpen();
   const selection = useSelect((s) => s.selection);
-  const shelfHidden = useSelect((s) => s.shelfHidden);
-  const shelfOpen = useSelect((s) => s.shelfOpen);
+  const focus = useSelect((s) => s.focus);
   const [shelfPad, setShelfPad] = useState<Id | null>(null);
   const [shelfMatrix, setShelfMatrix] = useState<Id | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +82,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   /** Pads past their sample's last slice: they play nothing until it has more. */
   const silent = new Set(Object.values(project.pads).filter((p) => padSilent(project, p)).map((p) => p.id));
   const swappable = Object.values(project.matrices);
-  const groups = padGroups(project);
+  const groups = shelfGroups(project, focus.matrix === null ? focus.takeFrom : [focus.matrix, ...focus.takeFrom]);
   /** Opens a pad, or a hit in it, in Pads, with the matrix it is a row of in focus. */
   const openPad = (padId: Id, hit: Id | null = null) => {
     const matrixId = matrixOfPad(project, padId)?.id ?? null;
@@ -97,7 +95,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   };
   const playMatrix = (matrixId: Id) =>
     playMatrixOnce(services, project, matrixId).catch((e: unknown) => setError(`Could not play it: ${e instanceof Error ? e.message : String(e)}`));
-  const allOpen = groups.length > 0 && groups.every((g) => shelfOpen.includes(groupKey(g)));
 
   const newLoop = (kind: LoopKind) => {
     const before = store.getState().history.present.loops;
@@ -131,82 +128,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           </button>
         ))}
       </section>
-      <section className="stack-tight" aria-label="Choose what shows">
-        <div className="row spread">
-          <h2 className="label" title="Tick what you want to drag from">Show in Pads</h2>
-          <button
-            type="button"
-            className="link-text small"
-            onClick={() => store.dispatch({ type: 'shelfOpen', groups: groups.map(groupKey), open: !allOpen })}
-          >
-            {allOpen ? 'Collapse all' : 'Expand all'}
-          </button>
-        </div>
-        {groups.map((group) => {
-          const key = groupKey(group);
-          const opened = shelfOpen.includes(key);
-          return (
-            <div key={key} className="stack-tight">
-              <div className="row nowrap fold-head">
-                <button
-                  type="button"
-                  className="icon-button small fold"
-                  aria-expanded={opened}
-                  aria-label={`${opened ? 'Hide' : 'Show'} the pads of ${group.name}`}
-                  onClick={() => store.dispatch({ type: 'shelfOpen', groups: [key], open: !opened })}
-                >
-                  {opened ? '▾' : '▸'}
-                </button>
-                <div className="row nowrap grow shelf-choice">
-                  <input
-                    type="checkbox"
-                    aria-label={`Show ${group.name} in Pads`}
-                    checked={!shelfHidden.includes(key)}
-                    onChange={(e) => store.dispatch({ type: 'shelfShown', group: key, shown: e.target.checked })}
-                  />
-                  <span
-                    className="label grow ellipsis"
-                    title={group.matrixId === undefined ? undefined : 'Click to play it once, double-click to edit it in Hits'}
-                    onClick={() => {
-                      if (group.matrixId !== undefined) void playMatrix(group.matrixId);
-                    }}
-                    onDoubleClick={() => {
-                      if (group.matrixId !== undefined) openMatrix(group.matrixId);
-                    }}
-                  >
-                    {group.name}
-                  </span>
-                  <span className="muted small">{group.items.length}</span>
-                </div>
-              </div>
-              {opened && group.items.map((p) => (
-                <div key={p.id} className={`pad-row${silent.has(p.id) ? ' silent' : ''}`}>
-                  <span className="pad-row-name mono" title="Double-click to edit in Hits" onDoubleClick={() => openPad(p.id)}>
-                  {padLabel(p)}
-                </span>
-                  {p.members.map((m, i) => {
-                    const h = project.hits[m];
-                    const by = h === undefined ? null : replacedBy(project, p.id, h);
-                    return h === undefined ? null : (
-                      <span
-                      key={m}
-                      className={`hit-chip static mono${i === 0 ? ' first' : ''}${by !== null ? ' replaced' : ''}`}
-                      title={`${h.name} · click to play it once, double-click to edit it in Hits`}
-                      onClick={() => services.player.playHit(project, m)}
-                      onDoubleClick={() => openPad(p.id, m)}
-                    >
-                        {baseName(h.name).replace(/^.*\s(\d{2,})$/, '$1')}
-                        {by !== null && `→${by}`}
-                        {h.direction === 'reverse' ? ' ◂' : ''}
-                      </span>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </section>
     </aside>
   );
 
@@ -215,6 +136,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
       <div className="split">
         {sidebar}
         <main className="view">
+          <FocusBar what={null} />
           <div className="view-head">
             <h1>Loops</h1>
             <p className="muted">No loops yet. Slice a sample to get its loop, or make a new loop.</p>
@@ -286,6 +208,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
     <div className="split">
       {sidebar}
       <main className="view">
+        <FocusBar what={null} />
         <div className="view-head row">
           <label className="sr-only" htmlFor="loop-name">
             Loop name
@@ -430,16 +353,14 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </button>
           </div>
           <div className="shelf">
-          {groups.length > 0 && groups.every((g) => shelfHidden.includes(groupKey(g))) && (
-            <p className="muted small">Nothing ticked under Show in Pads, to the left.</p>
-          )}
-          {groups.filter((group) => !shelfHidden.includes(groupKey(group))).map((group) => (
-            <div key={groupKey(group)} className="shelf-group">
-              <span className="muted small shelf-label ellipsis" title={group.name}>
-                {group.name}
+          {groups.length === 0 && <p className="muted small">Choose a matrix in focus above, and the ones to take from.</p>}
+          {groups.map((group) => (
+            <div key={group.matrixId} className="shelf-group">
+              <span className="muted small shelf-label ellipsis row nowrap" title={group.name}>
+                <MatrixKindIcon kind={group.kind} /> {group.name}
               </span>
               <div className="row">
-                {group.matrixId !== undefined && (() => {
+                {(() => {
                   const matrixId = group.matrixId;
                   return (
                   <button
@@ -448,7 +369,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     className="chip parent-chip"
                     aria-pressed={shelfMatrix === matrixId}
                     aria-label={`Matrix ${group.name}: lay out all its pads`}
-                    title="The whole matrix: a click plays it once and selects it; it lays out its pads one after another from the step. Double-click to edit it in Hits"
+                    title="The whole matrix: a click plays it once and selects it; it lays out its pads one after another from the step. Double-click to edit it in Pads"
                     onDoubleClick={() => openMatrix(matrixId)}
                     onClick={() => {
                       setShelfMatrix(shelfMatrix === matrixId ? null : matrixId);
@@ -495,7 +416,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                       drops.clear();
                     }}
                   >
-                    {padLabel(p)} <span className="chip-steps">·{Math.max(1, padSteps(project, p))}</span>
+                    {padLabel(p)}
+                    {padSteps(project, p) > 0 && <span className="chip-steps"> ·{padSteps(project, p)}</span>}
                   </button>
                 ))}
               </div>

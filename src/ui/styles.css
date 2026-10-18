@@ -2290,16 +2290,6 @@ button.danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--error) 14%, transparent);
 }
 
-/* The list under the pad shelf in Loops that chooses what the shelf shows. */
-.shelf-choice {
-  gap: 8px;
-}
-
-.hit-chip.static,
-.shelf-choice .label {
-  cursor: pointer;
-}
-
 /* Where what is dragged from the pad shelf lands, and what it writes over. */
 .hold.landing {
   z-index: 2;

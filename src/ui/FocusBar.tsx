@@ -14,7 +14,10 @@ const kindMark = (m: Matrix) => (matrixKind(m) === 'break' ? '≡' : '•');
 interface FocusBarProps {
   /** What Play plays: the selected hit, pad or matrix; null with nothing to play. */
   readonly what: 'hit' | 'pad' | 'matrix' | null;
-  readonly transport: PadsPlay;
+  /** Needed with something to play. */
+  readonly transport?: PadsPlay;
+  /** The view's name, as the heading; none in Loops, whose heading is its loop. */
+  readonly title?: string;
 }
 
 /**
@@ -22,7 +25,7 @@ interface FocusBarProps {
  * and ▶, the same Play as in the header. Focus and Take from are the view's
  * choice, not the project's, and are not undone (decision 16).
  */
-export function FocusBar({ what, transport }: FocusBarProps) {
+export function FocusBar({ what, transport, title }: FocusBarProps) {
   const project = useProject();
   const { store } = useApp();
   const focus = useSelect((s) => s.focus);
@@ -34,7 +37,7 @@ export function FocusBar({ what, transport }: FocusBarProps) {
   const toFocus = (id: string) => store.dispatch({ type: 'focus', matrix: id === '' ? null : id });
   return (
     <div className="focus-bar row">
-      <h1>Pads</h1>
+      {title !== undefined && <h1>{title}</h1>}
       <div className="row nowrap focus-pick">
         <span className="label">Focus</span>
         {focused !== undefined && <MatrixKindIcon kind={matrixKind(focused)} />}
@@ -69,7 +72,7 @@ export function FocusBar({ what, transport }: FocusBarProps) {
         <button type="button" className="dashed" onClick={() => setMaking(true)}>
           + New matrix
         </button>
-        {what !== null && (
+        {what !== null && transport !== undefined && (
           <PlayControls what={what} playing={transport.playing} onToggle={transport.onToggle} title={`Plays the selected ${what} · Space plays and stops`} />
         )}
       </div>
