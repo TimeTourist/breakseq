@@ -4,6 +4,7 @@ import type { Clip, Id, Mod, Project, SongRow } from '../model';
 import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, pasteClip, removeClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
+import { isTyping } from './isTyping';
 import { HIT_COLOR, lengthText } from './labels';
 import { RegionHandle } from './RegionHandle';
 import { TARGET_LABELS } from './modText';
@@ -78,8 +79,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
   const keys = useRef<(e: KeyboardEvent) => void>(() => {});
   keys.current = (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-    const target = e.target;
-    if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+    if (isTyping(e.target)) return;
     const key = e.key.toLowerCase();
     const clip = project.song.clips.find((c) => c.id === selected);
     const paste = (from: Clip, at: number) => {

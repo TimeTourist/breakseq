@@ -190,6 +190,22 @@ describe('copying clips', () => {
     expect(clips(store)).toEqual([['main', 48, 16]]);
   });
 
+  it('Ctrl+D works with a checkbox or slider focused, not with a select', async () => {
+    const { store } = await setup(song());
+    fireEvent.click(screen.getByRole('button', { name: /^amen 1, 1\.1\.1/ }));
+    for (const type of ['checkbox', 'range']) {
+      const control = Object.assign(document.createElement('input'), { type });
+      document.body.append(control);
+      fireEvent.keyDown(control, { key: 'd', ctrlKey: true });
+      control.remove();
+    }
+    expect(clips(store)).toHaveLength(3);
+    const select = document.body.appendChild(document.createElement('select'));
+    fireEvent.keyDown(select, { key: 'd', ctrlKey: true });
+    select.remove();
+    expect(clips(store)).toHaveLength(3);
+  });
+
   it('a drag with Ctrl copies the clip', async () => {
     const { store } = await setup(song());
     const id = store.getState().history.present.song.clips[0]!.id;
