@@ -22,7 +22,7 @@ src/model   typer, immutable state, kommandon, undo, automatisk kedja
 
 ## Domänord
 
-Använd exakt dessa namn i kod, typer och tester: `Sample`, `Hit`, `Pad`, `Loop` (`kind: 'main' | 'fill'`), `Mod`, `Song`, `Trigger`. Tagg = `Tag`. Inga synonymer (inte "patch", "family", "pattern").
+Använd exakt dessa namn i kod, typer och tester: `Sample`, `Hit`, `Pad`, `Matrix`, `Loop` (`kind: 'main' | 'fill'`), `Mod`, `Song`, `Trigger`. Inga synonymer (inte "patch", "family", "pattern"). Break och one-shot är bara en klassificering av en `Matrix` (`matrixKind`), inga objekt. `Matrix` används bara för detta, aldrig i Mods.
 
 ## Kodregler
 
@@ -45,4 +45,4 @@ npm run lint
 - Projektet byggs i faser (se `docs/spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** 22 – Matrix (`docs/tasks/fas-22.md`), design godkänd, plan nästa
+**Aktuell fas:** 22 – Matrix (`docs/tasks/fas-22.md`), klar och väntar på granskning
