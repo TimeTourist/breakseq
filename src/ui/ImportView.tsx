@@ -21,7 +21,7 @@ import {
   unsliceTakes,
   unsliceUsages,
 } from '../model';
-import { decodeAudioFile, decodeRex, readCues } from '../engine';
+import { decodeAudioFile, decodeRex, isRexFile, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
@@ -48,8 +48,8 @@ function files(project: Project): [string, Sample[]][] {
   return order.map((audioId) => [audioId, fileSamples(project, audioId)]);
 }
 
-/** A REX2 file, by its name: ReCycle's sliced loops. */
-const isRex = (name: string): boolean => name.toLowerCase().endsWith('.rx2');
+/** A REX2 file, ReCycle's sliced loops: by its header, or by its name (so a damaged one says it is damaged). */
+const isRex = (name: string, bytes: Uint8Array): boolean => isRexFile(bytes) || name.toLowerCase().endsWith('.rx2');
 
 /** A WAV or AIFF file. One with cue markers is marked Slice, not sliced: Slice offers its cues. */
 const addWave = (name: string, bytes: ArrayBuffer) => addSample({ name, audio: decodeAudioFile(bytes), cues: readCues(bytes) });
@@ -126,7 +126,8 @@ export function ImportView({ playheadSeconds = null }: ImportViewProps) {
     for (const file of files) {
       try {
         const bytes = await file.arrayBuffer();
-        const error = isRex(file.name) ? run(addRex(file.name, new Uint8Array(bytes))) : run(addWave(file.name, bytes));
+        const view = new Uint8Array(bytes);
+        const error = isRex(file.name, view) ? run(addRex(file.name, view)) : run(addWave(file.name, bytes));
         if (error !== null) failed.push(`${file.name}: ${error}`);
       } catch (e) {
         failed.push(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);

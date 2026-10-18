@@ -86,6 +86,15 @@ describe('importing a REX2 file', () => {
     expect(audio.channels[0]).toEqual(audio.channels[1]);
   });
 
+  it('a REX2 file renamed to something else is still read as one, by its header', async () => {
+    const store = await setup();
+    const bytes = await fixture('120Stereo.rx2').arrayBuffer();
+    browse(new File([bytes], 'loop.wav'));
+    await waitFor(() => expect(Object.keys(project(store).samples)).toHaveLength(1));
+    expect(Object.values(project(store).samples)[0]).toMatchObject({ name: 'loop.wav', bars: 1 });
+    expect(Object.values(project(store).samples)[0]!.markers).toHaveLength(10);
+  });
+
   it('a damaged or unknown .rx2 shows an error and adds nothing', async () => {
     const store = await setup();
     browse(new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])], 'nope.rx2'));
