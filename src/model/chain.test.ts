@@ -24,7 +24,7 @@ import {
   unsliceTakes,
   unsliceUsages,
 } from './chain';
-import { createLoop, setStep, updateHit } from './commands';
+import { addVariant, copyPad, createLoop, removeAnyway, setStep, updateHit } from './commands';
 import { addClip } from './clips';
 import { matrixSequence } from './lengths';
 import { sampleBpm } from './owners';
@@ -174,6 +174,28 @@ describe('the automatic chain', () => {
     expect(sampleBpm(trimmed.samples[sampleId]!)).toBeCloseTo(240);
   });
 
+  it('a hit replaced to another sample is no longer a variant', () => {
+    let { project, matrixId } = amen(4);
+    project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const snare = by(project.samples, (s) => s.name === 'snare.wav');
+    const original = rowHit(project, matrixId, 0).id;
+    project = run(project, addVariant(original));
+    const variant = by(project.hits, (h) => h.variantOf === original).id;
+    // Another slice of the same sample keeps it a variant; another sample does not.
+    const sameSample = run(project, setHitSource(variant, project.hits[original]!.sampleId, 2));
+    expect(sameSample.hits[variant]!.variantOf).toBe(original);
+    expect(run(project, setHitSource(variant, snare.id, 0)).hits[variant]!.variantOf).toBeNull();
+  });
+
+  it('removing the original clears its variants', () => {
+    let { project, matrixId } = amen(4);
+    const original = rowHit(project, matrixId, 0).id;
+    project = run(project, addVariant(original));
+    const variant = by(project.hits, (h) => h.variantOf === original).id;
+    const gone = run(project, removeAnyway('hit', original));
+    expect(gone.hits[variant]!.variantOf).toBeNull();
+  });
+
   it('a hit can play another slice or sample, keeping its settings', () => {
     let { project, matrixId } = amen(4);
     project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
@@ -271,6 +293,28 @@ describe('the automatic loop', () => {
     // Edited by hand, it stays as it is.
     project = run(project, setStep(m1, 1, { padId: project.matrices[matrixId]!.pads[3]! }), setMarkers(sampleId, [0, 0.5]));
     expect(project.loops[m1]!.steps.filter((s) => s.padId !== null)).toHaveLength(5);
+  });
+
+  it('the automatic loop follows a copied pad while untouched', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const loop = p0.matrices[matrixId]!.loop!;
+    // A copy of row 02 (slice 1, four steps) goes last, as row 17.
+    const copied = run(p0, copyPad(p0.matrices[matrixId]!.pads[1]!, matrixId));
+    const copy = copied.matrices[matrixId]!.pads.at(-1)!;
+    const played = (p: Project) => p.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [[i, s.padId]]));
+    const rows = copied.matrices[matrixId]!.pads;
+    expect(played(copied)).toEqual([[0, rows[0]], [4, rows[1]], [8, rows[2]], [12, rows[3]], [16, copy]]);
+    // Moving a marker afterwards still moves the loop along.
+    const moved = run(copied, setMarkers(sampleId, [0, 0.25, 0.5, 0.8]));
+    expect(played(moved).map(([i]) => i)).toEqual([0, 4, 8, 13, 16]);
+  });
+
+  it('a hand-edited loop stays after a matrix change', () => {
+    const { project: p0, matrixId } = amen(4);
+    const loop = p0.matrices[matrixId]!.loop!;
+    const edited = run(p0, setStep(loop, 1, { padId: p0.matrices[matrixId]!.pads[3]! }));
+    const copied = run(edited, copyPad(p0.matrices[matrixId]!.pads[1]!, matrixId));
+    expect(copied.loops[loop]).toEqual(edited.loops[loop]);
   });
 
   it('other loops stay as laid out', () => {
@@ -582,5 +626,15 @@ describe('a file that is already sliced (REX)', () => {
 
   it('adds nothing when the audio is empty', () => {
     expect(addSlicedSample({ name: 'loop.rx2', audio: constantAudio(0), bars: 1, markers: [0] })(emptyProject(), ctx).ok).toBe(false);
+  });
+});
+
+describe('REX files', () => {
+  it("an .rx2 file's matrix is named without the extension", () => {
+    const project = run(emptyProject(), addSlicedSample({ name: '120Stereo.rx2', audio: constantAudio(2), bars: 1, markers: [0, 0.5] }));
+    const matrix = Object.values(project.matrices)[0]!;
+    expect(matrix.name).toBe('120Stereo 1');
+    expect(project.loops[matrix.loop!]!.name).toBe('120Stereo 1');
+    expect(project.pads[matrix.pads[0]!]!.name).toBe('120Stereo 1 01');
   });
 });

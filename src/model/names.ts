@@ -26,3 +26,27 @@ export function renameMatrixIn(project: Project, matrixId: Id, name: string): Pr
   const loops = loop === undefined || loop.name !== from ? project.loops : { ...project.loops, [loop.id]: { ...loop, name } };
   return { ...project, pads, hits, loops, matrices: { ...project.matrices, [matrixId]: { ...matrix, name } } };
 }
+
+/** A row's name in a matrix: "Snares 02" for row 1. */
+export const rowName = (matrix: string, row: number): string => `${baseName(matrix)} ${String(row + 1).padStart(2, '0')}`;
+
+const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Names a matrix's pads after the rows they are in now, those that still have
+ * a row name of it ("Snares 03"); names typed by hand stay. Hits keep theirs.
+ */
+export function renumberRows(project: Project, matrixId: Id): Project {
+  const matrix = project.matrices[matrixId];
+  if (matrix === undefined) return project;
+  const automatic = new RegExp(`^${escaped(baseName(matrix.name))} \\d{2,}$`);
+  const pads: Record<Id, Pad> = { ...project.pads };
+  let changed = false;
+  for (const [row, id] of matrix.pads.entries()) {
+    const pad = project.pads[id];
+    if (pad === undefined || !automatic.test(pad.name) || pad.name === rowName(matrix.name, row)) continue;
+    pads[id] = { ...pad, name: rowName(matrix.name, row) };
+    changed = true;
+  }
+  return changed ? { ...project, pads } : project;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project, StepEffect } from '../model';
-import { addSample, createLoop, createMod, createProject, setBpm, setSlicing, setSongCell, setStep, stepDuration } from '../model';
+import { addSample, copyHits, createLoop, createMatrix, createMod, createProject, setBpm, setSlicing, setSongCell, setStep, stepDuration, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
 import type { Trigger } from './generate';
@@ -24,6 +24,13 @@ function song() {
   const m1 = Object.values(project.loops)[0]!;
   const snarePad = Object.values(project.pads).find((p) => p.name.startsWith('snare'))!;
   return { project: run(project, setSongCell('main', 0, m1.id)), m1, snarePad };
+}
+/** A matrix "Copies" whose one pad holds a copy of amen's slice 01. */
+function copyOfFirst(project: Project) {
+  const made = run(project, createMatrix('Copies'));
+  const matrix = Object.values(made.matrices).find((m) => m.name === 'Copies')!;
+  const first = Object.values(made.matrices).find((m) => m.name === 'amen 1')!.pads[0]!;
+  return { project: run(made, copyHits(made.pads[first]!.members, matrix.pads[0]!)), padId: matrix.pads[0]! };
 }
 const take = (project: Project) => generateTake(project, () => 0);
 const nameOf = (project: Project, t: Trigger) => project.hits[t.hitId]!.name;
@@ -55,6 +62,24 @@ describe('MIDI plan', () => {
       'amen 1 05 +5', 'amen 1 06 +5', 'amen 1 07 +5', 'amen 1 08 +5', 'amen 1 13 +5', 'amen 1 14 +5', 'amen 1 15 +5', 'amen 1 16 +5',
     ]);
     expect(plan.notes[2]!.piece).toBe(0);
+  });
+
+  it('two copies with the same sound are one bit', () => {
+    const { project, m1 } = song();
+    const { project: p, padId } = copyOfFirst(project);
+    const copied = run(p, setStep(m1.id, 2, { padId }));
+    const plan = midiPlan(copied, take(copied));
+    expect(plan.pieces).toHaveLength(15);
+    expect(plan.notes[2]!.piece).toBe(0);
+  });
+
+  it('copies with different pitch are two bits', () => {
+    const { project, m1 } = song();
+    const { project: p, padId } = copyOfFirst(project);
+    const pitched = run(p, updateHit(p.pads[padId]!.members[0]!, { pitch: 3 }), setStep(m1.id, 2, { padId }));
+    const plan = midiPlan(pitched, take(pitched));
+    expect(plan.pieces).toHaveLength(16);
+    expect(plan.notes[2]!.piece).not.toBe(0);
   });
 
   it('one-shots come after the breaks, and a note lasts until the sound ends or the next one cuts it', () => {

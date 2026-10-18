@@ -1,9 +1,10 @@
 import type { Command, CommandContext, CommandResult } from './command';
 import { fail, invalid, notFound, ok, without } from './command';
 import { addClip, fitClips } from './clips';
-import { dropMatrix, dropParts, removeSample } from './chain';
+import { dropMatrix, dropParts, followMatrices, removeSample } from './chain';
 import { matrixSequence, matrixSteps } from './lengths';
 import { matrixOfPad, padOfHit } from './owners';
+import { renumberRows, rowName } from './names';
 import { baseName } from './sound';
 import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
@@ -12,6 +13,17 @@ import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEff
 import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR } from './types';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
+
+/**
+ * A command after which the matrices' own loops follow the change, each while
+ * it was exactly as its matrix laid it out (`followMatrices`).
+ */
+const following =
+  (command: Command): Command =>
+  (project, ctx) => {
+    const result = command(project, ctx);
+    return result.ok ? ok(followMatrices(project, result.project)) : result;
+  };
 
 // Samples
 
@@ -25,13 +37,12 @@ export const updateSample =
 
 // Hits
 
-export const updateHit =
-  (id: Id, patch: Patch<Omit<Hit, 'sampleId'>>): Command =>
-  (project) => {
+export const updateHit = (id: Id, patch: Patch<Omit<Hit, 'sampleId'>>): Command =>
+  following((project) => {
     const hit = project.hits[id];
     if (hit === undefined) return notFound(id);
     return ok({ ...project, hits: { ...project.hits, [id]: { ...hit, ...patch } } });
-  };
+  });
 
 /**
  * A variant of a hit: a new hit on the same sample with its config, marked as
@@ -54,8 +65,6 @@ export const addVariant =
 const setPad = (project: Project, pad: Pad): Project => ({ ...project, pads: { ...project.pads, [pad.id]: pad } });
 const setMatrix = (project: Project, matrix: Matrix): Project => ({ ...project, matrices: { ...project.matrices, [matrix.id]: matrix } });
 
-/** A row's name in a matrix: "Snares 02". */
-const rowName = (matrix: string, row: number): string => `${baseName(matrix)} ${String(row + 1).padStart(2, '0')}`;
 const emptyPad = (id: Id, name: string): Pad => ({ id, name, members: [], choice: 'top', config: NO_CONFIG });
 
 export const renamePad =
@@ -74,22 +83,20 @@ export const setPadChoice =
   };
 
 /** Changes the config a pad lays over all its hits. */
-export const setPadConfig =
-  (padId: Id, patch: Partial<Config>): Command =>
-  (project) => {
+export const setPadConfig = (padId: Id, patch: Partial<Config>): Command =>
+  following((project) => {
     const pad = project.pads[padId];
     return pad === undefined ? notFound(padId) : ok(setPad(project, { ...pad, config: { ...pad.config, ...patch } }));
-  };
+  });
 
 /** Moves a member to a new position. Position 0 is member 1, the default. */
-export const movePadMember =
-  (padId: Id, hitId: Id, toIndex: number): Command =>
-  (project) => {
+export const movePadMember = (padId: Id, hitId: Id, toIndex: number): Command =>
+  following((project) => {
     const pad = project.pads[padId];
     if (pad === undefined) return notFound(padId);
     if (!pad.members.includes(hitId)) return notFound(hitId);
     return ok(setPad(project, { ...pad, members: moved(pad.members, hitId, toIndex) }));
-  };
+  });
 
 /** `ids` with `id` moved to `toIndex`, kept within the list. */
 function moved(ids: readonly Id[], id: Id, toIndex: number): Id[] {
@@ -103,14 +110,13 @@ function moved(ids: readonly Id[], id: Id, toIndex: number): Id[] {
  * Steps that chose it fall back to member 1; the last member may go, and an
  * empty pad stays and plays nothing.
  */
-export const removePadMember =
-  (padId: Id, hitId: Id): Command =>
-  (project) => {
+export const removePadMember = (padId: Id, hitId: Id): Command =>
+  following((project) => {
     const pad = project.pads[padId];
     if (pad === undefined) return notFound(padId);
     if (!pad.members.includes(hitId)) return notFound(hitId);
     return ok(dropParts(project, { pads: new Set(), hits: new Set([hitId]), loop: null }));
-  };
+  });
 
 // Matrices
 
@@ -125,32 +131,29 @@ export const createMatrix =
   };
 
 /** An empty pad added last to a matrix, named after its row: "Snares 02". */
-export const addPad =
-  (matrixId: Id): Command =>
-  (project, ctx) => {
+export const addPad = (matrixId: Id): Command =>
+  following((project, ctx) => {
     const matrix = project.matrices[matrixId];
     if (matrix === undefined) return notFound(matrixId);
     const pad = emptyPad(ctx.newId(), rowName(matrix.name, matrix.pads.length));
     return ok(setMatrix(setPad(project, pad), { ...matrix, pads: [...matrix.pads, pad.id] }));
-  };
+  });
 
-/** Moves a pad to row `to` (0 is row 01) of its matrix. */
-export const movePad =
-  (matrixId: Id, padId: Id, to: number): Command =>
-  (project) => {
+/** Moves a pad to row `to` (0 is row 01) of its matrix; pads named after their row are renamed after their new one. */
+export const movePad = (matrixId: Id, padId: Id, to: number): Command =>
+  following((project) => {
     const matrix = project.matrices[matrixId];
     if (matrix === undefined) return notFound(matrixId);
     if (!matrix.pads.includes(padId)) return notFound(padId);
-    return ok(setMatrix(project, { ...matrix, pads: moved(matrix.pads, padId, to) }));
-  };
+    return ok(renumberRows(setMatrix(project, { ...matrix, pads: moved(matrix.pads, padId, to) }), matrixId));
+  });
 
 /** Changes the config a matrix lays over all its pads. */
-export const setMatrixConfig =
-  (matrixId: Id, patch: Partial<Config>): Command =>
-  (project) => {
+export const setMatrixConfig = (matrixId: Id, patch: Partial<Config>): Command =>
+  following((project) => {
     const matrix = project.matrices[matrixId];
     return matrix === undefined ? notFound(matrixId) : ok(setMatrix(project, { ...matrix, config: { ...matrix.config, ...patch } }));
-  };
+  });
 
 // Copies (decision 8): new hits and pads with no link to where they came from.
 
@@ -165,10 +168,10 @@ function copiesOf(project: Project, hitIds: readonly Id[], hits: Record<Id, Hit>
   });
 }
 
-/** A new pad as a copy of `pad`: its name, choice and config, with copies of its hits. Added to `pads` and `hits`. */
-function padCopy(project: Project, pad: Pad, pads: Record<Id, Pad>, hits: Record<Id, Hit>, ctx: CommandContext, rename?: (name: string) => string): Id {
+/** A new pad named `name` as a copy of `pad`: its choice and config, with copies of its hits. Added to `pads` and `hits`. */
+function padCopy(project: Project, pad: Pad, name: string, pads: Record<Id, Pad>, hits: Record<Id, Hit>, ctx: CommandContext, rename?: (name: string) => string): Id {
   const members = copiesOf(project, pad.members, hits, ctx, rename);
-  const copy: Pad = { ...pad, id: ctx.newId(), name: rename?.(pad.name) ?? pad.name, members };
+  const copy: Pad = { ...pad, id: ctx.newId(), name, members };
   pads[copy.id] = copy;
   return copy.id;
 }
@@ -179,9 +182,8 @@ function padCopy(project: Project, pad: Pad, pads: Record<Id, Pad>, hits: Record
  * along, the new place's applies. Changing a copy leaves the original, and the
  * other way round.
  */
-export const copyHits =
-  (hitIds: readonly Id[], toPadId: Id): Command =>
-  (project, ctx) => {
+export const copyHits = (hitIds: readonly Id[], toPadId: Id): Command =>
+  following((project, ctx) => {
     const pad = project.pads[toPadId];
     if (pad === undefined) return notFound(toPadId);
     const missing = hitIds.find((h) => project.hits[h] === undefined);
@@ -189,23 +191,22 @@ export const copyHits =
     const hits = { ...project.hits };
     const copies = copiesOf(project, hitIds, hits, ctx);
     return ok(setPad({ ...project, hits }, { ...pad, members: [...pad.members, ...copies] }));
-  };
+  });
 
-/** Copies a pad last to a matrix: a new pad with its name, choice and config, and copies of its hits. */
-export const copyPad =
-  (padId: Id, toMatrixId: Id): Command =>
-  (project, ctx) => {
+/** Copies a pad last to a matrix: a new pad named after its row there, with its choice and config, and copies of its hits. */
+export const copyPad = (padId: Id, toMatrixId: Id): Command =>
+  following((project, ctx) => {
     const pad = project.pads[padId];
     if (pad === undefined) return notFound(padId);
     const matrix = project.matrices[toMatrixId];
     if (matrix === undefined) return notFound(toMatrixId);
     const pads = { ...project.pads };
     const hits = { ...project.hits };
-    const copy = padCopy(project, pad, pads, hits, ctx);
+    const copy = padCopy(project, pad, rowName(matrix.name, matrix.pads.length), pads, hits, ctx);
     return ok(setMatrix({ ...project, pads, hits }, { ...matrix, pads: [...matrix.pads, copy] }));
-  };
+  });
 
-/** Copies a matrix: to a matrix, each of its pads last (`copyPad`); to a pad, all its hits last, pad by pad (`copyHits`). */
+/** Copies a matrix: to a matrix, each of its pads last, named after their rows (`copyPad`); to a pad, all its hits last, pad by pad (`copyHits`). */
 export const copyMatrix =
   (fromId: Id, to: { readonly matrixId: Id } | { readonly padId: Id }): Command =>
   (project, ctx) => {
@@ -216,8 +217,12 @@ export const copyMatrix =
     if (matrix === undefined) return notFound(to.matrixId);
     const pads = { ...project.pads };
     const hits = { ...project.hits };
-    const copies = from.pads.flatMap((p) => (project.pads[p] === undefined ? [] : [padCopy(project, project.pads[p]!, pads, hits, ctx)]));
-    return ok(setMatrix({ ...project, pads, hits }, { ...matrix, pads: [...matrix.pads, ...copies] }));
+    const copies: Id[] = [];
+    for (const p of from.pads) {
+      const pad = project.pads[p];
+      if (pad !== undefined) copies.push(padCopy(project, pad, rowName(matrix.name, matrix.pads.length + copies.length), pads, hits, ctx));
+    }
+    return ok(followMatrices(project, setMatrix({ ...project, pads, hits }, { ...matrix, pads: [...matrix.pads, ...copies] })));
   };
 
 /**
@@ -236,7 +241,7 @@ export const cloneMatrix =
     const rename = (n: string) => (n === from || n.startsWith(`${from} `) ? `${name}${n.slice(from.length)}` : n);
     const pads = { ...project.pads };
     const hits = { ...project.hits };
-    const copies = matrix.pads.flatMap((p) => (project.pads[p] === undefined ? [] : [padCopy(project, project.pads[p]!, pads, hits, ctx, rename)]));
+    const copies = matrix.pads.flatMap((p) => (project.pads[p] === undefined ? [] : [padCopy(project, project.pads[p]!, rename(project.pads[p]!.name), pads, hits, ctx, rename)]));
     return ok(setMatrix({ ...project, pads, hits }, { id: ctx.newId(), name, pads: copies, config: matrix.config, sampleId: null, loop: null }));
   };
 
@@ -459,10 +464,9 @@ export const removeEffect =
 
 const setSong = (project: Project, song: Song): Project => ({ ...project, song });
 
-export const setBpm =
-  (bpm: number): Command =>
-  (project) =>
-    bpm > 0 ? ok(setSong(project, { ...project.song, bpm })) : invalid('BPM must be positive');
+/** Changes the tempo. Hits laid out by how long they sound take other steps, and own loops follow. */
+export const setBpm = (bpm: number): Command =>
+  following((project) => (bpm > 0 ? ok(setSong(project, { ...project.song, bpm })) : invalid('BPM must be positive')));
 
 /** Changes the song length. Clips past the new end go; clips across it are shortened. */
 export const setSongBars =
@@ -550,9 +554,9 @@ export const removeAnyway =
       case 'matrix':
         return ok(dropMatrix(project, id));
       case 'pad':
-        return ok(dropParts(project, { pads: new Set([id]), hits: none, loop: null }));
+        return ok(followMatrices(project, dropParts(project, { pads: new Set([id]), hits: none, loop: null })));
       case 'hit':
-        return ok(dropParts(project, { pads: none, hits: new Set([id]), loop: null }));
+        return ok(followMatrices(project, dropParts(project, { pads: none, hits: new Set([id]), loop: null })));
       case 'loop':
         return ok(dropParts(project, { pads: none, hits: none, loop: id }));
       case 'mod':
