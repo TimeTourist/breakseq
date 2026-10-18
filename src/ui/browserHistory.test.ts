@@ -37,33 +37,34 @@ describe('browser Back and Forward', () => {
     const browser = fakeHistory();
     stop = followBrowserHistory(store, browser.history, browser.events);
     store.dispatch({ type: 'sliceTarget', sampleId: 'b1' });
-    store.dispatch({ type: 'view', view: 'slice' });
-    store.dispatch({ type: 'select', selection: { hit: 'h1' }, view: 'hits' });
+    store.dispatch({ type: 'view', view: 'mods' });
+    store.dispatch({ type: 'view', view: 'samples' });
+    store.dispatch({ type: 'select', selection: { hit: 'h1' }, view: 'pads' });
     store.dispatch({ type: 'select', selection: { hit: 'h2' } });
     store.dispatch({ type: 'view', view: 'loops' });
-    expect(browser.length()).toBe(4);
+    expect(browser.length()).toBe(5);
 
     browser.back();
-    expect(store.getState()).toMatchObject({ view: 'hits', selection: { hit: 'h2' } });
+    expect(store.getState()).toMatchObject({ view: 'pads', selection: { hit: 'h2' } });
     browser.back();
-    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: 'b1' });
+    expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: 'b1' });
     browser.back();
-    expect(store.getState().view).toBe('import');
+    expect(store.getState().view).toBe('mods');
     browser.forward();
-    expect(store.getState().view).toBe('slice');
+    expect(store.getState().view).toBe('samples');
   });
 
   it('a new tab after Back drops the steps ahead, as in a browser', () => {
     const store = createStore(initialState(createProject()));
     const browser = fakeHistory();
     stop = followBrowserHistory(store, browser.history, browser.events);
-    store.dispatch({ type: 'view', view: 'slice' });
-    store.dispatch({ type: 'view', view: 'hits' });
+    store.dispatch({ type: 'view', view: 'pads' });
+    store.dispatch({ type: 'view', view: 'loops' });
     browser.back();
     store.dispatch({ type: 'view', view: 'song' });
     expect(browser.length()).toBe(3);
     browser.back();
-    expect(store.getState().view).toBe('slice');
+    expect(store.getState().view).toBe('pads');
   });
 
   it('changes within a tab are not steps, and undo is untouched', () => {

@@ -82,7 +82,7 @@ const own = (store: Store, i = 0) => ownMatrix(project(store), sample(store, i).
 
 describe('a sample is sliced in Slice, not in Import', () => {
   it('Slice in Import makes nothing: it shows Create Slices →, which opens it in Slice', async () => {
-    const store = await setup(build(...oneShot('amen.wav', false)), 'import');
+    const store = await setup(build(...oneShot('amen.wav', false)), 'samples');
     fireEvent.click(button('Slice'));
     expect(sample(store)).toMatchObject({ bars: null, unsliced: true });
     expect(own(store)).toMatchObject({ loop: null });
@@ -92,28 +92,28 @@ describe('a sample is sliced in Slice, not in Import', () => {
     // Only the length: no bars or BPM before it is sliced.
     expect(screen.getByText('2000 ms')).toBeTruthy();
     fireEvent.click(button('Create Slices →'));
-    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: sample(store).id });
+    expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample(store).id });
     expect(screen.getByText(/Not sliced yet/)).toBeTruthy();
   });
 
   it("Don't slice again on a sample marked Slice is just as before", async () => {
-    const store = await setup(build(...oneShot('amen.wav', true)), 'import');
+    const store = await setup(build(...oneShot('amen.wav', true)), 'samples');
     fireEvent.click(button("Don't slice"));
     expect('unsliced' in sample(store)).toBe(false);
     expect(screen.queryByRole('button', { name: 'Create Slices →' })).toBeNull();
   });
 
   it('Slice lists the samples on the left, the unsliced ones marked; a click opens one', async () => {
-    const store = await setup(build(...oneShot('amen.wav', true), ...oneShot('think.wav', true)), 'slice');
+    const store = await setup(build(...oneShot('amen.wav', true), ...oneShot('think.wav', true)), 'samples');
     const list = screen.getByRole('complementary', { name: 'Samples' });
     expect([...list.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['amen 1not sliced', 'think 1not sliced']);
     fireEvent.click(screen.getByRole('button', { name: /^think 1/ }));
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('think 1');
+    expect(screen.getByRole('heading', { name: 'think 1' })).toBeTruthy();
     expect(store.getState().sliceTarget).toBe(sample(store, 1).id);
   });
 
   it('nothing is made until both bars and how are chosen, then all of it in one undo step', async () => {
-    const store = await setup(build(...oneShot('amen.wav', true)), 'slice');
+    const store = await setup(build(...oneShot('amen.wav', true)), 'samples');
     // No cues in the file: no Cue markers, nothing chosen.
     expect(screen.queryByRole('button', { name: 'Cue markers' })).toBeNull();
     expect(pressed('1/16')).toBe('false');
@@ -135,7 +135,7 @@ describe('a sample is sliced in Slice, not in Import', () => {
   });
 
   it('a file with cue markers has Cue markers chosen to start with: the bars slice it at them', async () => {
-    const store = await setup(build(...oneShot('cued.wav', false, [0.4, 1, 1.5])), 'slice');
+    const store = await setup(build(...oneShot('cued.wav', false, [0.4, 1, 1.5])), 'samples');
     expect(sample(store)).toMatchObject({ bars: null, unsliced: true });
     expect(pressed('Cue markers')).toBe('true');
     fireEvent.change(screen.getByLabelText('Bars in the sample'), { target: { value: '1' } });
@@ -152,7 +152,7 @@ describe("Don't slice on a sliced sample", () => {
   const sliced = () => build(...oneShot('amen.wav', true), (p, c) => setSlicing(Object.keys(p.samples)[0]!, 1)(p, c));
 
   it('asks first, listing what goes; Cancel leaves it sliced', async () => {
-    const store = await setup(sliced(), 'import');
+    const store = await setup(sliced(), 'samples');
     fireEvent.click(button("Don't slice"));
     const dialog = screen.getByRole('alertdialog', { name: "Don't slice amen 1?" });
     expect(dialog.textContent).toContain('15 pads');
@@ -163,7 +163,7 @@ describe("Don't slice on a sliced sample", () => {
   });
 
   it("Don't slice leaves a matrix of 1 pad with 1 hit", async () => {
-    const store = await setup(sliced(), 'import');
+    const store = await setup(sliced(), 'samples');
     fireEvent.click(button("Don't slice"));
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: "Don't slice" }));
     expect(sample(store)).toMatchObject({ bars: null });

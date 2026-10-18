@@ -49,7 +49,7 @@ function apply(project: Project, ...commands: Command[]): Project {
 }
 
 
-async function setup(project: Project, view: 'hits' | 'mods', selection: Partial<Selection>) {
+async function setup(project: Project, view: 'pads' | 'mods', selection: Partial<Selection>) {
   const start = initialState(project);
   const store = createStore({ ...start, view, selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
@@ -63,7 +63,7 @@ describe('stretch in the GUI', () => {
     const amen = Object.values(sampled.samples).find((s) => s.name === 'amen.wav')!;
     const project = apply(sampled, setSlicing(amen.id, 1));
     const matrix = ownMatrix(project, amen.id)!.id;
-    const store = await setup(project, 'hits', { matrix });
+    const store = await setup(project, 'pads', { matrix });
     const modes = screen.getByRole('group', { name: 'Stretch mode' });
     fireEvent.click(within(modes).getByRole('button', { name: 'Fit to tempo' }));
     expect(store.getState().history.present.matrices[matrix]!.config.stretch.mode).toBe('fit');
@@ -74,7 +74,7 @@ describe('stretch in the GUI', () => {
 
     const snare = Object.values(project.hits).find((h) => h.name.startsWith('snare'))!;
     cleanup();
-    await setup(project, 'hits', { hit: snare.id });
+    await setup(project, 'pads', { hit: snare.id });
     expect(within(screen.getByRole('group', { name: 'Stretch mode' })).getByRole('button', { name: 'Fit to tempo' }).hasAttribute('disabled')).toBe(true);
   });
 

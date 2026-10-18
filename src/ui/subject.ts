@@ -24,29 +24,28 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
   const { view, selection } = state;
   const song = (key: string, p: Project, once = false): Subject => ({ key, once, kind: 'song', project: p });
   switch (view) {
-    case 'import': {
-      // The sample whose Trim is open, trimmed, as it is; with none open, the song.
-      const sample = project.samples[state.trimming ?? ''];
-      const audio = sample === undefined ? undefined : sampleAudio(project, sample);
-      if (sample === undefined || audio === undefined) return song(SONG_KEY, project);
-      const from = Math.round(sample.offset * audio.sampleRate);
-      const to = Math.round((sample.offset + sample.duration) * audio.sampleRate);
-      // Loops, as in Trim.
-      return {
-        key: `sample:${sample.id}`,
-        once: false,
-        kind: 'preview',
-        preview: () => ({ kind: 'audio', audio: { sampleRate: audio.sampleRate, channels: audio.channels.map((c) => c.slice(from, to)) } }),
-      };
-    }
-    case 'slice': {
-      // The sample open in Slice, or the first sliced one, as its own matrix lays it out.
+    case 'samples': {
+      // The sample whose Trim is open, trimmed, as it is.
+      const trimmed = project.samples[state.trimming ?? ''];
+      const trimmedAudio = trimmed === undefined ? undefined : sampleAudio(project, trimmed);
+      if (trimmed !== undefined && trimmedAudio !== undefined) {
+        const from = Math.round(trimmed.offset * trimmedAudio.sampleRate);
+        const to = Math.round((trimmed.offset + trimmed.duration) * trimmedAudio.sampleRate);
+        // Loops, as in Trim.
+        return {
+          key: `sample:${trimmed.id}`,
+          once: false,
+          kind: 'preview',
+          preview: () => ({ kind: 'audio', audio: { sampleRate: trimmedAudio.sampleRate, channels: trimmedAudio.channels.map((c) => c.slice(from, to)) } }),
+        };
+      }
+      // Else the sample open in Slice, or the first sliced one, as its own matrix lays it out; with none, the song.
       const sliced = Object.values(project.samples).filter((s) => s.bars !== null);
       const sample = sliced.find((s) => s.id === state.sliceTarget) ?? sliced[0];
       const matrix = sample === undefined ? undefined : ownMatrix(project, sample.id);
-      return matrix === undefined ? null : song(`matrix:${matrix.id}`, matrixSong(project, matrix.id));
+      return matrix === undefined ? song(SONG_KEY, project) : song(`matrix:${matrix.id}`, matrixSong(project, matrix.id));
     }
-    case 'hits': {
+    case 'pads': {
       const once = !state.hitsLoop;
       const { pad, hit, picked, matrix } = hitsOpen(project, selection);
       if (matrix !== undefined) return song(`matrix:${matrix.id}:${once}`, matrixSong(project, matrix.id), once);

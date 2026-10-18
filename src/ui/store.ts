@@ -3,7 +3,7 @@ import type { Folder, SnapshotInfo } from '../engine';
 import type { Clip, Command, CommandError, History, Id, Project } from '../model';
 import { apply, createHistory, createProject, redo, seal, undo } from '../model';
 
-export const VIEWS = ['import', 'slice', 'hits', 'loops', 'mods', 'song', 'project'] as const;
+export const VIEWS = ['samples', 'pads', 'loops', 'mods', 'song', 'project'] as const;
 export type View = (typeof VIEWS)[number];
 
 /** What is open in each editing view. */
@@ -35,8 +35,18 @@ export interface ProjectFolderState {
   readonly snapshots: readonly SnapshotInfo[];
 }
 
+/**
+ * The matrix the Samples and Pads tabs work on, and the matrices their pads are
+ * taken from. View state: not in the undo history and not in the project file.
+ */
+export interface Focus {
+  readonly matrix: Id | null;
+  readonly takeFrom: readonly Id[];
+}
+
 export interface AppState {
   readonly history: History;
+  readonly focus: Focus;
   readonly projectFolder: ProjectFolderState;
   readonly view: View;
   /** The sample open in Slice. */
@@ -68,6 +78,10 @@ export type Action =
   | { readonly type: 'select'; readonly selection: Partial<Selection>; readonly view?: View }
   | { readonly type: 'undo' }
   | { readonly type: 'redo' }
+  /** Sets the focus matrix, or clears it with null. */
+  | { readonly type: 'focus'; readonly matrix: Id | null }
+  /** Adds a matrix to the ones taken from, or removes it. */
+  | { readonly type: 'takeFrom'; readonly matrix: Id; readonly on: boolean }
   | { readonly type: 'view'; readonly view: View }
   | { readonly type: 'place'; readonly place: Place }
   | { readonly type: 'sliceTarget'; readonly sampleId: string | null; readonly slice?: number }
@@ -84,8 +98,9 @@ export type Action =
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
+  focus: { matrix: null, takeFrom: [] },
   projectFolder: { folder: null, active: null, saved: null, snapshots: [] },
-  view: 'import',
+  view: 'samples',
   sliceTarget: null,
   sliceSelected: 0,
   selection: { hit: null, pad: null, matrix: null, loop: null, step: null, mod: null, previewLoop: null },
@@ -98,16 +113,30 @@ export const initialState = (project: Project = createProject()): AppState => ({
   shelfOpen: [],
 });
 
+/** The focus with matrices that are no longer in the project left out: a removed or undone matrix is no focus. */
+const settleFocus = (focus: Focus, project: Project): Focus => {
+  const matrix = focus.matrix !== null && project.matrices[focus.matrix] !== undefined ? focus.matrix : null;
+  const takeFrom = focus.takeFrom.filter((id) => project.matrices[id] !== undefined);
+  return matrix === focus.matrix && takeFrom.length === focus.takeFrom.length ? focus : { matrix, takeFrom };
+};
+
+/** The state with a new history, its focus settled on the project the history now shows. */
+const withHistory = (state: AppState, history: History): AppState => ({
+  ...state,
+  history,
+  focus: settleFocus(state.focus, history.present),
+});
+
 /** Pure state transition. A failed command leaves the state unchanged and reports its error. */
 export function reduce(state: AppState, action: Action): { state: AppState; error: CommandError | null } {
   switch (action.type) {
     case 'run': {
       const result = apply(state.history, action.command, undefined, action.mergeKey ?? null);
-      return result.ok ? { state: { ...state, history: result.history }, error: null } : { state, error: result.error };
+      return result.ok ? { state: withHistory(state, result.history), error: null } : { state, error: result.error };
     }
     case 'seal': {
       const history = seal(state.history);
-      return { state: history === state.history ? state : { ...state, history }, error: null };
+      return { state: history === state.history ? state : withHistory(state, history), error: null };
     }
     case 'select':
       return {
@@ -115,9 +144,15 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
         error: null,
       };
     case 'undo':
-      return { state: { ...state, history: undo(state.history) }, error: null };
+      return { state: withHistory(state, undo(state.history)), error: null };
     case 'redo':
-      return { state: { ...state, history: redo(state.history) }, error: null };
+      return { state: withHistory(state, redo(state.history)), error: null };
+    case 'focus':
+      return { state: { ...state, focus: { ...state.focus, matrix: action.matrix } }, error: null };
+    case 'takeFrom': {
+      const others = state.focus.takeFrom.filter((id) => id !== action.matrix);
+      return { state: { ...state, focus: { ...state.focus, takeFrom: action.on ? [...others, action.matrix] : others } }, error: null };
+    }
     case 'view':
       return { state: { ...state, view: action.view }, error: null };
     case 'place':
@@ -125,7 +160,7 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'sliceTarget':
       return { state: { ...state, sliceTarget: action.sampleId, sliceSelected: action.slice ?? 0 }, error: null };
     case 'load':
-      return { state: { ...state, history: createHistory(action.project), songCursor: 0 }, error: null };
+      return { state: { ...withHistory(state, createHistory(action.project)), songCursor: 0 }, error: null };
     case 'projectFolder':
       return { state: { ...state, projectFolder: { ...state.projectFolder, ...action.state } }, error: null };
     case 'songCursor':

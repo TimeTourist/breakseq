@@ -190,11 +190,11 @@ describe('Project', () => {
     expect(screen.getByRole('alert').textContent).toBe('“Old” already has a project: use Open');
   });
 
-  it('is the seventh view: key 7 opens it', async () => {
-    const store = createStore({ ...initialState(createProject()), view: 'import' });
+  it('is the sixth tab: key 6 opens it', async () => {
+    const store = createStore({ ...initialState(createProject()), view: 'samples' });
     render(<App store={store} services={services([])} />);
     await act(async () => {});
-    fireEvent.keyDown(window, { key: '7' });
+    fireEvent.keyDown(window, { key: '6' });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Project');
   });
 });

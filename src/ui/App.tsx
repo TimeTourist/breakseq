@@ -9,6 +9,7 @@ import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
 import { HitsView } from './HitsView';
 import { ImportView } from './ImportView';
+import { isTyping } from './isTyping';
 import { LoopsView } from './LoopsView';
 import { ModsView } from './ModsView';
 import { SONG_KEY, subjectOf } from './subject';
@@ -30,10 +31,6 @@ export const sameRender = (a: Project, b: Project): boolean =>
   a.song.bpm === b.song.bpm &&
   a.song.bars === b.song.bars &&
   a.song.clips === b.song.clips;
-
-const isTyping = (target: EventTarget | null) =>
-  target instanceof HTMLElement &&
-  (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 /** A rendered take of what a view plays, with the subject it was rendered from. */
 export interface ShownTake {
@@ -293,7 +290,7 @@ function Shell() {
         // Space plays and stops, also with a button focused, which it would otherwise press.
         e.preventDefault();
         if (!e.repeat) toggle.current();
-      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[1-8]$/.test(e.key)) {
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[1-6]$/.test(e.key)) {
         setView(VIEWS[Number(e.key) - 1]!);
       }
     };
@@ -321,9 +318,13 @@ function Shell() {
           </button>
         </p>
       )}
-      {view === 'import' && <ImportView playheadSeconds={playingKey?.startsWith('sample:') === true ? playhead.seconds : null} />}
-      {view === 'slice' && <SliceView />}
-      {view === 'hits' && (
+      {view === 'samples' && (
+        <>
+          <ImportView playheadSeconds={playingKey?.startsWith('sample:') === true ? playhead.seconds : null} />
+          <SliceView />
+        </>
+      )}
+      {view === 'pads' && (
         <HitsView
           transport={{
             playing: playing && playingKey !== 'snapshot',

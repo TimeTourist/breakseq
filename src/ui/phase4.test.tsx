@@ -91,7 +91,7 @@ describe('Mods', () => {
     expect(screen.getByRole('img', { name: 'What the effect does over one bar' }).querySelectorAll('.step-value')).toHaveLength(16);
     expect([...screen.getByRole('img', { name: 'What the effect does over one bar' }).querySelectorAll('text')].map((t) => t.textContent)).toEqual(['0', '+3', '+5', '+7']);
 
-    fireEvent.keyDown(window, { key: '6' });
+    fireEvent.keyDown(window, { key: '5' });
     fireEvent.click(button(mod.name));
     clickLane('Mod A', 0);
 

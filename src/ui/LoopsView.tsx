@@ -86,8 +86,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   const swappable = Object.values(project.matrices);
   const groups = padGroups(project);
   /** Opens a pad, or a hit in it, in Hits, with the matrix it is a row of. */
-  const openPad = (padId: Id, hit: Id | null = null) => open({ pad: padId, hit, matrix: matrixOfPad(project, padId)?.id ?? null }, 'hits');
-  const openMatrix = (matrixId: Id) => open({ matrix: matrixId, pad: null, hit: null }, 'hits');
+  const openPad = (padId: Id, hit: Id | null = null) => open({ pad: padId, hit, matrix: matrixOfPad(project, padId)?.id ?? null }, 'pads');
+  const openMatrix = (matrixId: Id) => open({ matrix: matrixId, pad: null, hit: null }, 'pads');
   const playMatrix = (matrixId: Id) =>
     playMatrixOnce(services, project, matrixId).catch((e: unknown) => setError(`Could not play it: ${e instanceof Error ? e.message : String(e)}`));
   const allOpen = groups.length > 0 && groups.every((g) => shelfOpen.includes(groupKey(g)));
@@ -212,7 +212,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             <h1>Loops</h1>
             <p className="muted">No loops yet. Slice a sample to get its loop, or make a new loop.</p>
           <div className="row nav-row">
-            <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'slice' })}>
+            <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'samples' })}>
               ← Slice
             </button>
           </div>
@@ -418,7 +418,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
         <section className="panel stack-tight">
           <div className="row spread">
             <h2 className="label">Pads</h2>
-            <button type="button" className="link-text small" onClick={() => open({}, 'hits')}>
+            <button type="button" className="link-text small" onClick={() => open({}, 'pads')}>
               Build pads in Hits →
             </button>
           </div>

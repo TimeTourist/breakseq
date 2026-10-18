@@ -49,7 +49,7 @@ function apply(project: Project, ...commands: Command[]): Project {
 }
 
 
-async function setup(project: Project, view: 'hits' | 'mods' | 'import', selection: Partial<Selection>) {
+async function setup(project: Project, view: 'pads' | 'mods' | 'samples', selection: Partial<Selection>) {
   const start = initialState(project);
   const store = createStore({ ...start, view, selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
@@ -61,7 +61,7 @@ describe('channel choice and pan in the GUI', () => {
   it('Trim in Import chooses which channels a sample plays', async () => {
     const project = apply(createProject(), addSample({ name: 'wide.wav', audio: constantAudio(0.2, [0.5, -0.25]) }));
     const sample = Object.values(project.samples)[0]!;
-    const store = await setup(project, 'import', {});
+    const store = await setup(project, 'samples', {});
     fireEvent.click(screen.getByRole('button', { name: 'Trim wide trim 1' }));
     const channel = screen.getByRole('group', { name: 'Channel' });
     expect(within(channel).getByRole('button', { name: 'Stereo' }).getAttribute('aria-pressed')).toBe('true');
@@ -72,7 +72,7 @@ describe('channel choice and pan in the GUI', () => {
   it('Hits pans a hit', async () => {
     const project = apply(createProject(), addSample({ name: 'hat.wav', audio: constantAudio(0.1) }));
     const hit = Object.values(project.hits)[0]!;
-    const store = await setup(project, 'hits', { hit: hit.id });
+    const store = await setup(project, 'pads', { hit: hit.id });
     const pan = screen.getByRole('slider', { name: /^Pan/ });
     expect(pan.closest('.slider')!.textContent).toContain('C');
     fireEvent.change(pan, { target: { value: '-40' } });

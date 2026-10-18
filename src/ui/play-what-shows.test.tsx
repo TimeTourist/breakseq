@@ -38,23 +38,23 @@ describe('what Play plays', () => {
   const matrix = matrixOf(p);
   const sample = sampleOf(p);
 
-  it('is the trimmed sample in Import, looped for a break; the song with no Trim open', () => {
-    expect(subjectOf(p, state(p, { view: 'import' }))?.key).toBe(SONG_KEY);
-    expect(subjectOf(p, state(p, { view: 'import', sliceTarget: sample.id }))?.key).toBe(SONG_KEY);
-    const s = subjectOf(p, state(p, { view: 'import', trimming: sample.id }));
+  it('is in Samples the trimmed sample, looped for a break; with no Trim open, the sliced sample’s matrix', () => {
+    const s = subjectOf(p, state(p, { view: 'samples', trimming: sample.id }));
     expect(s).toMatchObject({ key: `sample:${sample.id}`, once: false, kind: 'preview' });
   });
 
-  it('is the sample’s own matrix as laid out in Slice', () => {
-    expect(subjectOf(p, state(p, { view: 'slice' }))).toMatchObject({ key: `matrix:${matrix.id}`, kind: 'song' });
+  it('is in Samples the sample’s own matrix as laid out in Slice; the song when nothing is sliced', () => {
+    expect(subjectOf(p, state(p, { view: 'samples' }))).toMatchObject({ key: `matrix:${matrix.id}`, kind: 'song' });
+    expect(subjectOf(p, state(p, { view: 'samples', sliceTarget: sample.id }))).toMatchObject({ key: `matrix:${matrix.id}`, kind: 'song' });
+    expect(subjectOf(createProject(), state(createProject(), { view: 'samples' }))?.key).toBe(SONG_KEY);
   });
 
   it('is in Hits the open matrix, the picked hit, or the pad as it picks; looped unless Once', () => {
     const sel = initialState(p).selection;
     expect(initialState(p).hitsLoop).toBe(true);
-    expect(subjectOf(p, state(p, { view: 'hits', hitsLoop: false, selection: { ...sel, matrix: matrix.id } }))?.key).toBe(`matrix:${matrix.id}:true`);
-    expect(subjectOf(p, state(p, { view: 'hits', hitsLoop: false, selection: { ...sel, pad: matrix.pads[1]!, hit: memberOf(p, 1) } }))?.key).toBe(`hit:${memberOf(p, 1)}:true`);
-    const pad = subjectOf(p, state(p, { view: 'hits', selection: { ...sel, matrix: matrix.id, pad: matrix.pads[1]! } }));
+    expect(subjectOf(p, state(p, { view: 'pads', hitsLoop: false, selection: { ...sel, matrix: matrix.id } }))?.key).toBe(`matrix:${matrix.id}:true`);
+    expect(subjectOf(p, state(p, { view: 'pads', hitsLoop: false, selection: { ...sel, pad: matrix.pads[1]!, hit: memberOf(p, 1) } }))?.key).toBe(`hit:${memberOf(p, 1)}:true`);
+    const pad = subjectOf(p, state(p, { view: 'pads', selection: { ...sel, matrix: matrix.id, pad: matrix.pads[1]! } }));
     expect(pad).toMatchObject({ key: `pad:${matrix.pads[1]}:false`, once: false });
   });
 
@@ -117,7 +117,7 @@ describe('Play in each view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(player.play).toHaveBeenCalledTimes(1);
 
-    act(() => void store.dispatch({ type: 'view', view: 'slice' }));
+    act(() => void store.dispatch({ type: 'view', view: 'samples' }));
     await settle();
     expect(player.play).toHaveBeenCalledTimes(2);
     expect(player.replace).not.toHaveBeenCalled();
@@ -130,7 +130,7 @@ describe('Play in each view', () => {
 
   it('plays a hit once in Hits with Once, and loops it with Loop', async () => {
     const p = split();
-    const { player, end } = await setup(p, { view: 'hits', hitsLoop: false, selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit: memberOf(p, 1) } });
+    const { player, end } = await setup(p, { view: 'pads', hitsLoop: false, selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit: memberOf(p, 1) } });
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
     // One button: Play is Stop while it plays.
@@ -153,7 +153,7 @@ describe('Play in each view', () => {
 describe('the Hits list', () => {
   it('folds away a break\'s pads', async () => {
     const p = split();
-    await setup(p, { view: 'hits', unfolded: [matrixOf(p).id] });
+    await setup(p, { view: 'pads', unfolded: [matrixOf(p).id] });
     const list = screen.getByLabelText('Matrices and pads');
     expect(within(list).getAllByRole('button', { name: /^Pad / }).length).toBeGreaterThan(0);
     fireEvent.click(within(list).getByRole('button', { name: /^Hide the pads of/ }));
@@ -163,7 +163,7 @@ describe('the Hits list', () => {
   });
 
   it('starts folded, and collapses and expands every break at once', async () => {
-    await setup(split(), { view: 'hits' });
+    await setup(split(), { view: 'pads' });
     expect(within(screen.getByLabelText('Matrices and pads')).queryAllByRole('button', { name: /^Pad amen/ })).toHaveLength(0);
     fireEvent.click(within(screen.getByLabelText('Matrices and pads')).getByRole('button', { name: 'Expand all' }));
     const list = screen.getByLabelText('Matrices and pads');
@@ -176,7 +176,7 @@ describe('the Hits list', () => {
   it('shows a replaced slice as 04→02', async () => {
     const p0 = split();
     const p = split(setHitSource(memberOf(p0, 3), sampleOf(p0).id, 1));
-    await setup(p, { view: 'hits', unfolded: [matrixOf(p).id] });
+    await setup(p, { view: 'pads', unfolded: [matrixOf(p).id] });
     const chip = screen.getByTitle(/plays 02 instead/);
     expect(chip.textContent).toBe('04→02');
     expect(chip.className).toContain('replaced');
@@ -187,7 +187,7 @@ describe('Clone matrix in Hits', () => {
   it('copies the open matrix and opens the copy', async () => {
     const p = split();
     const matrix = matrixOf(p);
-    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, matrix: matrix.id } });
+    const { store } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, matrix: matrix.id } });
     fireEvent.click(screen.getByRole('button', { name: 'Clone matrix' }));
     const copy = Object.values(store.getState().history.present.matrices).find((m) => m.id !== matrix.id)!;
     expect(copy.name).toBe('amen 1 copy');
@@ -204,10 +204,10 @@ describe('Delete matrix', () => {
   it('in Hits marks a matrix heard in the song, and asks before deleting it anyway; its loop stays', async () => {
     const p = split();
     const matrix = matrixOf(p);
-    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, matrix: matrix.id } });
+    const { store } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, matrix: matrix.id } });
     fireEvent.click(screen.getByRole('button', { name: '♪ Song' }));
     expect(store.getState().view).toBe('song');
-    act(() => void store.dispatch({ type: 'view', view: 'hits' }));
+    act(() => void store.dispatch({ type: 'view', view: 'pads' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete matrix amen 1' }));
     expect(within(deleteDialog()).getByText('Song')).toBeTruthy();
     expect(within(deleteDialog()).getByText('4 pads')).toBeTruthy();
@@ -226,7 +226,7 @@ describe('Delete in Import', () => {
   const twoTrims = () => split(addTrim(sampleOf(split()).id));
 
   it('in Import asks even for a trim nothing else uses, listing what goes with it', async () => {
-    const { store } = await setup(twoTrims(), { view: 'import' });
+    const { store } = await setup(twoTrims(), { view: 'samples' });
     fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 2' }));
     const dialog = deleteDialog();
     expect(dialog.getAttribute('aria-label')).toBe('Delete amen trim 2?');
@@ -238,14 +238,14 @@ describe('Delete in Import', () => {
   });
 
   it('a trim heard in the song lists where it goes silent', async () => {
-    await setup(split(), { view: 'import' });
+    await setup(split(), { view: 'samples' });
     fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 1' }));
     expect(within(deleteDialog()).getByText('Song')).toBeTruthy();
     expect(within(deleteDialog()).getByText('4 pads')).toBeTruthy();
   });
 
   it('Escape closes the dialog without deleting', async () => {
-    const { store } = await setup(split(), { view: 'import' });
+    const { store } = await setup(split(), { view: 'samples' });
     fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 1' }));
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -253,7 +253,7 @@ describe('Delete in Import', () => {
   });
 
   it('Delete file in Import takes every trim of the file, after asking', async () => {
-    const { store } = await setup(twoTrims(), { view: 'import' });
+    const { store } = await setup(twoTrims(), { view: 'samples' });
     fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
     answer(false);
     expect(Object.keys(store.getState().history.present.samples)).toHaveLength(2);
@@ -271,7 +271,7 @@ describe('the same controls everywhere, in Hits', () => {
   it('▶ next to the picked hit plays what Space plays, and its playhead runs through the region', async () => {
     const p = split();
     const hit = memberOf(p, 1);
-    const { store, player, at } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit } });
+    const { store, player, at } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit } });
     act(() => void store.dispatch({ type: 'run', command: (q) => ({ ok: true, project: { ...q, hits: { ...q.hits, [hit]: { ...q.hits[hit]!, region: { start: 0.2, end: 0.6 } } } } }) }));
     await settle();
     const hitPanel = screen.getByRole('region', { name: 'Hit' });
@@ -291,7 +291,7 @@ describe('the same controls everywhere, in Hits', () => {
   it('the region is set with handles, as in Trim: ←/→ moves an end by 1 ms, Shift by 10 ms', async () => {
     const p = split();
     const hit = memberOf(p, 1);
-    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit } });
+    const { store } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit } });
     fireEvent.keyDown(screen.getByRole('button', { name: 'Start at 0 ms' }), { key: 'ArrowRight', shiftKey: true });
     // The slice is 0.5 s long: 10 ms is a 50th of it.
     expect(store.getState().history.present.hits[hit]!.region.start).toBeCloseTo(0.02);
@@ -302,7 +302,7 @@ describe('the same controls everywhere, in Hits', () => {
     const p = split();
     const hit = memberOf(p, 1);
     const pad = matrixOf(p).pads[1]!;
-    const { store } = await setup(p, { view: 'hits', selection: { ...initialState(p).selection, pad, hit } });
+    const { store } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, pad, hit } });
     fireEvent.click(screen.getByRole('button', { name: `Delete hit ${p.hits[hit]!.name}` }));
     expect(deleteDialog().getAttribute('aria-label')).toBe(`Delete ${p.hits[hit]!.name}?`);
     answer(false);

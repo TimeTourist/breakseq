@@ -76,7 +76,7 @@ function hits(): AudioData {
 describe('Transients in Slice', () => {
   it('puts markers on the hits', async () => {
     const project = apply(createProject(), addSample({ name: 'break.wav', audio: hits() }));
-    const store = await setup(apply(project, setSlicing(Object.keys(project.samples)[0]!, 1)), 'slice');
+    const store = await setup(apply(project, setSlicing(Object.keys(project.samples)[0]!, 1)), 'samples');
 
     fireEvent.click(button('Transients'));
 
@@ -140,7 +140,7 @@ describe('Double-click opens the editor', () => {
     expect(state().selection.loop).toBe(loop.id);
 
     fireEvent.doubleClick(button(/^Bar 1, step 5:/));
-    expect(state().view).toBe('hits');
+    expect(state().view).toBe('pads');
     expect(state().selection.pad).toBe(pad.id);
 
     // In Hits, a hit of the pad opens it for editing.
@@ -148,7 +148,7 @@ describe('Double-click opens the editor', () => {
     expect(state().selection.hit).toBe(hit.id);
     expect(screen.getByLabelText('Hit name')).toHaveProperty('value', hit.name);
 
-    fireEvent.keyDown(window, { key: '6' });
+    fireEvent.keyDown(window, { key: '5' });
     fireEvent.doubleClick(clip(/^Roll, /));
     expect(state().view).toBe('mods');
     expect(state().selection.mod).toBe(mod.id);
@@ -172,7 +172,7 @@ describe('Double-clicking a mod in Song', () => {
     expect(store.getState().selection).toMatchObject({ mod: mod.id, previewLoop: main!.id });
     expect(store.getState().view).toBe('mods');
 
-    fireEvent.keyDown(window, { key: '6' });
+    fireEvent.keyDown(window, { key: '5' });
     fireEvent.doubleClick(clip(/^Roll, 4\.1\.1/));
     expect(store.getState().selection.previewLoop).toBe(fill!.id);
   });

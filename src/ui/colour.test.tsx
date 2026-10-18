@@ -49,7 +49,7 @@ function apply(project: Project, ...commands: Command[]): Project {
 }
 
 
-async function setup(project: Project, view: 'hits' | 'mods', selection: Partial<Selection>) {
+async function setup(project: Project, view: 'pads' | 'mods', selection: Partial<Selection>) {
   const start = initialState(project);
   const store = createStore({ ...start, view, selection: { ...start.selection, ...selection } });
   render(<App store={store} services={services()} />);
@@ -61,7 +61,7 @@ describe('dist and filter in the GUI', () => {
   it('Hits sets a hit to Crush with an amount, and a low-pass with a cutoff', async () => {
     const project = apply(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const hit = Object.values(project.hits)[0]!;
-    const store = await setup(project, 'hits', { hit: hit.id });
+    const store = await setup(project, 'pads', { hit: hit.id });
     fireEvent.click(within(screen.getByRole('group', { name: 'Dist mode' })).getByRole('button', { name: 'Crush' }));
     expect(screen.getByRole('slider', { name: /^Amount/ })).toBeTruthy();
     fireEvent.click(within(screen.getByRole('group', { name: 'Filter type' })).getByRole('button', { name: 'Low-pass' }));
@@ -92,7 +92,7 @@ describe('reverb and delay in the GUI', () => {
   it('Hits sends a hit to the reverb and the delay, with a size, a time and feedback', async () => {
     const project = apply(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const hit = Object.values(project.hits)[0]!;
-    const store = await setup(project, 'hits', { hit: hit.id });
+    const store = await setup(project, 'pads', { hit: hit.id });
     // Off until an amount is set: then its settings show.
     expect(screen.queryByRole('slider', { name: /^Size/ })).toBeNull();
     fireEvent.change(screen.getByRole('slider', { name: /^Reverb amount/ }), { target: { value: '0.6' } });

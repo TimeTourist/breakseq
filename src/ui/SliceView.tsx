@@ -93,7 +93,7 @@ export function SliceView() {
           <p className="muted">Nothing to slice yet. Import a file and mark it Slice.</p>
         </div>
         <div className="row nav-row">
-          <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'import' })}>
+          <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'samples' })}>
             ← Import
           </button>
         </div>
@@ -128,7 +128,7 @@ export function SliceView() {
 
   const toTrim = () => {
     store.dispatch({ type: 'trimming', sampleId: sample.id });
-    store.dispatch({ type: 'view', view: 'import' });
+    store.dispatch({ type: 'view', view: 'samples' });
   };
 
   if (sample.bars === null) {
@@ -265,7 +265,7 @@ export function SliceView() {
               ← Trim
             </button>
             {own !== undefined && (
-              <button type="button" className="link-text small" title={`Matrix ${own.name}, in Hits`} onClick={() => open({ matrix: own.id, pad: null, hit: null }, 'hits')}>
+              <button type="button" className="link-text small" title={`Matrix ${own.name}, in Hits`} onClick={() => open({ matrix: own.id, pad: null, hit: null }, 'pads')}>
                 Hits →
               </button>
             )}
@@ -489,7 +489,7 @@ export function SliceView() {
           {made !== null && (
             <p className="small">
               Made the one-shot <span className="mono">{made.name}</span>{' '}
-              <button type="button" className="link-text small" onClick={() => open({ matrix: made.matrix, pad: made.pad, hit: null }, 'hits')}>
+              <button type="button" className="link-text small" onClick={() => open({ matrix: made.matrix, pad: made.pad, hit: null }, 'pads')}>
                 Hits →
               </button>
             </p>

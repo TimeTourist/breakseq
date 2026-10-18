@@ -76,7 +76,7 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name });
 
 describe('Trim in Import', () => {
   it('the start and end fields set the window, and one edit is one undo step', async () => {
-    const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
+    const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'samples');
     fireEvent.click(button('Trim amen trim 1'));
 
     fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '25' } });
@@ -96,13 +96,13 @@ describe('Markers in Slice', () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
     const result = setSlicing(Object.keys(project.samples)[0]!, 1)(project, ctx);
     if (!result.ok) throw new Error('setSlicing failed');
-    return setup(result.project, 'slice');
+    return setup(result.project, 'samples');
   }
 
   it('← Trim opens the sample’s Trim in Import', async () => {
     const store = await sliceSetup();
     fireEvent.click(screen.getByRole('button', { name: '← Trim' }));
-    expect(store.getState()).toMatchObject({ view: 'import', trimming: sample(store).id });
+    expect(store.getState()).toMatchObject({ view: 'samples', trimming: sample(store).id });
     expect(screen.getByRole('button', { name: 'Trim amen trim 1' }).getAttribute('aria-expanded')).toBe('true');
   });
 
@@ -152,7 +152,7 @@ describe('Playing while trimming', () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
     const sliced = setSlicing(Object.keys(project.samples)[0]!, 1)(project, ctx);
     if (!sliced.ok) throw new Error('setSlicing failed');
-    await setup(sliced.project, 'import');
+    await setup(sliced.project, 'samples');
     const player = fakeServices().player;
     fireEvent.click(button('Trim amen trim 1'));
 
@@ -162,13 +162,15 @@ describe('Playing while trimming', () => {
     fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '100' } });
     expect(player.setAuditionRegion).toHaveBeenCalledWith(0.1, expect.closeTo(1.9, 6));
 
-    fireEvent.click(button('Loop'));
-    expect(button('Loop').getAttribute('aria-pressed')).toBe('false');
+    // The Trim's Loop comes first; Slice has one of its own.
+    const trimLoop = () => screen.getAllByRole('button', { name: 'Loop' })[0]!;
+    fireEvent.click(trimLoop());
+    expect(trimLoop().getAttribute('aria-pressed')).toBe('false');
     expect(vi.mocked(player.audition).mock.calls.at(-1)?.[4]).toBe(false);
   });
 
   it('a sample not sliced loops by default, as everything does', async () => {
-    await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'import');
+    await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'samples');
     fireEvent.click(button('Trim snare trim 1'));
     fireEvent.click(button('Play trim'));
     expect(vi.mocked(fakeServices().player.audition).mock.calls.at(-1)?.[4]).toBe(true);
@@ -184,7 +186,7 @@ describe('files, trims and matrices in the GUI', () => {
   }
 
   it('Import makes a new trim of a file on a row of its own, with its Trim open', async () => {
-    const store = await setup(await sliced(), 'import');
+    const store = await setup(await sliced(), 'samples');
     fireEvent.click(screen.getByRole('button', { name: 'New trim of amen.wav' }));
     expect(Object.values(store.getState().history.present.matrices).map((m) => m.name)).toEqual(['amen 1', 'amen 2']);
     expect(screen.getByRole('button', { name: 'Trim amen trim 2' }).getAttribute('aria-expanded')).toBe('true');
@@ -194,7 +196,7 @@ describe('files, trims and matrices in the GUI', () => {
     const project = await sliced();
     const matrix = Object.values(project.matrices)[0]!;
     const sample = Object.values(project.samples)[0]!;
-    const store = createStore({ ...initialState(project), view: 'hits', selection: { ...initialState(project).selection, matrix: matrix.id } });
+    const store = createStore({ ...initialState(project), view: 'pads', selection: { ...initialState(project).selection, matrix: matrix.id } });
     render(<App store={store} services={fakeServices()} />);
     await act(async () => {});
     fireEvent.change(screen.getByLabelText('Matrix name'), { target: { value: 'think' } });
@@ -208,18 +210,18 @@ describe('files, trims and matrices in the GUI', () => {
     expect([...origin.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['← Trim', '← Slice', 'amen.wav']);
     expect(screen.getByRole('button', { name: '← Slice' }).title).toBe('Open amen slice 1 in Slice');
     fireEvent.click(screen.getByRole('button', { name: '← Slice' }));
-    expect(store.getState()).toMatchObject({ view: 'slice', sliceTarget: sample.id });
+    expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample.id });
   });
 
   it('Slice has no Replace sample; Hits → opens the matrix, and Make one-shot makes a one-shot of the slice', async () => {
-    const store = await setup(await sliced(), 'slice');
+    const store = await setup(await sliced(), 'samples');
     expect(screen.queryByRole('button', { name: 'Replace sample…' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Make one-shot' }));
     const matrices = Object.values(store.getState().history.present.matrices);
     expect(matrices.map((m) => m.name)).toEqual(['amen 1', 'amen 2']);
     expect(matrices[1]!.pads).toHaveLength(1);
     fireEvent.click(screen.getAllByRole('button', { name: 'Hits →' })[0]!);
-    expect(store.getState()).toMatchObject({ view: 'hits', selection: { matrix: matrices[0]!.id, pad: null, hit: null } });
+    expect(store.getState()).toMatchObject({ view: 'pads', selection: { matrix: matrices[0]!.id, pad: null, hit: null } });
   });
 });
 
@@ -229,7 +231,7 @@ describe('the open Trim in Import', () => {
     const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => Promise.resolve() as unknown as void);
     const scrollIntoView = vi.fn(() => Promise.resolve());
     Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView'];
-    await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
+    await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'samples');
     for (let i = 0; i < 4; i++) fireEvent.click(button('Trim amen trim 1'));
     expect(button('Trim amen trim 1').getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(button('Trim amen trim 1'));
@@ -238,7 +240,7 @@ describe('the open Trim in Import', () => {
   });
 
   it('closes on a click outside it, but not on a click in it or in the header', async () => {
-    const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
+    const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'samples');
     fireEvent.click(button('Trim amen trim 1'));
     fireEvent.pointerDown(screen.getByLabelText('Start ms'));
     fireEvent.pointerDown(document.querySelector('.header')!);
@@ -255,7 +257,7 @@ describe('Creates in Import', () => {
     const sliced = setSlicing(id, 1)(project, ctx);
     if (!sliced.ok) throw new Error('setSlicing failed');
     const matrix = ownMatrix(sliced.project, id)!;
-    const store = await setup(sliced.project, 'import');
+    const store = await setup(sliced.project, 'samples');
     const row = screen.getByRole('button', { name: 'Slice →' }).closest('tr')!;
     expect(row.textContent).toContain('16 Slice →');
     expect(row.textContent).toContain('16 Hits →');
@@ -268,7 +270,7 @@ describe('Creates in Import', () => {
 describe('two trims and a file in Import', () => {
   it('a press on another Trim opens that one, closing the first', async () => {
     const project = build(addSample({ name: 'amen.wav', audio: constantAudio(2) }));
-    const store = await setup(project, 'import');
+    const store = await setup(project, 'samples');
     fireEvent.click(button('New trim of amen.wav'));
     fireEvent.click(button('Trim amen trim 1'));
     fireEvent.pointerDown(button('Trim amen trim 2'));
@@ -278,7 +280,7 @@ describe('two trims and a file in Import', () => {
   });
 
   it('▶ on the file plays the whole file once, and ■ stops it', async () => {
-    await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'import');
+    await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'samples');
     const player = fakeServices().player;
     fireEvent.click(button('Play amen.wav'));
     expect(vi.mocked(player.audition).mock.calls.at(-1)?.slice(1, 3)).toEqual([0, 2]);
