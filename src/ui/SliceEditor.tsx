@@ -23,7 +23,6 @@ import {
 } from '../model';
 import { detectTransients } from '../engine';
 import { useApp, useProject, useRun, useSeal } from './context';
-import { MatrixOrigin } from './MatrixOrigin';
 import { RenumberDialog } from './RenumberDialog';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
@@ -78,6 +77,8 @@ interface TrimSlicingProps {
   readonly sample: Sample;
   /** How far through its matrix Play in the header is, 0–1, while it plays it. */
   readonly played: number | null;
+  /** Brings the trim's file in the table above into view. */
+  readonly toFile: () => void;
   /** Opens the trim's Trim in the table above. */
   readonly toTrim: () => void;
   /** Opens a matrix in Pads, in focus. */
@@ -121,7 +122,7 @@ interface SlicedProps extends Omit<TrimSlicingProps, 'sample'> {
 }
 
 /** A sliced trim: its waveform with numbered slices, the markers between them, and the 1/16 steps they land on. */
-function Sliced({ sample, played, toTrim, toPads, stopTransport, found, onFound }: SlicedProps) {
+function Sliced({ sample, played, toFile, toTrim, toPads, stopTransport, found, onFound }: SlicedProps) {
   const project = useProject();
   const { store, services } = useApp();
   const run = useRun();
@@ -258,8 +259,9 @@ function Sliced({ sample, played, toTrim, toPads, stopTransport, found, onFound 
         <div className="stack-tight">
           <h2 className="mono">{sliceName(sample)}</h2>
           <div className="row nav-row">
-            {own !== undefined && <MatrixOrigin matrix={own} parts={['matrix', 'file']} />}
-            <InSong heard={heardHere.has(sample.id)} />
+            <button type="button" className="link-text small" title={`${sample.name}, in the table above`} onClick={toFile}>
+              ← File
+            </button>
             <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, above" onClick={toTrim}>
               ← Trim
             </button>
@@ -268,6 +270,7 @@ function Sliced({ sample, played, toTrim, toPads, stopTransport, found, onFound 
                 Pads →
               </button>
             )}
+            <InSong heard={heardHere.has(sample.id)} />
           </div>
           <p className="muted row">
             <label className="field">
@@ -492,12 +495,11 @@ interface UnslicedProps extends Omit<TrimSlicingProps, 'sample' | 'toPads'> {
  * are both chosen, then its matrix gets a pad per slice and a loop, in one
  * undo step. The file's cue markers, if it has any, are chosen to start with.
  */
-function Unsliced({ sample, toTrim, stopTransport, onSliced }: UnslicedProps) {
+function Unsliced({ sample, toFile, toTrim, stopTransport, onSliced }: UnslicedProps) {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
   const heard = useHeard();
-  const own = ownMatrix(project, sample.id);
   const heardHere = heardSamples(project, heard);
   const cues = cueMarkers(sample);
   const [bars, setBars] = useState<number | null>(null);
@@ -531,11 +533,13 @@ function Unsliced({ sample, toTrim, stopTransport, onSliced }: UnslicedProps) {
         <div className="stack-tight">
           <h2 className="mono">{sampleLabel(project, sample)}</h2>
           <div className="row nav-row">
-            {own !== undefined && <MatrixOrigin matrix={own} parts={['file']} />}
-            <InSong heard={heardHere.has(sample.id)} />
+            <button type="button" className="link-text small" title={`${sample.name}, in the table above`} onClick={toFile}>
+              ← File
+            </button>
             <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, above" onClick={toTrim}>
               ← Trim
             </button>
+            <InSong heard={heardHere.has(sample.id)} />
           </div>
           <p className="muted">Not sliced yet: set its bars and how to slice it. Nothing is made before that.</p>
           <p className="muted row">

@@ -116,6 +116,12 @@ describe('Samples: one page', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Pads →' }));
     expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: own.id } });
   });
+
+  it('the slicing links back up the chain, then on to the tabs after it: ← File ← Trim Pads →', async () => {
+    await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)));
+    const links = screen.getByRole('region', { name: 'Slicing' }).querySelector('.nav-row')!;
+    expect(within(links as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['← File', '← Trim', 'Pads →']);
+  });
 });
 
 describe('U1: Enter in Bars', () => {
