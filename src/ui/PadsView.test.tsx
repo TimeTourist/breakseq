@@ -219,11 +219,11 @@ describe('Pads: the controls', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Hit 2 in pad 02');
     const controls = screen.getByRole('region', { name: 'Hit controls' });
     expect(within(controls).getByRole('button', { name: 'Replace…' })).toBeTruthy();
-    // One line: what it is, its name, ← Sample N (what it plays on hover), then ♪ Song → if heard.
+    // One line: what it is (what it plays on hover) and its name; the links are in the row under the tabs.
     const head = controls.querySelector('.hit-head')!;
     expect(head.querySelector('h2')!.textContent).toBe('Hit 2 in pad 02');
-    const back = within(head as HTMLElement).getByRole('button', { name: /^← Sample \d+$/ });
-    expect(back.getAttribute('title')).toMatch(/^Plays /);
+    expect(head.querySelector('h2')!.getAttribute('title')).toMatch(/^Plays /);
+    expect(within(head as HTMLElement).queryByRole('button')).toBeNull();
     expect(screen.queryByText(/^Plays /)).toBeNull();
     expect(within(controls).getByRole('button', { name: 'Variant' })).toBeTruthy();
     expect(within(controls).getByRole('group', { name: 'Direction' })).toBeTruthy();
@@ -296,11 +296,11 @@ describe('Pads: the controls', () => {
     expect(screen.getByText(/Choose a matrix to work on/)).toBeTruthy();
   });
 
-  it('← Samples opens the matrix’s trim in Samples', async () => {
+  it('the row under the tabs opens the matrix’s trim in Samples', async () => {
     const p = amen();
     const m = matrixNamed(p, 'amen 1');
     const { store } = await setup(p, m.id);
-    fireEvent.click(screen.getByRole('button', { name: '← Samples' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'trim 1' }));
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: m.sampleId });
   });
 });

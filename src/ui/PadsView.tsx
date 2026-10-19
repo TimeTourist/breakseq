@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Id, Matrix, Pad, Project } from '../model';
 import { padPicker } from '../engine';
-import { addPad, cloneMatrix, matrixKind, renameMatrix, trimName } from '../model';
+import { addPad, cloneMatrix, matrixKind, renameMatrix } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import type { PadsPlay } from './ControlsPanel';
 import { ControlsPanel, useRunAdding } from './ControlsPanel';
 import { DeleteMatrix } from './DeleteMatrix';
 import { FocusBar } from './FocusBar';
-import { InSong, useHeard } from './InSong';
 import { MatrixKindIcon } from './icons';
 import { isTyping, modalOpen } from './isTyping';
 import type { Dragged, DropTarget, PadsOpen, Placing, Zoom } from './pads';
@@ -261,17 +260,9 @@ function MatrixName({ matrix, onError }: { readonly matrix: Matrix; readonly onE
  * below. Its name, ← Samples to its trim, ♪ Song, + Pad, Clone and Delete.
  */
 function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix; readonly selected: boolean; readonly onError: (error: string | null) => void; readonly ask: number }) {
-  const project = useProject();
   const { store } = useApp();
   const select = useOpen();
-  const heard = useHeard();
   const adding = useRunAdding(onError);
-  const sample = matrix.sampleId === null ? undefined : project.samples[matrix.sampleId];
-  const toSamples = () => {
-    if (sample === undefined) return;
-    store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
-    store.dispatch({ type: 'view', view: 'samples' });
-  };
   const kind = matrixKind(matrix);
   return (
     <section className={`matrix-row row${selected ? ' current' : ''}`} aria-label="Matrix">
@@ -287,12 +278,6 @@ function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix
         <span className="small muted">{kind === 'break' ? 'break' : 'one-shot'}</span>
       </button>
       <MatrixName key={matrix.id} matrix={matrix} onError={onError} />
-      {sample !== undefined && (
-        <button type="button" className="link-text small" title={`Open ${trimName(sample)} in Samples`} onClick={toSamples}>
-          ← Samples
-        </button>
-      )}
-      <InSong heard={heard.matrices.has(matrix.id)} />
       <div className="row push nowrap">
         <button type="button" title="An empty pad last in the matrix" onClick={() => adding(addPad(matrix.id), 'pads', (id) => select({ pad: id, hit: null }, 'pads'))}>
           + Pad

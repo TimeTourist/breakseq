@@ -18,6 +18,8 @@ export interface Selection {
   readonly mod: Id | null;
   /** The loop a mod is tried on in Mods. */
   readonly previewLoop: Id | null;
+  /** The clip selected in Song. Missing in a place kept before it was added. */
+  readonly clip?: Id | null;
 }
 
 /** Where one is in the app: the tab and what is open in it. Browser Back and Forward go between places. */
@@ -107,7 +109,7 @@ export const initialState = (project: Project = createProject()): AppState => ({
   projectFolder: { folder: null, active: null, saved: null, snapshots: [] },
   view: 'samples',
   sliceTarget: null,
-  selection: { hit: null, pad: null, matrix: null, loop: null, step: null, mod: null, previewLoop: null },
+  selection: { hit: null, pad: null, matrix: null, loop: null, step: null, mod: null, previewLoop: null, clip: null },
   songCursor: 0,
   clipboard: null,
   trimming: null,

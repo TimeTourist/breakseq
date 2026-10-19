@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProject, matrixSequence, ownMatrix } from '../model';
 import { App } from './App';
@@ -69,7 +69,7 @@ describe('importing a REX2 file', () => {
     expect(matrixSequence(project(store), own.id)).toHaveLength(10);
     // Its row shows it sliced: one bar at 120 BPM, and what it made.
     expect(screen.getByText(/1 bar · 120\.00 BPM/)).toBeTruthy();
-    expect(screen.getByText('1 loop')).toBeTruthy();
+    expect(within(screen.getByRole('table')).getByText('1 loop')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
     // One step back takes all of it.
     act(() => store.dispatch({ type: 'undo' }));

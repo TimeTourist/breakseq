@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { setBpm } from '../model';
 import { useApp, useProject, useRun, useSelect } from './context';
 import { useSnapshots } from './snapshots';
@@ -6,6 +6,8 @@ import { useCommitAfterPause } from './usePause';
 import { describeChange } from './describeChange';
 import type { View } from './store';
 import { VIEWS } from './store';
+import type { Crumb, Jump } from './crumbs';
+import { isMenu, trail } from './crumbs';
 
 const LABELS: Record<View, string> = {
   samples: 'Samples',
@@ -126,7 +128,87 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
         </label>
         <SnapshotButtons />
       </div>
+      <Crumbs />
     </header>
+  );
+}
+
+/**
+ * The link row under the tabs, always in the same place: the way back up the
+ * chain to what is selected on this tab, and on to what uses it. (Magnus beslut)
+ */
+function Crumbs() {
+  const { store } = useApp();
+  const state = useSelect((s) => s);
+  const now = useMemo(() => trail(state), [state]);
+  const go = (jump: Jump) => jump.go.forEach((action) => store.dispatch(action));
+  const crumb = (c: Crumb) =>
+    isMenu(c) ? (
+      <select
+        className="crumb-menu"
+        aria-label={c.label}
+        title={c.title}
+        value=""
+        onChange={(e) => {
+          const picked = c.items[Number(e.target.value)];
+          if (picked !== undefined) go(picked);
+        }}
+      >
+        <option value="" disabled>
+          {c.label} ▾
+        </option>
+        {c.items.map((item, i) => (
+          <option key={i} value={i} title={item.title}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <button type="button" className="link-text" title={c.title} onClick={() => go(c)}>
+        {c.label}
+      </button>
+    );
+  return (
+    <nav aria-label="Where you are" className="crumbs">
+      {now.back.map((c, i) => (
+        <span key={`b${i}`} className="crumb">
+          {crumb(c)}
+          <span className="crumb-sep" aria-hidden="true">
+            ›
+          </span>
+        </span>
+      ))}
+      {now.current !== null && (
+        <span className="crumb current" aria-current="location" title={now.current.title}>
+          {now.current.label}
+        </span>
+      )}
+      {(now.forward.length > 0 || now.song) && (
+        <span className="crumb-sep" aria-hidden="true">
+          →
+        </span>
+      )}
+      {now.forward.map((c, i) => (
+        <span key={`f${i}`} className="crumb">
+          {i > 0 && (
+            <span className="crumb-sep" aria-hidden="true">
+              ·
+            </span>
+          )}
+          {crumb(c)}
+        </span>
+      ))}
+      {now.song && now.forward.length > 0 && (
+        <span className="crumb-sep" aria-hidden="true">
+          ·
+        </span>
+      )}
+      {now.song && (
+        <button type="button" className="link-text crumb in-song" title="Heard in the song: open Song" onClick={() => store.dispatch({ type: 'view', view: 'song' })}>
+          ♪ Song →
+        </button>
+      )}
+    </nav>
   );
 }
 

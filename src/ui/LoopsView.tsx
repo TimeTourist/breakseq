@@ -27,7 +27,7 @@ import { MatrixKindIcon } from './icons';
 import { CHOICE_LABEL, HIT_COLOR, lengthText, middleEllipsis, padLabel, padSilent, shelfGroups } from './labels';
 import { LoopLength } from './LoopLength';
 import { Delete } from './DeleteButton';
-import { InSong, InSongMark, useHeard } from './InSong';
+import { InSongMark, useHeard } from './InSong';
 import type { Selection } from './store';
 import { takenFrom } from './store';
 import type { Services } from './services';
@@ -232,7 +232,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                 ))}
               </div>
               <LoopLength loop={loop} onError={setError} />
-              <InSong heard={heard.loops.has(loop.id)} />
             </div>
           </div>
           <div className="row push">
@@ -254,9 +253,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             {loopMatrices(project, loop).map((m) => (
               <div key={m.id} className="field inline">
                 <span className="muted">Matrix</span>
-                <button type="button" className="link-text mono" title="Open the matrix in Pads" onClick={() => openMatrix(m.id)}>
-                  {m.name}
-                </button>
+                <span className="mono">{m.name}</span>
                 →
                 <select
                   aria-label={`Swap ${m.name} for`}
@@ -349,12 +346,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
         </div>
 
         <section className="panel stack-tight">
-          <div className="row spread">
-            <h2 className="label">Pads</h2>
-            <button type="button" className="link-text small" title="Opens Pads" onClick={() => open({}, 'pads')}>
-              Build pads →
-            </button>
-          </div>
+          <h2 className="label">Pads</h2>
           <div className="shelf">
           {groups.length === 0 && <p className="muted small">Choose a matrix in focus above, and the ones to take from.</p>}
           {groups.map((group) => (
@@ -443,9 +435,6 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   <span className="mono" style={{ color: HIT_COLOR }}>
                     {stepPad.name}
                   </span>
-                  <button type="button" className="link-text small" onClick={() => openPad(stepPad.id)}>
-                    Pads →
-                  </button>
                 </div>
               )}
             </>

@@ -192,7 +192,7 @@ describe('matrices in the loop', () => {
     const store = await setup(project, 'loops', { loop: loop.id }, { matrix: matrix.id, takeFrom: [] });
     const h1 = Object.values(project.matrices).find((m) => m.name === 'h1 1')!;
     const swaps = within(screen.getByLabelText('Matrices in the loop'));
-    expect(swaps.getByRole('button', { name: 'Hats' })).toBeTruthy();
+    expect(swaps.getByText('Hats')).toBeTruthy();
     fireEvent.change(swaps.getByRole('combobox', { name: 'Swap Hats for' }), { target: { value: h1.id } });
     expect(store.getState().history.present.loops[loop.id]!.steps[0]!.padId).toBe(h1.pads[0]);
   });
