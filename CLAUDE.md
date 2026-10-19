@@ -45,4 +45,4 @@ npm run lint
 - Projektet byggs i faser (se `docs/spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** 23 – Gränssnitt för matriser (`docs/tasks/fas-23.md`), klar och väntar på granskning
+**Aktuell fas:** 23 – Gränssnitt för matriser (`docs/tasks/fas-23.md`), klar; 23b (rättelser efter test, `docs/tasks/fas-23b.md`) klar
