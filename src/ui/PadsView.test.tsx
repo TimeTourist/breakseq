@@ -98,9 +98,11 @@ describe('Pads: the timeline', () => {
     expect(widths.map((w) => Math.round(w / step))).toEqual([4, 2, 6, 4]);
     // Pad 02: its own hit first, marked, and the copy under it.
     const hits = hitsIn(cols[1]!);
-    expect(hits.map((h) => h.textContent)).toEqual(['02', '02→04']);
+    // Each hit shows its place in the pad first, so it does not read as the pad's number.
+    expect(hits.map((h) => h.textContent)).toEqual(['1 02', '2 02→04']);
+    expect(hits.map((h) => h.querySelector('.hit-place')?.textContent)).toEqual(['1', '2']);
     // The accessible name starts with what is shown, for voice control.
-    expect(hits.map((h) => h.getAttribute('aria-label'))).toEqual([`02, ${p.hits[p.pads[m.pads[1]!]!.members[0]!]!.name}`, `02→04, ${p.hits[p.pads[m.pads[1]!]!.members[1]!]!.name}`]);
+    expect(hits.map((h) => h.getAttribute('aria-label'))).toEqual([`1 02, ${p.hits[p.pads[m.pads[1]!]!.members[0]!]!.name}`, `2 02→04, ${p.hits[p.pads[m.pads[1]!]!.members[1]!]!.name}`]);
     expect(hits[0]!.className).toContain('first');
     expect(hits[1]!.className).not.toContain('first');
     expect(within(cols[1]!).getByRole('button', { name: 'Pad amen 1 02' }).textContent).toContain('02');
@@ -138,8 +140,8 @@ describe('Pads: the timeline', () => {
     p = apply(p, setHitSource(row(3).members[0]!, m.sampleId!, 0), setHitSource(row(2).members[0]!, think.id, 6));
     await setup(p, m.id);
     const cols = columns();
-    expect(hitsIn(cols[3]!)[0]!.textContent).toBe('04→01');
-    expect(hitsIn(cols[2]!)[0]!.textContent).toBe('→think 07');
+    expect(hitsIn(cols[3]!)[0]!.textContent).toBe('1 04→01');
+    expect(hitsIn(cols[2]!)[0]!.textContent).toBe('1 →think 07');
   });
 
   it('shortens long names in the middle, with the whole name in the title', async () => {
@@ -150,7 +152,7 @@ describe('Pads: the timeline', () => {
     await setup(q, snares.id);
     const hit = hitsIn(columns()[0]!)[0]!;
     expect(hit.textContent).toContain('…');
-    expect(hit.textContent!.startsWith('a-very')).toBe(true);
+    expect(hit.textContent!.startsWith('1 a-very')).toBe(true);
     const name = Object.values(q.hits).find((h) => h.name.startsWith(long))!.name;
     expect(hit.textContent!.endsWith(name.slice(-3))).toBe(true);
     expect(hit.getAttribute('title')).toContain(long);
@@ -195,10 +197,14 @@ describe('Pads: the controls', () => {
     const p = amen();
     const m = matrixNamed(p, 'amen 1');
     const { store, player } = await setup(p, m.id);
-    // The matrix at first: its config.
+    // The matrix at first: its config, under a heading that says so.
     expect(screen.getByRole('region', { name: 'Matrix controls' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Matrix');
 
     fireEvent.click(screen.getByRole('button', { name: 'Pad amen 1 02' }));
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Pad 02');
+    // A click on the pad's number plays it, one pick.
+    expect(player.playHit).toHaveBeenCalledTimes(1);
     const pad = screen.getByRole('region', { name: 'Pad controls' });
     expect(within(pad).getByRole('group', { name: 'Pad plays' })).toBeTruthy();
     expect(within(pad).getByRole('button', { name: /Pad sound/ })).toBeTruthy();
@@ -208,7 +214,9 @@ describe('Pads: the controls', () => {
     const hit = hitsIn(columns()[1]!)[1]!;
     fireEvent.click(hit);
     // A click plays it.
-    expect(player.playHit).toHaveBeenCalledTimes(1);
+    expect(player.playHit).toHaveBeenCalledTimes(2);
+    expect(player.playHit).toHaveBeenLastCalledWith(expect.anything(), p.pads[m.pads[1]!]!.members[1]);
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Hit 2 in pad 02');
     const controls = screen.getByRole('region', { name: 'Hit controls' });
     expect(within(controls).getByRole('button', { name: 'Replace…' })).toBeTruthy();
     expect(within(controls).getByRole('button', { name: 'Variant' })).toBeTruthy();
@@ -292,32 +300,31 @@ describe('Pads: the controls', () => {
 });
 
 describe('Pads: Play', () => {
-  it('the header plays the selection', async () => {
-    const p = amen();
+  it('the header and Play matrix play the matrix in focus in a loop, whatever is selected', async () => {
+    const p = amen(setPadChoiceCmd());
     const m = matrixNamed(p, 'amen 1');
     const { store, player, services: s } = await setup(p, m.id);
-    // The matrix, in a loop.
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(s.renderSong).toHaveBeenCalled();
+    // Pad 02 has two hits on Round robin: two passes, so both are heard.
+    expect(vi.mocked(s.renderSong).mock.lastCall![0].song.bars).toBe(2);
     expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, false);
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
 
-    // A pad, as it picks, in a loop.
-    act(() => void store.dispatch({ type: 'select', selection: { pad: m.pads[1]!, hit: null } }));
-    await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(s.renderPreview).toHaveBeenCalledTimes(1);
-    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, false);
-    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
-
-    // A hit, once.
-    act(() => void store.dispatch({ type: 'select', selection: { pad: m.pads[1]!, hit: p.pads[m.pads[1]!]!.members[1]! } }));
-    await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(s.renderPreview).toHaveBeenCalledTimes(2);
-    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
-    // The focus bar's ▶ is the same Play.
-    expect(screen.getByRole('button', { name: 'Stop hit' })).toBeTruthy();
+    // With a pad or a hit selected, still the matrix.
+    for (const selection of [
+      { pad: m.pads[1]!, hit: null },
+      { pad: m.pads[1]!, hit: p.pads[m.pads[1]!]!.members[1]! },
+    ]) {
+      act(() => void store.dispatch({ type: 'select', selection }));
+      await settle();
+      fireEvent.click(screen.getByRole('button', { name: 'Play matrix' }));
+      expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, false);
+      // The focus bar's ▶ is the same Play, named for the matrix.
+      expect(screen.getByRole('button', { name: 'Stop matrix' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Stop matrix' }));
+    }
+    expect(s.renderPreview).not.toHaveBeenCalled();
   });
 
   it('while it plays, a click on a hit auditions it once on top, and the groove keeps its take', async () => {
@@ -333,12 +340,47 @@ describe('Pads: Play', () => {
     expect(player.play).toHaveBeenCalledTimes(1);
     expect(player.replace).not.toHaveBeenCalled();
     expect(s.renderPreview).not.toHaveBeenCalled();
-    // The hit is selected for its controls; stopped, Play plays it.
+    // The hit is selected for its controls; stopped, Play plays the matrix again.
     expect(screen.getByRole('region', { name: 'Hit controls' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     await settle();
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
+    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, false);
+  });
+
+  it('a click on a pad’s number plays it one pick: Round robin on per click and arrow step, Top its first hit, Random from the rng', async () => {
+    const p = amen(setPadChoiceCmd());
+    const m = matrixNamed(p, 'amen 1');
+    const fake = services();
+    // Random draws from the injected rng: 0.9 of two hits is the second.
+    Object.assign(fake.services, { rng: () => () => 0.9 });
+    const store: Store = createStore({ ...initialState(p), view: 'pads', focus: { matrix: m.id, takeFrom: [] } });
+    render(<App store={store} services={fake.services} />);
+    await settle();
+    const [first, second] = p.pads[m.pads[1]!]!.members as [string, string];
+    const padHead = () => within(timeline()).getByRole('button', { name: 'Pad amen 1 02' });
+    const played = () => fake.player.playHit.mock.calls.map((c) => c[1]);
+
+    fireEvent.click(padHead());
+    fireEvent.click(padHead());
+    fireEvent.click(padHead());
+    expect(played()).toEqual([first, second, first]);
+    // The arrows go on with the same round: to pad 01 and back to 02.
+    fireEvent.keyDown(padHead(), { key: 'ArrowLeft' });
+    fireEvent.keyDown(within(timeline()).getByRole('button', { name: 'Pad amen 1 01' }), { key: 'ArrowRight' });
+    expect(played().slice(3)).toEqual([p.pads[m.pads[0]!]!.members[0], second]);
+
+    act(() => void store.dispatch({ type: 'run', command: setPadChoice(m.pads[1]!, 'top') }));
+    fireEvent.click(padHead());
+    fireEvent.click(padHead());
+    expect(played().slice(5)).toEqual([first, first]);
+
+    act(() => void store.dispatch({ type: 'run', command: setPadChoice(m.pads[1]!, 'random') }));
+    fireEvent.click(padHead());
+    expect(played().at(-1)).toBe(second);
+    // Selecting the pad does not change what Play plays.
+    fireEvent.click(screen.getByRole('button', { name: 'Play matrix' }));
+    expect(fake.services.renderPreview).not.toHaveBeenCalled();
   });
 });
 
@@ -713,21 +755,19 @@ describe('Pads: keys', () => {
 });
 
 describe('Pads: Play while the focus changes', () => {
-  it('a new matrix in focus plays whole, and what was held goes', async () => {
+  it('a new matrix in focus plays whole, straight away', async () => {
     const p = apply(amen(), addSample({ name: 'kick.wav', audio: constantAudio(0.1) }));
     const m = matrixNamed(p, 'amen 1');
-    const { store, services: s } = await setup(p, m.id, { selection: { ...initialState(p).selection, pad: m.pads[1]!, hit: null } });
+    const { player, services: s } = await setup(p, m.id, { selection: { ...initialState(p).selection, pad: m.pads[1]!, hit: null } });
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(s.renderPreview).toHaveBeenCalledTimes(1);
+    expect(player.play).toHaveBeenCalledTimes(1);
     const kick = Object.values(p.matrices).find((x) => x.name !== 'amen 1')!;
     fireEvent.change(screen.getByRole('combobox', { name: 'Matrix in focus' }), { target: { value: kick.id } });
     await settle();
-    // Back on amen 1: the matrix plays, not the pad held from before.
-    fireEvent.change(screen.getByRole('combobox', { name: 'Matrix in focus' }), { target: { value: m.id } });
-    await settle();
-    expect(s.renderPreview).toHaveBeenCalledTimes(1);
-    expect(s.renderSong).toHaveBeenCalled();
-    expect(store.getState().selection.pad).toBe(m.pads[1]);
+    // The kick's matrix starts at once: something else plays.
+    expect(player.play).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(s.renderSong).mock.lastCall![0].song.clips).toHaveLength(1);
+    expect(s.renderPreview).not.toHaveBeenCalled();
   });
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent, MouseEvent } from 'react';
 import type { Id, Matrix, Pad } from '../model';
 import { PAD_CHOICES, STEPS_PER_BAR, hitSound, padSteps, sampleAudio, setPadChoice, stepDuration } from '../model';
+import { matrixPassSteps } from '../engine';
 import { useApp, useOpen, useProject, useRun } from './context';
 import { InSongMark, useHeard } from './InSong';
 import { CHOICE_LABEL, middleEllipsis, padSilent } from './labels';
@@ -45,6 +46,8 @@ interface TimelineProps {
   readonly playedSeconds: number | null;
   readonly onError: (error: string | null) => void;
   readonly placing: Placing;
+  /** Plays a pad one pick, as it picks. */
+  readonly onPlayPad: (pad: Pad) => void;
 }
 
 /** Where in pad `padId` an event is: on a hit (its edges are between hits), or on the pad. */
@@ -76,7 +79,7 @@ function draggedOf(e: DragEvent, started: Dragged | null): Dragged | null {
  * "replace", or a line shows where the hit goes. With something picked on
  * the shelf, a tap on a pad or a hit places it the same way.
  */
-export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, placing }: TimelineProps) {
+export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, placing, onPlayPad }: TimelineProps) {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
@@ -101,7 +104,8 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
   /** Where the playhead is, in px: within the pad whose steps it is in. */
   const playheadPx = (() => {
     if (playedSeconds === null || steps === 0) return null;
-    const at = (playedSeconds / stepDuration(project.song.bpm)) % steps;
+    // Play renders the matrix in whole bars over several passes; in the bar's tail after the last pad it stays at the end.
+    const at = Math.min(steps, (playedSeconds / stepDuration(project.song.bpm)) % matrixPassSteps(project, matrix.id));
     const column = columns.find((c) => c.steps > 0 && at >= c.start && at < c.start + c.steps) ?? columns.at(-1);
     return column === undefined ? null : column.left + (column.steps === 0 ? 0 : ((at - column.start) / column.steps) * column.width);
   })();
@@ -204,7 +208,9 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
                   title={`${pad.name} · ${column.steps === 0 ? 'empty: takes no steps' : `${column.steps}/16`} · ${CHOICE_LABEL[pad.choice]}`}
                   onClick={() => {
                     // With something picked, the tap is the column's: it adds.
-                    if (placing.picked === null) select({ pad: pad.id, hit: null }, 'pads');
+                    if (placing.picked !== null) return;
+                    select({ pad: pad.id, hit: null }, 'pads');
+                    onPlayPad(pad);
                   }}
                 >
                   <span className="pad-number mono">{rowNumber(row)}</span>
@@ -237,14 +243,16 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
                       if (hit === undefined) return null;
                       const label = hitLabel(project, pad.id, row, hit);
                       const replaced = label.includes('→');
-                      const shown = `${middleEllipsis(label, chars)}${hit.direction === 'reverse' ? ' ◂' : ''}`;
+                      // Its place in the pad first, so the hit does not read as the pad's number (1 08, 2 →Winst…03).
+                      const place = String(i + 1);
+                      const shown = `${place} ${middleEllipsis(label, Math.max(2, chars - place.length - 1))}${hit.direction === 'reverse' ? ' ◂' : ''}`;
                       const insert = target?.kind === 'move' && hover?.hitId === id ? ` insert-${hover.zone}` : '';
                       return (
                         <li key={id} className={insert}>
                           <button
                             type="button"
                             className={`hit-chip mono${i === 0 ? ' first' : ''}${replaced ? ' replaced' : ''}`}
-                            aria-label={shown === hit.name ? hit.name : `${shown}, ${hit.name}`}
+                            aria-label={`${shown}, ${hit.name}`}
                             aria-current={id === selectedHit ? 'true' : undefined}
                             tabIndex={id === selectedHit ? 0 : -1}
                             title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it; drag it between hits to move it, or onto another pad or hit`}
@@ -268,7 +276,10 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
                               if (at !== null) placing.place(placing.picked, at);
                             }}
                           >
-                            <span className="hit-label">{shown}</span>
+                            <span className="hit-label">
+                              <span className="hit-place">{place}</span>
+                              {shown.slice(place.length)}
+                            </span>
                             <InSongMark heard={heard.hits.has(id)} />
                           </button>
                         </li>

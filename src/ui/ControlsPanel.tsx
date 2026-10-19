@@ -29,7 +29,7 @@ import { InSong, useHeard } from './InSong';
 import { PlayIcon } from './icons';
 import { CHOICE_LABEL, middleEllipsis } from './labels';
 import type { PadsOpen } from './pads';
-import { rowNumber } from './pads';
+import { controlsHeading, rowNumber } from './pads';
 import { RegionHandle } from './RegionHandle';
 import { Waveform } from './Waveform';
 
@@ -61,22 +61,25 @@ export function useRunAdding(onError: (error: string | null) => void) {
 
 interface ControlsProps {
   readonly open: PadsOpen;
-  readonly transport: PadsPlay;
   readonly onError: (error: string | null) => void;
   /** Asks to delete what is selected each time this changes (the Delete key). */
   readonly ask?: number | undefined;
 }
 
-/** The controls under the timeline, for what is selected: a hit, a pad, or the matrix. */
-export function ControlsPanel({ open, transport, onError, ask }: ControlsProps) {
-  switch (open.kind) {
-    case 'hit':
-      return <HitControls key={open.hit.id} hit={open.hit} transport={transport} onError={onError} ask={ask} />;
-    case 'pad':
-      return <PadControls key={open.pad.id} pad={open.pad} matrix={open.matrix} onError={onError} ask={ask} />;
-    case 'matrix':
-      return <MatrixControls matrix={open.matrix} onError={onError} />;
-  }
+/** The controls under the timeline, for what is selected: a hit, a pad, or the matrix, under a heading that says which. */
+export function ControlsPanel({ open, onError, ask }: ControlsProps) {
+  return (
+    <div className="stack-tight">
+      <h2 className="controls-heading">{controlsHeading(open)}</h2>
+      {open.kind === 'hit' ? (
+        <HitControls key={open.hit.id} hit={open.hit} onError={onError} ask={ask} />
+      ) : open.kind === 'pad' ? (
+        <PadControls key={open.pad.id} pad={open.pad} matrix={open.matrix} onError={onError} ask={ask} />
+      ) : (
+        <MatrixControls matrix={open.matrix} onError={onError} />
+      )}
+    </div>
+  );
 }
 
 /** The matrix's config, laid over every pad. */
@@ -275,7 +278,7 @@ function ReplacePanel({ hit, onError }: { readonly hit: Hit; readonly onError: (
 }
 
 /** A hit: Replace…, its region of its slice with handles, Variant, Delete, and its own config under its pad's and matrix's. */
-function HitControls({ hit, transport, onError, ask }: { readonly hit: Hit; readonly transport: PadsPlay; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
+function HitControls({ hit, onError, ask }: { readonly hit: Hit; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
   const project = useProject();
   const run = useRun();
   const seal = useSeal();
@@ -316,15 +319,6 @@ function HitControls({ hit, transport, onError, ask }: { readonly hit: Hit; read
       onDone={seal}
     />
   );
-  // Where the main Play is, as a part of the waveform: through the region.
-  const played = transport.played;
-  const through = played === null || played.duration <= 0 || played.key !== `hit:${hit.id}` ? null : Math.min(1, Math.max(0, played.seconds / played.duration));
-  const playhead =
-    through === null
-      ? null
-      : hit.direction === 'reverse'
-        ? hit.region.end - through * (hit.region.end - hit.region.start)
-        : hit.region.start + through * (hit.region.end - hit.region.start);
   const what =
     sample === undefined ? 'a missing sample' : hit.slice === null || sample.bars === null ? `all of ${trimName(sample)}` : `slice ${rowNumber(hit.slice)} of ${trimName(sample)}`;
   const hitPad = padOfHit(project, hit.id);
@@ -376,7 +370,6 @@ function HitControls({ hit, transport, onError, ask }: { readonly hit: Hit; read
             <Waveform audio={audio} offset={sample.offset + window.start} duration={duration} height={160} />
             <div className="region-shade" style={{ left: 0, width: `${hit.region.start * 100}%` }} />
             <div className="region-shade" style={{ left: `${hit.region.end * 100}%`, right: 0 }} />
-            {playhead !== null && <div className="playhead" style={{ left: `${playhead * 100}%` }} />}
             {handle('start')}
             {handle('end')}
           </div>

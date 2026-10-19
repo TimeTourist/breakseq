@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import type { Id, Matrix, Project } from '../model';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Id, Matrix, Pad, Project } from '../model';
 import { padPicker } from '../engine';
 import { addPad, cloneMatrix, matrixKind, renameMatrix, trimName } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
@@ -29,14 +29,14 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
   const [zoom, setZoom] = useState<Zoom>('fit');
   const open = padsOpen(project, focus.matrix, selection);
   const placing = usePlacing(setError);
-  const ask = usePadsKeys(open);
+  const playPad = usePlayPad();
+  const ask = usePadsKeys(open, playPad);
   usePageAutoscroll();
-  const what = open === null ? null : open.kind === 'pad' && open.pad.members.length === 0 ? null : open.kind;
   const matrixPlays = open !== null && transport.played !== null && transport.played.key === `matrix:${open.matrix.id}`;
 
   return (
     <main className="view wide pads-view">
-      <FocusBar title="Pads" what={what} transport={transport} />
+      <FocusBar title="Pads" transport={transport} />
       {error !== null && (
         <p className="error" role="alert">
           {error}
@@ -55,9 +55,10 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
             playedSeconds={matrixPlays ? transport.played!.seconds : null}
             onError={setError}
             placing={placing}
+            onPlayPad={playPad}
           />
           <TakeFromShelf placing={placing} />
-          <ControlsPanel open={open} transport={transport} onError={setError} ask={ask.selected} />
+          <ControlsPanel open={open} onError={setError} ask={ask.selected} />
         </>
       )}
     </main>
@@ -149,21 +150,41 @@ function timelineButton(padId: Id, hitId: Id | null): HTMLElement | null {
 const ownKeys = (target: EventTarget | null) => isTyping(target) || (target instanceof Element && target.closest('input, [role="slider"]') !== null);
 
 /**
- * The keys of Pads: ←/→ go from pad to pad and ↑/↓ through the pad's hits,
- * each step playing what it selects (a pad as it picks); Enter selects the
- * matrix; Delete or Backspace asks, as the Delete button does, to delete what
- * is selected. Returns the counts that make the Delete buttons ask.
+ * Plays a pad as it picks, one pick a time: Top its first hit, Round robin
+ * the next in turn (on from the last click or arrow step), Random and No
+ * repeat at random from the injected rng. A pad with no hits plays nothing.
  */
-function usePadsKeys(open: PadsOpen | null) {
+export function usePlayPad(): (pad: Pad) => void {
+  const project = useProject();
+  const { services } = useApp();
+  const picker = useRef<ReturnType<typeof padPicker> | null>(null);
+  const latest = useRef(project);
+  latest.current = project;
+  return useCallback(
+    (pad: Pad) => {
+      picker.current ??= padPicker(services.rng());
+      const hit = picker.current(pad);
+      if (hit !== undefined) services.player.playHit(latest.current, hit);
+    },
+    [services],
+  );
+}
+
+/**
+ * The keys of Pads: ←/→ go from pad to pad and ↑/↓ through the pad's hits,
+ * each step playing what it selects (a pad one pick, as a click on it does);
+ * Enter selects the matrix; Delete or Backspace asks, as the Delete button
+ * does, to delete what is selected. Returns the counts that make the Delete
+ * buttons ask.
+ */
+function usePadsKeys(open: PadsOpen | null, playPad: (pad: Pad) => void) {
   const project = useProject();
   const { services } = useApp();
   const select = useOpen();
   const [ask, setAsk] = useState({ matrix: 0, selected: 0 });
-  // Picks a pad's hit as the pad does, round robin on from the last step.
-  const picker = useRef<ReturnType<typeof padPicker> | null>(null);
   // The listener is set up once and reads the latest of these.
-  const latest = useRef({ open, project, select });
-  latest.current = { open, project, select };
+  const latest = useRef({ open, project, select, playPad });
+  latest.current = { open, project, select, playPad };
   // After a step, focus goes to the newly selected button once it shows (roving tabindex).
   const focusNext = useRef<{ pad: Id; hit: Id | null } | null>(null);
   useEffect(() => {
@@ -174,7 +195,7 @@ function usePadsKeys(open: PadsOpen | null) {
   }, [open]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { open: now, project: p, select } = latest.current;
+      const { open: now, project: p, select, playPad: play } = latest.current;
       if (now === null || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || ownKeys(e.target)) return;
       if (modalOpen()) return;
       if (e.key.startsWith('Arrow')) {
@@ -184,9 +205,8 @@ function usePadsKeys(open: PadsOpen | null) {
         focusNext.current = next;
         select(next, 'pads');
         const pad = p.pads[next.pad];
-        picker.current ??= padPicker(services.rng());
-        const hit = next.hit ?? (pad === undefined ? undefined : picker.current(pad));
-        if (hit !== undefined) services.player.playHit(p, hit);
+        if (next.hit !== null) services.player.playHit(p, next.hit);
+        else if (pad !== undefined) play(pad);
       } else if (e.key === 'Enter') {
         // A focused button's Enter is its own.
         if (e.target instanceof Element && e.target.closest('button, a, summary, [role="button"]') !== null) return;
