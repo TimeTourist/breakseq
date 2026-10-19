@@ -88,7 +88,7 @@ describe('Samples: one page', () => {
     const wav = new File([new Uint8Array(encodeWav(constantAudio(2)))], 'amen.wav');
     fireEvent.drop(document.querySelector('.dropzone')!, { dataTransfer: { files: [wav] } });
     await waitFor(() => expect(samples(store)).toHaveLength(1));
-    fireEvent.click(button('Slice'));
+    fireEvent.click(button('Slice amen 1'));
     expect(screen.getByText(/Not sliced yet/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Bars in the sample'), { target: { value: '1' } });
     fireEvent.click(button('1/16'));
@@ -108,13 +108,37 @@ describe('Samples: one page', () => {
     expect(lines.map((l) => l.style.left)).toEqual(['0%', '25%', '50%', '75%']);
   });
 
-  it('Pads → sets the focus to the trim’s matrix and opens Pads', async () => {
+  it('Pads → below the table sets the focus to the trim’s matrix and opens Pads', async () => {
     const project = build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4));
     const own = ownMatrix(project, first(project).id)!;
     const store = await setup(project);
-    const row = button('Loops →').closest('tr')!;
-    fireEvent.click(within(row).getByRole('button', { name: 'Pads →' }));
+    fireEvent.click(within(screen.getByRole('region', { name: 'Slicing' })).getAllByRole('button', { name: 'Pads →' })[0]!);
     expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: own.id } });
+  });
+
+  it('a trim not sliced has Pads → below the table too', async () => {
+    const project = build(() => addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const store = await setup(project);
+    const links = screen.getByRole('region', { name: 'Slicing' }).querySelector('.nav-row')!;
+    expect(within(links as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['← File', '← Trim', 'Pads →']);
+    fireEvent.click(within(links as HTMLElement).getByRole('button', { name: 'Pads →' }));
+    expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: ownMatrix(project, first(project).id)!.id } });
+  });
+
+  it('the links are below the table only: Creates has counts, and Slice ↓ alone, which selects the trim', async () => {
+    const store = await setup(
+      build(
+        () => addSample({ name: 'amen.wav', audio: constantAudio(2) }),
+        (p) => sliceSample(first(p).id, 1, 4),
+        () => addSample({ name: 'think.wav', audio: constantAudio(2) }),
+        (p) => sliceSample(named(p, 'think.wav').id, 1, 4),
+      ),
+    );
+    const table = screen.getByRole('table');
+    expect(within(table).queryByRole('button', { name: /→/ })).toBeNull();
+    expect([...table.querySelectorAll('.creates')].map((c) => c.textContent)).toEqual(['4 Slice ↓4 pads, 4 hits1 loop', '4 Slice ↓4 pads, 4 hits1 loop']);
+    fireEvent.click(within(table).getAllByRole('button', { name: 'Slice ↓' })[1]!);
+    expect(store.getState().sliceTarget).toBe(named(present(store), 'think.wav').id);
   });
 
   it('the slicing links back up the chain, then on to the tabs after it: ← File ← Trim Pads →', async () => {
@@ -160,7 +184,7 @@ describe('U1: Enter in Bars', () => {
 });
 
 describe('U5: every trim is listed', () => {
-  it('trims not sliced say so, and a click shows one below', async () => {
+  it('trims not sliced do not say so in Trim, and a click shows one below', async () => {
     const project = build(
       () => addSample({ name: 'amen.wav', audio: constantAudio(2) }),
       (p) => sliceSample(first(p).id, 1, 4),
@@ -170,7 +194,7 @@ describe('U5: every trim is listed', () => {
     const store = await setup(project);
     const rows = [...document.querySelectorAll('table.sources tbody tr')];
     expect(rows).toHaveLength(3);
-    expect(rows.map((r) => r.textContent?.includes('not sliced'))).toEqual([false, true, true]);
+    expect(rows.map((r) => r.textContent?.includes('not sliced'))).toEqual([false, false, false]);
     fireEvent.click(button('Select snare trim 1'));
     expect(store.getState().sliceTarget).toBe(named(present(store), 'snare.wav').id);
     expect(screen.getByRole('heading', { name: 'snare 1' })).toBeTruthy();
@@ -264,8 +288,8 @@ describe('U12: Creates counts the pads and hits of the matrix', () => {
       },
     );
     await setup(project);
-    // The whole cell: the matrix's count and the link, nothing about one hit.
-    expect(button('Pads →').closest('.creates')!.textContent).toBe('2 pads, 3 hits Pads →');
+    // The whole cell: the matrix's count, no link, nothing about one hit.
+    expect(document.querySelector('.creates')!.textContent).toBe('2 pads, 3 hits');
   });
 });
 

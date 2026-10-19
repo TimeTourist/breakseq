@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createProject, ownMatrix, setSlicing } from '../model';
+import { addSample, addTrim, createProject, ownMatrix, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
@@ -99,11 +99,35 @@ describe('Markers in Samples', () => {
     return setup(result.project, 'samples');
   }
 
-  it('← Trim opens the sample’s Trim in the table', async () => {
+  it('← Trim opens the sample’s Trim below the table, and brings it into view', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
     const store = await sliceSetup();
     fireEvent.click(screen.getByRole('button', { name: '← Trim' }));
     expect(store.getState()).toMatchObject({ view: 'samples', trimming: sample(store).id });
     expect(screen.getByRole('button', { name: 'Trim amen trim 1' }).getAttribute('aria-expanded')).toBe('true');
+    expect(within(screen.getByRole('region', { name: 'Slicing' })).getByRole('region', { name: 'Trim of amen trim 1' })).toBeTruthy();
+    // Again: it stays open, and is brought into view again.
+    const calls = scrollIntoView.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: '← Trim' }));
+    expect(store.getState().trimming).toBe(sample(store).id);
+    expect(scrollIntoView.mock.calls.length).toBeGreaterThan(calls);
+  });
+
+  it('Delete and Backspace delete the selected slice’s marker, as Delete marker does, but not while typing in a field', async () => {
+    const store = await sliceSetup();
+    fireEvent.click(button('Play slice 04'));
+    fireEvent.keyDown(document.body, { key: 'Delete' });
+    expect(markers(store)).toHaveLength(15);
+    fireEvent.keyDown(document.body, { key: 'Backspace' });
+    expect(markers(store)).toHaveLength(14);
+    // In the Bars field, Backspace is the field's.
+    fireEvent.keyDown(screen.getByLabelText('Bars in the sample'), { key: 'Backspace' });
+    expect(markers(store)).toHaveLength(14);
+    // The first marker, at the start, stays.
+    fireEvent.click(button('Play slice 01'));
+    fireEvent.keyDown(document.body, { key: 'Delete' });
+    expect(markers(store)).toHaveLength(14);
   });
 
   it('←/→ nudges the selected marker by 1 ms, Shift by 10 ms', async () => {
@@ -234,14 +258,34 @@ describe('the open Trim in Samples', () => {
     scrollBy.mockRestore();
   });
 
-  it('closes on a click outside it, but not on a click in it or in the header', async () => {
+  it('is below the table, above the waveform with the slicing, never in a row of the table', async () => {
     const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) })), 'samples');
     fireEvent.click(button('Trim amen trim 1'));
-    fireEvent.pointerDown(screen.getByLabelText('Start ms'));
-    fireEvent.pointerDown(document.querySelector('.header')!);
-    expect(store.getState().trimming).not.toBeNull();
+    expect(within(screen.getByRole('table')).queryByLabelText('Start ms')).toBeNull();
+    const slicing = screen.getByRole('region', { name: 'Slicing' });
+    const trim = within(slicing).getByRole('region', { name: 'Trim of amen trim 1' });
+    expect(within(trim).getByLabelText('Start ms')).toBeTruthy();
+    expect(within(trim).getByRole('group', { name: 'Channel' })).toBeTruthy();
+    // Above the slicing's waveform.
+    const wave = slicing.querySelector('.slice-box')!;
+    expect(trim.compareDocumentPosition(wave) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A click elsewhere on the page leaves it open; its icon closes it.
     fireEvent.pointerDown(screen.getByRole('heading', { name: 'Samples' }));
+    expect(store.getState().trimming).not.toBeNull();
+    fireEvent.click(button('Trim amen trim 1'));
     expect(store.getState().trimming).toBeNull();
+    expect(within(slicing).queryByLabelText('Start ms')).toBeNull();
+  });
+
+  it('the trim icon selects its trim; an open Trim follows the trim selected', async () => {
+    const store = await setup(build(addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p, c) => addTrim(Object.keys(p.samples)[0]!)(p, c)), 'samples');
+    const [one, two] = Object.values(store.getState().history.present.samples);
+    fireEvent.click(button('Trim amen trim 2'));
+    expect(store.getState()).toMatchObject({ sliceTarget: two!.id, trimming: two!.id });
+    expect(screen.getByRole('region', { name: 'Trim of amen trim 2' })).toBeTruthy();
+    fireEvent.click(button('Select amen trim 1'));
+    expect(store.getState()).toMatchObject({ sliceTarget: one!.id, trimming: one!.id });
+    expect(screen.getByRole('region', { name: 'Trim of amen trim 1' })).toBeTruthy();
   });
 });
 
@@ -255,10 +299,11 @@ describe('Creates in Samples', () => {
     const store = await setup(sliced.project, 'samples');
     const row = screen.getByRole('button', { name: 'Slice ↓' }).closest('tr')!;
     expect(row.textContent).toContain('16 Slice ↓');
-    expect(row.textContent).toContain('16 pads, 16 hits Pads →');
-    expect(row.textContent).toContain('1 Loops →');
-    fireEvent.click(screen.getByRole('button', { name: 'Loops →' }));
-    expect(store.getState()).toMatchObject({ view: 'loops', selection: { loop: matrix.loop } });
+    expect(row.textContent).toContain('16 pads, 16 hits');
+    expect(row.textContent).toContain('1 loop');
+    expect(within(row).getByText('1 loop').title).toBe('Played in loop amen 1');
+    expect(screen.queryByRole('button', { name: 'Loops →' })).toBeNull();
+    expect(store.getState().history.present.loops[matrix.loop!]).toBeTruthy();
   });
 });
 

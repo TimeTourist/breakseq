@@ -62,7 +62,7 @@ export interface AppState {
   readonly songCursor: number;
   /** A clip copied in Song with Ctrl+C, to paste with Ctrl+V. */
   readonly clipboard: Clip | null;
-  /** The sample (trim) whose Trim is open in Samples: what Play plays there. */
+  /** The sample (trim) whose Trim is open in Samples, below the table: what Play plays there. Follows `sliceTarget`. */
   readonly trimming: Id | null;
 }
 
@@ -145,7 +145,11 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'place':
       return { state: { ...state, ...action.place }, error: null };
     case 'sliceTarget':
-      return { state: { ...state, sliceTarget: action.sampleId }, error: null };
+      // An open Trim is part of what is shown below the table: it follows the trim selected (fas 23b).
+      return {
+        state: { ...state, sliceTarget: action.sampleId, trimming: state.trimming === null || action.sampleId === null ? state.trimming : action.sampleId },
+        error: null,
+      };
     case 'load':
       return { state: { ...withHistory(state, createHistory(action.project)), songCursor: 0 }, error: null };
     case 'projectFolder':
