@@ -74,15 +74,18 @@ async function setup(project: Project) {
   return { store, player };
 }
 
-const ruler = () => screen.getByLabelText(/^Ruler/);
+/** The ruler's lower strip, with the bar numbers: where Play starts. */
+const startStrip = () => screen.getByLabelText(/^Start point/);
+/** The ruler's upper strip: the loop region. */
+const loopStrip = () => screen.getByLabelText(/^Loop region/);
 const press = (key: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(document.body, { key, ...init });
 const clips = (store: Store) => store.getState().history.present.song.clips.map((c) => [c.row, c.start, c.length]);
 
 describe('Song transport', () => {
-  it('a click in the ruler sets where Play starts', async () => {
+  it('a click in the ruler\'s lower strip sets where Play starts', async () => {
     const { store, player } = await setup(song());
-    fireEvent.pointerDown(ruler(), { clientX: 325, pointerId: 1 });
-    fireEvent.pointerUp(ruler(), { clientX: 325, pointerId: 1 });
+    fireEvent.pointerDown(startStrip(), { clientX: 325, pointerId: 1 });
+    fireEvent.pointerUp(startStrip(), { clientX: 325, pointerId: 1 });
     expect(store.getState().songCursor).toBe(32);
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(player.play).toHaveBeenCalledWith(take, 4, false);
@@ -91,18 +94,18 @@ describe('Song transport', () => {
   it('a click while playing jumps there', async () => {
     const { player } = await setup(song());
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    fireEvent.pointerDown(ruler(), { clientX: 165, pointerId: 1 });
-    fireEvent.pointerUp(ruler(), { clientX: 165, pointerId: 1 });
+    fireEvent.pointerDown(startStrip(), { clientX: 165, pointerId: 1 });
+    fireEvent.pointerUp(startStrip(), { clientX: 165, pointerId: 1 });
     expect(player.seek).toHaveBeenCalledWith(2);
   });
 
-  it('a drag in the ruler marks a loop, which plays over and over until turned off', async () => {
+  it('a drag in the ruler\'s upper strip marks a loop, which plays over and over until turned off', async () => {
     const { store, player } = await setup(song());
     // Only the song playing loops it.
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    fireEvent.pointerDown(ruler(), { clientX: 160, pointerId: 1 });
-    fireEvent.pointerMove(ruler(), { clientX: 320, pointerId: 1 });
-    fireEvent.pointerUp(ruler(), { clientX: 320, pointerId: 1 });
+    fireEvent.pointerDown(loopStrip(), { clientX: 160, pointerId: 1 });
+    fireEvent.pointerMove(loopStrip(), { clientX: 320, pointerId: 1 });
+    fireEvent.pointerUp(loopStrip(), { clientX: 320, pointerId: 1 });
     expect(store.getState().history.present.song.loop).toEqual({ start: 16, end: 32, on: true });
     expect(player.setLoop).toHaveBeenLastCalledWith({ start: 2, end: 4 });
     // Marking it was one undo step, and the cursor stayed.
@@ -130,6 +133,68 @@ describe('Song transport', () => {
     fireEvent.pointerUp(start, { clientX: 900, pointerId: 2 });
     expect(store.getState().history.present.song.loop).toEqual({ start: 63, end: 64, on: false });
     expect(store.getState().songCursor).toBe(0);
+  });
+
+  it('a click in the upper strip does not move the start point, and a drag in the lower strip marks no loop', async () => {
+    const { store } = await setup(song());
+    fireEvent.pointerDown(loopStrip(), { clientX: 325, pointerId: 1 });
+    fireEvent.pointerUp(loopStrip(), { clientX: 325, pointerId: 1 });
+    expect(store.getState().songCursor).toBe(0);
+    fireEvent.pointerDown(startStrip(), { clientX: 160, pointerId: 1 });
+    fireEvent.pointerMove(startStrip(), { clientX: 320, pointerId: 1 });
+    fireEvent.pointerUp(startStrip(), { clientX: 320, pointerId: 1 });
+    expect(store.getState().history.present.song.loop ?? null).toBeNull();
+    expect(store.getState().songCursor).toBe(32);
+  });
+
+  it('the start point moves to the very start, also when the loop starts there', async () => {
+    const { store } = await setup(song(setSongLoop(0, 16)));
+    fireEvent.pointerUp(startStrip(), { clientX: 325, pointerId: 1 });
+    expect(store.getState().songCursor).toBe(32);
+    fireEvent.pointerUp(startStrip(), { clientX: 2, pointerId: 1 });
+    expect(store.getState().songCursor).toBe(0);
+    // The handles sit in the upper strip, so none is over the start strip.
+    const handle = screen.getByRole('button', { name: 'Loop start at 1.1.1' });
+    expect(loopStrip().contains(handle)).toBe(true);
+    expect(startStrip().contains(handle)).toBe(false);
+  });
+
+  it('with no loop marked, the whole song shows as the loop region, off', async () => {
+    const { store } = await setup(song());
+    const bars = store.getState().history.present.song.bars;
+    const region = loopStrip().querySelector('.ruler-loop') as HTMLElement;
+    expect(region.style.left).toBe('0px');
+    expect(region.style.width).toBe(`${bars * 16 * 10}px`);
+    expect(region.classList.contains('on')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Loop start at 1.1.1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: `Loop end at ${bars + 1}.1.1` })).toBeTruthy();
+    expect(document.querySelectorAll('.song-shade')).toHaveLength(0);
+    const toggle = screen.getByRole('button', { name: `Loop 1.1.1 – ${bars + 1}.1.1` });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect((toggle as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('with no loop marked, Loop turns on the whole song, and undo takes it back', async () => {
+    const { store, player } = await setup(song());
+    const bars = store.getState().history.present.song.bars;
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Loop 1\.1\.1/ }));
+    expect(store.getState().history.present.song.loop).toEqual({ start: 0, end: bars * 16, on: true });
+    expect(player.setLoop).toHaveBeenLastCalledWith({ start: 0, end: bars * 2 });
+    expect(screen.getByRole('button', { name: /^Loop 1\.1\.1/ }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+    expect(store.getState().history.present.song.loop ?? null).toBeNull();
+  });
+
+  it('with no loop marked, a handle dragged marks one, still off', async () => {
+    const { store } = await setup(song());
+    const bars = store.getState().history.present.song.bars;
+    const start = screen.getByRole('button', { name: 'Loop start at 1.1.1' });
+    fireEvent.pointerDown(start, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerMove(start, { clientX: 160, pointerId: 1 });
+    fireEvent.pointerUp(start, { clientX: 160, pointerId: 1 });
+    expect(store.getState().history.present.song.loop).toEqual({ start: 16, end: bars * 16, on: false });
+    expect(store.getState().history.past).toHaveLength(1);
   });
 
   it('a loop handle moves a step with ←/→, a beat with Shift', async () => {
@@ -184,8 +249,8 @@ describe('copying clips', () => {
     fireEvent.click(m1);
     press('c', { ctrlKey: true });
     fireEvent.keyDown(m1, { key: 'Delete' });
-    fireEvent.pointerDown(ruler(), { clientX: 485, pointerId: 1 });
-    fireEvent.pointerUp(ruler(), { clientX: 485, pointerId: 1 });
+    fireEvent.pointerDown(startStrip(), { clientX: 485, pointerId: 1 });
+    fireEvent.pointerUp(startStrip(), { clientX: 485, pointerId: 1 });
     press('v', { ctrlKey: true });
     expect(clips(store)).toEqual([['main', 48, 16]]);
   });

@@ -1663,6 +1663,11 @@ input[type='search'] {
 .song-timeline {
   position: relative;
   padding: 8px 0 12px;
+  /* Room for half a loop handle at each end, so a handle at the song's start or end neither clips nor scrolls. */
+  margin: 0 8px;
+  /* The ruler's two strips: the loop region above, the start point (with the bar numbers) below. */
+  --loop-strip: 16px;
+  --start-strip: 22px;
 }
 
 .timeline-row {
@@ -1673,14 +1678,28 @@ input[type='search'] {
 
 .timeline-ruler {
   position: relative;
-  height: 22px;
-  cursor: text;
+  margin-bottom: 6px;
   touch-action: none;
   user-select: none;
 }
 
-/* The song's loop, marked by a drag in the ruler: dim while off. */
-/* On or off, marked as a selected segment is. */
+/* Upper strip: the loop region, dragged to mark; the handles sit here. */
+.ruler-loop-strip {
+  position: relative;
+  height: var(--loop-strip);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+  cursor: col-resize;
+}
+
+/* Lower strip, with the bar numbers: a click sets where Play starts. */
+.ruler-start-strip {
+  position: relative;
+  height: var(--start-strip);
+  cursor: text;
+}
+
+/* The Loop button: on or off, marked as a selected segment is. */
 .loop-toggle {
   color: var(--muted);
 }
@@ -1692,9 +1711,9 @@ input[type='search'] {
   background: var(--selected);
 }
 
-/* The loop's ends in the ruler, as Trim's handles; grey while the loop is off. */
+/* The loop's ends in the upper strip, as Trim's handles; grey while the loop is off. */
 .loop-handle {
-  z-index: 2;
+  z-index: 3;
 }
 
 .loop-handle.off::before,
@@ -1702,10 +1721,28 @@ input[type='search'] {
   background: var(--muted);
 }
 
+/* The loop's ends go on as lines over the lanes, but never take a click: the start strip and the clips stay reachable. */
+.loop-line {
+  position: absolute;
+  top: calc(8px + var(--loop-strip));
+  bottom: 12px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.loop-line.off {
+  background: var(--muted);
+  opacity: 0.6;
+}
+
 .ruler-loop {
   position: absolute;
   top: 0;
   bottom: 0;
+  border-radius: 3px;
   background: color-mix(in srgb, var(--muted) 25%, transparent);
   pointer-events: none;
 }
@@ -1714,7 +1751,7 @@ input[type='search'] {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-/* Where Play starts, set by a click in the ruler. */
+/* Where Play starts, set by a click in the ruler's lower strip. */
 .ruler-cursor {
   position: absolute;
   top: 0;
