@@ -66,10 +66,13 @@ describe('stretch in the GUI', () => {
     const matrix = ownMatrix(project, amen.id)!.id;
     const store = await setup(project, 'pads', { matrix });
     const modes = screen.getByRole('group', { name: 'Stretch mode' });
+    // Grain only shows while it stretches.
+    expect(screen.queryByRole('slider', { name: /^Grain/ })).toBeNull();
     fireEvent.click(within(modes).getByRole('button', { name: 'Fit to tempo' }));
     expect(store.getState().history.present.matrices[matrix]!.config.stretch.mode).toBe('fit');
     fireEvent.click(within(modes).getByRole('button', { name: 'Factor' }));
     expect(screen.getByRole('slider', { name: /^Factor/ })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /^Grain/ })).toBeTruthy();
     fireEvent.click(within(screen.getByRole('group', { name: 'Grains from' })).getByRole('button', { name: 'Hit' }));
     expect(store.getState().history.present.matrices[matrix]!.config.stretch).toMatchObject({ mode: 'factor', from: 'hit' });
 

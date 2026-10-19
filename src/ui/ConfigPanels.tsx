@@ -66,37 +66,35 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
     };
     const panAbove = layer.above.reduce((sum, a) => sum + a.config.pan, 0);
     return (
-      <>
-        <div className="slider-grid">
-          <div className="panel stack-tight">
-            <span className="label">Direction</span>
-            <div className="segmented full" role="group" aria-label="Direction">
-              <button type="button" aria-pressed={config.direction === 'forward'} onClick={() => set({ direction: 'forward' }, 'direction')}>
-                Forward
-              </button>
-              <button type="button" aria-pressed={config.direction === 'reverse'} onClick={() => set({ direction: 'reverse' }, 'direction')}>
-                Reverse
-              </button>
-            </div>
+      <div className="config-grid">
+        <div className="panel stack-tight">
+          <span className="label">Direction</span>
+          <div className="segmented full" role="group" aria-label="Direction">
+            <button type="button" aria-pressed={config.direction === 'forward'} onClick={() => set({ direction: 'forward' }, 'direction')}>
+              Forward
+            </button>
+            <button type="button" aria-pressed={config.direction === 'reverse'} onClick={() => set({ direction: 'reverse' }, 'direction')}>
+              Reverse
+            </button>
           </div>
-          <Slider label="Pitch" value={config.pitch} min={-24} max={24} step={1} format={(v) => withAbove(v, 'pitch', 'st')} onChange={(v) => set({ pitch: v }, 'pitch')} onCommit={seal} />
-          <Slider label="Volume" value={config.volume} min={-24} max={6} step={0.5} format={(v) => withAbove(v, 'volume', 'dB')} onChange={(v) => set({ volume: v }, 'volume')} onCommit={seal} />
-          <Slider
-            label="Pan"
-            value={Math.round(config.pan * 100)}
-            min={-100}
-            max={100}
-            step={1}
-            format={(v) => panText(v / 100) + (panAbove !== 0 ? ` · above ${panText(panAbove)}` : '')}
-            onChange={(v) => set({ pan: v / 100 }, 'pan')}
-            onCommit={seal}
-          />
-          <Slider label="Fade out" value={config.fadeOut} min={0} max={200} step={1} format={(v) => `${v} ms`} onChange={(v) => set({ fadeOut: v }, 'fade')} onCommit={seal} />
         </div>
+        <Slider label="Pitch" value={config.pitch} min={-24} max={24} step={1} format={(v) => withAbove(v, 'pitch', 'st')} onChange={(v) => set({ pitch: v }, 'pitch')} onCommit={seal} />
+        <Slider label="Volume" value={config.volume} min={-24} max={6} step={0.5} format={(v) => withAbove(v, 'volume', 'dB')} onChange={(v) => set({ volume: v }, 'volume')} onCommit={seal} />
+        <Slider
+          label="Pan"
+          value={Math.round(config.pan * 100)}
+          min={-100}
+          max={100}
+          step={1}
+          format={(v) => panText(v / 100) + (panAbove !== 0 ? ` · above ${panText(panAbove)}` : '')}
+          onChange={(v) => set({ pan: v / 100 }, 'pan')}
+          onCommit={seal}
+        />
+        <Slider label="Fade out" value={config.fadeOut} min={0} max={200} step={1} format={(v) => `${v} ms`} onChange={(v) => set({ fadeOut: v }, 'fade')} onCommit={seal} />
         {stretchPanel(layer)}
         {colourPanel(layer)}
         {spacePanel(layer)}
-      </>
+      </div>
     );
   }
 
@@ -115,8 +113,10 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
     ];
     const grainFrom = nearestAbove(layer, (c) => c.stretch.grain !== null)?.name ?? 'default';
     const hasAbove = layer.above.length > 0;
+    /** Grain and where grains start matter only while it stretches, by its own or a layer above. */
+    const stretches = stretch.mode !== 'off' || layer.played.factor !== 1;
     return (
-      <div className="panel stack-tight" aria-label="Stretch" role="group">
+      <div className="panel stack-tight wide" aria-label="Stretch" role="group">
         <div className="row spread">
           <span className="label">Stretch</span>
           <span className="muted small mono">{layer.played.factor === 1 ? 'plays as it is' : `plays ${formatFactor(layer.played.factor)}${hasAbove ? ' with the layers above' : ''}`}</span>
@@ -135,56 +135,60 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
             </button>
           ))}
         </div>
-        <div className="slider-grid">
-          {stretch.mode === 'factor' && (
-            <Slider
-              label="Factor"
-              value={Math.log2(stretch.factor)}
-              min={-4}
-              max={4}
-              step={1 / 12}
-              format={(v) => formatFactor(2 ** v)}
-              onChange={(v) => set({ factor: 2 ** v }, 'factor')}
-              onCommit={seal}
-            />
-          )}
-          <Slider
-            label="Grain"
-            value={stretch.grain ?? layer.played.grain}
-            min={MIN_GRAIN}
-            max={MAX_GRAIN}
-            step={1}
-            format={(v) => `${v} ms${stretch.grain === null ? ` (${grainFrom})` : ''}`}
-            onChange={(v) => set({ grain: v }, 'grain')}
-            onCommit={seal}
-          />
-        </div>
-        <div className="row">
-          <span className="label">Grains from</span>
-          <div className="segmented" role="group" aria-label="Grains from">
-            {hasAbove && (
-              <button type="button" aria-pressed={stretch.from === null} title="As the pad or matrix has it" onClick={() => set({ from: null }, 'from')}>
-                Inherit
-              </button>
-            )}
-            {(['sample', 'hit'] as const).map((from) => (
-              <button
-                key={from}
-                type="button"
-                aria-pressed={stretch.from === from || (!hasAbove && stretch.from === null && from === 'sample')}
-                title={from === 'sample' ? 'A grid from the start of the sample, like a sampler stretching the whole sample' : 'Grains start with the hit, for clean attacks'}
-                onClick={() => set({ from }, 'from')}
-              >
-                {from === 'sample' ? 'Sample' : 'Hit'}
-              </button>
-            ))}
-          </div>
-          {stretch.grain !== null && (
-            <button type="button" className="link-text small push" onClick={() => set({ grain: null }, 'grain')}>
-              Grain from {hasAbove ? 'above' : 'default'}
-            </button>
-          )}
-        </div>
+        {stretches && (
+          <>
+            <div className="config-inline">
+              {stretch.mode === 'factor' && (
+                <Slider
+                  label="Factor"
+                  value={Math.log2(stretch.factor)}
+                  min={-4}
+                  max={4}
+                  step={1 / 12}
+                  format={(v) => formatFactor(2 ** v)}
+                  onChange={(v) => set({ factor: 2 ** v }, 'factor')}
+                  onCommit={seal}
+                />
+              )}
+              <Slider
+                label="Grain"
+                value={stretch.grain ?? layer.played.grain}
+                min={MIN_GRAIN}
+                max={MAX_GRAIN}
+                step={1}
+                format={(v) => `${v} ms${stretch.grain === null ? ` (${grainFrom})` : ''}`}
+                onChange={(v) => set({ grain: v }, 'grain')}
+                onCommit={seal}
+              />
+            </div>
+            <div className="row">
+              <span className="label">Grains from</span>
+              <div className="segmented" role="group" aria-label="Grains from">
+                {hasAbove && (
+                  <button type="button" aria-pressed={stretch.from === null} title="As the pad or matrix has it" onClick={() => set({ from: null }, 'from')}>
+                    Inherit
+                  </button>
+                )}
+                {(['sample', 'hit'] as const).map((from) => (
+                  <button
+                    key={from}
+                    type="button"
+                    aria-pressed={stretch.from === from || (!hasAbove && stretch.from === null && from === 'sample')}
+                    title={from === 'sample' ? 'A grid from the start of the sample, like a sampler stretching the whole sample' : 'Grains start with the hit, for clean attacks'}
+                    onClick={() => set({ from }, 'from')}
+                  >
+                    {from === 'sample' ? 'Sample' : 'Hit'}
+                  </button>
+                ))}
+              </div>
+              {stretch.grain !== null && (
+                <button type="button" className="link-text small push" onClick={() => set({ grain: null }, 'grain')}>
+                  Grain from {hasAbove ? 'above' : 'default'}
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -203,8 +207,8 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
     const distText = dist === undefined ? 'above: none' : `${dist.name}: ${DIST_MODES.find(([m]) => m === dist.config.dist.mode)?.[1]} ${Math.round(dist.config.dist.amount * 100)}%`;
     const filterText = filter === undefined ? 'above: none' : `${filter.name}: ${FILTER_TYPES.find(([t]) => t === filter.config.filter.type)?.[1]} ${formatHz(filter.config.filter.cutoff)}`;
     return (
-      <div className="slider-grid">
-        <div className="panel stack-tight" role="group" aria-label="Dist">
+      <>
+        <div className="panel stack-tight wide" role="group" aria-label="Dist">
           <div className="row spread">
             <span className="label">Dist</span>
             {fromAbove(config.dist.mode !== 'off', distText)}
@@ -223,7 +227,7 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
             <Slider label="Amount" value={config.dist.amount} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setDist({ amount: v }, 'amount')} onCommit={seal} />
           )}
         </div>
-        <div className="panel stack-tight" role="group" aria-label="Filter">
+        <div className="panel stack-tight wide" role="group" aria-label="Filter">
           <div className="row spread">
             <span className="label">Filter</span>
             {fromAbove(config.filter.type !== 'off', filterText)}
@@ -239,7 +243,7 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
             ))}
           </div>
           {config.filter.type !== 'off' && (
-            <>
+            <div className="config-inline">
               <Slider
                 label="Cutoff"
                 value={Math.log10(config.filter.cutoff)}
@@ -251,10 +255,10 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
                 onCommit={seal}
               />
               <Slider label="Resonance" value={config.filter.resonance} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setFilter({ resonance: v }, 'resonance')} onCommit={seal} />
-            </>
+            </div>
           )}
         </div>
-      </div>
+      </>
     );
   }
 
@@ -274,7 +278,7 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
     const reverbText = reverb === undefined ? 'above: none' : `${reverb.name}: ${percent(reverb.config.reverb.amount)}`;
     const delayText = delay === undefined ? 'above: none' : `${delay.name}: ${percent(delay.config.delay.amount)} at ${DELAY_TIMES.find(([s]) => s === delay.config.delay.steps)?.[1]}`;
     return (
-      <div className="slider-grid">
+      <>
         <div className="panel stack-tight" role="group" aria-label="Reverb">
           <div className="row spread">
             <span className="label">Reverb</span>
@@ -283,7 +287,7 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
           <Slider label="Reverb amount" value={config.reverb.amount} min={0} max={1} step={0.01} format={(v) => (v <= 0 ? 'Off' : percent(v))} onChange={(v) => setReverb({ amount: v }, 'amount')} onCommit={seal} />
           {config.reverb.amount > 0 && <Slider label="Size" value={config.reverb.size} min={0} max={1} step={0.01} format={sizeText} onChange={(v) => setReverb({ size: v }, 'size')} onCommit={seal} />}
         </div>
-        <div className="panel stack-tight" role="group" aria-label="Delay">
+        <div className="panel stack-tight wide" role="group" aria-label="Delay">
           <div className="row spread">
             <span className="label">Delay</span>
             {fromAbove(config.delay.amount > 0, delayText)}
@@ -302,7 +306,7 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
             </>
           )}
         </div>
-      </div>
+      </>
     );
   }
 }

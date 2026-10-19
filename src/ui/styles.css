@@ -1159,6 +1159,66 @@ input[type='search'] {
   align-items: center;
 }
 
+/*
+ * A hit's, pad's and matrix's config: small cells side by side, short sliders,
+ * and a mode's own values beside it only while they apply. (Magnus beslut)
+ */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.config-grid .panel {
+  padding: 8px 10px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.config-grid .wide {
+  grid-column: span 2;
+}
+
+.config-grid .label {
+  font-size: 11px;
+}
+
+.config-grid .slider {
+  gap: 4px;
+}
+
+.config-grid .slider-head .mono {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.config-grid .segmented button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+/* A slider inside a cell is part of it, not a cell of its own. */
+.config-grid .panel .panel {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.config-inline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 420px) {
+  .config-grid .wide {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Pads */
 
 .pad-grid {
