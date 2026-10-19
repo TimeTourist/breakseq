@@ -567,7 +567,13 @@ function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSlice
             )}
             <InSong heard={heardHere.has(sample.id)} />
           </div>
-          <p className="muted">Not sliced yet: set its bars and how to slice it. Nothing is made before that.</p>
+          <p className={bars === null && by !== null ? 'warn-text' : 'muted'}>
+            {bars === null && by !== null
+              ? 'Set its bars to slice it.'
+              : bars !== null && by === null
+                ? 'Pick how to slice it: 1/4, 1/8, 1/16 or Transients.'
+                : 'Not sliced yet: set its bars and how to slice it. Nothing is made before that.'}
+          </p>
           <p className="muted row">
             <label className="field">
               Bars
