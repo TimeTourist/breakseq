@@ -238,7 +238,7 @@ describe('Pads: matrices, pads and their hits', () => {
     const store = await setup(breakAndOneShot(), 'pads');
     const amen = amenOf(present(store));
     const from = present(store).pads[amen.pads[2]!]!.members[0]!;
-    drag(within(column('Pad amen 1 03')).getByRole('button', { name: /^03/ }), column('Pad amen 1 01'));
+    drag(within(column('Pad amen 1 03')).getByRole('button', { name: /^1 03/ }), column('Pad amen 1 01'));
     const after = present(store);
     expect(after.pads[amen.pads[2]!]!.members).toEqual([from]);
     const copy = after.hits[after.pads[amen.pads[0]!]!.members[1]!]!;

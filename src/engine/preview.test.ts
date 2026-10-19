@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import type { Command, Project } from '../model';
-import { addSample, createProject, setBpm, setHitSource, setMarkers, setPadChoice, setSlicing, sliceWindow, copyHits, createMatrix, addPad, matrixSteps } from '../model';
+import type { Command, Project, Step } from '../model';
+import {
+  addSample,
+  createLoop,
+  createProject,
+  emptyStep,
+  setBpm,
+  setHitSource,
+  setMarkers,
+  setPadChoice,
+  setSlicing,
+  setStep,
+  sliceWindow,
+  copyHits,
+  createMatrix,
+  addPad,
+  matrixSteps,
+} from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
-import { matrixSong, hitRun, padTurns } from './preview';
+import { MAX_PREVIEW_STEPS, PAD_ROUNDS, hitRun, loopSongLooped, matrixSong, matrixSongLooped, previewPasses } from './preview';
 
 const ctx = sequentialIds();
 const run = (project: Project, ...commands: Command[]) =>
@@ -32,15 +48,77 @@ describe('previews', () => {
     expect(r.seconds).toBeCloseTo(1, 6);
   });
 
-  it('lets a pad pick each round when looped, a round robin going round whole', () => {
+  it('matrixSongLooped renders passes until a round robin pad has gone round whole, so its variations are heard', () => {
     const p0 = split();
     const padId = matrixOf(p0).pads[0]!;
+    // Pad 01 has three hits on Round robin: three passes of the bar.
     const p = run(p0, copyHits([memberOf(p0, 1), memberOf(p0, 2)], padId), setPadChoice(padId, 'roundRobin'));
-    const pad = p.pads[padId]!;
-    const turns = padTurns(pad, true, () => 0);
-    expect(turns).toHaveLength(9);
-    expect(turns.slice(0, 4)).toEqual([pad.members[0], pad.members[1], pad.members[2], pad.members[0]]);
-    expect(padTurns(pad, false, () => 0)).toEqual([pad.members[0]]);
+    const song = matrixSongLooped(p, matrixOf(p).id);
+    expect(song.song.bars).toBe(3);
+    const firsts = generateTake(song, () => 0).triggers.filter((t) => t.step === 0);
+    expect(firsts.map((t) => t.hitId)).toEqual(p.pads[padId]!.members.map((id) => p.hits[id]!.id));
+    // Played once, as in Loops, it is one pass.
+    expect(matrixSong(p, matrixOf(p).id).song.bars).toBe(1);
+  });
+
+  it('matrixSongLooped lets a Random pad pick PAD_ROUNDS times', () => {
+    const p0 = split();
+    const padId = matrixOf(p0).pads[0]!;
+    const p = run(p0, copyHits([memberOf(p0, 1), memberOf(p0, 2)], padId), setPadChoice(padId, 'random'));
+    const song = matrixSongLooped(p, matrixOf(p).id);
+    expect(song.song.bars).toBe(PAD_ROUNDS);
+    // The injected rng decides: going up through 0, 1/3, 2/3 picks each hit in turn.
+    let i = 0;
+    const rng = () => [0, 0.4, 0.7][i++ % 3]!;
+    const firsts = generateTake(song, rng).triggers.filter((t) => t.step === 0);
+    expect(new Set(firsts.map((t) => t.hitId)).size).toBe(3);
+  });
+
+  it('previewPasses: whole rounds of every round robin, enough picks for Random and No repeat, capped', () => {
+    const p0 = split();
+    const [a, b, c, d] = matrixOf(p0).pads as [string, string, string, string];
+    const m = (row: number) => memberOf(p0, row);
+    // a: 3 hits on Round robin; b: 2 hits on Round robin; c: 2 hits on No repeat; d: 2 hits on Top.
+    const p = run(
+      p0,
+      copyHits([m(1), m(2)], a),
+      setPadChoice(a, 'roundRobin'),
+      copyHits([m(0)], b),
+      setPadChoice(b, 'roundRobin'),
+      copyHits([m(0)], c),
+      setPadChoice(c, 'noRepeat'),
+      copyHits([m(0)], d),
+      setPadChoice(d, 'top'),
+    );
+    const step = (padId: string | null, memberId: string | null = null): Step => ({ ...emptyStep, padId, memberId });
+    const blank = Array.from({ length: 16 }, () => step(null));
+    const steps = (...cells: Step[]) => [...cells, ...blank.slice(cells.length)];
+    expect(previewPasses(p, steps(step(d)))).toBe(1);
+    expect(previewPasses(p, steps(step(a)))).toBe(3);
+    // The least common multiple: 3 and 2 go round together after 6.
+    expect(previewPasses(p, steps(step(a), step(b)))).toBe(6);
+    // Played twice a pass, a pad of two goes round in one.
+    expect(previewPasses(p, steps(step(b), step(b)))).toBe(1);
+    // A locked step picks nothing.
+    expect(previewPasses(p, steps(step(a, p.pads[a]!.members[1]!)))).toBe(1);
+    expect(previewPasses(p, steps(step(c)))).toBe(PAD_ROUNDS);
+    expect(previewPasses(p, steps(step(c), step(c)))).toBe(PAD_ROUNDS / 2);
+    // Both: whole rounds of 3 and at least 8 picks gives 9.
+    expect(previewPasses(p, steps(step(a), step(c)))).toBe(9);
+    // Never past MAX_PREVIEW_STEPS.
+    const long = [step(a), ...Array.from({ length: MAX_PREVIEW_STEPS / 2 - 1 }, () => step(null))];
+    expect(previewPasses(p, long)).toBe(2);
+    expect(previewPasses(p, [])).toBe(1);
+  });
+
+  it('loopSongLooped plays a loop over as many passes as its pads need', () => {
+    const p0 = run(split(), createLoop('L', 'main', 1));
+    const padId = matrixOf(p0).pads[0]!;
+    const loop = Object.values(p0.loops).find((l) => l.name === 'L')!;
+    const p = run(p0, copyHits([memberOf(p0, 1)], padId), setPadChoice(padId, 'roundRobin'), setStep(loop.id, 0, { padId }));
+    const song = loopSongLooped(p, loop.id);
+    expect(song.song.bars).toBe(2);
+    expect(generateTake(song, () => 0).triggers.map((t) => t.hitId)).toEqual(p.pads[padId]!.members.map((id) => p.hits[id]!.id));
   });
 
   it('matrixSong plays a matrix as it lays out', () => {

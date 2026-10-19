@@ -17,12 +17,13 @@ import {
   sampleTakes,
   setSlicing,
   sliceName,
+  stepDuration,
   trimName,
   unlikelyBpm,
   unsliceTakes,
   unsliceUsages,
 } from '../model';
-import { decodeAudioFile, decodeRex, isRexFile, readCues } from '../engine';
+import { decodeAudioFile, decodeRex, isRexFile, matrixPassSteps, readCues } from '../engine';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
@@ -182,9 +183,11 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
 
   /** How far through its own matrix Play in the header is, while it plays the selected trim's. */
   const selectedOwn = selected === undefined ? undefined : ownMatrix(project, selected.id);
+  // Play renders the matrix over several passes (see matrixSongLooped): how far through the pass it is in.
+  const pass = selectedOwn === undefined ? 0 : matrixPassSteps(project, selectedOwn.id) * stepDuration(project.song.bpm);
   const playedMatrix =
-    selectedOwn !== undefined && playingKey === `matrix:${selectedOwn.id}` && transport.seconds !== null && transport.duration !== null && transport.duration > 0
-      ? Math.min(1, Math.max(0, transport.seconds / transport.duration))
+    selectedOwn !== undefined && playingKey === `matrix:${selectedOwn.id}` && transport.seconds !== null && transport.duration !== null && transport.duration > 0 && pass > 0
+      ? Math.min(1, Math.max(0, (transport.seconds % pass) / pass))
       : null;
 
   return (
