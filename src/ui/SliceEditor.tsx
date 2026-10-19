@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { Command, Id, Matrix, Project, Renumber, Sample, SliceGrid } from '../model';
+import type { AudioData, Command, Id, Matrix, Renumber, Sample, SliceGrid } from '../model';
 import {
-  EDGE_SLICE,
   MIN_SLICE,
   STEPS_PER_BAR,
   cueMarkers,
@@ -12,11 +11,14 @@ import {
   markerGrid,
   markersForBars,
   ownMatrix,
+  pointMarkers,
+  pointsOf,
   renumberConflict,
   sampleAudio,
   sampleBpm,
   setGrid,
   setMarkers,
+  setPoints,
   setSampleBars,
   setSlicing,
   sliceName,
@@ -56,31 +58,14 @@ const sameMarkers = (a: readonly number[], b: readonly number[] | null) => b !==
  */
 export function slicedBy(sample: Sample, found: TransientsFound | null): SliceBy | null {
   if (sample.bars === null) return null;
-  if (found !== null && found.sampleId === sample.id && sameMarkers(sample.markers, found.markers)) return 'transients';
-  if (sameMarkers(sample.markers, cueMarkers(sample))) return 'cues';
+  if (found !== null && found.sampleId === sample.id && sameMarkers(pointsOf(sample), found.points)) return 'transients';
+  if (sample.points !== undefined ? sameMarkers(sample.points, [...(sample.cues ?? [])]) : sameMarkers(sample.markers, cueMarkers(sample))) return 'cues';
   return markerGrid(sample.markers, sample.bars);
 }
 
-/**
- * The markers a sliced trim keeps in its file when trimmed to `start`–`end`
- * seconds, in seconds in the file, for `trimSample`: its cues when sliced at
- * them; when sliced at transients, those it has, and those found at the same
- * sensitivity where the trim now reaches further or near its old ends (where
- * one may have been dropped). null otherwise: a grid or own markers follow
- * the trim. (Magnus beslut)
- */
-export function anchoredMarkers(project: Project, sample: Sample, found: TransientsFound | null, start: number, end: number): number[] | null {
-  const by = slicedBy(sample, found);
-  if (by === 'cues') return [...(sample.cues ?? [])];
-  const audio = sampleAudio(project, sample);
-  if (by !== 'transients' || found === null || audio === undefined) return null;
-  const from = Math.max(0, start);
-  const kept = sample.markers.slice(1).map((m) => sample.offset + m * sample.duration);
-  const near = (t: number) => t < sample.offset + EDGE_SLICE || t > sample.offset + sample.duration - EDGE_SLICE;
-  const fresh = detectTransients(audio, from, end - from, found.sensitivity)
-    .map((t) => from + t)
-    .filter((t) => near(t) && kept.every((k) => Math.abs(k - t) >= EDGE_SLICE));
-  return [...kept, ...fresh].sort((a, b) => a - b);
+/** Where hits start in the whole file, in seconds: Transients finds them in all of it, so they are there when the trim reaches them. (Magnus beslut) */
+export function fileTransients(audio: AudioData, sensitivity: number): number[] {
+  return detectTransients(audio, 0, (audio.channels[0]?.length ?? 0) / audio.sampleRate, sensitivity);
 }
 
 /** How it is sliced, in words: "equal 1/16", "transients", "cue markers", "own markers". */
@@ -123,8 +108,8 @@ export function TrimSlicing({ sample, ...rest }: TrimSlicingProps) {
   const found = useSelect((s) => s.transients);
   const setFound = (next: TransientsFound | null) => store.dispatch({ type: 'transients', found: next });
   const foundNow = (sampleId: Id, sensitivity: number) => {
-    const markers = store.getState().history.present.samples[sampleId]?.markers;
-    setFound(markers === undefined ? null : { sampleId, markers, sensitivity });
+    const now = store.getState().history.present.samples[sampleId];
+    setFound(now === undefined ? null : { sampleId, points: pointsOf(now), sensitivity });
   };
   return sample.bars === null ? (
     <Unsliced key={sample.id} sample={sample} {...rest} onSliced={(by) => (by === 'transients' ? foundNow(sample.id, SENSITIVITY) : setFound(null))} />
@@ -228,13 +213,17 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
   };
   const cues = cueMarkers(sample);
 
-  /** Markers on the hits found at a sensitivity, as parts. */
-  const transientMarkers = (value: number) => (audio === undefined ? null : toParts(detectTransients(audio, sample.offset, duration, value)));
-  /** Markers on the hits found at this sensitivity, asking first if they renumber used slices. Moving a marker by hand makes them your own. */
+  /** The hits found in the whole file at a sensitivity, and the markers they give this trim. */
+  const transientPoints = (value: number) => {
+    if (audio === undefined) return null;
+    const points = fileTransients(audio, value);
+    return { points, markers: pointMarkers(points, sample.offset, duration) };
+  };
+  /** Slice points at the hits found at this sensitivity, asking first if they renumber used slices. Moving a marker by hand makes them your own. */
   const detect = (value: number) => {
-    const next = transientMarkers(value);
+    const next = transientPoints(value);
     if (next === null) return;
-    markersTo(next, undefined, (changed) => {
+    change(next.markers, (newTrim) => setPoints(sample.id, next.points, newTrim), undefined, (changed) => {
       setSensitivity(value);
       onFound(changed, value);
       setSelected(0);
@@ -246,16 +235,16 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
    * release (`releaseSensitivity`), not in the middle of the drag.
    */
   const dragSensitivity = (value: number) => {
-    const next = transientMarkers(value);
+    const next = transientPoints(value);
     if (next === null) return;
-    if (renumberConflict(project, sample.id, next) !== null) {
+    if (renumberConflict(project, sample.id, next.markers) !== null) {
       setPendingSensitivity(value);
       return;
     }
     setPendingSensitivity(null);
     setSensitivity(value);
     setSelected(0);
-    const failed = run(setMarkers(sample.id, next), `transients:${sample.id}`);
+    const failed = run(setPoints(sample.id, next.points), `transients:${sample.id}`);
     setError(failed);
     if (failed === null) onFound(sample.id, value);
   };
@@ -366,7 +355,7 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
           )}
           <div className="segmented" role="group" aria-label="Slice by">
             {cues !== null && (
-              <button type="button" aria-pressed={by === 'cues'} title="At the cue markers in the WAV file" onClick={() => markersTo(cues, undefined, chose)}>
+              <button type="button" aria-pressed={by === 'cues'} title="At the cue markers in the WAV file" onClick={() => change(pointMarkers(sample.cues ?? [], sample.offset, duration), (newTrim) => setPoints(sample.id, sample.cues ?? [], newTrim), undefined, chose)}>
                 Cue markers
               </button>
             )}
@@ -561,16 +550,10 @@ function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSlice
 
   const slice = (bars: number | null, by: SliceBy | null, mergeKey?: string) => {
     if (bars === null || by === null) return;
-    const markers =
-      by === 'cues'
-        ? cues
-        : by === 'transients'
-          ? audio === undefined
-            ? null
-            : detectTransients(audio, sample.offset, duration, SENSITIVITY).map((m) => m / duration)
-          : gridMarkers(bars, by);
-    if (markers === null) return;
-    const failed = run(setSlicing(sample.id, bars, markers), mergeKey);
+    // Cues and transients are slice points in the whole file; a grid is laid over the trim.
+    const points = by === 'cues' ? (sample.cues ?? []) : by === 'transients' ? (audio === undefined ? null : fileTransients(audio, SENSITIVITY)) : undefined;
+    if (points === null) return;
+    const failed = run(setSlicing(sample.id, bars, points === undefined ? gridMarkers(bars, by as SliceGrid) : undefined, points), mergeKey);
     setError(failed);
     if (failed === null) onSliced(by);
   };

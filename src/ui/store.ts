@@ -66,14 +66,14 @@ export interface AppState {
   readonly trimming: Id | null;
   /** A trim just marked Slice by a click: its slicing below slices it once by default (transients or its cues, at guessed bars). Undo never sets it. */
   readonly autoSlice: Id | null;
-  /** The transients last found in Samples, so Transients stays chosen across New trim, undo and redo, and a new trim keeps them in the file. */
+  /** The transients last found in Samples, so Transients stays chosen across New trim, a new trim, undo and redo. */
   readonly transients: TransientsFound | null;
 }
 
-/** Transients found for a sample: the markers they gave and at which sensitivity. */
+/** Transients found for a sample: the slice points in its file they gave, and at which sensitivity. */
 export interface TransientsFound {
   readonly sampleId: Id;
-  readonly markers: readonly number[];
+  readonly points: readonly number[];
   readonly sensitivity: number;
 }
 

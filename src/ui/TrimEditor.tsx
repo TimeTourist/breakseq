@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Renumber, Sample, SampleChannel } from '../model';
-import { ownMatrix, retrimConflict, sampleAudio, setSampleChannel, trimSample } from '../model';
-import { useApp, useProject, useRun, useSeal, useSelect } from './context';
+import { MIN_SLICE, ownMatrix, pointsOf, retrimConflict, sampleAudio, setSampleChannel, trimSample } from '../model';
+import { useApp, useProject, useRun, useSeal } from './context';
 import { RenumberDialog } from './RenumberDialog';
-import { anchoredMarkers, slicedBy } from './SliceEditor';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
 import { RegionHandle } from './RegionHandle';
@@ -37,7 +36,8 @@ export function TrimEditor({
   const { services, store } = useApp();
   const run = useRun();
   const seal = useSeal();
-  const found = useSelect((s) => s.transients);
+  /** Snap to nearest slice: the handles go from slice point to slice point; off, they move freely. (Magnus beslut) */
+  const [snap, setSnap] = useState(false);
   /** A new start and end that would renumber used slices: shown, and asked about on release. */
   const [pending, setPending] = useState<{ readonly from: number; readonly to: number } | null>(null);
   const [asking, setAsking] = useState<{ readonly conflict: Renumber; readonly go: (newTrim: boolean) => void } | null>(null);
@@ -59,24 +59,36 @@ export function TrimEditor({
   const playhead = auditioned ?? (played === null ? null : sample.offset + played);
   const start = pending?.from ?? sample.offset;
   const end = pending?.to ?? sample.offset + sample.duration;
-  const conflictAt = (from: number, to: number) => retrimConflict(project, sample.id, from, to, anchoredMarkers(project, sample, found, from, to));
-  /** Trims to `from`–`to`: markers at transients or cues stay in the file, and Transients stays chosen. With `newTrim`, in a new trim, which is then selected. */
+  const conflictAt = (from: number, to: number) => retrimConflict(project, sample.id, from, to);
+  /** Trims to `from`–`to`: slice points stay in the file. With `newTrim`, in a new trim, which is then selected. */
   const apply = (from: number, to: number, newTrim = false) => {
-    const transients = slicedBy(sample, found) === 'transients';
     const before = store.getState().history.present.samples;
-    const failed = run(trimSample(sample.id, from, to, anchoredMarkers(project, sample, found, from, to), newTrim), newTrim ? undefined : `trim:${sample.id}`);
+    const failed = run(trimSample(sample.id, from, to, newTrim), newTrim ? undefined : `trim:${sample.id}`);
     setError(failed);
     if (failed !== null) return;
-    const now = store.getState().history.present.samples;
-    const added = newTrim ? Object.keys(now).find((id) => !(id in before)) : undefined;
-    if (added !== undefined) store.dispatch({ type: 'sliceTarget', sampleId: added });
-    const id = added ?? sample.id;
-    if (transients && found !== null) store.dispatch({ type: 'transients', found: { ...found, sampleId: id, markers: now[id]!.markers } });
+    const added = newTrim ? Object.keys(store.getState().history.present.samples).find((id) => !(id in before)) : undefined;
+    if (added !== undefined) {
+      store.dispatch({ type: 'sliceTarget', sampleId: added });
+      const found = store.getState().transients;
+      if (found?.sampleId === sample.id) store.dispatch({ type: 'transients', found: { ...found, sampleId: added } });
+    }
     // A loop that is playing follows the new start and end straight away.
     if (playing) {
       const clampedStart = Math.max(0, from);
       services.player.setAuditionRegion(clampedStart, Math.min(length, to) - clampedStart);
     }
+  };
+  /** Where the handles snap to: the slice points in the file, and its start and end. */
+  const snapPoints = snap && sample.bars !== null ? [0, ...pointsOf(sample), length].sort((a, b) => a - b) : null;
+  /** The slice point nearest `t` that keeps the trim at least MIN_SLICE long, or `t` with Snap off. */
+  const snapped = (which: 'start' | 'end', t: number) => {
+    const allowed = snapPoints?.filter((p) => (which === 'start' ? p <= end - MIN_SLICE : p >= start + MIN_SLICE)) ?? [];
+    return allowed.length === 0 ? t : allowed.reduce((best, p) => (Math.abs(p - t) < Math.abs(best - t) ? p : best));
+  };
+  /** With Snap on, the next slice point from `t` in `direction`; null when there is none. */
+  const nextPoint = (which: 'start' | 'end', t: number, direction: -1 | 1) => {
+    const allowed = snapPoints!.filter((p) => (which === 'start' ? p <= end - MIN_SLICE : p >= start + MIN_SLICE) && direction * (p - t) > 1e-6);
+    return allowed.length === 0 ? null : direction > 0 ? allowed[0]! : allowed[allowed.length - 1]!;
   };
   /** While dragging or typing: at once, unless it renumbers used slices; then it waits for release (`done`). */
   const trim = (from: number, to: number) => {
@@ -116,14 +128,16 @@ export function TrimEditor({
       left={`${((which === 'start' ? start : end) / length) * 100}%`}
       label={`${which === 'start' ? 'Start' : 'End'} at ${ms(which === 'start' ? start : end)} ms`}
       onDrag={(x) => {
-        const t = at(x);
+        const t = snapped(which, at(x));
         if (which === 'start') trim(Math.min(t, end - 0.001), end);
         else trim(start, Math.max(t, start + 0.001));
       }}
       onNudge={(direction, big) => {
-        const move = (direction * (big ? 10 : 1)) / 1000;
-        if (which === 'start') trim(start + move, end);
-        else trim(start, end + move);
+        const from = which === 'start' ? start : end;
+        const to = snapPoints === null ? from + (direction * (big ? 10 : 1)) / 1000 : nextPoint(which, from, direction);
+        if (to === null) return;
+        if (which === 'start') trim(to, end);
+        else trim(start, to);
       }}
       onDone={done}
     />
@@ -182,6 +196,13 @@ export function TrimEditor({
             </button>
           ))}
         </div>
+        {sample.bars !== null && (
+          <div className="segmented">
+            <button type="button" aria-pressed={snap} title="Dragged, the start and end go from slice to slice; off, they move freely" onClick={() => setSnap(!snap)}>
+              Snap to nearest slice
+            </button>
+          </div>
+        )}
         <div className="row push">
           {transport === undefined ? (
             <PlayControls
@@ -208,7 +229,9 @@ export function TrimEditor({
           </button>
         </div>
       </div>
-      <p className="muted small">Drag the handles, or focus one and use ←/→ (Shift: 10 ms).</p>
+      <p className="muted small">
+        {snapPoints === null ? 'Drag the handles, or focus one and use ←/→ (Shift: 10 ms).' : 'Drag the handles, or focus one and use ←/→: they go from slice to slice.'}
+      </p>
       {error !== null && (
         <p className="error" role="alert">
           {error}
