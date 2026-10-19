@@ -110,7 +110,7 @@ describe('the row under the tabs: one chain, one step per tab (Magnus beslut)', 
     expect(isMenu(menu) && menu.items.map((i) => i.label)).toEqual(['amen 1 · 4 pads', 'think 1 · 4 pads']);
   });
 
-  it('Mods: back through the loop it is tried on; Song: the selected clip’s loop', () => {
+  it('Mods: the mod alone, then ♪ Song; Song: a loop clip with its chain, a mod clip with just the mod (Magnus beslut)', () => {
     const base = chain();
     const loop = amenMatrix(base).loop!;
     const p = on(
@@ -119,7 +119,9 @@ describe('the row under the tabs: one chain, one step per tab (Magnus beslut)', 
       (q) => addClip('modA', Object.values(q.mods)[0]!.id, 0),
       () => addClip('main', loop, 0),
     );
-    expect(text(trail(state(p, { view: 'mods', selection: { ...initialState().selection, previewLoop: loop } })))).toBe('amen.wav · sample 1 › 1 matrix → › 1 loop → › [Wobble] › ♪ Song →');
+    expect(text(trail(state(p, { view: 'mods', selection: { ...initialState().selection, previewLoop: loop } })))).toBe('[Wobble] › ♪ Song →');
+    const modClip = p.song.clips.find((c) => c.ref === Object.values(p.mods)[0]!.id)!;
+    expect(text(trail(state(p, { view: 'song', selection: { ...initialState().selection, clip: modClip.id } })))).toBe('Wobble → › [Song]');
     const clip = p.song.clips.find((c) => c.ref === loop)!;
     expect(text(trail(state(p, { view: 'song', selection: { ...initialState().selection, clip: clip.id } })))).toBe('amen.wav · sample 1 › 1 matrix → › 1 loop → › [Song]');
     expect(text(trail(state(p, { view: 'song' })))).toBe('[Song]');
