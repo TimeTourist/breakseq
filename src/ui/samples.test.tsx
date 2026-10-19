@@ -111,12 +111,13 @@ describe('Samples: one page (Magnus beslut)', () => {
     expect(lines.map((l) => l.style.left)).toEqual(['0%', '25%', '50%', '75%']);
   });
 
-  it('the row under the tabs: the file as text · the sample › 1 matrix → · 1 loop → (Magnus beslut)', async () => {
+  it('the row under the tabs: the file as text · the sample, larger, › 1 matrix → › 1 loop → (Magnus beslut)', async () => {
     const project = build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4));
     const own = ownMatrix(project, first(project).id)!;
     const store = await setup(project);
     const row = screen.getByRole('navigation', { name: 'Where you are' });
-    expect(row.textContent).toBe('amen.wav·sample 1›1 matrix →·1 loop →');
+    expect(row.textContent).toBe('amen.wav·sample 1›1 matrix →›1 loop →');
+    expect(row.querySelector('.crumb-current')!.textContent).toBe('sample 1');
     expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual(['1 matrix →', '1 loop →']);
     const matrix = within(row).getByRole('button', { name: '1 matrix →' });
     expect(matrix.title).toBe('Matrix amen 1 (4 pads), in Matrices');

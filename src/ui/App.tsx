@@ -227,9 +227,9 @@ function Shell() {
   });
   const bpm = useSelect((s) => s.history.present.song.bpm);
   const songLoop = useSelect((s) => s.history.present.song.loop ?? null);
-  // Loop in the header: off, what Play plays plays once. The song keeps its own loop. (Magnus beslut)
+  // Loop in the header, on every tab: off, what Play plays plays once, the song from its start point to its end. (Magnus beslut)
   const loopOn = useSelect((s) => s.loop);
-  const onceOf = (take: ShownTake) => take.once || (!loopOn && take.key !== SONG_KEY);
+  const onceOf = (take: ShownTake) => take.once || !loopOn;
   const step = stepDuration(bpm);
   // Only the song has a cursor and a loop; a snapshot or a preview plays as it is.
   const songPlays = playingKey === SONG_KEY;
@@ -278,10 +278,10 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, services]);
 
-  // Loop switched while something other than the song plays: it starts again, looped or once.
+  // Loop switched while something plays: it starts again, looped or once (the song from its start point).
   useEffect(() => {
     const { playing: now, playingKey: key } = following.current;
-    if (now && key !== null && key !== SONG_KEY && key !== 'snapshot' && shown?.key === key) start(shown);
+    if (now && key !== null && key !== 'snapshot' && shown?.key === key) start(shown);
     // Only Loop decides this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loopOn]);

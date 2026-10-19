@@ -2655,8 +2655,16 @@ button.danger:hover:not(:disabled) {
   gap: 12px;
 }
 
-.crumb.current {
+/* Where you are: the step of the tab one is on, plain text, a little larger, centred in the row. (Magnus beslut) */
+.crumb-current {
   color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.crumb-detail {
+  color: var(--muted);
 }
 
 .crumb-sep {
@@ -2890,6 +2898,8 @@ button.danger:hover:not(:disabled) {
 .crumbs .crumb-menu {
   /* Slim: as wide as what it says, not as its longest item. */
   field-sizing: content;
+  /* Its own ▾ in the text, not the browser's arrow as well. */
+  appearance: none;
   border: 1px solid var(--border);
   border-radius: 4px;
 }

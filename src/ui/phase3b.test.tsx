@@ -168,13 +168,22 @@ describe('Play in Samples (Magnus beslut)', () => {
     expect(vi.mocked(player.play).mock.calls.at(-1)?.[2]).toBe(true);
   });
 
-  it('the header has BPM, Play, Loop, Undo, Redo, Save and New snapshot, in that order; Loop is off in Song', async () => {
+  it('the header has BPM, Play, Loop, Undo, Redo, Save and New snapshot, in that order; Loop works in Song too', async () => {
     const store = await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'samples');
     const transport = document.querySelector('.transport')!;
     const order = [...transport.querySelectorAll('input, button')].map((e) => e.getAttribute('aria-label') ?? e.textContent);
     expect(order).toEqual(['Tempo in BPM', 'Play', 'Loop', 'Nothing to undo', 'Nothing to redo', 'Save', 'New snapshot']);
     act(() => void store.dispatch({ type: 'view', view: 'song' }));
-    expect((button('Loop') as HTMLButtonElement).disabled).toBe(true);
+    expect((button('Loop') as HTMLButtonElement).disabled).toBe(false);
+    // Off, the song plays from its start point to its end, once. (Magnus beslut)
+    await waitFor(() => expect((button('Play') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button('Loop'));
+    fireEvent.click(button('Play'));
+    expect(vi.mocked(fakeServices().player.play).mock.calls.at(-1)?.[2]).toBe(true);
+    fireEvent.click(button('Stop'));
+    fireEvent.click(button('Loop'));
+    fireEvent.click(button('Play'));
+    expect(vi.mocked(fakeServices().player.play).mock.calls.at(-1)?.[2]).toBe(false);
   });
 });
 

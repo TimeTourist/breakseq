@@ -35,7 +35,7 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
 
   return (
     <main className="view wide pads-view">
-      <FocusBar title="Pads" transport={transport} />
+      <FocusBar title="Matrices" transport={transport} />
       {error !== null && (
         <p className="error" role="alert">
           {error}
