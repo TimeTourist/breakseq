@@ -4,6 +4,7 @@ import { NO_CONFIG } from './types';
 import { sampleBpm } from './owners';
 import {
   effectiveHit,
+  fitBpm,
   gridMarkers,
   hitColour,
   hitSound,
@@ -125,9 +126,21 @@ describe('config in three layers', () => {
     expect(effectiveHit(project, hit).pitch).toBeCloseTo(12 * Math.log2(170 / 136) + 2);
   });
 
-  it('pitch fit on a sample with no tempo adds nothing', () => {
-    const { project, hit } = layered({ pitchFit: true }, {}, {}, { samples: [sample('s', 1)], bpm: 170 });
-    expect(effectiveHit(project, hit).pitch).toBe(0);
+  it('a one-shot fits as a break of the whole 1/16 steps nearest its length, at least one', () => {
+    const step = 15 / 120;
+    const fit = { mode: 'fit', factor: 1, grain: null, from: null } as const;
+    // 1.3 steps fits to 1, pitched up; 1.7 to 2, pitched down; 0.2 to 1.
+    for (const [steps, to] of [[1.3, 1], [1.7, 2], [0.2, 1]] as const) {
+      const p = layered({ pitchFit: true }, {}, {}, { samples: [sample('s', steps * step)], bpm: 120 });
+      expect(effectiveHit(p.project, p.hit).pitch).toBeCloseTo(12 * Math.log2(steps / to));
+      const st = layered({ stretch: fit }, {}, {}, { samples: [sample('s', steps * step)], bpm: 120 });
+      expect(hitStretch(st.project, st.hit).factor).toBeCloseTo(to / steps);
+    }
+  });
+
+  it('a sample of no length has no tempo to fit', () => {
+    expect(fitBpm({ duration: 0, bars: null }, 170)).toBeNull();
+    expect(fitBpm({ duration: breakDuration(4, 136), bars: 4 }, 170)).toBeCloseTo(136);
   });
 
   it('pitch first, then stretch: stretch fit counts the pitch, so with pitch fit it stretches nothing', () => {

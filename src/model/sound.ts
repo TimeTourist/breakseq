@@ -106,10 +106,23 @@ export const clampStretch = (factor: number): number =>
 /** A layer's own stretch factor; Fit to tempo is counted apart, once. */
 const layerFactor = (config: Config): number => (config.stretch.mode === 'factor' ? clampStretch(config.stretch.factor) : 1);
 
-/** The tempo of a hit's own sample over the song's, and 1 for a sample with no tempo. */
+/**
+ * The tempo Fit to tempo fits a sample from: a sliced trim's own, and a trim
+ * that is not sliced as a break of the whole 1/16 steps nearest its length in
+ * the song's tempo, at least one. Null for a sample of no length.
+ */
+export function fitBpm(sample: Pick<Sample, 'duration' | 'bars'>, songBpm: number): number | null {
+  const own = sampleBpm(sample);
+  if (own !== null) return own;
+  if (sample.duration <= 0 || songBpm <= 0) return null;
+  const step = 15 / songBpm;
+  return (Math.max(1, Math.round(sample.duration / step)) * 15) / sample.duration;
+}
+
+/** The fit tempo of a hit's own sample over the song's, and 1 for a sample with none. */
 function tempoRatio(project: Project, hit: Hit): number {
   const sample = project.samples[hit.sampleId];
-  const bpm = sample === undefined ? null : sampleBpm(sample);
+  const bpm = sample === undefined ? null : fitBpm(sample, project.song.bpm);
   return bpm === null || bpm <= 0 || project.song.bpm <= 0 ? 1 : bpm / project.song.bpm;
 }
 
