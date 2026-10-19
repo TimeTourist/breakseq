@@ -6,7 +6,7 @@ import { useCommitAfterPause } from './usePause';
 import { describeChange } from './describeChange';
 import type { View } from './store';
 import { VIEWS } from './store';
-import type { Crumb, Jump } from './crumbs';
+import type { Context, Crumb, Jump, Step } from './crumbs';
 import { isMenu, trail } from './crumbs';
 
 const LABELS: Record<View, string> = {
@@ -30,7 +30,6 @@ interface HeaderProps {
 export function Header({ onView, playing, canPlay, onPlay, onStop, status }: HeaderProps) {
   const view = useSelect((s) => s.view);
   const loop = useSelect((s) => s.loop);
-  const loopApplies = view !== 'song' && view !== 'project';
   const { store } = useApp();
   const history = useSelect((s) => s.history);
   const previous = history.past.at(-1);
@@ -104,13 +103,12 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
             </svg>
           )}
         </button>
-        {/* Loop, on to begin with: Play plays over and over, else once. The song loops its own loop region. (Magnus beslut) */}
+        {/* Loop, on to begin with: Play plays over and over, else once, on every tab. (Magnus beslut) */}
         <button
           type="button"
           className="loop-toggle"
-          aria-pressed={loopApplies && loop}
-          disabled={!loopApplies}
-          title={loopApplies ? (loop ? 'Play plays it over and over: click to play it once' : 'Play plays it once: click to loop it') : 'The song loops its own loop region, set in Song'}
+          aria-pressed={loop}
+          title={loop ? 'Play plays it over and over (in Song, its loop region if it has one): click to play it once' : 'Play plays it once, to the end: click to loop it'}
           onClick={() => store.dispatch({ type: 'loop', on: !loop })}
         >
           Loop
@@ -146,9 +144,26 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
   );
 }
 
+/** Plain text before a step: the file before its sample, never a link. (Magnus beslut) */
+function ContextText({ context }: { readonly context: Context | undefined }) {
+  if (context === undefined) return null;
+  return (
+    <>
+      <span className="crumb-context" title={context.title}>
+        {context.label}
+      </span>
+      <span className="crumb-sep" aria-hidden="true">
+        ·
+      </span>
+    </>
+  );
+}
+
 /**
- * The link row under the tabs, always in the same place: the way back up the
- * chain to what is selected on this tab, and on to what uses it. (Magnus beslut)
+ * The link row under the tabs, always in the same place (Magnus beslut): the
+ * same chain on every tab, one step per tab (file · sample › matrices ›
+ * loops › mods › ♪ Song). The tab one is on is plain text, larger; every
+ * other step links there, with a count, or is a slim menu when there are several.
  */
 function Crumbs() {
   const { store } = useApp();
@@ -177,59 +192,48 @@ function Crumbs() {
         ))}
       </select>
     ) : (
-      <button type="button" className="link-text" title={c.title} onClick={() => go(c)}>
-        {c.label}
-      </button>
+      <>
+        <ContextText context={c.context} />
+        <button type="button" className="link-text" title={c.title} onClick={() => go(c)}>
+          {c.label}
+        </button>
+      </>
+    );
+  const step = (s: Step) =>
+    s.kind === 'link' ? (
+      crumb(s.crumb)
+    ) : (
+      <>
+        <ContextText context={s.current.context} />
+        <span className="crumb-current" aria-current="location" title={s.current.title}>
+          {s.current.label}
+        </span>
+        {s.current.detail !== undefined && <span className="crumb-detail">{s.current.detail}</span>}
+      </>
     );
   return (
     <nav aria-label="Where you are" className="crumbs">
-      {now.back.map((c, i) => (
-        <span key={`b${i}`} className="crumb">
-          {crumb(c)}
-          <span className="crumb-sep" aria-hidden="true">
-            ›
-          </span>
-        </span>
-      ))}
-      {now.context !== undefined && (
-        <span className="crumb">
-          <span className="crumb-context" title={now.context.title}>
-            {now.context.label}
-          </span>
-          <span className="crumb-sep" aria-hidden="true">
-            ·
-          </span>
-        </span>
-      )}
-      {now.current !== null && (
-        <span className="crumb current" aria-current="location" title={now.current.title}>
-          {now.current.label}
-        </span>
-      )}
-      {(now.forward.length > 0 || now.song) && (
-        <span className="crumb-sep" aria-hidden="true">
-          ›
-        </span>
-      )}
-      {now.forward.map((c, i) => (
-        <span key={`f${i}`} className="crumb">
+      {now.steps.map((s, i) => (
+        <span key={i} className="crumb">
           {i > 0 && (
             <span className="crumb-sep" aria-hidden="true">
-              ·
+              ›
             </span>
           )}
-          {crumb(c)}
+          {step(s)}
         </span>
       ))}
-      {now.song && now.forward.length > 0 && (
-        <span className="crumb-sep" aria-hidden="true">
-          ·
-        </span>
-      )}
       {now.song && (
-        <button type="button" className="link-text crumb in-song" title="Heard in the song: open Song" onClick={() => store.dispatch({ type: 'view', view: 'song' })}>
-          ♪ Song →
-        </button>
+        <span className="crumb">
+          {now.steps.length > 0 && (
+            <span className="crumb-sep" aria-hidden="true">
+              ›
+            </span>
+          )}
+          <button type="button" className="link-text in-song" title="Heard in the song: open Song" onClick={() => store.dispatch({ type: 'view', view: 'song' })}>
+            ♪ Song →
+          </button>
+        </span>
       )}
     </nav>
   );
