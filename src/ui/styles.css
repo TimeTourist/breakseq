@@ -2688,6 +2688,8 @@ button.danger:hover:not(:disabled) {
 
 .file-list {
   flex: 1 1 300px;
+  /* The same width folded or not: its content never widens it. (Magnus beslut) */
+  min-width: 0;
   max-width: 100%;
   padding: 8px;
   display: flex;
@@ -2746,6 +2748,7 @@ button.danger:hover:not(:disabled) {
 .file-row {
   padding: 6px 0 2px;
   font-size: 13px;
+  cursor: pointer;
 }
 
 .file-row .file-name {

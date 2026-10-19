@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AudioData, Command, Id, Renumber, Sample, SliceGrid } from '../model';
 import {
+  BAR_STEP,
   MIN_SLICE,
   STEPS_PER_BAR,
   cueMarkers,
@@ -14,6 +15,7 @@ import {
   pointMarkers,
   pointsOf,
   renumberConflict,
+  roundBars,
   sampleAudio,
   sampleBpm,
   setGrid,
@@ -239,8 +241,10 @@ export function SampleEditor({ sample, played, stopTransport }: SampleEditorProp
   /** Commits typed bars, asking first if they renumber used slices. `pausing`: typing rested; a value on the way that is not one yet waits for more. */
   const commitBars = (pausing = false) => {
     if (barsDraft === null) return;
-    const next = Math.round(Number(barsDraft));
-    const valid = barsDraft.trim() !== '' && Number.isFinite(next) && next >= 1 && next <= 64;
+    // Bars go in 1/16 steps (0.25 is a quarter bar), to the nearest one. (Claudes val.)
+    const typed = Number(barsDraft.replace(',', '.'));
+    const valid = barsDraft.trim() !== '' && Number.isFinite(typed) && typed > 0 && typed <= 64;
+    const next = valid ? roundBars(typed) : bars;
     if (pausing && !valid) return;
     setBarsDraft(null);
     if (!valid || next === bars) return;
@@ -444,8 +448,9 @@ export function SampleEditor({ sample, played, stopTransport }: SampleEditorProp
               Bars
               <input
                 type="number"
-                min={1}
+                min={BAR_STEP}
                 max={64}
+                step="any"
                 aria-label="Bars in the sample"
                 value={barsDraft ?? bars}
                 onChange={(e) => setBarsDraft(e.target.value)}

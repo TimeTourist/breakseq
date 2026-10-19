@@ -2,7 +2,7 @@ import type { Command, CommandContext, Usage } from './command';
 import { invalid, notFound, ok, sequence } from './command';
 import { findUsages } from './references';
 import type { SliceGrid } from './sound';
-import { MIN_SLICE, baseName, defaultMatrixName, gridMarkers, markerGrid, sliceWindow, slotHit, slotName } from './sound';
+import { MIN_SLICE, baseName, defaultMatrixName, gridMarkers, markerGrid, roundBars, sliceWindow, slotHit, slotName, validBars } from './sound';
 import { sampleBpm } from './owners';
 import { matrixSequence, matrixSteps } from './lengths';
 import { emptyStep } from './project';
@@ -168,7 +168,8 @@ export const makeOneShot =
  * Slices `first` to `last` of a sample made a sample of their own, in one
  * step: a new trim of the file over just them, last among the file's. One
  * slice is a one-shot (`makeOneShot`); several are sliced, with a copy of the
- * sample's slice points and guessed bars. The sample stays as it is. (Magnus beslut)
+ * sample's slice points, in its tempo: their bars are their length in its
+ * bars, to the nearest 1/16. The sample stays as it is. (Magnus beslut)
  */
 export const makeSampleFromSlices =
   (sampleId: Id, first: number, last: number): Command =>
@@ -185,7 +186,8 @@ export const makeSampleFromSlices =
     if (typeof added === 'string') return invalid(added);
     const made = Object.values(added.samples).find((s) => !(s.id in project.samples));
     if (made === undefined) return invalid('The sample was not added');
-    return setSlicing(made.id, guessBars(made.duration), undefined, pointsOf(of))(added, ctx);
+    const bars = of.bars === null ? guessBars(made.duration) : roundBars((made.duration * of.bars) / of.duration);
+    return setSlicing(made.id, bars, undefined, pointsOf(of))(added, ctx);
   };
 
 export const renameMatrix =
@@ -296,7 +298,8 @@ function ensureRows(project: Project, matrixId: Id, from: number, count: number,
 function laidOut(project: Project, matrix: Matrix): Step[] {
   const bars = matrix.sampleId === null ? null : (project.samples[matrix.sampleId]?.bars ?? null);
   const taken = Math.ceil(matrixSteps(project, matrix.id) / STEPS_PER_BAR) * STEPS_PER_BAR;
-  const length = Math.min(MAX_LOOP_STEPS, Math.max((bars ?? 1) * STEPS_PER_BAR, taken));
+  // Bars that are not whole are rounded up: a loop is always whole bars.
+  const length = Math.min(MAX_LOOP_STEPS, Math.max(Math.ceil(bars ?? 1) * STEPS_PER_BAR, taken));
   const steps: Step[] = Array.from({ length }, () => emptyStep);
   for (const { padId, step } of matrixSequence(project, matrix.id)) if (step < length) steps[step] = { ...emptyStep, padId };
   return steps;
@@ -363,7 +366,7 @@ export const setSlicing =
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
     if (bars === null) return unslice(project, sample);
-    if (!Number.isInteger(bars) || bars < 1) return invalid('A sample is sliced over a whole number of bars');
+    if (!validBars(bars)) return invalid('A sample is sliced over a whole number of 1/16 bars, at least one');
 
     const sliced: Sample = { ...withoutUnsliced(sample), bars, ...withMarkers(sample, markers ?? markersForBars(sample, bars), points) };
     const nextMarkers = sliced.markers;
@@ -408,7 +411,7 @@ export const setSampleBars =
     if (sample === undefined) return notFound(sampleId);
     if (sample.bars === null) return invalid('Only a sliced sample has bars');
     if (!newTrim) return setSlicing(sampleId, bars)(project, ctx);
-    if (!Number.isInteger(bars) || bars < 1) return invalid('A sample is sliced over a whole number of bars');
+    if (!validBars(bars)) return invalid('A sample is sliced over a whole number of 1/16 bars, at least one');
     return ok(changeOwnRows(project, sample, toNewTrim(project, sample, { bars, ...withMarkers(sample, markersForBars(sample, bars)) }, ctx), ctx));
   };
 

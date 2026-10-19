@@ -145,8 +145,11 @@ describe('New sample from slices (Magnus beslut)', () => {
     expect(samples(store)).toHaveLength(2);
     const made = samples(store).find((s) => s.trim === 2)!;
     expect(store.getState().sliceTarget).toBe(made.id);
-    expect(made).toMatchObject({ offset: 0.5, duration: 0.75 });
+    // In the tempo of the sample it came from: 3/8 of its one bar. (Magnus beslut)
+    expect(made).toMatchObject({ offset: 0.5, duration: 0.75, bars: 0.375 });
     expect(made.markers).toHaveLength(3);
+    expect((screen.getByLabelText('Bars in the sample') as HTMLInputElement).value).toBe('0.375');
+    expect(screen.getByText('= 120.00 BPM')).toBeTruthy();
     // The sample it came from stays as it is.
     expect(first(present(store)).markers).toHaveLength(8);
   });
@@ -193,6 +196,18 @@ describe('U1: Enter in Bars', () => {
     fireEvent.click(button('Renumber'));
     expect(samples(store)).toHaveLength(1);
     expect(samples(store)[0]).toMatchObject({ bars: 2 });
+  });
+});
+
+describe('bars in 1/16 steps (Claudes val.)', () => {
+  it('Bars takes a part of a bar, to the nearest 1/16', async () => {
+    const store = await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 16)));
+    const bars = screen.getByLabelText('Bars in the sample');
+    fireEvent.change(bars, { target: { value: '0.3' } });
+    fireEvent.blur(bars);
+    expect(first(present(store)).bars).toBe(0.3125);
+    expect(first(present(store)).markers).toHaveLength(5);
+    expect(within(screen.getByRole('region', { name: 'Files' })).getByText('0.3125 bars')).toBeTruthy();
   });
 });
 
