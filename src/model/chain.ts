@@ -112,6 +112,13 @@ export const markUnsliced =
 /** Whether a sample is marked to be sliced but not sliced yet. */
 export const isUnsliced = (sample: Sample): boolean => sample.bars === null && sample.unsliced === true;
 
+/** A sample without slice points, as one not sliced is. */
+function withoutPoints(sample: Sample): Sample {
+  const { points, ...rest } = sample;
+  void points;
+  return rest;
+}
+
 /** The file's cue markers within a trim, as markers of it (parts, the first at 0); null when none fall inside it. */
 export function cueMarkers(sample: Sample): number[] | null {
   const inside = (sample.cues ?? []).map((c) => (c - sample.offset) / sample.duration).filter((m) => m > 0 && m < 1);
@@ -132,7 +139,7 @@ function addTrimIn(project: Project, of: Sample, window: { offset: number; durat
   const audio = project.audio[of.audioId];
   if (audio === undefined) return 'The file is missing';
   const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
-  const sample = newTrimOf(project, of, { offset: window?.offset ?? 0, duration: window?.duration ?? length, bars: null, markers: [0] }, ctx);
+  const sample = newTrimOf(project, withoutPoints(of), { offset: window?.offset ?? 0, duration: window?.duration ?? length, bars: null, markers: [0] }, ctx);
   return addOwnMatrix(setSampleIn(project, sample), sample, ctx);
 }
 
@@ -172,6 +179,38 @@ function cleanMarkers(markers: readonly number[], duration: number): number[] {
     if ((m - kept[kept.length - 1]!) * duration >= MIN_SLICE && (1 - m) * duration >= MIN_SLICE) kept.push(m);
   }
   return kept;
+}
+
+/** Seconds a slice point may be from the start or end of the trim: closer, it is no marker of it, so no tiny slice is left at the edge. (Magnus beslut) */
+export const EDGE_SLICE = 0.03;
+
+/** A sample's slice points in its file, in seconds: `points`, or its markers for one sliced before there were points. */
+export const pointsOf = (sample: Sample): readonly number[] => sample.points ?? sample.markers.slice(1).map((m) => sample.offset + m * sample.duration);
+
+/** The markers of a trim at `offset` for `duration` seconds from slice points in its file: those within it, not within EDGE_SLICE of its ends. */
+export function pointMarkers(points: readonly number[], offset: number, duration: number): number[] {
+  return cleanMarkers(
+    points.filter((t) => t - offset >= EDGE_SLICE && offset + duration - t >= EDGE_SLICE).map((t) => (t - offset) / duration),
+    duration,
+  );
+}
+
+/** Slice points with a trim's new `markers`: the points between its ends' edges are the markers now, and the rest stay. */
+function mergePoints(points: readonly number[], offset: number, duration: number, markers: readonly number[]): number[] {
+  const inside = (t: number) => t - offset >= EDGE_SLICE && offset + duration - t >= EDGE_SLICE;
+  const added = markers.slice(1).map((m) => offset + m * duration);
+  const kept = points.filter((t) => !inside(t) && added.every((a) => Math.abs(a - t) > 1e-6));
+  return [...kept, ...added].sort((a, b) => a - b);
+}
+
+/** A sample with new markers, and its slice points with them; `points` given, the markers are theirs within it. */
+function withMarkers(sample: Sample, markers: readonly number[] | null, points?: readonly number[]): Pick<Sample, 'markers' | 'points'> {
+  if (points !== undefined) {
+    const sorted = [...points].sort((a, b) => a - b);
+    return { markers: pointMarkers(sorted, sample.offset, sample.duration), points: sorted };
+  }
+  const next = markers ?? sample.markers;
+  return { markers: next, points: mergePoints(sample.bars === null ? [] : pointsOf(sample), sample.offset, sample.duration, next) };
 }
 
 /**
@@ -295,15 +334,15 @@ export function markersForBars(sample: Sample, bars: number): readonly number[] 
  * A sample whose own matrix was removed is only sliced: no matrix is made again.
  */
 export const setSlicing =
-  (sampleId: Id, bars: number | null, markers?: readonly number[]): Command =>
+  (sampleId: Id, bars: number | null, markers?: readonly number[], points?: readonly number[]): Command =>
   (project, ctx) => {
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
     if (bars === null) return unslice(project, sample);
     if (!Number.isInteger(bars) || bars < 1) return invalid('A sample is sliced over a whole number of bars');
 
-    const nextMarkers = markers ?? markersForBars(sample, bars);
-    const sliced: Sample = { ...withoutUnsliced(sample), bars, markers: nextMarkers };
+    const sliced: Sample = { ...withoutUnsliced(sample), bars, ...withMarkers(sample, markers ?? markersForBars(sample, bars), points) };
+    const nextMarkers = sliced.markers;
     const own = ownMatrix(project, sampleId);
     if (own === undefined) return ok(followMatrices(project, setSampleIn(project, sliced)));
     // A one-shot's pad and hit become row 01's.
@@ -346,7 +385,7 @@ export const setSampleBars =
     if (sample.bars === null) return invalid('Only a sliced sample has bars');
     if (!newTrim) return setSlicing(sampleId, bars)(project, ctx);
     if (!Number.isInteger(bars) || bars < 1) return invalid('A sample is sliced over a whole number of bars');
-    return ok(changeOwnRows(project, sample, toNewTrim(project, sample, { bars, markers: markersForBars(sample, bars) }, ctx), ctx));
+    return ok(changeOwnRows(project, sample, toNewTrim(project, sample, { bars, ...withMarkers(sample, markersForBars(sample, bars)) }, ctx), ctx));
   };
 
 /**
@@ -453,7 +492,7 @@ function dropPartsOnly(project: Project, { pads, hits: others, loop }: Parts): P
 function unslice(project: Project, sample: Sample) {
   if (sample.bars === null) return sample.unsliced === true ? ok(setSampleIn(project, withoutUnsliced(sample))) : invalid('The sample is not sliced');
   const { own, kept, pads, hits, loop } = unsliceParts(project, sample);
-  let next = dropParts(setSampleIn(project, { ...withoutUnsliced(sample), bars: null, markers: [0] }), { pads, hits, loop });
+  let next = dropParts(setSampleIn(project, { ...withoutPoints(withoutUnsliced(sample)), bars: null, markers: [0] }), { pads, hits, loop });
   if (own !== undefined) {
     next = renamePadAndHit(setMatrixIn(next, { ...next.matrices[own.id]!, loop: null }), kept, slotName(own.name, sample, 0), baseName(own.name));
   }
@@ -548,22 +587,18 @@ export const setSampleChannel =
     return ok(setSampleIn(project, { ...sample, channel }));
   };
 
-/** Seconds a marker kept in its file may be from a new start or end of the trim: closer, it is dropped, so no tiny slice is left at the edge. (Magnus beslut) */
-export const EDGE_SLICE = 0.03;
-
-/** A new start and end of a sample, and the bars and markers it gets with them (`retrimmed`). */
-export type Retrim = Pick<Sample, 'offset' | 'duration' | 'bars' | 'markers'>;
+/** A new start and end of a sample, and the bars, markers and slice points it gets with them (`retrimmed`). */
+export type Retrim = Pick<Sample, 'offset' | 'duration' | 'bars' | 'markers' | 'points'>;
 
 /**
  * A sample trimmed to `start`–`end` seconds of its file (clamped to it), or a
  * message why not. Bars still at the guess for the old length are guessed
- * again for the new (`guessBars`); bars set by hand stay. Markers kept in the
- * file, `anchored` (seconds in the file: transients or cues), stay where they
- * are in it, those outside the trim or within EDGE_SLICE of its start or end
- * dropped. Otherwise markers on a grid follow the bars, and markers of one's
- * own are parts of the sample and come along. (Magnus beslut)
+ * again for the new (`guessBars`); bars set by hand stay. Markers on a grid
+ * are laid again over the new trim at its bars; otherwise slice points stay
+ * where they are in the file, and its markers are those within it
+ * (`pointMarkers`). (Magnus beslut)
  */
-export function retrimmed(project: Project, sample: Sample, start: number, end: number, anchored: readonly number[] | null = null): Retrim | string {
+export function retrimmed(project: Project, sample: Sample, start: number, end: number): Retrim | string {
   const audio = project.audio[sample.audioId];
   const length = audio === undefined ? 0 : (audio.channels[0]?.length ?? 0) / audio.sampleRate;
   const offset = Math.max(0, Math.min(start, length));
@@ -572,16 +607,10 @@ export function retrimmed(project: Project, sample: Sample, start: number, end: 
   if (sample.bars === null) return { offset, duration, bars: null, markers: sample.markers };
   const bars = sample.bars === guessBars(sample.duration) ? guessBars(duration) : sample.bars;
   const grid = markerGrid(sample.markers, sample.bars);
-  const markers =
-    anchored !== null
-      ? cleanMarkers(
-          anchored.filter((t) => t - offset >= EDGE_SLICE && offset + duration - t >= EDGE_SLICE).map((t) => (t - offset) / duration),
-          duration,
-        )
-      : grid !== null
-        ? gridMarkers(bars, grid)
-        : sample.markers;
-  return { offset, duration, bars, markers };
+  const points = pointsOf(sample);
+  if (grid === null) return { offset, duration, bars, markers: pointMarkers(points, offset, duration), points };
+  const markers = gridMarkers(bars, grid);
+  return { offset, duration, bars, markers, points: mergePoints(points, offset, duration, markers) };
 }
 
 /**
@@ -591,11 +620,11 @@ export function retrimmed(project: Project, sample: Sample, start: number, end: 
  * was (decision 14, as `setMarkers`).
  */
 export const trimSample =
-  (sampleId: Id, start: number, end: number, anchored: readonly number[] | null = null, newTrim = false): Command =>
+  (sampleId: Id, start: number, end: number, newTrim = false): Command =>
   (project, ctx) => {
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
-    const next = retrimmed(project, sample, start, end, anchored);
+    const next = retrimmed(project, sample, start, end);
     if (typeof next === 'string') return invalid(next);
     const changed = newTrim ? toNewTrim(project, sample, next, ctx) : setSampleIn(project, { ...sample, ...next });
     return ok(sample.bars === null ? followMatrices(project, changed) : changeOwnRows(project, sample, changed, ctx));
@@ -603,16 +632,15 @@ export const trimSample =
 
 /**
  * Decision 14 for a new trim: whether it renumbers slices used more than
- * once. With markers kept in the file, a slice keeps its number while its
- * marker is still at the same place in the file and number; otherwise, as
- * with new markers, when their count changes.
+ * once. A slice keeps its number while its marker is at the same place in
+ * the file and number; a grid laid again, when their count changes.
  */
-export function retrimConflict(project: Project, sampleId: Id, start: number, end: number, anchored: readonly number[] | null = null): Renumber | null {
+export function retrimConflict(project: Project, sampleId: Id, start: number, end: number): Renumber | null {
   const sample = project.samples[sampleId];
   if (sample === undefined || sample.bars === null) return null;
-  const next = retrimmed(project, sample, start, end, anchored);
+  const next = retrimmed(project, sample, start, end);
   if (typeof next === 'string') return null;
-  if (anchored === null) return usedConflict(project, sampleId, renumbered(sample.markers, next.markers));
+  if (markerGrid(sample.markers, sample.bars) !== null) return usedConflict(project, sampleId, renumbered(sample.markers, next.markers));
   const at = (s: Retrim, i: number) => (s.markers[i] === undefined ? undefined : s.offset + s.markers[i]! * s.duration);
   const concerned = sample.markers.map((_, i) => i).filter((i) => i > 0 && (at(next, i) === undefined || Math.abs(at(next, i)! - at(sample, i)!) > 1e-6));
   return usedConflict(project, sampleId, concerned);
@@ -664,7 +692,7 @@ function usedConflict(project: Project, sampleId: Id, concerned: readonly number
  * `markers` (decision 16): its hits that play the sample play the new trim.
  * The sample keeps its markers, and hits elsewhere stay on it.
  */
-function toNewTrim(project: Project, sample: Sample, patch: Pick<Sample, 'markers'> & Partial<Pick<Sample, 'bars' | 'offset' | 'duration'>>, ctx: CommandContext): Project {
+function toNewTrim(project: Project, sample: Sample, patch: Pick<Sample, 'markers'> & Partial<Pick<Sample, 'bars' | 'offset' | 'duration' | 'points'>>, ctx: CommandContext): Project {
   const fresh = newTrimOf(project, sample, patch, ctx);
   const own = ownMatrix(project, sample.id);
   let next = setSampleIn(project, fresh);
@@ -707,7 +735,24 @@ export const setMarkers =
       if ((sorted[i]! - sorted[i - 1]!) * sample.duration < MIN_SLICE) return invalid('Markers are too close together');
     }
     if ((1 - sorted[sorted.length - 1]!) * sample.duration < MIN_SLICE) return invalid('A marker is too close to the end');
-    const changed = newTrim ? toNewTrim(project, sample, { markers: sorted }, ctx) : setSampleIn(project, { ...sample, markers: sorted });
+    const patch = withMarkers(sample, sorted);
+    const changed = newTrim ? toNewTrim(project, sample, patch, ctx) : setSampleIn(project, { ...sample, ...patch });
+    return ok(changeOwnRows(project, sample, changed, ctx));
+  };
+
+/**
+ * Sets a sample's slice points in its whole file, in seconds (transients or
+ * cues found in it): its markers are those within the trim. `newTrim` as in
+ * `setMarkers`.
+ */
+export const setPoints =
+  (sampleId: Id, points: readonly number[], newTrim = false): Command =>
+  (project, ctx) => {
+    const sample = project.samples[sampleId];
+    if (sample === undefined) return notFound(sampleId);
+    if (sample.bars === null) return invalid('A sample that is not sliced has no markers');
+    const patch = withMarkers(sample, null, points);
+    const changed = newTrim ? toNewTrim(project, sample, patch, ctx) : setSampleIn(project, { ...sample, ...patch });
     return ok(changeOwnRows(project, sample, changed, ctx));
   };
 

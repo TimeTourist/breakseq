@@ -254,6 +254,32 @@ describe('a new trim keeps markers at transients in the file (Magnus beslut)', (
   });
 });
 
+describe('Snap to nearest slice (Magnus beslut)', () => {
+  it('on, ←/→ take a handle from slice point to slice point in the file; off, 1 ms', async () => {
+    const store = await setup(
+      build(
+        () => addSample({ name: 'amen.wav', audio: clicks([0, 0.3, 0.9, 1.4]) }),
+        (p) => sliceSample(first(p).id, 1, 16),
+      ),
+    );
+    fireEvent.click(button('Transients'));
+    fireEvent.click(button('Trim amen trim 1'));
+    const startMs = () => Math.round(first(present(store)).offset * 1000);
+    fireEvent.keyDown(screen.getByRole('button', { name: /^Start at/ }), { key: 'ArrowRight' });
+    expect(startMs()).toBe(1);
+    fireEvent.click(button('Snap to nearest slice'));
+    expect(button('Snap to nearest slice').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(screen.getByRole('button', { name: /^Start at/ }), { key: 'ArrowRight' });
+    expect(startMs()).toBe(299);
+    fireEvent.keyDown(screen.getByRole('button', { name: /^Start at/ }), { key: 'ArrowRight' });
+    expect(startMs()).toBe(899);
+    // The hit at 0.3 s is no slice now, but still a point in the file to go back to.
+    expect(first(present(store)).markers).toHaveLength(2);
+    fireEvent.keyDown(screen.getByRole('button', { name: /^Start at/ }), { key: 'ArrowLeft' });
+    expect(startMs()).toBe(299);
+  });
+});
+
 describe("U7: the trim's ▶ is the header's Play", () => {
   it('one stops the other', async () => {
     const player = fakePlayer();

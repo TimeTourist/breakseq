@@ -22,6 +22,7 @@ import {
   sliceSample,
   trimSample,
   retrimConflict,
+  setPoints,
   unsliceTakes,
   unsliceUsages,
 } from './chain';
@@ -175,50 +176,75 @@ describe('the automatic chain', () => {
     expect(sampleBpm(trimmed.samples[sampleId]!)).toBeCloseTo(240);
   });
 
-  describe('a new trim of a sliced sample (Magnus beslut)', () => {
+  describe('slice points in the file and a new trim (Magnus beslut)', () => {
     const fileTimes = (project: Project, sampleId: Id) => {
       const s = project.samples[sampleId]!;
       return s.markers.map((m) => +(s.offset + m * s.duration).toFixed(3));
     };
+    /** Amen with slice points at 0.5, 1.1 and 1.5 s and one outside the trim, at 1.8 s, which ends at 1.7 s. */
+    function pointed() {
+      const { project: p0, sampleId, matrixId } = amen(4);
+      const project = run(p0, trimSample(sampleId, 0, 1.7), setPoints(sampleId, [0.5, 1.1, 1.5, 1.8]));
+      return { project, sampleId, matrixId };
+    }
 
-    it('markers kept in the file stay where they are in it; one near the new start or end is dropped', () => {
-      const { project, sampleId } = amen(4);
-      // Markers at 0.5, 1 and 1.5 s; 0.5 is 10 ms from the new start, 1.5 is 20 ms from the new end.
-      const trimmed = run(project, trimSample(sampleId, 0.49, 1.52, [0.5, 1, 1.5]));
-      expect(fileTimes(trimmed, sampleId)).toEqual([0.49, 1]);
-      const wider = run(project, trimSample(sampleId, 0.4, 1.7, [0.5, 1, 1.5]));
-      expect(fileTimes(wider, sampleId)).toEqual([0.4, 0.5, 1, 1.5]);
+    it('the markers are the points within the trim', () => {
+      const { project, sampleId } = pointed();
+      expect(fileTimes(project, sampleId)).toEqual([0, 0.5, 1.1, 1.5]);
+      expect(project.samples[sampleId]!.points).toEqual([0.5, 1.1, 1.5, 1.8]);
     });
 
-    it('bars still at the guess are guessed again, and a grid follows them; bars set by hand stay', () => {
+    it('points stay where they are in the file; one near the new start or end is no marker, and comes back', () => {
+      const { project, sampleId } = pointed();
+      // 0.5 is 10 ms from the new start, 1.5 is 20 ms from the new end.
+      const trimmed = run(project, trimSample(sampleId, 0.49, 1.52));
+      expect(fileTimes(trimmed, sampleId)).toEqual([0.49, 1.1]);
+      const wider = run(trimmed, trimSample(sampleId, 0.4, 2));
+      expect(fileTimes(wider, sampleId)).toEqual([0.4, 0.5, 1.1, 1.5, 1.8]);
+    });
+
+    it('a marker moved by hand stays in the file, and points outside the trim stay', () => {
+      const { project, sampleId } = pointed();
+      const s = project.samples[sampleId]!;
+      const moved = run(project, setMarkers(sampleId, [0, 0.6 / s.duration, 1.1 / s.duration, 1.5 / s.duration]));
+      expect(moved.samples[sampleId]!.points!.map((t) => +t.toFixed(3))).toEqual([0.6, 1.1, 1.5, 1.8]);
+      expect(fileTimes(run(moved, trimSample(sampleId, 0.3, 1.7)), sampleId)).toEqual([0.3, 0.6, 1.1, 1.5]);
+    });
+
+    it('bars still at the guess are guessed again, and a grid is laid again over the trim; bars set by hand stay', () => {
       const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(8) }));
       const sampleId = Object.keys(start.samples)[0]!;
       // 4 bars in 8 s is the guess (120 BPM): half of it guesses 2.
-      const guessed = run(start, setSlicing(sampleId, 4), trimSample(sampleId, 0, 4));
+      const guessed = run(start, setSlicing(sampleId, 4), trimSample(sampleId, 1, 5));
       expect(guessed.samples[sampleId]).toMatchObject({ bars: 2 });
+      expect(fileTimes(guessed, sampleId).slice(0, 3)).toEqual([1, 1.125, 1.25]);
       expect(guessed.samples[sampleId]!.markers).toHaveLength(32);
       const byHand = run(start, setSlicing(sampleId, 8), trimSample(sampleId, 0, 4));
       expect(byHand.samples[sampleId]).toMatchObject({ bars: 8 });
     });
 
     it('asks first only when a slice played more than once changes number or goes', () => {
-      const { project: p0, sampleId } = amen(4);
+      const { project: p0, sampleId } = pointed();
       const { project } = withSnares(p0, [sampleId, 1]);
-      const markers = [0.5, 1, 1.5];
       // The last slice goes: slice 1 keeps its number.
-      expect(retrimConflict(project, sampleId, 0, 1.52, markers)).toBeNull();
+      expect(retrimConflict(project, sampleId, 0, 1.52)).toBeNull();
       // The marker of slice 1 goes: it is slice 2's now.
-      expect(retrimConflict(project, sampleId, 0.6, 2, markers)?.slices).toEqual([1]);
-      expect(retrimConflict(project, sampleId, 0.6, 2, markers)?.pads).toContain('snare-pad-0');
+      expect(retrimConflict(project, sampleId, 0.6, 1.7)?.slices).toEqual([1]);
+      expect(retrimConflict(project, sampleId, 0.6, 1.7)?.pads).toContain('snare-pad-0');
     });
 
-    it('New trim leaves the sample as it was and trims a new one for its matrix', () => {
-      const { project, sampleId, matrixId } = amen(4);
-      const trimmed = run(project, trimSample(sampleId, 0.6, 2, [0.5, 1, 1.5], true));
+    it('New trim leaves the sample as it was and trims a new one for its matrix, with its own copy of the points', () => {
+      const { project, sampleId, matrixId } = pointed();
+      const trimmed = run(project, trimSample(sampleId, 0.6, 2, true));
       expect(trimmed.samples[sampleId]).toEqual(project.samples[sampleId]);
       const fresh = trimmed.matrices[matrixId]!.sampleId!;
       expect(fresh).not.toBe(sampleId);
-      expect(fileTimes(trimmed, fresh)).toEqual([0.6, 1, 1.5]);
+      expect(fileTimes(trimmed, fresh)).toEqual([0.6, 1.1, 1.5, 1.8]);
+    });
+
+    it('not sliced any more, it has no points', () => {
+      const { project, sampleId } = pointed();
+      expect(run(project, setSlicing(sampleId, null)).samples[sampleId]!.points).toBeUndefined();
     });
   });
 
