@@ -72,7 +72,7 @@ describe('stretch in the GUI', () => {
     expect(within(pitch).getByText('0 st + fit')).toBeTruthy();
   });
 
-  it('Pads sets a matrix to Fit to tempo, and Factor shows its slider; a hit of a sample that is not sliced cannot fit', async () => {
+  it('Pads sets a matrix to Fit to tempo, and Factor shows its slider; a one-shot fits too', async () => {
     const sampled = apply(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const amen = Object.values(sampled.samples).find((s) => s.name === 'amen.wav')!;
     const project = apply(sampled, setSlicing(amen.id, 1));
@@ -92,7 +92,7 @@ describe('stretch in the GUI', () => {
     const snare = Object.values(project.hits).find((h) => h.name.startsWith('snare'))!;
     cleanup();
     await setup(project, 'pads', { hit: snare.id });
-    expect(within(screen.getByRole('group', { name: 'Stretch mode' })).getByRole('button', { name: 'Fit to tempo' }).hasAttribute('disabled')).toBe(true);
+    expect(within(screen.getByRole('group', { name: 'Stretch mode' })).getByRole('button', { name: 'Fit to tempo' }).hasAttribute('disabled')).toBe(false);
   });
 
   it('a Stretch mod chooses Multiply or Replace', async () => {

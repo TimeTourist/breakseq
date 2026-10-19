@@ -1,5 +1,5 @@
 import type { Config, HitDelay, HitDist, HitFilter, HitReverb, HitStretch, Id, Project, StretchMode } from '../model';
-import { DEFAULT_GRAIN, MAX_CUTOFF, MAX_FEEDBACK, MAX_GRAIN, MIN_CUTOFF, MIN_GRAIN, clampStretch, sampleBpm } from '../model';
+import { DEFAULT_GRAIN, MAX_CUTOFF, MAX_FEEDBACK, MAX_GRAIN, MIN_CUTOFF, MIN_GRAIN, clampStretch, fitBpm } from '../model';
 import { useSeal } from './context';
 import { DELAY_TIMES, DIST_MODES, FILTER_TYPES, sizeText } from './labels';
 import { Slider } from './Slider';
@@ -26,12 +26,12 @@ export interface Layer {
   readonly played: { readonly factor: number; readonly grain: number };
 }
 
-/** Whether any hit under these pads plays a sample with a tempo, so it can fit to the song's. */
+/** Whether any hit under these pads plays a sample with a fit tempo, so it can fit to the song's. */
 export function anyTempo(project: Project, padIds: readonly Id[]): boolean {
   return padIds.some((p) =>
     (project.pads[p]?.members ?? []).some((h) => {
       const sample = project.samples[project.hits[h]?.sampleId ?? ''];
-      return sample !== undefined && sampleBpm(sample) !== null;
+      return sample !== undefined && fitBpm(sample, project.song.bpm) !== null;
     }),
   );
 }
@@ -97,7 +97,7 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
               type="button"
               aria-pressed={config.pitchFit === true}
               disabled={!layer.canFit && config.pitchFit !== true}
-              title={!layer.canFit ? 'A sample that is not sliced has no tempo to fit' : fitAbove !== undefined && config.pitchFit !== true ? `The ${fitAbove} fits to tempo` : 'Pitch the sample to the song’s tempo'}
+              title={!layer.canFit ? 'A sample of no length has no tempo to fit' : fitAbove !== undefined && config.pitchFit !== true ? `The ${fitAbove} fits to tempo` : 'Pitch the sample to the song’s tempo'}
               onClick={() => set({ pitchFit: config.pitchFit !== true }, 'pitchFit')}
             >
               Fit to tempo
@@ -153,7 +153,7 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
               type="button"
               aria-pressed={stretch.mode === mode}
               disabled={mode === 'fit' && !layer.canFit}
-              title={mode === 'fit' && !layer.canFit ? 'A sample that is not sliced has no tempo to fit' : undefined}
+              title={mode === 'fit' && !layer.canFit ? 'A sample of no length has no tempo to fit' : undefined}
               onClick={() => set({ mode }, 'mode')}
             >
               {label}
