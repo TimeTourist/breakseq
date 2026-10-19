@@ -189,16 +189,11 @@ function loopsTrail(state: AppState, project: Project): Trail {
   };
 }
 
-/** Mods: the mod, back through the loop it is tried on to that loop's matrices and samples. (Claudes val.) */
+/** Mods: the mod alone, and on to ♪ Song; mods have nothing to do with samples, matrices or loops. (Magnus beslut) */
 function modsTrail(state: AppState, project: Project): Trail {
   const mod = project.mods[state.selection.mod ?? ''] ?? Object.values(project.mods)[0];
   if (mod === undefined) return EMPTY;
-  const loops = Object.values(project.loops);
-  const loop = project.loops[state.selection.previewLoop ?? ''] ?? loops.find((l) => l.kind === 'main') ?? loops[0];
-  return {
-    steps: [...(loop === undefined ? [] : [...backToLoop(project, loop), ...someStep([loopJump(loop)], 'loop', 'loops')]), ...current({ label: middleEllipsis(mod.name), title: `Mod ${mod.name}` })],
-    song: heardInSong(project).mods.has(mod.id),
-  };
+  return { steps: current({ label: middleEllipsis(mod.name), title: `Mod ${mod.name}` }), song: heardInSong(project).mods.has(mod.id) };
 }
 
 /** Song: the song, back through the selected clip's loop (with its matrices and samples) or mod. */
@@ -208,7 +203,8 @@ function songTrail(state: AppState, project: Project): Trail {
   const loop = clip === undefined ? undefined : project.loops[clip.ref];
   const mod = clip === undefined ? undefined : project.mods[clip.ref];
   if (loop !== undefined) return { steps: [...backToLoop(project, loop), ...someStep([loopJump(loop)], 'loop', 'loops'), ...song], song: false };
-  if (mod !== undefined) return { steps: [...someStep([modJump(mod)], 'mod', 'mods'), ...song], song: false };
+  // A mod clip: just the mod, by name, before the song. (Magnus beslut)
+  if (mod !== undefined) return { steps: [{ kind: 'link', crumb: { ...modJump(mod), label: `${middleEllipsis(mod.name)} →` } }, ...song], song: false };
   return { steps: song, song: false };
 }
 
