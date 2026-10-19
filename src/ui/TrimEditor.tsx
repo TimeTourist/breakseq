@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Sample, SampleChannel } from '../model';
-import { sampleAudio, setSampleChannel, trimSample } from '../model';
-import { useApp, useProject, useRun, useSeal } from './context';
+import type { Renumber, Sample, SampleChannel } from '../model';
+import { ownMatrix, retrimConflict, sampleAudio, setSampleChannel, trimSample } from '../model';
+import { useApp, useProject, useRun, useSeal, useSelect } from './context';
+import { RenumberDialog } from './RenumberDialog';
+import { anchoredMarkers, slicedBy } from './SliceEditor';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
 import { RegionHandle } from './RegionHandle';
@@ -32,9 +34,13 @@ export function TrimEditor({
   readonly transport?: { readonly playing: boolean; readonly ready: boolean; readonly onToggle: () => void };
 }) {
   const project = useProject();
-  const { services } = useApp();
+  const { services, store } = useApp();
   const run = useRun();
   const seal = useSeal();
+  const found = useSelect((s) => s.transients);
+  /** A new start and end that would renumber used slices: shown, and asked about on release. */
+  const [pending, setPending] = useState<{ readonly from: number; readonly to: number } | null>(null);
+  const [asking, setAsking] = useState<{ readonly conflict: Renumber; readonly go: (newTrim: boolean) => void } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -51,16 +57,48 @@ export function TrimEditor({
 
   const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
   const playhead = auditioned ?? (played === null ? null : sample.offset + played);
-  const start = sample.offset;
-  const end = sample.offset + sample.duration;
-  const trim = (from: number, to: number) => {
-    const failed = run(trimSample(sample.id, from, to), `trim:${sample.id}`);
+  const start = pending?.from ?? sample.offset;
+  const end = pending?.to ?? sample.offset + sample.duration;
+  const conflictAt = (from: number, to: number) => retrimConflict(project, sample.id, from, to, anchoredMarkers(project, sample, found, from, to));
+  /** Trims to `from`–`to`: markers at transients or cues stay in the file, and Transients stays chosen. With `newTrim`, in a new trim, which is then selected. */
+  const apply = (from: number, to: number, newTrim = false) => {
+    const transients = slicedBy(sample, found) === 'transients';
+    const before = store.getState().history.present.samples;
+    const failed = run(trimSample(sample.id, from, to, anchoredMarkers(project, sample, found, from, to), newTrim), newTrim ? undefined : `trim:${sample.id}`);
     setError(failed);
+    if (failed !== null) return;
+    const now = store.getState().history.present.samples;
+    const added = newTrim ? Object.keys(now).find((id) => !(id in before)) : undefined;
+    if (added !== undefined) store.dispatch({ type: 'sliceTarget', sampleId: added });
+    const id = added ?? sample.id;
+    if (transients && found !== null) store.dispatch({ type: 'transients', found: { ...found, sampleId: id, markers: now[id]!.markers } });
     // A loop that is playing follows the new start and end straight away.
-    if (failed === null && playing) {
+    if (playing) {
       const clampedStart = Math.max(0, from);
       services.player.setAuditionRegion(clampedStart, Math.min(length, to) - clampedStart);
     }
+  };
+  /** While dragging or typing: at once, unless it renumbers used slices; then it waits for release (`done`). */
+  const trim = (from: number, to: number) => {
+    if (conflictAt(from, to) !== null) {
+      setPending({ from, to });
+      return;
+    }
+    setPending(null);
+    apply(from, to);
+  };
+  /** Trims at once, asking first if it renumbers used slices. */
+  const trimNow = (from: number, to: number) => {
+    const conflict = conflictAt(from, to);
+    if (conflict === null) apply(from, to);
+    else setAsking({ conflict, go: (newTrim) => apply(from, to, newTrim) });
+  };
+  /** A drag, key press or typing has ended: closes its undo step, and asks about a trim that waited. */
+  const done = () => {
+    seal();
+    if (pending === null) return;
+    setPending(null);
+    trimNow(pending.from, pending.to);
   };
   const play = (looped: boolean) => {
     setPlaying(true);
@@ -87,7 +125,7 @@ export function TrimEditor({
         if (which === 'start') trim(start + move, end);
         else trim(start, end + move);
       }}
-      onDone={seal}
+      onDone={done}
     />
   );
 
@@ -110,7 +148,7 @@ export function TrimEditor({
             max={ms(end) - 1}
             value={ms(start)}
                   onChange={(e) => trim(Number(e.target.value) / 1000, end)}
-            onBlur={seal}
+            onBlur={done}
           />
         </label>
         <label className="field">
@@ -121,7 +159,7 @@ export function TrimEditor({
             max={ms(length)}
             value={ms(end)}
                   onChange={(e) => trim(start, Number(e.target.value) / 1000)}
-            onBlur={seal}
+            onBlur={done}
           />
         </label>
         <span className="mono muted small">
@@ -165,7 +203,7 @@ export function TrimEditor({
               title={!transport.playing && !transport.ready ? 'Rendering…' : 'Plays the trim looped, as Play at the top does'}
             />
           )}
-          <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trim(0, length)}>
+          <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trimNow(0, length)}>
             Reset
           </button>
         </div>
@@ -175,6 +213,17 @@ export function TrimEditor({
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+      {asking !== null && (
+        <RenumberDialog
+          project={project}
+          conflict={asking.conflict}
+          canNewTrim={ownMatrix(project, sample.id) !== undefined}
+          onAnswer={(newTrim) => {
+            setAsking(null);
+            if (newTrim !== null) asking.go(newTrim);
+          }}
+        />
       )}
     </div>
   );

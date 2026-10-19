@@ -21,6 +21,7 @@ import {
   setSlicing,
   sliceSample,
   trimSample,
+  retrimConflict,
   unsliceTakes,
   unsliceUsages,
 } from './chain';
@@ -172,6 +173,53 @@ describe('the automatic chain', () => {
     const trimmed = run(project, trimSample(sampleId, 0, 1));
     expect(heard(trimmed, rowHit(trimmed, matrixId, 1))).toEqual([0.25, 0.5]);
     expect(sampleBpm(trimmed.samples[sampleId]!)).toBeCloseTo(240);
+  });
+
+  describe('a new trim of a sliced sample (Magnus beslut)', () => {
+    const fileTimes = (project: Project, sampleId: Id) => {
+      const s = project.samples[sampleId]!;
+      return s.markers.map((m) => +(s.offset + m * s.duration).toFixed(3));
+    };
+
+    it('markers kept in the file stay where they are in it; one near the new start or end is dropped', () => {
+      const { project, sampleId } = amen(4);
+      // Markers at 0.5, 1 and 1.5 s; 0.5 is 10 ms from the new start, 1.5 is 20 ms from the new end.
+      const trimmed = run(project, trimSample(sampleId, 0.49, 1.52, [0.5, 1, 1.5]));
+      expect(fileTimes(trimmed, sampleId)).toEqual([0.49, 1]);
+      const wider = run(project, trimSample(sampleId, 0.4, 1.7, [0.5, 1, 1.5]));
+      expect(fileTimes(wider, sampleId)).toEqual([0.4, 0.5, 1, 1.5]);
+    });
+
+    it('bars still at the guess are guessed again, and a grid follows them; bars set by hand stay', () => {
+      const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(8) }));
+      const sampleId = Object.keys(start.samples)[0]!;
+      // 4 bars in 8 s is the guess (120 BPM): half of it guesses 2.
+      const guessed = run(start, setSlicing(sampleId, 4), trimSample(sampleId, 0, 4));
+      expect(guessed.samples[sampleId]).toMatchObject({ bars: 2 });
+      expect(guessed.samples[sampleId]!.markers).toHaveLength(32);
+      const byHand = run(start, setSlicing(sampleId, 8), trimSample(sampleId, 0, 4));
+      expect(byHand.samples[sampleId]).toMatchObject({ bars: 8 });
+    });
+
+    it('asks first only when a slice played more than once changes number or goes', () => {
+      const { project: p0, sampleId } = amen(4);
+      const { project } = withSnares(p0, [sampleId, 1]);
+      const markers = [0.5, 1, 1.5];
+      // The last slice goes: slice 1 keeps its number.
+      expect(retrimConflict(project, sampleId, 0, 1.52, markers)).toBeNull();
+      // The marker of slice 1 goes: it is slice 2's now.
+      expect(retrimConflict(project, sampleId, 0.6, 2, markers)?.slices).toEqual([1]);
+      expect(retrimConflict(project, sampleId, 0.6, 2, markers)?.pads).toContain('snare-pad-0');
+    });
+
+    it('New trim leaves the sample as it was and trims a new one for its matrix', () => {
+      const { project, sampleId, matrixId } = amen(4);
+      const trimmed = run(project, trimSample(sampleId, 0.6, 2, [0.5, 1, 1.5], true));
+      expect(trimmed.samples[sampleId]).toEqual(project.samples[sampleId]);
+      const fresh = trimmed.matrices[matrixId]!.sampleId!;
+      expect(fresh).not.toBe(sampleId);
+      expect(fileTimes(trimmed, fresh)).toEqual([0.6, 1, 1.5]);
+    });
   });
 
   it('a hit replaced to another sample is no longer a variant', () => {

@@ -548,21 +548,75 @@ export const setSampleChannel =
     return ok(setSampleIn(project, { ...sample, channel }));
   };
 
+/** Seconds a marker kept in its file may be from a new start or end of the trim: closer, it is dropped, so no tiny slice is left at the edge. (Magnus beslut) */
+export const EDGE_SLICE = 0.03;
+
+/** A new start and end of a sample, and the bars and markers it gets with them (`retrimmed`). */
+export type Retrim = Pick<Sample, 'offset' | 'duration' | 'bars' | 'markers'>;
+
 /**
- * Trims a sample to `start`–`end` seconds of its file. Markers and regions are
- * parts of the sample and its slices, so they come along.
+ * A sample trimmed to `start`–`end` seconds of its file (clamped to it), or a
+ * message why not. Bars still at the guess for the old length are guessed
+ * again for the new (`guessBars`); bars set by hand stay. Markers kept in the
+ * file, `anchored` (seconds in the file: transients or cues), stay where they
+ * are in it, those outside the trim or within EDGE_SLICE of its start or end
+ * dropped. Otherwise markers on a grid follow the bars, and markers of one's
+ * own are parts of the sample and come along. (Magnus beslut)
  */
-export const trimSample = (sampleId: Id, start: number, end: number): Command =>
-  following((project) => {
+export function retrimmed(project: Project, sample: Sample, start: number, end: number, anchored: readonly number[] | null = null): Retrim | string {
+  const audio = project.audio[sample.audioId];
+  const length = audio === undefined ? 0 : (audio.channels[0]?.length ?? 0) / audio.sampleRate;
+  const offset = Math.max(0, Math.min(start, length));
+  const duration = Math.max(0, Math.min(end, length)) - offset;
+  if (duration < MIN_SLICE) return 'The trimmed sample is too short';
+  if (sample.bars === null) return { offset, duration, bars: null, markers: sample.markers };
+  const bars = sample.bars === guessBars(sample.duration) ? guessBars(duration) : sample.bars;
+  const grid = markerGrid(sample.markers, sample.bars);
+  const markers =
+    anchored !== null
+      ? cleanMarkers(
+          anchored.filter((t) => t - offset >= EDGE_SLICE && offset + duration - t >= EDGE_SLICE).map((t) => (t - offset) / duration),
+          duration,
+        )
+      : grid !== null
+        ? gridMarkers(bars, grid)
+        : sample.markers;
+  return { offset, duration, bars, markers };
+}
+
+/**
+ * Trims a sample to `start`–`end` seconds of its file, as `retrimmed` gives
+ * it; regions are parts of slices, so they come along. With `newTrim`, the own
+ * matrix moves to a new trim of the new window and the sample stays as it
+ * was (decision 14, as `setMarkers`).
+ */
+export const trimSample =
+  (sampleId: Id, start: number, end: number, anchored: readonly number[] | null = null, newTrim = false): Command =>
+  (project, ctx) => {
     const sample = project.samples[sampleId];
     if (sample === undefined) return notFound(sampleId);
-    const audio = project.audio[sample.audioId];
-    const length = audio === undefined ? 0 : (audio.channels[0]?.length ?? 0) / audio.sampleRate;
-    const from = Math.max(0, Math.min(start, length));
-    const to = Math.max(0, Math.min(end, length));
-    if (to - from < MIN_SLICE) return invalid('The trimmed sample is too short');
-    return ok(setSampleIn(project, { ...sample, offset: from, duration: to - from }));
-  });
+    const next = retrimmed(project, sample, start, end, anchored);
+    if (typeof next === 'string') return invalid(next);
+    const changed = newTrim ? toNewTrim(project, sample, next, ctx) : setSampleIn(project, { ...sample, ...next });
+    return ok(sample.bars === null ? followMatrices(project, changed) : changeOwnRows(project, sample, changed, ctx));
+  };
+
+/**
+ * Decision 14 for a new trim: whether it renumbers slices used more than
+ * once. With markers kept in the file, a slice keeps its number while its
+ * marker is still at the same place in the file and number; otherwise, as
+ * with new markers, when their count changes.
+ */
+export function retrimConflict(project: Project, sampleId: Id, start: number, end: number, anchored: readonly number[] | null = null): Renumber | null {
+  const sample = project.samples[sampleId];
+  if (sample === undefined || sample.bars === null) return null;
+  const next = retrimmed(project, sample, start, end, anchored);
+  if (typeof next === 'string') return null;
+  if (anchored === null) return usedConflict(project, sampleId, renumbered(sample.markers, next.markers));
+  const at = (s: Retrim, i: number) => (s.markers[i] === undefined ? undefined : s.offset + s.markers[i]! * s.duration);
+  const concerned = sample.markers.map((_, i) => i).filter((i) => i > 0 && (at(next, i) === undefined || Math.abs(at(next, i)! - at(sample, i)!) > 1e-6));
+  return usedConflict(project, sampleId, concerned);
+}
 
 /** Markers as `setMarkers` keeps them: sorted, the first at 0, none at or past the end. */
 const sortedMarkers = (markers: readonly number[]): number[] => [0, ...markers.filter((m) => m > 0 && m < 1)].sort((a, b) => a - b);
@@ -590,7 +644,11 @@ export interface Renumber {
 export function renumberConflict(project: Project, sampleId: Id, markers: readonly number[]): Renumber | null {
   const sample = project.samples[sampleId];
   if (sample === undefined) return null;
-  const concerned = renumbered(sample.markers, sortedMarkers(markers));
+  return usedConflict(project, sampleId, renumbered(sample.markers, sortedMarkers(markers)));
+}
+
+/** The slices of `concerned` that more than one hit plays, and the pads with those hits; null when none. */
+function usedConflict(project: Project, sampleId: Id, concerned: readonly number[]): Renumber | null {
   const playing = (slice: number) => Object.values(project.hits).filter((h) => h.sampleId === sampleId && h.slice === slice);
   const slices = concerned.filter((s) => playing(s).length > 1);
   if (slices.length === 0) return null;
@@ -606,7 +664,7 @@ export function renumberConflict(project: Project, sampleId: Id, markers: readon
  * `markers` (decision 16): its hits that play the sample play the new trim.
  * The sample keeps its markers, and hits elsewhere stay on it.
  */
-function toNewTrim(project: Project, sample: Sample, patch: Pick<Sample, 'markers'> & Partial<Pick<Sample, 'bars'>>, ctx: CommandContext): Project {
+function toNewTrim(project: Project, sample: Sample, patch: Pick<Sample, 'markers'> & Partial<Pick<Sample, 'bars' | 'offset' | 'duration'>>, ctx: CommandContext): Project {
   const fresh = newTrimOf(project, sample, patch, ctx);
   const own = ownMatrix(project, sample.id);
   let next = setSampleIn(project, fresh);

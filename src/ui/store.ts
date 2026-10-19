@@ -66,6 +66,15 @@ export interface AppState {
   readonly trimming: Id | null;
   /** A trim just marked Slice by a click: its slicing below slices it once by default (transients or its cues, at guessed bars). Undo never sets it. */
   readonly autoSlice: Id | null;
+  /** The transients last found in Samples, so Transients stays chosen across New trim, undo and redo, and a new trim keeps them in the file. */
+  readonly transients: TransientsFound | null;
+}
+
+/** Transients found for a sample: the markers they gave and at which sensitivity. */
+export interface TransientsFound {
+  readonly sampleId: Id;
+  readonly markers: readonly number[];
+  readonly sensitivity: number;
 }
 
 export type Action =
@@ -89,7 +98,8 @@ export type Action =
   | { readonly type: 'songCursor'; readonly step: number }
   | { readonly type: 'clipboard'; readonly clip: Clip | null }
   | { readonly type: 'trimming'; readonly sampleId: Id | null }
-  | { readonly type: 'autoSlice'; readonly sampleId: Id | null };
+  | { readonly type: 'autoSlice'; readonly sampleId: Id | null }
+  | { readonly type: 'transients'; readonly found: TransientsFound | null };
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
@@ -102,6 +112,7 @@ export const initialState = (project: Project = createProject()): AppState => ({
   clipboard: null,
   trimming: null,
   autoSlice: null,
+  transients: null,
 });
 
 /** The focus with matrices that are no longer in the project left out: a removed or undone matrix is no focus. */
@@ -166,6 +177,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, trimming: action.sampleId }, error: null };
     case 'autoSlice':
       return { state: { ...state, autoSlice: action.sampleId }, error: null };
+    case 'transients':
+      return { state: { ...state, transients: action.found }, error: null };
   }
 }
 
