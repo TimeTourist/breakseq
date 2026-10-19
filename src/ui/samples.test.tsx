@@ -226,6 +226,34 @@ describe('U6: how it is sliced follows the markers', () => {
   });
 });
 
+describe('a new trim keeps markers at transients in the file (Magnus beslut)', () => {
+  it('they stay where the hits are, one near the new start goes, and Transients stays chosen', async () => {
+    const store = await setup(
+      build(
+        () => addSample({ name: 'amen.wav', audio: clicks([0, 0.3, 0.9, 1.4]) }),
+        (p) => sliceSample(first(p).id, 1, 16),
+      ),
+    );
+    fireEvent.click(button('Transients'));
+    const inFile = () => {
+      const s = first(present(store));
+      return s.markers.map((m) => Math.round((s.offset + m * s.duration) * 100) / 100);
+    };
+    expect(inFile()).toEqual([0, 0.3, 0.9, 1.4]);
+    fireEvent.click(button('Trim amen trim 1'));
+    // 10 ms before the hit at 0.3 s: no tiny slice before it.
+    fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '290' } });
+    fireEvent.blur(screen.getByLabelText('Start ms'));
+    expect(inFile()).toEqual([0.29, 0.9, 1.4]);
+    expect(pressed('Transients')).toBe('true');
+    // Back to the start: the hits there are found again.
+    fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '0' } });
+    fireEvent.blur(screen.getByLabelText('Start ms'));
+    expect(inFile()).toEqual([0, 0.3, 0.9, 1.4]);
+    expect(pressed('Transients')).toBe('true');
+  });
+});
+
 describe("U7: the trim's ▶ is the header's Play", () => {
   it('one stops the other', async () => {
     const player = fakePlayer();

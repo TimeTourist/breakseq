@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { Command, Id, Matrix, Renumber, Sample, SliceGrid } from '../model';
+import type { Command, Id, Matrix, Project, Renumber, Sample, SliceGrid } from '../model';
 import {
+  EDGE_SLICE,
   MIN_SLICE,
   STEPS_PER_BAR,
   cueMarkers,
@@ -42,12 +43,8 @@ const two = (i: number) => String(i + 1).padStart(2, '0');
 /** How a sample is sliced: at the file's cue markers, an equal grid, or the transients found. */
 export type SliceBy = 'cues' | SliceGrid | 'transients';
 
-/** Transients found for a sample: the markers they gave and at which sensitivity. */
-export interface TransientsFound {
-  readonly sampleId: Id;
-  readonly markers: readonly number[];
-  readonly sensitivity: number;
-}
+import type { TransientsFound } from './store';
+export type { TransientsFound };
 
 const sameMarkers = (a: readonly number[], b: readonly number[] | null) => b !== null && a.length === b.length && a.every((m, i) => Math.abs(m - b[i]!) < 1e-9);
 
@@ -62,6 +59,28 @@ export function slicedBy(sample: Sample, found: TransientsFound | null): SliceBy
   if (found !== null && found.sampleId === sample.id && sameMarkers(sample.markers, found.markers)) return 'transients';
   if (sameMarkers(sample.markers, cueMarkers(sample))) return 'cues';
   return markerGrid(sample.markers, sample.bars);
+}
+
+/**
+ * The markers a sliced trim keeps in its file when trimmed to `start`–`end`
+ * seconds, in seconds in the file, for `trimSample`: its cues when sliced at
+ * them; when sliced at transients, those it has, and those found at the same
+ * sensitivity where the trim now reaches further or near its old ends (where
+ * one may have been dropped). null otherwise: a grid or own markers follow
+ * the trim. (Magnus beslut)
+ */
+export function anchoredMarkers(project: Project, sample: Sample, found: TransientsFound | null, start: number, end: number): number[] | null {
+  const by = slicedBy(sample, found);
+  if (by === 'cues') return [...(sample.cues ?? [])];
+  const audio = sampleAudio(project, sample);
+  if (by !== 'transients' || found === null || audio === undefined) return null;
+  const from = Math.max(0, start);
+  const kept = sample.markers.slice(1).map((m) => sample.offset + m * sample.duration);
+  const near = (t: number) => t < sample.offset + EDGE_SLICE || t > sample.offset + sample.duration - EDGE_SLICE;
+  const fresh = detectTransients(audio, from, end - from, found.sensitivity)
+    .map((t) => from + t)
+    .filter((t) => near(t) && kept.every((k) => Math.abs(k - t) >= EDGE_SLICE));
+  return [...kept, ...fresh].sort((a, b) => a - b);
 }
 
 /** How it is sliced, in words: "equal 1/16", "transients", "cue markers", "own markers". */
@@ -101,7 +120,8 @@ interface TrimSlicingProps {
 export function TrimSlicing({ sample, ...rest }: TrimSlicingProps) {
   const project = useProject();
   const { store } = useApp();
-  const [found, setFound] = useState<TransientsFound | null>(null);
+  const found = useSelect((s) => s.transients);
+  const setFound = (next: TransientsFound | null) => store.dispatch({ type: 'transients', found: next });
   const foundNow = (sampleId: Id, sensitivity: number) => {
     const markers = store.getState().history.present.samples[sampleId]?.markers;
     setFound(markers === undefined ? null : { sampleId, markers, sensitivity });

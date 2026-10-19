@@ -36,7 +36,8 @@ export interface Sample {
   readonly bars: number | null;
   /**
    * Where slices start, as parts 0–1 of the sample: sorted, the first at 0. [0]
-   * when not sliced. In parts rather than seconds, so they keep their steps when it is trimmed.
+   * when not sliced. In parts, so a grid keeps its steps; a new trim keeps
+   * markers at transients or cues in the file instead (`retrimmed`).
    */
   readonly markers: readonly number[];
   /** Marked to be sliced in Import but not sliced yet (bars is null). Nothing is guessed or made before that. */
