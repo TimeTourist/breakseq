@@ -254,6 +254,17 @@ describe('a new trim keeps markers at transients in the file (Magnus beslut)', (
   });
 });
 
+describe('double clicks on the waveform (Magnus beslut)', () => {
+  it('on a marker deletes it, but not the first', async () => {
+    const store = await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)));
+    expect(first(present(store)).markers).toEqual([0, 0.25, 0.5, 0.75]);
+    fireEvent.doubleClick(screen.getByRole('button', { name: /^Marker 03/ }));
+    expect(first(present(store)).markers).toEqual([0, 0.25, 0.75]);
+    fireEvent.doubleClick(screen.getByRole('button', { name: /^Marker 01/ }));
+    expect(first(present(store)).markers).toEqual([0, 0.25, 0.75]);
+  });
+});
+
 describe('Snap to nearest slice (Magnus beslut)', () => {
   it('on, ←/→ take a handle from slice point to slice point in the file; off, 1 ms', async () => {
     const store = await setup(
