@@ -123,8 +123,15 @@ export const DELAY_TIMES = [
 /** A reverb's size as words: a room to a hall. */
 export const sizeText = (size: number): string => `${Math.round(size * 100)}% (${size < 0.34 ? 'room' : size < 0.67 ? 'chamber' : 'hall'})`;
 
-/** A long file name shortened in the middle, keeping its start and its end with the extension. */
-export function middleEllipsis(name: string, max = 32): string {
+/**
+ * How long a name is shown, everywhere: file names in Samples, hits in Pads,
+ * matrices on the focus row and shelf, loops in Loops' menu (fas 23b). The
+ * whole name is in the title. A narrow column may cut shorter, never longer.
+ */
+export const NAME_MAX = 20;
+
+/** A long name shortened in the middle, keeping its start and its end (a file's extension). */
+export function middleEllipsis(name: string, max = NAME_MAX): string {
   if (name.length <= max) return name;
   const tail = Math.floor((max - 1) / 3);
   return `${name.slice(0, max - 1 - tail)}…${name.slice(-tail)}`;

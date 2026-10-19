@@ -4,7 +4,7 @@ import type { Id, Matrix, Pad } from '../model';
 import { PAD_CHOICES, STEPS_PER_BAR, hitSound, padSteps, sampleAudio, setPadChoice, stepDuration } from '../model';
 import { useApp, useOpen, useProject, useRun } from './context';
 import { InSongMark, useHeard } from './InSong';
-import { CHOICE_LABEL, middleEllipsis, padSilent } from './labels';
+import { CHOICE_LABEL, NAME_MAX, middleEllipsis, padSilent } from './labels';
 import { HIT_MIME, MATRIX_MIME } from './dnd';
 import type { Dragged, Over, PadsOpen, Placing, Zoom } from './pads';
 import { ZOOMS, autoscrollStep, dropTarget, hitLabel, rowNumber, timelineLayout, zoneOf } from './pads';
@@ -179,7 +179,7 @@ export function Timeline({ matrix, open, zoom, onZoom, playedSeconds, onError, p
             const audio = sound === null ? undefined : sampleAudio(project, sound.sample);
             const roomy = zoom === '1 bar' || pad.id === selectedPad;
             const showHits = roomy || column.width >= HITS_MIN_PX;
-            const chars = Math.min(32, Math.max(4, Math.floor((column.width - 10) / CHAR_PX)));
+            const chars = Math.min(NAME_MAX, Math.max(4, Math.floor((column.width - 10) / CHAR_PX)));
             const raster = {
               width: column.width,
               '--step': `${stepPx}px`,

@@ -66,7 +66,7 @@ export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
       {pickedName !== null && (
         <p className="pick-note row" role="status" aria-label="Picked">
           <span className="grow">
-            <span className="mono">{middleEllipsis(pickedName, 32)}</span> picked: tap a pad to add it, or a hit to replace it · Esc cancels
+            <span className="mono">{middleEllipsis(pickedName)}</span> picked: tap a pad to add it, or a hit to replace it · Esc cancels
           </span>
           <button type="button" className="small" onClick={() => placing.pick(null)}>
             Cancel
@@ -78,7 +78,7 @@ export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
           <div className="row shelf-head">
             <MatrixKindIcon kind={matrixKind(m)} />
             <span className="mono ellipsis" title={m.name}>
-              {middleEllipsis(m.name, 24)}
+              {middleEllipsis(m.name)}
             </span>
             <button type="button" className="chip all-hits" aria-label={`All hits of ${m.name}`} title="Drag, or tap then a pad: a copy of each of its hits, added last" {...chip({ kind: 'matrix', matrixId: m.id }, MATRIX_MIME, m.id)}>
               All hits
@@ -100,7 +100,7 @@ export function TakeFromShelf({ placing }: { readonly placing: Placing }) {
                     title={`${hit.name} · click plays it; drag it, or tap it and then a pad (add) or a hit (replace)`}
                     {...chip({ kind: 'hit', hitId }, HIT_MIME, hitId)}
                   >
-                    {middleEllipsis(label, 16)}
+                    {middleEllipsis(label)}
                   </button>
                 );
               }),

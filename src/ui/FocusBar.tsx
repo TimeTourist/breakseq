@@ -45,7 +45,7 @@ export function FocusBar({ what, transport, title }: FocusBarProps) {
           {focused === undefined && <option value="">Choose a matrix…</option>}
           {matrices.map((m) => (
             <option key={m.id} value={m.id} title={m.name}>
-              {kindMark(m)} {middleEllipsis(m.name, 40)}
+              {kindMark(m)} {middleEllipsis(m.name)}
             </option>
           ))}
         </select>
@@ -63,7 +63,7 @@ export function FocusBar({ what, transport, title }: FocusBarProps) {
               title={`${m.name}: take its hits into ${focused?.name ?? 'the matrix in focus'}`}
               onClick={() => store.dispatch({ type: 'takeFrom', matrix: m.id, on: !focus.takeFrom.includes(m.id) })}
             >
-              <MatrixKindIcon kind={matrixKind(m)} /> {middleEllipsis(m.name, 20)}
+              <MatrixKindIcon kind={matrixKind(m)} /> {middleEllipsis(m.name)}
             </button>
           ))}
         </div>

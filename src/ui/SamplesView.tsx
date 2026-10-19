@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Id, Loop, Matrix, Project, Sample } from '../model';
 import {
   addSample,
@@ -28,7 +28,7 @@ import { ConfirmDelete, DeleteButton } from './DeleteButton';
 import { CropIcon, NewCropIcon, PlayIcon, StopIcon } from './icons';
 import { TrimEditor } from './TrimEditor';
 import { TrimSlicing } from './SliceEditor';
-import { InSong, useHeard } from './InSong';
+import { InSongMark, useHeard } from './InSong';
 import { heardSamples, middleEllipsis, sampleLabel } from './labels';
 
 /** The loops that play the pads of a sample's own matrix, its own loop first. */
@@ -136,30 +136,22 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
     select(sampleId);
     below.current?.scrollIntoView?.({ block: 'start' });
   };
+  /** Opens the selected trim's Trim below the table (it stays open if it is) and brings it into view. */
+  const toTrim = (sampleId: Id) => {
+    setTrimming(sampleId);
+    trimBox.current?.scrollIntoView?.({ block: 'nearest' });
+  };
   /** A matrix in Pads, in focus: one with a single pad open on it. */
   const toPads = (matrix: Matrix) => {
     store.dispatch({ type: 'focus', matrix: matrix.id });
     open({ matrix: matrix.id, pad: matrix.pads.length === 1 ? matrix.pads[0]! : null, hit: null }, 'pads');
   };
-  // A Trim opened from elsewhere is brought into view.
-  const trimCell = useRef<HTMLTableCellElement>(null);
-  // A click anywhere but the open Trim, its row, the header, a dialog or a button in the table closes it.
-  // The table's buttons do their own thing: closing on the press would move the rows under the click.
+  // A Trim opened, here or from elsewhere, is brought into view below the table, under the header.
+  // A block body, as an effect must not return what it calls (newer browsers' scroll methods return a promise).
+  const trimBox = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (trimming === null) return;
-    const onDown = (e: PointerEvent) => {
-      if (e.target instanceof Element && e.target.closest('[data-trim-open], .header, .dialog-backdrop, .sources button') !== null) return;
-      store.dispatch({ type: 'trimming', sampleId: null });
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, [trimming, store]);
-  // Up and down only, below the header: the table scrolls sideways on its own. A block body, as an effect
-  // must not return what it calls (newer browsers' scroll methods return a promise, which React would call).
-  useEffect(() => {
-    const cell = trimCell.current;
-    if (cell === null) return;
-    const box = cell.getBoundingClientRect();
+    const box = trimBox.current?.getBoundingClientRect();
+    if (box === undefined) return;
     const top = (document.querySelector('.header')?.getBoundingClientRect().bottom ?? 0) + 8;
     const by = box.bottom > window.innerHeight ? Math.min(box.bottom - window.innerHeight + 8, box.top - top) : box.top < top ? box.top - top : 0;
     if (by !== 0) window.scrollBy({ top: by });
@@ -259,14 +251,12 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                     const own = ownMatrix(project, sample.id);
                     const bpm = sampleBpm(sample);
                     const loops = sampleLoops(project, sample.id);
-                    const loop = loops[0];
                     const unsliced = isUnsliced(sample);
                     const sliced = sample.bars !== null;
                     const isSelected = sample.id === selected.id;
                     return (
-                      <Fragment key={sample.id}>
-                        <tr
-                          data-trim-open={trimming === sample.id || undefined}
+                      <tr
+                          key={sample.id}
                           className={isSelected ? 'selected' : undefined}
                           aria-current={isSelected ? 'true' : undefined}
                           title={!sliced && !unsliced ? 'Click to show it below; double-click to open its matrix in Pads' : 'Click to slice it below'}
@@ -333,7 +323,6 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                               >
                                 {sample.trim}
                               </button>
-                              {!sliced && <span className="badge">not sliced</span>}
                               <div className="trim-actions">
                                 <DeleteButton
                                   icon
@@ -350,8 +339,8 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                                   className="icon-button small"
                                   aria-expanded={trimming === sample.id}
                                   aria-label={`Trim ${trimName(sample)}`}
-                                  title={trimming === sample.id ? 'Close the Trim' : 'Trim: set where the sample starts and ends'}
-                                  onClick={() => setTrimming(trimming === sample.id ? null : sample.id)}
+                                  title={trimming === sample.id ? 'Close the Trim' : 'Trim: set where the sample starts and ends, below'}
+                                  onClick={() => (trimming === sample.id ? setTrimming(null) : toTrim(sample.id))}
                                 >
                                   <CropIcon />
                                 </button>
@@ -359,31 +348,22 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                             </div>
                           </td>
                           <td>
-                            <div className="segmented" role="group" aria-label={`Type of ${name}`}>
-                              <button
-                                type="button"
-                                aria-pressed={sliced || unsliced}
-                                title="Slice it below into a matrix with a pad per slice"
-                                onClick={() => {
-                                  select(sample.id);
-                                  if (!sliced && !unsliced) run(markUnsliced(sample.id));
-                                }}
-                              >
-                                Slice
-                              </button>
-                              <button
-                                type="button"
-                                aria-pressed={!sliced && !unsliced}
-                                title="Play it whole: a matrix with one pad"
-                                onClick={() => {
-                                  if (unsliced) run(setSlicing(sample.id, null));
-                                  // Its slicing goes: ask first, as Delete does.
-                                  else if (sliced) setToUnslice(sample.id);
-                                }}
-                              >
-                                Don't slice
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              className="loop-toggle"
+                              aria-label={`Slice ${name}`}
+                              aria-pressed={sliced || unsliced}
+                              title={sliced || unsliced ? 'Sliced below into a matrix with a pad per slice: click to play it whole' : 'Played whole: click to slice it below into a matrix with a pad per slice'}
+                              onClick={() => {
+                                select(sample.id);
+                                if (unsliced) run(setSlicing(sample.id, null));
+                                // Its slicing goes: ask first, as Delete does.
+                                else if (sliced) setToUnslice(sample.id);
+                                else run(markUnsliced(sample.id));
+                              }}
+                            >
+                              Slice
+                            </button>
                           </td>
                           <td className="mono muted">
                             {bpm === null ? (
@@ -410,48 +390,16 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                                   </button>
                                 </span>
                               )}
-                              {!unsliced && own !== undefined && (
-                                <span>
-                                  {matrixTakes(project, own.id).join(', ')}{' '}
-                                  <button type="button" className="link-text small" title={`Matrix ${own.name}, in Pads`} onClick={() => toPads(own)}>
-                                    Pads →
-                                  </button>
+                              {!unsliced && own !== undefined && <span title={`Matrix ${own.name}`}>{matrixTakes(project, own.id).join(', ')}</span>}
+                              {sliced && loops.length > 0 && (
+                                <span title={`Played in ${loops.map((l) => `loop ${l.name}`).join(', ')}`}>
+                                  {loops.length} loop{loops.length === 1 ? '' : 's'}
                                 </span>
                               )}
-                              {sliced && loop !== undefined && (
-                                <span>
-                                  {loops.length}{' '}
-                                  <button
-                                    type="button"
-                                    className="link-text small"
-                                    title={`Played in ${loops.map((l) => `loop ${l.name}`).join(', ')}: opens ${loop.name} in Loops`}
-                                    onClick={() => open({ loop: loop.id, step: null }, 'loops')}
-                                  >
-                                    Loops →
-                                  </button>
-                                </span>
-                              )}
-                              <InSong heard={heardHere.has(sample.id)} />
+                              <InSongMark heard={heardHere.has(sample.id)} />
                             </div>
                           </td>
                         </tr>
-                        {trimming === sample.id && (
-                          <tr data-trim-open>
-                            <td colSpan={5} className="trim-cell" ref={trimCell}>
-                              <TrimEditor
-                                sample={sample}
-                                played={playingKey === `sample:${sample.id}` ? transport.seconds : null}
-                                transport={{
-                                  playing: playingKey === `sample:${sample.id}`,
-                                  // Until the trim's own render is in, Play would start what was shown before.
-                                  ready: transport.shownKey === `sample:${sample.id}`,
-                                  onToggle: () => (playingKey === `sample:${sample.id}` ? transport.onStop() : transport.onPlay()),
-                                }}
-                              />
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -467,7 +415,23 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
             sample={selected}
             played={playedMatrix}
             toFile={() => document.querySelector('tr[aria-current="true"]')?.closest('tbody')?.scrollIntoView?.({ block: 'start' })}
-            toTrim={() => setTrimming(selected.id)}
+            toTrim={() => toTrim(selected.id)}
+            trim={
+              trimming === selected.id && (
+                <div className="trim-below" ref={trimBox} role="region" aria-label={`Trim of ${trimName(selected)}`}>
+                  <TrimEditor
+                    sample={selected}
+                    played={playingKey === `sample:${selected.id}` ? transport.seconds : null}
+                    transport={{
+                      playing: playingKey === `sample:${selected.id}`,
+                      // Until the trim's own render is in, Play would start what was shown before.
+                      ready: transport.shownKey === `sample:${selected.id}`,
+                      onToggle: () => (playingKey === `sample:${selected.id}` ? transport.onStop() : transport.onPlay()),
+                    }}
+                  />
+                </div>
+              )
+            }
             toPads={toPads}
             stopTransport={() => {
               if (playingKey !== null) transport.onStop();
