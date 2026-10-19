@@ -270,10 +270,10 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
     setSelected(0);
     onFound(null, sensitivity);
   };
-  /** Deletes the selected slice's marker; the first, at the start, stays. */
-  const deleteMarker = () => {
-    if (current === 0) return;
-    markersTo(toParts(markers.filter((_, i) => i !== current)), undefined, () => setSelected(current - 1));
+  /** Deletes a slice's marker, the selected one's by default; the first, at the start, stays. */
+  const deleteMarker = (index = current) => {
+    if (index === 0) return;
+    markersTo(toParts(markers.filter((_, i) => i !== index)), undefined, () => setSelected(index - 1));
   };
   // Delete and Backspace do as Delete marker does (fas 23b), but not while typing in a field or with a dialog open.
   useEffect(() => {
@@ -416,6 +416,11 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
                     if (i > 0 && e.currentTarget.hasPointerCapture(e.pointerId)) moveMarker(i, at(e.clientX));
                   }}
                   onPointerUp={seal}
+                  onDoubleClick={(e) => {
+                    // A double click on a marker deletes it; in between, it adds one. (Magnus beslut)
+                    e.stopPropagation();
+                    deleteMarker(i);
+                  }}
                   onKeyDown={(e) => {
                     const delta = (e.shiftKey ? 10 : 1) / 1000;
                     const step = e.key === 'ArrowLeft' ? -delta : e.key === 'ArrowRight' ? delta : 0;
@@ -472,7 +477,7 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
             <button type="button" onClick={() => addAt(((markers[current] ?? 0) + (ends[current] ?? duration)) / 2)}>
               Add marker
             </button>
-            <button type="button" disabled={current === 0} title="Delete or Backspace" onClick={deleteMarker}>
+            <button type="button" disabled={current === 0} title="Delete or Backspace" onClick={() => deleteMarker()}>
               Delete marker
             </button>
             <button
