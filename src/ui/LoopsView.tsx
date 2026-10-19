@@ -122,11 +122,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             title={l.name}
             onClick={() => open({ loop: l.id, step: null }, 'loops')}
           >
-            <span className={`mono loop-name ${l.kind}`}>{middleEllipsis(l.name)}</span>
-            <InSongMark heard={heard.loops.has(l.id)} />
-            <span className="grow" />
-            <span className="muted small">{l.kind}</span>
-            <span className="mono muted small">{lengthText(l.steps.length)}</span>
+            <span className="loop-item-name">
+              <span className={`mono loop-name ${l.kind}`}>{middleEllipsis(l.name)}</span>
+              <InSongMark heard={heard.loops.has(l.id)} />
+            </span>
+            <span className="muted small">{`${l.kind} · ${lengthText(l.steps.length)}`}</span>
           </button>
         ))}
       </section>
