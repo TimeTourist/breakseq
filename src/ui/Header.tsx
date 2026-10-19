@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { setBpm } from '../model';
 import { useApp, useProject, useRun, useSelect } from './context';
 import { useSnapshots } from './snapshots';
+import { useCommitAfterPause } from './usePause';
 import { describeChange } from './describeChange';
 import type { View } from './store';
 import { VIEWS } from './store';
@@ -39,10 +40,14 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
     setDraft(String(bpm));
   }, [bpm]);
 
-  const commitBpm = () => {
+  /** `pausing`: typing rested; a value on the way that is not a tempo yet waits for more. */
+  const commitBpm = (pausing = false) => {
     const value = Number(draft);
-    if (!Number.isFinite(value) || value <= 0 || run(setBpm(Math.min(400, value))) !== null) setDraft(String(bpm));
+    const valid = draft.trim() !== '' && Number.isFinite(value) && value > 0;
+    if (pausing && (!valid || value === bpm)) return;
+    if (!valid || run(setBpm(Math.min(400, value))) !== null) setDraft(String(bpm));
   };
+  useCommitAfterPause(draft === String(bpm) ? null : draft, () => commitBpm(true));
 
   return (
     <header className="header">
@@ -112,7 +117,7 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
             inputMode="decimal"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitBpm}
+            onBlur={() => commitBpm()}
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}

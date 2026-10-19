@@ -81,24 +81,35 @@ const sample = (store: Store, i = 0) => Object.values(project(store).samples)[i]
 const own = (store: Store, i = 0) => ownMatrix(project(store), sample(store, i).id)!;
 
 describe('a sample is sliced in Slice, not in Import', () => {
-  it('Slice in the table makes nothing: it shows Create Slices ↓, which selects it for slicing below', async () => {
+  it('Slice in the table slices at once by default: transients at guessed bars, in one undo step', async () => {
     const store = await setup(build(...oneShot('amen.wav', false)), 'samples');
     expect(pressed('Slice amen 1')).toBe('false');
     fireEvent.click(button('Slice amen 1'));
-    expect(sample(store)).toMatchObject({ bars: null, unsliced: true });
-    expect(own(store)).toMatchObject({ loop: null });
-    expect(own(store).pads).toHaveLength(1);
+    // 2 s guesses 1 bar (120 BPM).
+    expect(sample(store).bars).toBe(1);
+    expect('unsliced' in sample(store)).toBe(false);
+    expect(own(store).loop).not.toBeNull();
     expect(pressed('Slice amen 1')).toBe('true');
-    expect(screen.queryByRole('button', { name: 'Slice ↓' })).toBeNull();
-    // Only the length: no bars or BPM before it is sliced.
-    expect(screen.getByText('2000 ms')).toBeTruthy();
+    expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample(store).id, autoSlice: null });
+    expect(screen.getByText(/transients/)).toBeTruthy();
+    // One undo step back to not marked.
+    fireEvent.click(button(/^Undo/));
+    expect(sample(store).bars).toBeNull();
+    expect('unsliced' in sample(store)).toBe(false);
+    // Undo does not slice it again.
+    expect(sample(store).bars).toBeNull();
+  });
+
+  it('Create Slices ↓ on a file imported marked Slice slices it at its cues and guessed bars', async () => {
+    const store = await setup(build(...oneShot('amen.wav', true, [0.5])), 'samples');
     fireEvent.click(button('Create Slices ↓'));
-    expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample(store).id });
-    expect(screen.getByText(/Not sliced yet/)).toBeTruthy();
-    // The cursor goes to Bars, which slicing needs first.
-    await act(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
-    expect(document.activeElement?.getAttribute('aria-label')).toBe('Bars in the sample');
-    // How to slice without bars says what is missing.
+    // The cue at 0.5 s of 2 s.
+    expect(sample(store)).toMatchObject({ bars: 1, markers: [0, 0.25] });
+    expect(screen.getByText('· 2 slices · cue markers')).toBeTruthy();
+  });
+
+  it('a trim not sliced yet: the cursor goes to Bars, and how to slice without bars says what is missing', async () => {
+    const store = await setup(build(...oneShot('amen.wav', false)), 'samples');
     fireEvent.click(within(screen.getByRole('group', { name: 'Slice by' })).getByRole('button', { name: '1/16' }));
     expect(screen.getByText('Set its bars to slice it.')).toBeTruthy();
     expect(sample(store).bars).toBeNull();

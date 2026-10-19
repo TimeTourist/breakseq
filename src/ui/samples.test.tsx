@@ -89,8 +89,8 @@ describe('Samples: one page', () => {
     fireEvent.drop(document.querySelector('.dropzone')!, { dataTransfer: { files: [wav] } });
     await waitFor(() => expect(samples(store)).toHaveLength(1));
     fireEvent.click(button('Slice amen 1'));
-    expect(screen.getByText(/Not sliced yet/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Bars in the sample'), { target: { value: '1' } });
+    // Sliced at once by default, then by 1/16.
+    expect(samples(store)[0]).toMatchObject({ bars: 1 });
     fireEvent.click(button('1/16'));
     expect(samples(store)[0]).toMatchObject({ bars: 1 });
     expect(samples(store)[0]!.markers).toHaveLength(16);

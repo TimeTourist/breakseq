@@ -5,6 +5,7 @@ import {
   STEPS_PER_BAR,
   cueMarkers,
   gridMarkers,
+  guessBars,
   holds,
   makeOneShot,
   markerGrid,
@@ -22,7 +23,7 @@ import {
   unlikelyBpm,
 } from '../model';
 import { detectTransients } from '../engine';
-import { useApp, useProject, useRun, useSeal } from './context';
+import { useApp, useProject, useRun, useSeal, useSelect } from './context';
 import { RenumberDialog } from './RenumberDialog';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
@@ -31,6 +32,7 @@ import { InSong, useHeard } from './InSong';
 import { Waveform } from './Waveform';
 import { heardSamples, sampleLabel } from './labels';
 import { isTyping, modalOpen } from './isTyping';
+import { useCommitAfterPause } from './usePause';
 
 const GRIDS: readonly SliceGrid[] = [4, 8, 16];
 const ms = (seconds: number) => Math.round(seconds * 1000);
@@ -244,13 +246,17 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
     detect(pendingSensitivity);
   };
   /** Commits typed bars, asking first if they renumber used slices. */
-  const commitBars = () => {
+  /** `pausing`: typing rested; a value on the way that is not one yet waits for more. */
+  const commitBars = (pausing = false) => {
     if (barsDraft === null) return;
-    setBarsDraft(null);
     const next = Math.round(Number(barsDraft));
-    if (barsDraft.trim() === '' || !Number.isFinite(next) || next < 1 || next === bars) return;
+    const valid = barsDraft.trim() !== '' && Number.isFinite(next) && next >= 1 && next <= 64;
+    if (pausing && !valid) return;
+    setBarsDraft(null);
+    if (!valid || next === bars) return;
     change(markersForBars(sample, next), (newTrim) => setSampleBars(sample.id, next, newTrim));
   };
+  useCommitAfterPause(barsDraft, () => commitBars(true));
   const chose = () => {
     setSelected(0);
     onFound(null, sensitivity);
@@ -309,7 +315,7 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
                   }
                   if (e.key === 'Escape') setBarsDraft(null);
                 }}
-                onBlur={commitBars}
+                onBlur={() => commitBars()}
               />
             </label>
             {bpm.toFixed(2)} BPM
@@ -517,8 +523,9 @@ interface UnslicedProps extends Omit<TrimSlicingProps, 'sample'> {
  */
 function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSliced }: UnslicedProps) {
   const project = useProject();
-  const { services } = useApp();
+  const { services, store } = useApp();
   const run = useRun();
+  const seal = useSeal();
   const heard = useHeard();
   const heardHere = heardSamples(project, heard);
   const cues = cueMarkers(sample);
@@ -532,7 +539,7 @@ function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSlice
   const duration = sample.duration;
   const own = ownMatrix(project, sample.id);
 
-  const slice = (bars: number | null, by: SliceBy | null) => {
+  const slice = (bars: number | null, by: SliceBy | null, mergeKey?: string) => {
     if (bars === null || by === null) return;
     const markers =
       by === 'cues'
@@ -543,10 +550,25 @@ function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSlice
             : detectTransients(audio, sample.offset, duration, SENSITIVITY).map((m) => m / duration)
           : gridMarkers(bars, by);
     if (markers === null) return;
-    const failed = run(setSlicing(sample.id, bars, markers));
+    const failed = run(setSlicing(sample.id, bars, markers), mergeKey);
     setError(failed);
     if (failed === null) onSliced(by);
   };
+
+  // Marked Slice by a click: sliced once by default, at its cues or transients and guessed bars, in the mark's undo step. (Magnus beslut)
+  const autoSlice = useSelect((s) => s.autoSlice);
+  useEffect(() => {
+    if (autoSlice !== sample.id || store.getState().autoSlice !== sample.id) return;
+    store.dispatch({ type: 'autoSlice', sampleId: null });
+    const guessed = guessBars(duration);
+    setBars(guessed);
+    const by: SliceBy = cues !== null ? 'cues' : audio !== undefined ? 'transients' : 16;
+    setBy(by);
+    slice(guessed, by, `slice:${sample.id}`);
+    seal();
+    // Once per click that set it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSlice]);
 
   return (
     <div className="stack">
