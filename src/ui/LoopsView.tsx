@@ -138,7 +138,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
       <div className="split">
         {sidebar}
         <main className="view">
-          <FocusBar what={null} />
+          <FocusBar />
           <div className="view-head">
             <h1>Loops</h1>
             <p className="muted">No loops yet. Slice a sample to get its loop, or make a new loop.</p>
@@ -210,7 +210,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
     <div className="split">
       {sidebar}
       <main className="view">
-        <FocusBar what={null} />
+        <FocusBar />
         <div className="view-head row">
           <label className="sr-only" htmlFor="loop-name">
             Loop name
@@ -299,7 +299,8 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   const pad = cell?.padId == null ? undefined : project.pads[cell.padId];
                   const memberIndex = pad === undefined || cell?.memberId == null ? 0 : Math.max(0, pad.members.indexOf(cell.memberId));
                   const color = pad === undefined ? undefined : HIT_COLOR;
-                  const now = playhead !== null && playhead.bar === bar && playhead.step === s;
+                  // Play renders the loop over several passes: each pass lights the same steps.
+                  const now = playhead !== null && (playhead.bar * STEPS_PER_BAR + playhead.step) % loop.steps.length === index;
                   return (
                     <button
                       key={s}

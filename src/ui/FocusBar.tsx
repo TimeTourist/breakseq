@@ -12,9 +12,7 @@ import { PlayControls } from './PlayControls';
 const kindMark = (m: Matrix) => (matrixKind(m) === 'break' ? '≡' : '•');
 
 interface FocusBarProps {
-  /** What Play plays: the selected hit, pad or matrix; null with nothing to play. */
-  readonly what: 'hit' | 'pad' | 'matrix' | null;
-  /** Needed with something to play. */
+  /** Play matrix, shown with a matrix in focus; none in Loops. */
   readonly transport?: PadsPlay;
   /** The view's name, as the heading; none in Loops, whose heading is its loop. */
   readonly title?: string;
@@ -22,10 +20,11 @@ interface FocusBarProps {
 
 /**
  * The top of Pads: the matrix in focus, the matrices taken from, + New matrix
- * and ▶, the same Play as in the header. Focus and Take from are the view's
- * choice, not the project's, and are not undone (decision 16).
+ * and ▶ Play matrix, the same Play as in the header: the matrix in focus, in a
+ * loop, whatever is selected. Focus and Take from are the view's choice, not
+ * the project's, and are not undone (decision 16).
  */
-export function FocusBar({ what, transport, title }: FocusBarProps) {
+export function FocusBar({ transport, title }: FocusBarProps) {
   const project = useProject();
   const { store } = useApp();
   const focus = useSelect((s) => s.focus);
@@ -72,8 +71,13 @@ export function FocusBar({ what, transport, title }: FocusBarProps) {
         <button type="button" className="dashed" onClick={() => setMaking(true)}>
           + New matrix
         </button>
-        {what !== null && transport !== undefined && (
-          <PlayControls what={what} playing={transport.playing} onToggle={transport.onToggle} title={`Plays the selected ${what} · Space plays and stops`} />
+        {focused !== undefined && transport !== undefined && (
+          <PlayControls
+            what="matrix"
+            playing={transport.playing}
+            onToggle={transport.onToggle}
+            title="Plays the matrix in focus, in a loop; click a pad or a hit to hear it · Space plays and stops"
+          />
         )}
       </div>
       {making && <NewMatrixDialog onClose={() => setMaking(false)} />}

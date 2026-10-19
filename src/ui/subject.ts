@@ -1,9 +1,8 @@
 import type { Project, Rng } from '../model';
 import { ownMatrix, sampleAudio } from '../model';
-import { hitRun, loopSong, matrixSong, modPreviewSong, padTurns } from '../engine';
+import { loopSongLooped, matrixSongLooped, modPreviewSong } from '../engine';
 import { currentLoopId } from './LoopsView';
 import { currentModId, previewLoopId } from './ModsView';
-import { padsOpen } from './pads';
 import { selectedTrim } from './SamplesView';
 import type { Preview } from './services';
 import type { AppState } from './store';
@@ -43,24 +42,17 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       // Else the trim shown below the table, as its own matrix lays it out; with none, the song.
       const sample = selectedTrim(project, state.sliceTarget);
       const matrix = sample === undefined ? undefined : ownMatrix(project, sample.id);
-      return matrix === undefined ? song(SONG_KEY, project) : song(`matrix:${matrix.id}`, matrixSong(project, matrix.id));
+      return matrix === undefined ? song(SONG_KEY, project) : song(`matrix:${matrix.id}`, matrixSongLooped(project, matrix.id));
     }
     case 'pads': {
-      // What is selected: a hit once, a pad as it picks (anew each time round), the matrix in a loop.
-      const open = padsOpen(project, state.focus.matrix, selection);
-      if (open === null) return null;
-      if (open.kind === 'matrix') return song(`matrix:${open.matrix.id}`, matrixSong(project, open.matrix.id));
-      if (open.kind === 'hit') {
-        const hitId = open.hit.id;
-        return { key: `hit:${hitId}`, once: true, kind: 'preview', preview: () => ({ kind: 'hits', project, run: hitRun(project, [hitId]) }) };
-      }
-      const pad = open.pad;
-      if (pad.members.length === 0) return null;
-      return { key: `pad:${pad.id}`, once: false, kind: 'preview', preview: (rng) => ({ kind: 'hits', project, run: hitRun(project, padTurns(pad, true, rng)) }) };
+      // Always the matrix in focus, in a loop, whatever is selected (Magnus decision, phase 23b): a click plays a pad or a hit.
+      const matrixId = state.focus.matrix;
+      if (matrixId === null || project.matrices[matrixId] === undefined) return null;
+      return song(`matrix:${matrixId}`, matrixSongLooped(project, matrixId));
     }
     case 'loops': {
       const loopId = currentLoopId(project, selection);
-      return loopId === null ? song(SONG_KEY, project) : song(`loop:${loopId}`, loopSong(project, loopId));
+      return loopId === null ? song(SONG_KEY, project) : song(`loop:${loopId}`, loopSongLooped(project, loopId));
     }
     case 'mods': {
       // The mod on its loop; with no mod there is nothing to play (spec, Uppspelning), so Play stops.
