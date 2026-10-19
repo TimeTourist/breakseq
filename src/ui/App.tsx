@@ -227,6 +227,9 @@ function Shell() {
   });
   const bpm = useSelect((s) => s.history.present.song.bpm);
   const songLoop = useSelect((s) => s.history.present.song.loop ?? null);
+  // Loop in the header: off, what Play plays plays once. The song keeps its own loop. (Magnus beslut)
+  const loopOn = useSelect((s) => s.loop);
+  const onceOf = (take: ShownTake) => take.once || (!loopOn && take.key !== SONG_KEY);
   const step = stepDuration(bpm);
   // Only the song has a cursor and a loop; a snapshot or a preview plays as it is.
   const songPlays = playingKey === SONG_KEY;
@@ -245,7 +248,7 @@ function Shell() {
     // One thing plays at a time: an audition, as of a file or a slice, stops.
     services.player.stopAudition();
     services.player.setLoop(loopRange(next.key === SONG_KEY));
-    services.player.play(next.take, next.key === SONG_KEY ? store.getState().songCursor * step : 0, next.once);
+    services.player.play(next.take, next.key === SONG_KEY ? store.getState().songCursor * step : 0, onceOf(next));
     setPlayingKey(next.key);
     setPlaying(true);
   };
@@ -274,6 +277,14 @@ function Shell() {
     // Only a new take decides this; start reads the latest of the rest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, services]);
+
+  // Loop switched while something other than the song plays: it starts again, looped or once.
+  useEffect(() => {
+    const { playing: now, playingKey: key } = following.current;
+    if (now && key !== null && key !== SONG_KEY && key !== 'snapshot' && shown?.key === key) start(shown);
+    // Only Loop decides this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loopOn]);
 
   // The keyboard handler is set up once and reads the latest of these.
   const toggle = useRef(() => {});
@@ -325,9 +336,6 @@ function Shell() {
           transport={{
             playingKey: playing && playingKey !== 'snapshot' ? playingKey : null,
             seconds: playhead.seconds,
-            duration: playing && shown?.key === playingKey ? shown.take.buffer.duration : null,
-            shownKey: shown?.key ?? null,
-            onPlay: play,
             onStop: stop,
           }}
         />

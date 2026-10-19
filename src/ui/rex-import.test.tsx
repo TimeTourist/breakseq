@@ -51,7 +51,8 @@ async function setup(): Promise<Store> {
 const fixture = (name: string): File =>
   new File([new Uint8Array(readFileSync(join(import.meta.dirname, '../engine/fixtures/rex', name)))], name);
 const browse = (file: File) => fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [file] } });
-const drop = (file: File) => fireEvent.drop(document.querySelector('.dropzone')!, { dataTransfer: { files: [file] } });
+/** A file dropped anywhere on the page: here on a pad of the file list. */
+const drop = (file: File) => fireEvent.drop(screen.getByRole('region', { name: 'Files' }), { dataTransfer: { files: [file], types: ['Files'] } });
 const project = (store: Store) => store.getState().history.present;
 
 describe('importing a REX2 file', () => {
@@ -68,8 +69,9 @@ describe('importing a REX2 file', () => {
     expect(own.loop).not.toBeNull();
     expect(matrixSequence(project(store), own.id)).toHaveLength(10);
     // Its row shows it sliced: one bar at 120 BPM, and what it made.
-    expect(screen.getByText(/1 bar · 120\.00 BPM/)).toBeTruthy();
-    expect(within(screen.getByRole('table')).getByText('1 loop')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Files' })).getByText('10 slices')).toBeTruthy();
+    expect(screen.getByText('= 120.00 BPM')).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Where you are' }).textContent).toContain('1 loop →');
     expect(screen.queryByRole('alert')).toBeNull();
     // One step back takes all of it.
     act(() => store.dispatch({ type: 'undo' }));

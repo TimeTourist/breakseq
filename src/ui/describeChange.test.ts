@@ -84,12 +84,12 @@ describe('describeChange says what happened (U14)', () => {
     const pad3 = project.pads[matrix.pads[2]!]!;
     const twice = apply(project, copyHits([pad3.members[0]!], matrix.pads[0]!));
     expect(said(twice, setMarkers(amen.id, [0, 0.1, 0.25, 0.5, 0.75]))).toBe('renumber amen 1');
-    expect(said(twice, setMarkers(amen.id, [0, 0.1, 0.25, 0.5, 0.75], true))).toBe('new trim amen 2');
+    expect(said(twice, setMarkers(amen.id, [0, 0.1, 0.25, 0.5, 0.75], true))).toBe('new sample amen 2');
   });
 
   it('a new trim names it', () => {
     const { project, amen } = amenAndSnare();
-    expect(said(project, addTrim(amen.id, { offset: 0, duration: 0.2 }))).toBe('new trim amen 2');
+    expect(said(project, addTrim(amen.id, { offset: 0, duration: 0.2 }))).toBe('new sample amen 2');
   });
 
   it('copying a pad names its row; a hit dropped on a hit replaces it', () => {

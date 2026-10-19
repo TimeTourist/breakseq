@@ -28,8 +28,8 @@ export function markerGrid(markers: readonly number[], bars: number): SliceGrid 
   );
 }
 
-/** A sample is a trim of a file: "amen trim 2". The file keeps its own name ("amen.wav"). */
-export const trimName = (sample: Sample): string => `${baseName(sample.name)} trim ${sample.trim}`;
+/** A sample is a trim of a file: "amen sample 2". The file keeps its own name ("amen.wav"). */
+export const trimName = (sample: Sample): string => `${baseName(sample.name)} sample ${sample.trim}`;
 
 /** A trim's slicing, named after the trim it slices: "amen slice 2". */
 export const sliceName = (sample: Sample): string => `${baseName(sample.name)} slice ${sample.trim}`;

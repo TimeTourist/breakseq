@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Renumber, Sample, SampleChannel } from '../model';
 import { MIN_SLICE, ownMatrix, pointsOf, retrimConflict, sampleAudio, setSampleChannel, trimSample } from '../model';
 import { useApp, useProject, useRun, useSeal } from './context';
 import { RenumberDialog } from './RenumberDialog';
-import { useAuditionPlayhead } from './AuditionPlayhead';
-import { PlayControls } from './PlayControls';
 import { RegionHandle } from './RegionHandle';
 import { Waveform } from './Waveform';
 
@@ -12,28 +10,26 @@ const ms = (seconds: number) => Math.round(seconds * 1000);
 
 const CHANNELS: [SampleChannel, string, string][] = [
   ['stereo', 'Stereo', 'Both channels, as the file is'],
-  ['left', 'Left', 'The left channel, in both'],
-  ['right', 'Right', 'The right channel, in both'],
+  ['left', 'L', 'The left channel, in both'],
+  ['right', 'R', 'The right channel, in both'],
   ['mono', 'Mono', 'Left and right averaged, in both'],
 ];
 
-/** Start and end of an imported sample, as a window in its file, and which of its channels play. */
+/**
+ * The top of a sample's editor: the whole file with the sample's window
+ * between two handles, then the Trim row (start, end, Snap and the channel),
+ * and its help below it. (Magnus beslut)
+ */
 export function TrimEditor({
   sample,
-  played = null,
-  transport,
+  playhead = null,
 }: {
   readonly sample: Sample;
-  /** Where Play (the one at the top) is in the trimmed sample, in seconds, while it plays it. */
-  readonly played?: number | null;
-  /**
-   * Play in the header, which plays the open Trim, looped: given, ▶ here is
-   * that same Play, so one stops the other. Left out, ▶ auditions on its own.
-   */
-  readonly transport?: { readonly playing: boolean; readonly ready: boolean; readonly onToggle: () => void };
+  /** Where in the file what plays of the sample is, in seconds, while it plays. */
+  readonly playhead?: number | null;
 }) {
   const project = useProject();
-  const { services, store } = useApp();
+  const { store } = useApp();
   const run = useRun();
   const seal = useSeal();
   /** Snap to nearest slice: the handles go from slice point to slice point; off, they move freely. (Magnus beslut) */
@@ -43,24 +39,16 @@ export function TrimEditor({
   const [asking, setAsking] = useState<{ readonly conflict: Renumber; readonly go: (newTrim: boolean) => void } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(false);
-  // Plays looped at first, breaks and one-shots alike.
-  const [loop, setLoop] = useState(true);
-  const auditioned = useAuditionPlayhead(playing);
   // The file with the sample's channel choice, so what is shown and heard is what plays.
   const audio = sampleAudio(project, sample);
-
-  // Closing the editor stops what it plays.
-  useEffect(() => () => services.player.stopAudition(), [services]);
 
   if (audio === undefined) return null;
 
   const length = (audio.channels[0]?.length ?? 0) / audio.sampleRate;
-  const playhead = auditioned ?? (played === null ? null : sample.offset + played);
   const start = pending?.from ?? sample.offset;
   const end = pending?.to ?? sample.offset + sample.duration;
   const conflictAt = (from: number, to: number) => retrimConflict(project, sample.id, from, to);
-  /** Trims to `from`–`to`: slice points stay in the file. With `newTrim`, in a new trim, which is then selected. */
+  /** Trims to `from`–`to`: slice points stay in the file. With `newTrim`, in a new sample, which is then selected. */
   const apply = (from: number, to: number, newTrim = false) => {
     const before = store.getState().history.present.samples;
     const failed = run(trimSample(sample.id, from, to, newTrim), newTrim ? undefined : `trim:${sample.id}`);
@@ -71,11 +59,6 @@ export function TrimEditor({
       store.dispatch({ type: 'sliceTarget', sampleId: added });
       const found = store.getState().transients;
       if (found?.sampleId === sample.id) store.dispatch({ type: 'transients', found: { ...found, sampleId: added } });
-    }
-    // A loop that is playing follows the new start and end straight away.
-    if (playing) {
-      const clampedStart = Math.max(0, from);
-      services.player.setAuditionRegion(clampedStart, Math.min(length, to) - clampedStart);
     }
   };
   /** Where the handles snap to: the slice points in the file, and its start and end. */
@@ -112,10 +95,6 @@ export function TrimEditor({
     setPending(null);
     trimNow(pending.from, pending.to);
   };
-  const play = (looped: boolean) => {
-    setPlaying(true);
-    services.player.audition(audio, start, sample.duration, () => setPlaying(false), looped);
-  };
   const at = (clientX: number) => {
     const rect = box.current?.getBoundingClientRect();
     return rect === undefined ? 0 : Math.max(0, Math.min(length, ((clientX - rect.left) / rect.width) * length));
@@ -145,92 +124,51 @@ export function TrimEditor({
 
   return (
     <div className="trim stack-tight">
-      <div className="trim-wave" ref={box}>
-        <Waveform audio={audio} offset={0} duration={length} height={120} />
+      <div className="trim-wave overview" ref={box}>
+        <Waveform audio={audio} offset={0} duration={length} height={52} />
         <div className="region-shade" style={{ left: 0, width: `${(start / length) * 100}%` }} />
         <div className="region-shade" style={{ left: `${(end / length) * 100}%`, right: 0 }} />
         {playhead !== null && <div className="playhead" style={{ left: `${(playhead / length) * 100}%` }} />}
         {handle('start')}
         {handle('end')}
       </div>
-      <div className="row">
+      <div className="row trim-row">
+        <span className="row-label">Trim</span>
         <label className="field">
-          Start ms
-          <input
-            type="number"
-            min={0}
-            max={ms(end) - 1}
-            value={ms(start)}
-                  onChange={(e) => trim(Number(e.target.value) / 1000, end)}
-            onBlur={done}
-          />
+          Start
+          <input type="number" aria-label="Start ms" min={0} max={ms(end) - 1} value={ms(start)} onChange={(e) => trim(Number(e.target.value) / 1000, end)} onBlur={done} />
+          ms
         </label>
         <label className="field">
-          End ms
-          <input
-            type="number"
-            min={ms(start) + 1}
-            max={ms(length)}
-            value={ms(end)}
-                  onChange={(e) => trim(start, Number(e.target.value) / 1000)}
-            onBlur={done}
-          />
+          End
+          <input type="number" aria-label="End ms" min={ms(start) + 1} max={ms(length)} value={ms(end)} onChange={(e) => trim(start, Number(e.target.value) / 1000)} onBlur={done} />
+          ms
         </label>
-        <span className="mono muted small">
-          {ms(sample.duration)} ms of {ms(length)} ms
-        </span>
+        <span className="mono muted small">of {ms(length)} ms</span>
+        {sample.bars !== null && (
+          <button type="button" className="loop-toggle" aria-pressed={snap} title="Dragged, the start and end go from slice to slice; off, they move freely" onClick={() => setSnap(!snap)}>
+            Snap to nearest slice
+          </button>
+        )}
         <div className="segmented" role="group" aria-label="Channel">
           {CHANNELS.map(([channel, label, title]) => (
             <button
               key={channel}
               type="button"
               title={title}
+              aria-label={channel === 'left' ? 'Left' : channel === 'right' ? 'Right' : label}
               aria-pressed={sample.channel === channel}
-              onClick={() => {
-                // What plays now is the old channels: stop it, and play again to hear the new ones.
-                if (playing) services.player.stopAudition();
-                setError(run(setSampleChannel(sample.id, channel)));
-              }}
+              onClick={() => setError(run(setSampleChannel(sample.id, channel)))}
             >
               {label}
             </button>
           ))}
         </div>
-        {sample.bars !== null && (
-          <div className="segmented">
-            <button type="button" aria-pressed={snap} title="Dragged, the start and end go from slice to slice; off, they move freely" onClick={() => setSnap(!snap)}>
-              Snap to nearest slice
-            </button>
-          </div>
-        )}
-        <div className="row push">
-          {transport === undefined ? (
-            <PlayControls
-              what="trim"
-              playing={playing}
-              onToggle={() => (playing ? services.player.stopAudition() : play(loop))}
-              loop={loop}
-              onLoop={(next) => {
-                setLoop(next);
-                if (playing) play(next);
-              }}
-            />
-          ) : (
-            <PlayControls
-              what="trim"
-              playing={transport.playing}
-              disabled={!transport.playing && !transport.ready}
-              onToggle={transport.onToggle}
-              title={!transport.playing && !transport.ready ? 'Rendering…' : 'Plays the trim looped, as Play at the top does'}
-            />
-          )}
-          <button type="button" disabled={(start === 0 && Math.abs(end - length) < 1e-9)} onClick={() => trimNow(0, length)}>
-            Reset
-          </button>
-        </div>
       </div>
-      <p className="muted small">
-        {snapPoints === null ? 'Drag the handles, or focus one and use ←/→ (Shift: 10 ms).' : 'Drag the handles, or focus one and use ←/→: they go from slice to slice.'}
+      <p className="muted small help">
+        {snapPoints === null
+          ? 'Drag the yellow handles to set where the sample starts and ends in the file. Focus one and use ←/→ (Shift: 10 ms).'
+          : 'Drag the yellow handles to set where the sample starts and ends in the file; with Snap on they go from slice to slice, and so do ←/→.'}
       </p>
       {error !== null && (
         <p className="error" role="alert">

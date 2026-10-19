@@ -241,7 +241,7 @@ describe('grids, tempo and names', () => {
 
   it('names a trim, its slicing, and its rows', () => {
     const s = { ...sample('s', 2), name: 'amen.wav', trim: 2 };
-    expect(trimName(s)).toBe('amen trim 2');
+    expect(trimName(s)).toBe('amen sample 2');
     expect(sliceName(s)).toBe('amen slice 2');
     expect(slotName('amen 2', { ...s, bars: 1 }, 4)).toBe('amen 2 05');
     expect(slotName('snare.wav', s, 0)).toBe('snare');

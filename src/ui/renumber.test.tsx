@@ -65,7 +65,7 @@ async function setup(project: Project): Promise<Store> {
 
 const present = (store: Store) => store.getState().history.present;
 const samples = (store: Store) => Object.values(present(store).samples);
-const QUESTION = 'You use slice 02 in: pad amen 1 02 and pad Snares 01. Make a new trim and sample for this?';
+const QUESTION = 'You use slice 02 in: pad amen 1 02 and pad Snares 01. Make a new sample for this?';
 
 describe('the renumber dialog', () => {
   it('the bars ask once, when committed: typing "16" does not ask at "1"', async () => {
@@ -88,13 +88,13 @@ describe('the renumber dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '1/8' }));
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.getByRole('button', { name: '1/4' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('heading', { name: 'Slice 03' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Play slice 03' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('asks in words which slices and pads, listing them as one says them', () => {
     const p = amenAndSnares();
     const pads = Object.values(p.pads).slice(0, 3).map((pad) => pad.id);
-    expect(renumberQuestion(p, { slices: [6, 8], pads })).toBe('You use slice 07, 09 in: pad amen 1 01, pad amen 1 02 and pad amen 1 03. Make a new trim and sample for this?');
+    expect(renumberQuestion(p, { slices: [6, 8], pads })).toBe('You use slice 07, 09 in: pad amen 1 01, pad amen 1 02 and pad amen 1 03. Make a new sample for this?');
   });
 
   it('names each pad by its matrix and row, so pads with the same name read apart (U20)', () => {
@@ -104,18 +104,18 @@ describe('the renumber dialog', () => {
     const same = renamePad(snares.pads[0]!, 'amen 1 02')(p, sequentialIds());
     if (!same.ok) throw new Error('rename failed');
     expect(renumberQuestion(same.project, { slices: [1], pads: [amen.pads[1]!, snares.pads[0]!] })).toBe(
-      'You use slice 02 in: pad amen 1 02 and pad Snares 01. Make a new trim and sample for this?',
+      'You use slice 02 in: pad amen 1 02 and pad Snares 01. Make a new sample for this?',
     );
   });
 
-  it('the renumber dialog offers New trim and Renumber', async () => {
+  it('the renumber dialog offers New sample and Renumber', async () => {
     const store = await setup(amenAndSnares());
     const first = samples(store)[0]!;
-    // A marker in slice 01 renumbers 02–04, and 02 is played by amen's row and the copy in Snares.
-    fireEvent.click(screen.getByRole('button', { name: 'Play slice 01' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
+    // Deleting slice 02's marker renumbers 03–04, and 02 is played by amen's row and the copy in Snares.
+    fireEvent.click(screen.getByRole('button', { name: 'Play slice 02' }));
+    fireEvent.keyDown(document.body, { key: 'Delete' });
     const dialog = screen.getByRole('alertdialog', { name: QUESTION });
-    expect(within(dialog).getByRole('button', { name: 'New trim' })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'New sample' })).toBeTruthy();
     expect(within(dialog).getByRole('button', { name: 'Renumber' })).toBeTruthy();
 
     // Escape cancels: nothing changes.
@@ -124,21 +124,21 @@ describe('the renumber dialog', () => {
     expect(present(store).samples[first.id]!.markers).toHaveLength(4);
 
     // Renumber changes the sample itself.
-    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
+    fireEvent.keyDown(document.body, { key: 'Delete' });
     fireEvent.click(screen.getByRole('button', { name: 'Renumber' }));
     expect(samples(store)).toHaveLength(1);
-    expect(present(store).samples[first.id]!.markers).toHaveLength(5);
+    expect(present(store).samples[first.id]!.markers).toHaveLength(3);
 
     // New trim leaves the sample as it was and moves amen's matrix to a new trim, which Slice shows.
     act(() => void store.dispatch({ type: 'undo' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Play slice 01' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
-    fireEvent.click(screen.getByRole('button', { name: 'New trim' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play slice 02' }));
+    fireEvent.keyDown(document.body, { key: 'Delete' });
+    fireEvent.click(screen.getByRole('button', { name: 'New sample' }));
     expect(samples(store)).toHaveLength(2);
     expect(present(store).samples[first.id]!.markers).toHaveLength(4);
     const fresh = samples(store).find((s) => s.id !== first.id)!;
     expect(fresh).toMatchObject({ trim: 2 });
-    expect(fresh.markers).toHaveLength(5);
+    expect(fresh.markers).toHaveLength(3);
     expect(Object.values(present(store).matrices).find((m) => m.name === 'amen 1')!.sampleId).toBe(fresh.id);
     expect(store.getState().sliceTarget).toBe(fresh.id);
   });
@@ -152,16 +152,16 @@ describe('the renumber dialog', () => {
     if (!more.ok) throw new Error('copy failed');
     const store = await setup(more.project);
     const first = samples(store)[0]!;
-    fireEvent.click(screen.getByRole('button', { name: 'Play slice 01' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
-    fireEvent.click(screen.getByRole('button', { name: 'New trim' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play slice 02' }));
+    fireEvent.keyDown(document.body, { key: 'Delete' });
+    fireEvent.click(screen.getByRole('button', { name: 'New sample' }));
     // The old trim stays in Slice, with no matrix; go back to it.
     act(() => void store.dispatch({ type: 'sliceTarget', sampleId: first.id }));
     expect(ownMatrix(present(store), first.id)).toBeUndefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Play slice 01' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play slice 02' }));
+    fireEvent.keyDown(document.body, { key: 'Delete' });
     const dialog = screen.getByRole('alertdialog');
-    expect(within(dialog).queryByRole('button', { name: 'New trim' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'New sample' })).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Renumber' })).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('alertdialog')).toBeNull();

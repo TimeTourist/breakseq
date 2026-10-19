@@ -22,21 +22,30 @@ export function TrashIcon() {
   );
 }
 
-/** Trim: the two corners of a crop. */
-export function CropIcon() {
+/** A new sample of a file: a waveform with a plus. (Magnus beslut) */
+export function NewSampleIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M4 1v11h11M1 4h11v11" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="18" height="16" viewBox="0 0 18 16" aria-hidden="true">
+      <path d="M1.5 7.5v1M4 5v6M6.5 2.5v11M9 6v4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M14 4v6M11 7h6" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
 
-/** A new trim: a crop with a plus. */
-export function NewCropIcon() {
+/** Fold a file in the list: a triangle pointing down, turned to point right when folded. */
+export function FoldIcon({ folded }: { readonly folded: boolean }) {
   return (
-    <svg width="20" height="16" viewBox="0 0 20 16" aria-hidden="true">
-      <path d="M1 4.5h5M3.5 2v5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M8 1v11h11M5 4h11v11" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" style={folded ? { transform: 'rotate(-90deg)' } : undefined}>
+      <path d="M1 3h10L6 10z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Collapse all (chevrons pointing in) or Expand all (pointing out). */
+export function FoldAllIcon({ folded }: { readonly folded: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style={folded ? undefined : { transform: 'rotate(180deg)' }}>
+      <path d="M4 3l4 4 4-4M4 9l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

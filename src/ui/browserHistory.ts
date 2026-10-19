@@ -2,7 +2,7 @@ import type { Place, Store } from './store';
 import { placeOf } from './store';
 
 const isPlace = (value: unknown): value is Place =>
-  typeof value === 'object' && value !== null && 'view' in value && 'selection' in value && 'sliceTarget' in value && 'trimming' in value;
+  typeof value === 'object' && value !== null && 'view' in value && 'selection' in value && 'sliceTarget' in value;
 
 /**
  * Makes the browser's Back and Forward go between tabs: every change of tab is

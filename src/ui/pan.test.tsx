@@ -59,11 +59,10 @@ async function setup(project: Project, view: 'pads' | 'mods' | 'samples', select
 }
 
 describe('channel choice and pan in the GUI', () => {
-  it('Trim in Import chooses which channels a sample plays', async () => {
+  it('the Trim row in Samples chooses which channels a sample plays', async () => {
     const project = apply(createProject(), addSample({ name: 'wide.wav', audio: constantAudio(0.2, [0.5, -0.25]) }));
     const sample = Object.values(project.samples)[0]!;
     const store = await setup(project, 'samples', {});
-    fireEvent.click(screen.getByRole('button', { name: 'Trim wide trim 1' }));
     const channel = screen.getByRole('group', { name: 'Channel' });
     expect(within(channel).getByRole('button', { name: 'Stereo' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(within(channel).getByRole('button', { name: 'Left' }));

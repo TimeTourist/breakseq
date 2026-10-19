@@ -15,12 +15,12 @@ function padPlace(project: Project, padId: Id): string | null {
   return matrix === undefined ? pad.name : rowName(matrix.name, matrix.pads.indexOf(padId));
 }
 
-/** What the renumber dialog asks (decision 14): "You use slice 07, 09 in: pad amen 1 07 and pad Snares 01. Make a new trim and sample for this?" */
+/** What the renumber dialog asks (decision 14): "You use slice 07, 09 in: pad amen 1 07 and pad Snares 01. Make a new sample for this?" */
 export function renumberQuestion(project: Project, conflict: Renumber, canNewTrim = true): string {
   const slices = conflict.slices.map((s) => String(s + 1).padStart(2, '0')).join(', ');
   const places = conflict.pads.map((id) => padPlace(project, id)).filter((place) => place !== null);
   const pads = listText(places.map((place) => `pad ${place}`));
-  return `You use slice ${slices} in: ${pads}. ${canNewTrim ? 'Make a new trim and sample for this?' : 'Renumber them?'}`;
+  return `You use slice ${slices} in: ${pads}. ${canNewTrim ? 'Make a new sample for this?' : 'Renumber them?'}`;
 }
 
 interface RenumberDialogProps {
@@ -28,7 +28,7 @@ interface RenumberDialogProps {
   readonly conflict: Renumber;
   /** False for a trim with no matrix of its own: there is nothing for a new trim to take along, so only Renumber is offered. */
   readonly canNewTrim: boolean;
-  /** New trim (true) or Renumber (false); null when cancelled, as with Escape. */
+  /** New sample (true) or Renumber (false); null when cancelled, as with Escape. */
   readonly onAnswer: (newTrim: boolean | null) => void;
 }
 
@@ -56,12 +56,12 @@ export function RenumberDialog({ project, conflict, canNewTrim, onAnswer }: Renu
       <div ref={box} tabIndex={-1} className="dialog panel stack confirm-delete" role="alertdialog" aria-modal="true" aria-label={question}>
         <h2>{question}</h2>
         <p className="muted small">
-          {canNewTrim && 'New trim leaves everything that plays them as it is. '}Renumber counts slices by number, so a slice that moves up plays where the old one did. Escape cancels.
+          {canNewTrim && 'New sample leaves everything that plays them as it is. '}Renumber counts slices by number, so a slice that moves up plays where the old one did. Escape cancels.
         </p>
         <div className="row confirm-buttons">
           {canNewTrim && (
             <button type="button" onClick={() => onAnswer(true)}>
-              New trim
+              New sample
             </button>
           )}
           <button type="button" onClick={() => onAnswer(false)}>
