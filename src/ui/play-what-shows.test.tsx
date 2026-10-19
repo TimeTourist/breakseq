@@ -5,6 +5,7 @@ import type { Command, Project } from '../model';
 import { addClip, addSample, addTrim, createProject, setBpm, setHitSource, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { focusOn } from '../test/focus';
+import type { Trigger } from '../engine';
 import { App } from './App';
 import type { Player, Take } from './playback';
 import type { Services } from './services';
@@ -50,12 +51,13 @@ describe('what Play plays', () => {
     expect(subjectOf(createProject(), state(createProject(), { view: 'samples' }))?.key).toBe(SONG_KEY);
   });
 
-  it('is in Pads the selected hit once, the pad as it picks in a loop, or the matrix in focus in a loop', () => {
+  it('is in Pads always the matrix in focus in a loop, whatever is selected', () => {
     const sel = initialState(p).selection;
     const focus = { matrix: matrix.id, takeFrom: [] };
-    expect(subjectOf(p, state(p, { view: 'pads', focus, selection: sel }))).toMatchObject({ key: `matrix:${matrix.id}`, once: false, kind: 'song' });
-    expect(subjectOf(p, state(p, { view: 'pads', focus, selection: { ...sel, pad: matrix.pads[1]!, hit: memberOf(p, 1) } }))).toMatchObject({ key: `hit:${memberOf(p, 1)}`, once: true });
-    expect(subjectOf(p, state(p, { view: 'pads', focus, selection: { ...sel, pad: matrix.pads[1]! } }))).toMatchObject({ key: `pad:${matrix.pads[1]}`, once: false });
+    const looped = { key: `matrix:${matrix.id}`, once: false, kind: 'song' };
+    expect(subjectOf(p, state(p, { view: 'pads', focus, selection: sel }))).toMatchObject(looped);
+    expect(subjectOf(p, state(p, { view: 'pads', focus, selection: { ...sel, pad: matrix.pads[1]!, hit: memberOf(p, 1) } }))).toMatchObject(looped);
+    expect(subjectOf(p, state(p, { view: 'pads', focus, selection: { ...sel, pad: matrix.pads[1]! } }))).toMatchObject(looped);
     // Nothing in focus: nothing to play.
     expect(subjectOf(p, state(p, { view: 'pads', selection: { ...sel, pad: matrix.pads[1]! } }))).toBeNull();
   });
@@ -75,6 +77,7 @@ function services() {
   const take = (seconds: number): Take => ({ buffer: { duration: seconds } as AudioBuffer, triggers: [], tapes: [] });
   let playing = false;
   let position: number | null = null;
+  let trigger: Trigger | null = null;
   const player = {
     play: vi.fn(() => void (playing = true)),
     replace: vi.fn(),
@@ -82,7 +85,7 @@ function services() {
     setLoop: vi.fn(),
     stop: vi.fn(() => void (playing = false)),
     isPlaying: () => playing,
-    currentTrigger: () => null,
+    currentTrigger: () => (playing ? trigger : null),
     currentPosition: () => (playing ? position : null),
     audition: vi.fn(),
     stopAudition: vi.fn(),
@@ -101,7 +104,7 @@ function services() {
     download: vi.fn(),
     rng: () => () => 0,
   };
-  return { services: s, player, end: () => void (playing = false), at: (seconds: number) => void (position = seconds) };
+  return { services: s, player, end: () => void (playing = false), at: (seconds: number) => void (position = seconds), atTrigger: (t: Trigger) => void (trigger = t) };
 }
 
 const settle = () =>
@@ -138,15 +141,42 @@ describe('Play in each view', () => {
     expect(player.replace).toHaveBeenCalledTimes(1);
   });
 
-  it('plays a hit once in Pads, and stops when it has played out', async () => {
+  it('a loop played over several passes lights the same step in Loops each pass', async () => {
+    const p = split();
+    const { atTrigger } = await setup(p, { view: 'loops' });
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    // Step 05 of the one-bar loop, in the second pass.
+    atTrigger({ time: 2.5, bar: 1, step: 4 } as Trigger);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    const lit = Array.from(document.querySelectorAll('.step.now'));
+    expect(lit).toHaveLength(1);
+    expect(lit[0]!.getAttribute('style')).toContain('grid-column: 6');
+  });
+
+  it('in Samples, the slicing playhead runs through the trim each pass of its matrix', async () => {
+    const p = split();
+    const { at } = await setup(p, { view: 'samples' });
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    // A bar of 2 s: 2.5 s is a quarter into the second pass.
+    at(2.5);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    const slicing = screen.getByRole('region', { name: 'Slicing' });
+    expect((slicing.querySelector('.playhead') as HTMLElement).style.left).toBe('25%');
+  });
+
+  it('with a hit selected in Pads still loops the matrix, and shows Stop until the player stops', async () => {
     const p = split();
     const { player, end } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit: memberOf(p, 1) } });
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, true);
+    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, false);
     // One button: Play is Stop while it plays.
     expect(screen.queryByRole('button', { name: 'Play' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Stop' })).toHaveProperty('disabled', false);
-    // Played out, it stops by itself.
+    // Stopped by the player, it shows Play again.
     await act(async () => {
       end();
       await new Promise((r) => setTimeout(r, 50));
@@ -170,9 +200,9 @@ describe('the timeline in Pads', () => {
     const p0 = split();
     const p = split(setHitSource(memberOf(p0, 3), sampleOf(p0).id, 1));
     await setup(p, { view: 'pads' });
-    const chip = screen.getByRole('button', { name: '04→02, amen 1 04' });
+    const chip = screen.getByRole('button', { name: '1 04→02, amen 1 04' });
     // ♪: it is heard in the song.
-    expect(chip.querySelector('.hit-label')?.textContent).toBe('04→02');
+    expect(chip.querySelector('.hit-label')?.textContent).toBe('1 04→02');
     expect(chip.className).toContain('replaced');
   });
 });
@@ -265,22 +295,26 @@ describe('Delete in Import', () => {
 });
 
 describe('the same controls everywhere, in Pads', () => {
-  it('▶ in the focus bar plays the selected hit as Space does, and its playhead runs through the region', async () => {
+  it('▶ in the focus bar is Play matrix, as Space is, with a hit selected too; its playhead runs over the timeline, pass after pass', async () => {
     const p = split();
     const hit = memberOf(p, 1);
-    const { store, player, at } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit } });
-    act(() => void store.dispatch({ type: 'run', command: (q) => ({ ok: true, project: { ...q, hits: { ...q.hits, [hit]: { ...q.hits[hit]!, region: { start: 0.2, end: 0.6 } } } } }) }));
-    await settle();
-    const hitPanel = screen.getByRole('region', { name: 'Hit controls' });
-    // Halfway through the 0.5 s take is halfway through the region.
-    at(0.25);
-    fireEvent.click(screen.getByRole('button', { name: 'Play hit' }));
-    expect(player.play).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
-    expect((hitPanel.querySelector('.playhead') as HTMLElement | null)?.style.left).toBe('40%');
-    fireEvent.click(screen.getByRole('button', { name: 'Stop hit' }));
+    const { player, at } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit } });
+    const timeline = screen.getByRole('region', { name: 'Timeline' });
+    const first = timeline.querySelector<HTMLElement>('.pad-column')!;
+    const playheadAt = async (seconds: number) => {
+      at(seconds);
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      return parseFloat(timeline.querySelector<HTMLElement>('.playhead')!.style.left);
+    };
+    fireEvent.click(screen.getByRole('button', { name: 'Play matrix' }));
+    expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, false);
+    // A bar of 2 s: 0.25 s is halfway through pad 01, and so is 2.25 s, a pass later.
+    expect(await playheadAt(0.25)).toBeCloseTo(parseFloat(first.style.width) / 2);
+    expect(await playheadAt(2.25)).toBeCloseTo(parseFloat(first.style.width) / 2);
+    expect(screen.getByRole('region', { name: 'Hit controls' }).querySelector('.playhead')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop matrix' }));
     expect(player.stop).toHaveBeenCalled();
   });
 

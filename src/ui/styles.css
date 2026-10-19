@@ -2523,6 +2523,21 @@ button.danger:hover:not(:disabled) {
   background: var(--accent-bg);
 }
 
+/* A hit's place in its pad, before its label: muted, so the label reads as the slice (1 08). */
+.pad-hits .hit-place {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.pad-hits .hit-chip[aria-current='true'] .hit-place {
+  color: inherit;
+}
+
+/* What the controls under the timeline are for: Matrix, Pad 08, Hit 2 in pad 08. */
+.controls-heading {
+  margin: 0;
+}
+
 /* The matrices taken from: scrolls in its own box, also while dragging near its edge (U4). */
 .take-from-shelf {
   max-height: 32vh;

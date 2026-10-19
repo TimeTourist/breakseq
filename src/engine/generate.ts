@@ -188,13 +188,15 @@ export function playedStretch(own: StretchPlay, mod: StepState['stretch']): Stre
 }
 
 /**
- * The project with a song that only plays one loop, once, from its start. The
- * song is exactly as long as the loop, so a loop of 6/16 gives 6/16 bars.
+ * The project with a song that only plays one loop, `passes` times (once by
+ * default), from its start. The song is exactly as long as the passes, so a
+ * loop of 6/16 gives 6/16 bars a pass.
  */
-export function loopSong(project: Project, loopId: Id): Project {
+export function loopSong(project: Project, loopId: Id, passes = 1): Project {
   const loop = project.loops[loopId];
-  const bars = loop === undefined ? 1 : loop.steps.length / STEPS_PER_BAR;
-  const clips: Clip[] = loop === undefined ? [] : [{ id: 'preview-loop', row: 'main', ref: loopId, start: 0, length: loop.steps.length, offset: 0 }];
+  const length = loop === undefined ? 0 : loop.steps.length * Math.max(1, Math.floor(passes));
+  const bars = loop === undefined ? 1 : length / STEPS_PER_BAR;
+  const clips: Clip[] = loop === undefined ? [] : [{ id: 'preview-loop', row: 'main', ref: loopId, start: 0, length, offset: 0 }];
   return { ...project, song: { bpm: project.song.bpm, bars, clips } };
 }
 

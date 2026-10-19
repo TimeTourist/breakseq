@@ -67,6 +67,13 @@ export function timelineLayout(lengths: readonly number[], zoom: Zoom, width: nu
 /** A row's number as it reads: 0 is "01". */
 export const rowNumber = (row: number): string => String(row + 1).padStart(2, '0');
 
+/** The heading of the controls under the timeline, saying what they are for: Matrix, Pad 08, Hit 2 in pad 08. */
+export function controlsHeading(open: PadsOpen): string {
+  if (open.kind === 'matrix') return 'Matrix';
+  const pad = `${open.kind === 'hit' ? 'pad' : 'Pad'} ${rowNumber(open.matrix.pads.indexOf(open.pad.id))}`;
+  return open.kind === 'pad' ? pad : `Hit ${open.pad.members.indexOf(open.hit.id) + 1} in ${pad}`;
+}
+
 /**
  * A hit as it reads in the timeline: the slice of its row ("07"), a row that
  * plays another slice of its trim ("15→07"), or another trim's slice or a
