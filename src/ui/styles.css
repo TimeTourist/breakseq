@@ -909,6 +909,29 @@ p {
   width: 100%;
 }
 
+/* Loops' menu: a loop a line, its name shortened, never wrapped. */
+.loop-item {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.loop-item > * {
+  flex-shrink: 0;
+}
+
+/* The name gives way last of all, so its kind and length stay in view in a narrow menu. */
+.loop-item > .grow,
+.loop-item > .loop-name {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loop-item {
+  gap: 8px;
+}
+
 .list-item[aria-current='true'],
 .list-item[aria-pressed='true'] {
   background: var(--selected);
@@ -1384,8 +1407,10 @@ input[type='search'] {
   color: var(--accent);
 }
 
-.sources td.trim-cell {
+/* The selected trim's Trim, below the table and above the waveform with its slicing. */
+.trim-below {
   background: var(--sunken);
+  border-radius: 8px;
   padding: 16px;
 }
 

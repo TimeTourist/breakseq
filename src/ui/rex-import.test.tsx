@@ -69,7 +69,7 @@ describe('importing a REX2 file', () => {
     expect(matrixSequence(project(store), own.id)).toHaveLength(10);
     // Its row shows it sliced: one bar at 120 BPM, and what it made.
     expect(screen.getByText(/1 bar · 120\.00 BPM/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Loops →' })).toBeTruthy();
+    expect(screen.getByText('1 loop')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
     // One step back takes all of it.
     act(() => store.dispatch({ type: 'undo' }));

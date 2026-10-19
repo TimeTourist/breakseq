@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Command, Id, Matrix, Renumber, Sample, SliceGrid } from '../model';
 import {
   MIN_SLICE,
@@ -30,6 +30,7 @@ import { Slider } from './Slider';
 import { InSong, useHeard } from './InSong';
 import { Waveform } from './Waveform';
 import { heardSamples, sampleLabel } from './labels';
+import { isTyping, modalOpen } from './isTyping';
 
 const GRIDS: readonly SliceGrid[] = [4, 8, 16];
 const ms = (seconds: number) => Math.round(seconds * 1000);
@@ -79,8 +80,10 @@ interface TrimSlicingProps {
   readonly played: number | null;
   /** Brings the trim's file in the table above into view. */
   readonly toFile: () => void;
-  /** Opens the trim's Trim in the table above. */
+  /** Opens the trim's Trim, here below the table, and brings it into view. */
   readonly toTrim: () => void;
+  /** The trim's Trim while it is open: shown above the waveform (fas 23b). */
+  readonly trim: ReactNode;
   /** Opens a matrix in Pads, in focus. */
   readonly toPads: (matrix: Matrix) => void;
   /** Stops Play in the header, before something here plays: one thing plays at a time. */
@@ -122,7 +125,7 @@ interface SlicedProps extends Omit<TrimSlicingProps, 'sample'> {
 }
 
 /** A sliced trim: its waveform with numbered slices, the markers between them, and the 1/16 steps they land on. */
-function Sliced({ sample, played, toFile, toTrim, toPads, stopTransport, found, onFound }: SlicedProps) {
+function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, found, onFound }: SlicedProps) {
   const project = useProject();
   const { store, services } = useApp();
   const run = useRun();
@@ -252,6 +255,22 @@ function Sliced({ sample, played, toFile, toTrim, toPads, stopTransport, found, 
     setSelected(0);
     onFound(null, sensitivity);
   };
+  /** Deletes the selected slice's marker; the first, at the start, stays. */
+  const deleteMarker = () => {
+    if (current === 0) return;
+    markersTo(toParts(markers.filter((_, i) => i !== current)), undefined, () => setSelected(current - 1));
+  };
+  // Delete and Backspace do as Delete marker does (fas 23b), but not while typing in a field or with a dialog open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key !== 'Delete' && e.key !== 'Backspace') || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (isTyping(e.target) || modalOpen() || asking !== null) return;
+      e.preventDefault();
+      deleteMarker();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
 
   return (
     <div className="stack">
@@ -262,7 +281,7 @@ function Sliced({ sample, played, toFile, toTrim, toPads, stopTransport, found, 
             <button type="button" className="link-text small" title={`${sample.name}, in the table above`} onClick={toFile}>
               ← File
             </button>
-            <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, above" onClick={toTrim}>
+            <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, below" onClick={toTrim}>
               ← Trim
             </button>
             {own !== undefined && (
@@ -340,6 +359,7 @@ function Sliced({ sample, played, toFile, toTrim, toPads, stopTransport, found, 
         </div>
       </div>
 
+      {trim}
       {audio !== undefined && (
         <div className="table-scroll slice-box">
           <div className="slice-canvas" style={{ minWidth: Math.max(1000, markers.length * 24, places.length * 22) }}>
@@ -437,7 +457,7 @@ function Sliced({ sample, played, toFile, toTrim, toPads, stopTransport, found, 
             <button type="button" onClick={() => addAt(((markers[current] ?? 0) + (ends[current] ?? duration)) / 2)}>
               Add marker
             </button>
-            <button type="button" disabled={current === 0} onClick={() => markersTo(toParts(markers.filter((_, i) => i !== current)), undefined, () => setSelected(current - 1))}>
+            <button type="button" disabled={current === 0} title="Delete or Backspace" onClick={deleteMarker}>
               Delete marker
             </button>
             <button
@@ -484,7 +504,7 @@ function Sliced({ sample, played, toFile, toTrim, toPads, stopTransport, found, 
   );
 }
 
-interface UnslicedProps extends Omit<TrimSlicingProps, 'sample' | 'toPads'> {
+interface UnslicedProps extends Omit<TrimSlicingProps, 'sample'> {
   readonly sample: Sample;
   /** After it is sliced, and how. */
   readonly onSliced: (by: SliceBy) => void;
@@ -495,7 +515,7 @@ interface UnslicedProps extends Omit<TrimSlicingProps, 'sample' | 'toPads'> {
  * are both chosen, then its matrix gets a pad per slice and a loop, in one
  * undo step. The file's cue markers, if it has any, are chosen to start with.
  */
-function Unsliced({ sample, toFile, toTrim, stopTransport, onSliced }: UnslicedProps) {
+function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSliced }: UnslicedProps) {
   const project = useProject();
   const { services } = useApp();
   const run = useRun();
@@ -510,6 +530,7 @@ function Unsliced({ sample, toFile, toTrim, stopTransport, onSliced }: UnslicedP
   const playhead = useAuditionPlayhead(playing);
   const audio = sampleAudio(project, sample);
   const duration = sample.duration;
+  const own = ownMatrix(project, sample.id);
 
   const slice = (bars: number | null, by: SliceBy | null) => {
     if (bars === null || by === null) return;
@@ -536,9 +557,14 @@ function Unsliced({ sample, toFile, toTrim, stopTransport, onSliced }: UnslicedP
             <button type="button" className="link-text small" title={`${sample.name}, in the table above`} onClick={toFile}>
               ← File
             </button>
-            <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, above" onClick={toTrim}>
+            <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, below" onClick={toTrim}>
               ← Trim
             </button>
+            {own !== undefined && (
+              <button type="button" className="link-text small" title={`Matrix ${own.name}, in Pads`} onClick={() => toPads(own)}>
+                Pads →
+              </button>
+            )}
             <InSong heard={heardHere.has(sample.id)} />
           </div>
           <p className="muted">Not sliced yet: set its bars and how to slice it. Nothing is made before that.</p>
@@ -601,6 +627,7 @@ function Unsliced({ sample, toFile, toTrim, stopTransport, onSliced }: UnslicedP
           </div>
         </div>
       </div>
+      {trim}
       {audio !== undefined && (
         <div className="table-scroll slice-box">
           <div className="slice-canvas" style={{ minWidth: 1000 }}>
