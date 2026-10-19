@@ -520,12 +520,18 @@ export const setSongLoop =
     return ok(setSong(project, { ...project.song, loop: { start, end, on } }));
   };
 
-/** Turns the song's loop on or off, keeping where it is. */
+/**
+ * Turns the song's loop on or off, keeping where it is. With no loop marked,
+ * the whole song is the loop: on loops it all, off leaves it unmarked.
+ */
 export const setSongLoopOn =
   (on: boolean): Command =>
   (project) => {
     const loop = project.song.loop;
-    if (loop == null) return invalid('Drag in the ruler to mark a loop first');
+    if (loop == null) {
+      if (!on) return ok(project);
+      return ok(setSong(project, { ...project.song, loop: { start: 0, end: project.song.bars * STEPS_PER_BAR, on } }));
+    }
     return ok(setSong(project, { ...project.song, loop: { ...loop, on } }));
   };
 

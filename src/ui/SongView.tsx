@@ -69,7 +69,9 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
   const mods = Object.values(project.mods);
   const playheadStep = playheadSeconds === null ? null : playheadSeconds / stepSeconds;
   const songLoop = project.song.loop ?? null;
-  const loopText = songLoop === null ? '' : `${position(songLoop.start)} – ${position(songLoop.end)}`;
+  /** The loop region always shows: with none marked, the whole song, off. */
+  const region = songLoop ?? { start: 0, end: total, on: false };
+  const loopText = `${position(region.start)} – ${position(region.end)}`;
 
   /**
    * Ctrl+C copies the selected clip; Ctrl+V pastes it where the playhead is,
@@ -113,8 +115,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
 
   /** One end of the loop, dragged or moved with ←/→ like Trim's handles; one drag is one undo step. */
   const loopHandle = (which: 'start' | 'end') => {
-    if (songLoop === null) return null;
-    const { start, end, on } = songLoop;
+    const { start, end, on } = region;
     const set = (to: number) =>
       setError(
         run(
@@ -130,7 +131,7 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
         label={`Loop ${which} at ${position(which === 'start' ? start : end)}`}
         title="Drag to move this end of the loop, or focus it and use ←/→ (Shift: a beat)"
         onDrag={(x, handle) => {
-          const el = handle.closest('.song-timeline') as HTMLElement | null;
+          const el = handle.closest('.ruler-loop-strip') as HTMLElement | null;
           if (el !== null) set(boundaryAt({ clientX: x }, el));
         }}
         onNudge={(direction, big) => set((which === 'start' ? start : end) + direction * (big ? 4 : 1))}
@@ -283,12 +284,11 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
           <button
             type="button"
             className="loop-toggle"
-            aria-pressed={songLoop?.on === true}
-            disabled={songLoop === null}
-            title={songLoop === null ? 'Drag in the ruler to mark a loop' : songLoop.on ? `Looping ${loopText}: click to play the whole song` : `Loop ${loopText}`}
-            onClick={() => setError(run(setSongLoopOn(songLoop?.on !== true)))}
+            aria-pressed={region.on}
+            title={region.on ? `Looping ${loopText}: click to play the whole song` : `Loop ${loopText}`}
+            onClick={() => setError(run(setSongLoopOn(!region.on)))}
           >
-            Loop{songLoop === null ? '' : ` ${loopText}`}
+            Loop {loopText}
           </button>
           <button type="button" onClick={onNewTake}>
             New take
@@ -301,12 +301,12 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
 
       <div className="table-scroll timeline-box" onClick={() => setSelected(null)}>
         <div className="song-timeline" style={{ width }}>
-          <div className="timeline-row">
+          <div className="timeline-ruler" style={{ width }} onClick={(e) => e.stopPropagation()}>
+            {/* Upper strip: the loop region, marked by a drag; its handles sit here. */}
             <div
-              className="timeline-ruler"
-              style={{ width }}
-              aria-label="Ruler: click to play from a step, drag to mark a loop"
-              onClick={(e) => e.stopPropagation()}
+              className="ruler-loop-strip"
+              aria-label="Loop region: drag to mark it"
+              title={`Loop ${loopText}${region.on ? '' : ' (off)'} · drag here to mark a new loop`}
               onPointerDown={(e) => {
                 e.currentTarget.setPointerCapture(e.pointerId);
                 ruler.current = { x: e.clientX, from: boundaryAt(e, e.currentTarget), dragged: false };
@@ -319,26 +319,28 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
                 const to = boundaryAt(e, e.currentTarget);
                 if (to !== down.from) setError(run(setSongLoop(Math.min(down.from, to), Math.max(down.from, to)), 'song:loop'));
               }}
-              onPointerUp={(e) => {
+              onPointerUp={() => {
                 const down = ruler.current;
                 ruler.current = null;
-                if (down === null) return;
-                if (down.dragged) {
-                  seal();
-                  return;
-                }
+                // A click without a drag does nothing here: where Play starts is set in the strip below.
+                if (down?.dragged === true) seal();
+              }}
+            >
+              <span className={`ruler-loop${region.on ? ' on' : ''}`} style={{ left: region.start * STEP_PX, width: (region.end - region.start) * STEP_PX }} />
+              {loopHandle('start')}
+              {loopHandle('end')}
+            </div>
+            {/* Lower strip, with the bar numbers: where Play starts. */}
+            <div
+              className="ruler-start-strip"
+              aria-label="Start point: click to play from a step"
+              title="Click to play from here"
+              onPointerUp={(e) => {
                 const step = Math.min(total - 1, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / STEP_PX));
                 store.dispatch({ type: 'songCursor', step: Math.max(0, step) });
                 onSeek(Math.max(0, step));
               }}
             >
-              {songLoop !== null && (
-                <span
-                  className={`ruler-loop${songLoop.on ? ' on' : ''}`}
-                  style={{ left: songLoop.start * STEP_PX, width: (songLoop.end - songLoop.start) * STEP_PX }}
-                  title={`Loop ${loopText}${songLoop.on ? '' : ' (off)'}`}
-                />
-              )}
               <span className="ruler-cursor" style={{ left: cursor * STEP_PX }} aria-label={`Play starts at ${position(cursor)}`} />
               {Array.from({ length: bars }, (_, bar) => (
                 <span key={bar} className="ruler-bar mono" style={{ left: bar * STEPS_PER_BAR * STEP_PX }}>
@@ -376,15 +378,16 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
               </div>
             </div>
           ))}
-          {/* As in Trim: what is outside the loop is shaded, and its ends are handles over the whole timeline. */}
-          {songLoop?.on === true && (
+          {/* As in Trim: what is outside the loop is shaded while it is on, and its ends are lines over the lanes. */}
+          {region.on && (
             <>
-              <span className="region-shade song-shade" style={{ left: 0, width: songLoop.start * STEP_PX }} />
-              <span className="region-shade song-shade" style={{ left: songLoop.end * STEP_PX, width: (total - songLoop.end) * STEP_PX }} />
+              <span className="region-shade song-shade" style={{ left: 0, width: region.start * STEP_PX }} />
+              <span className="region-shade song-shade" style={{ left: region.end * STEP_PX, width: (total - region.end) * STEP_PX }} />
             </>
           )}
-          {loopHandle('start')}
-          {loopHandle('end')}
+          {[region.start, region.end].map((at, i) => (
+            <span key={i} className={`loop-line${region.on ? '' : ' off'}`} style={{ left: at * STEP_PX }} aria-hidden="true" />
+          ))}
           {playheadStep !== null && <span className="playhead" style={{ left: playheadStep * STEP_PX }} />}
         </div>
       </div>
@@ -459,7 +462,8 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
           Drag a loop or mod onto a lane, or select it and click a lane; double-click it to edit. Drag clips to move them (Ctrl: copy)
           and their edges to resize; a fill takes over the main for its length. Click a clip to select it: Delete removes it, ←/→
           moves it a step (Shift: a beat), Ctrl+C copies it, Ctrl+D puts a copy right after it, Ctrl+V pastes at the playhead. Click
-          the ruler to play from there; drag in it to mark a loop, and its handles to move its ends. Space plays and stops.
+          the lower strip of the ruler, with the bar numbers, to play from there; drag in its upper strip to mark a loop, and the
+          loop's handles to move its ends. Space plays and stops.
         </p>
       </section>
     </main>

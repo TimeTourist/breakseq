@@ -31,7 +31,12 @@ describe('the song loop', () => {
     expect(setSongLoop(8, 8)(project, ctx).ok).toBe(false);
     expect(setSongLoop(-1, 8)(project, ctx).ok).toBe(false);
     expect(setSongLoop(0, project.song.bars * 16 + 1)(project, ctx).ok).toBe(false);
-    expect(setSongLoopOn(true)(project, ctx).ok).toBe(false);
+  });
+
+  it('with none marked, on loops the whole song and off changes nothing', () => {
+    const project = song();
+    expect(run(project, setSongLoopOn(true)).song.loop).toEqual({ start: 0, end: project.song.bars * 16, on: true });
+    expect(run(project, setSongLoopOn(false))).toBe(project);
   });
 
   it('is cut with the song, and goes when the song ends before it', () => {
