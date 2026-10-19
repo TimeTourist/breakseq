@@ -59,6 +59,19 @@ async function setup(project: Project, view: 'pads' | 'mods', selection: Partial
 }
 
 describe('stretch in the GUI', () => {
+  it('Pitch has Fit to tempo of its own: a matrix fits by pitch, and the semitones still add', async () => {
+    const sampled = apply(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const amen = Object.values(sampled.samples)[0]!;
+    const project = apply(sampled, setSlicing(amen.id, 1));
+    const matrix = ownMatrix(project, amen.id)!.id;
+    const store = await setup(project, 'pads', { matrix });
+    const pitch = screen.getByRole('slider', { name: /^Pitch/ }).closest('.slider') as HTMLElement;
+    fireEvent.click(within(pitch).getByRole('button', { name: 'Fit to tempo' }));
+    expect(store.getState().history.present.matrices[matrix]!.config.pitchFit).toBe(true);
+    expect(within(pitch).getByRole('button', { name: 'Fit to tempo' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(pitch).getByText('0 st + fit')).toBeTruthy();
+  });
+
   it('Pads sets a matrix to Fit to tempo, and Factor shows its slider; a hit of a sample that is not sliced cannot fit', async () => {
     const sampled = apply(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const amen = Object.values(sampled.samples).find((s) => s.name === 'amen.wav')!;

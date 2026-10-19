@@ -5,6 +5,7 @@ import {
   addVariant,
   baseName,
   copyHits,
+  effectiveHit,
   hitStretch,
   matrixOfPad,
   movePad,
@@ -91,6 +92,7 @@ function MatrixControls({ matrix, onError }: { readonly matrix: Matrix; readonly
     set: (patch, field) => onError(run(setMatrixConfig(matrix.id, patch), `matrix:${matrix.id}:${field}`)),
     above: [],
     canFit: anyTempo(project, matrix.pads),
+    pitchPlays: null,
     played: ownStretch(matrix.config, []),
   };
   return (
@@ -126,6 +128,7 @@ function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonl
     set: (patch, field) => onError(run(setPadConfig(pad.id, patch), `pad:${pad.id}:${field}`)),
     above,
     canFit: anyTempo(project, [pad.id]),
+    pitchPlays: null,
     played: ownStretch(pad.config, above),
   };
   return (
@@ -333,6 +336,7 @@ function HitControls({ heading, hit, onError, ask }: { readonly heading: string;
     set: (patch, field) => edit(patch, field),
     above: layers,
     canFit: sample !== undefined && sampleBpm(sample) !== null,
+    pitchPlays: effectiveHit(project, hit).pitch,
     played: hitStretch(project, hit),
   };
   return (

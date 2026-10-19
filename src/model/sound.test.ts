@@ -119,6 +119,27 @@ describe('config in three layers', () => {
     expect(hitStretch(project, hit).factor).toBeCloseTo((136 / 170) * 2);
   });
 
+  it('pitch fit plays the sample at the song tempo, counts once and adds to the semitones', () => {
+    const s = sample('s', breakDuration(4, 136), 4, gridMarkers(4));
+    const { project, hit } = layered({ pitch: 2 }, { pitchFit: true }, { pitchFit: true }, { samples: [s], bpm: 170 });
+    expect(effectiveHit(project, hit).pitch).toBeCloseTo(12 * Math.log2(170 / 136) + 2);
+  });
+
+  it('pitch fit on a sample with no tempo adds nothing', () => {
+    const { project, hit } = layered({ pitchFit: true }, {}, {}, { samples: [sample('s', 1)], bpm: 170 });
+    expect(effectiveHit(project, hit).pitch).toBe(0);
+  });
+
+  it('pitch first, then stretch: stretch fit counts the pitch, so with pitch fit it stretches nothing', () => {
+    const s = sample('s', breakDuration(4, 136), 4, gridMarkers(4));
+    const fit = { mode: 'fit', factor: 1, grain: null, from: null } as const;
+    const both = layered({ stretch: fit }, {}, { pitchFit: true }, { samples: [s], bpm: 170 });
+    expect(hitStretch(both.project, both.hit).factor).toBeCloseTo(1);
+    // +12 by hand plays twice as fast; stretch fit makes up for it and keeps the length of the steps.
+    const up = layered({ stretch: fit, pitch: 12 }, {}, {}, { samples: [s], bpm: 170 });
+    expect(hitStretch(up.project, up.hit).factor).toBeCloseTo((136 / 170) * 2);
+  });
+
   it("fit takes the tempo of the hit's sample, not the matrix's", () => {
     const snare = sample('snare', breakDuration(1, 136), 1, gridMarkers(1));
     const own = sample('own', breakDuration(1, 170), 1, gridMarkers(1));

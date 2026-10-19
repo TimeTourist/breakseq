@@ -20,6 +20,8 @@ export interface Layer {
   readonly above: readonly { readonly name: 'pad' | 'matrix'; readonly config: Config }[];
   /** Whether Fit to tempo can be chosen: something under it has a tempo. */
   readonly canFit: boolean;
+  /** What a hit's pitch plays at with every layer and Fit to tempo, in semitones; null for a pad or matrix, whose hits differ. */
+  readonly pitchPlays: number | null;
   /** How it is stretched as it plays: a hit with every layer, a pad or matrix by its own. */
   readonly played: { readonly factor: number; readonly grain: number };
 }
@@ -65,6 +67,16 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
       return added === 0 ? signed(own, unit) : `${signed(own, unit)} · plays ${signed(own + added, unit)}`;
     };
     const panAbove = layer.above.reduce((sum, a) => sum + a.config.pan, 0);
+    const fitAbove = nearestAbove(layer, (c) => c.pitchFit === true)?.name;
+    const fits = config.pitchFit === true || fitAbove !== undefined;
+    /** Its own semitones, and what it plays at: for a hit the exact pitch, for a pad or matrix the layers above and whether it fits. */
+    const pitchText = (own: number) => {
+      if (layer.pitchPlays !== null) {
+        const plays = Math.round(layer.pitchPlays * 100) / 100;
+        return plays === own ? signed(own, 'st') : `${signed(own, 'st')} · plays ${signed(plays, 'st')}`;
+      }
+      return withAbove(own, 'pitch', 'st') + (fits ? ' + fit' : '');
+    };
     return (
       <div className="config-grid">
         <div className="panel stack-tight">
@@ -78,7 +90,20 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
             </button>
           </div>
         </div>
-        <Slider label="Pitch" value={config.pitch} min={-24} max={24} step={1} format={(v) => withAbove(v, 'pitch', 'st')} onChange={(v) => set({ pitch: v }, 'pitch')} onCommit={seal} />
+        <Slider label="Pitch" value={config.pitch} min={-24} max={24} step={1} format={pitchText} onChange={(v) => set({ pitch: v }, 'pitch')} onCommit={seal}>
+          {/* Fit to tempo by pitch, like a sampler playing faster; the semitones add to it. (Magnus beslut) */}
+          <div className="segmented full">
+            <button
+              type="button"
+              aria-pressed={config.pitchFit === true}
+              disabled={!layer.canFit && config.pitchFit !== true}
+              title={!layer.canFit ? 'A sample that is not sliced has no tempo to fit' : fitAbove !== undefined && config.pitchFit !== true ? `The ${fitAbove} fits to tempo` : 'Pitch the sample to the song’s tempo'}
+              onClick={() => set({ pitchFit: config.pitchFit !== true }, 'pitchFit')}
+            >
+              Fit to tempo
+            </button>
+          </div>
+        </Slider>
         <Slider label="Volume" value={config.volume} min={-24} max={6} step={0.5} format={(v) => withAbove(v, 'volume', 'dB')} onChange={(v) => set({ volume: v }, 'volume')} onCommit={seal} />
         <Slider
           label="Pan"

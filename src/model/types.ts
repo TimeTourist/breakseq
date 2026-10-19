@@ -133,6 +133,12 @@ export interface Config {
   readonly direction: Direction;
   /** Semitones. */
   readonly pitch: number;
+  /**
+   * Fit to tempo by pitch: the sample's tempo pitched to the song's, like a
+   * sampler playing faster, added to the semitones and counted once however
+   * many layers have it. Missing in older project files, so read it as `=== true`.
+   */
+  readonly pitchFit: boolean;
   /** dB. */
   readonly volume: number;
   /** −1 (left) to 1 (right); the layers' and mods' add to it. */
@@ -149,6 +155,7 @@ export interface Config {
 export const NO_CONFIG: Config = {
   direction: 'forward',
   pitch: 0,
+  pitchFit: false,
   volume: 0,
   pan: 0,
   fadeOut: 0,

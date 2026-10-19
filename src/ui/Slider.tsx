@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 
 interface SliderProps {
   readonly label: string;
@@ -10,9 +10,11 @@ interface SliderProps {
   readonly onChange: (value: number) => void;
   /** The drag or key press has ended: close its undo step. */
   readonly onCommit: () => void;
+  /** Something that belongs to the value, under the slider: a mode button. */
+  readonly children?: ReactNode;
 }
 
-export function Slider({ label, value, min, max, step, format, onChange, onCommit }: SliderProps) {
+export function Slider({ label, value, min, max, step, format, onChange, onCommit, children }: SliderProps) {
   const id = useId();
   return (
     <div className="panel slider">
@@ -32,6 +34,7 @@ export function Slider({ label, value, min, max, step, format, onChange, onCommi
         onKeyUp={onCommit}
         onBlur={onCommit}
       />
+      {children}
     </div>
   );
 }
