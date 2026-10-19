@@ -24,7 +24,7 @@ import { MATRIX_MIME, PAD_MIME, STEP_MIME, copies, useDropTargets } from './dnd'
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { FocusBar } from './FocusBar';
 import { MatrixKindIcon } from './icons';
-import { CHOICE_LABEL, HIT_COLOR, lengthText, padLabel, padSilent, shelfGroups } from './labels';
+import { CHOICE_LABEL, HIT_COLOR, lengthText, middleEllipsis, padLabel, padSilent, shelfGroups } from './labels';
 import { LoopLength } from './LoopLength';
 import { Delete } from './DeleteButton';
 import { InSong, InSongMark, useHeard } from './InSong';
@@ -117,11 +117,12 @@ export function LoopsView({ playhead }: LoopsViewProps) {
           <button
             key={l.id}
             type="button"
-            className="list-item"
+            className="list-item loop-item"
             aria-current={l.id === loopId ? 'true' : undefined}
+            title={l.name}
             onClick={() => open({ loop: l.id, step: null }, 'loops')}
           >
-            <span className={`mono loop-name ${l.kind}`}>{l.name}</span>
+            <span className={`mono loop-name ${l.kind}`}>{middleEllipsis(l.name)}</span>
             <InSongMark heard={heard.loops.has(l.id)} />
             <span className="grow" />
             <span className="muted small">{l.kind}</span>
