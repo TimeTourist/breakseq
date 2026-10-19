@@ -219,6 +219,12 @@ describe('Pads: the controls', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Hit 2 in pad 02');
     const controls = screen.getByRole('region', { name: 'Hit controls' });
     expect(within(controls).getByRole('button', { name: 'Replace…' })).toBeTruthy();
+    // One line: what it is, its name, ← Sample N (what it plays on hover), then ♪ Song → if heard.
+    const head = controls.querySelector('.hit-head')!;
+    expect(head.querySelector('h2')!.textContent).toBe('Hit 2 in pad 02');
+    const back = within(head as HTMLElement).getByRole('button', { name: /^← Sample \d+$/ });
+    expect(back.getAttribute('title')).toMatch(/^Plays /);
+    expect(screen.queryByText(/^Plays /)).toBeNull();
     expect(within(controls).getByRole('button', { name: 'Variant' })).toBeTruthy();
     expect(within(controls).getByRole('group', { name: 'Direction' })).toBeTruthy();
     expect(within(controls).getAllByRole('button', { name: /^(Start|End) at/ })).toHaveLength(2);

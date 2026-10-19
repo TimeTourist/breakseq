@@ -70,9 +70,9 @@ interface ControlsProps {
 export function ControlsPanel({ open, onError, ask }: ControlsProps) {
   return (
     <div className="stack-tight">
-      <h2 className="controls-heading">{controlsHeading(open)}</h2>
+      {open.kind !== 'hit' && <h2 className="controls-heading">{controlsHeading(open)}</h2>}
       {open.kind === 'hit' ? (
-        <HitControls key={open.hit.id} hit={open.hit} onError={onError} ask={ask} />
+        <HitControls key={open.hit.id} heading={controlsHeading(open)} hit={open.hit} onError={onError} ask={ask} />
       ) : open.kind === 'pad' ? (
         <PadControls key={open.pad.id} pad={open.pad} matrix={open.matrix} onError={onError} ask={ask} />
       ) : (
@@ -138,10 +138,10 @@ function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonl
           onChange={(e) => onError(run(renamePad(pad.id, e.target.value), `pad:${pad.id}:name`))}
           onBlur={seal}
         />
-        <InSong heard={heard.pads.has(pad.id)} />
         <span className="muted small">
           Row {rowNumber(row)} of {matrix.name}
         </span>
+        <InSong heard={heard.pads.has(pad.id)} />
         <div className="row push">
           <button type="button" aria-label={`Move ${pad.name} left`} title="One row earlier in the timeline" disabled={row === 0} onClick={() => onError(run(movePad(matrix.id, pad.id, row - 1)))}>
             ←
@@ -278,8 +278,9 @@ function ReplacePanel({ hit, onError }: { readonly hit: Hit; readonly onError: (
 }
 
 /** A hit: Replace…, its region of its slice with handles, Variant, Delete, and its own config under its pad's and matrix's. */
-function HitControls({ hit, onError, ask }: { readonly hit: Hit; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
+function HitControls({ heading, hit, onError, ask }: { readonly heading: string; readonly hit: Hit; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
   const project = useProject();
+  const { store } = useApp();
   const run = useRun();
   const seal = useSeal();
   const open = useOpen();
@@ -338,14 +339,26 @@ function HitControls({ hit, onError, ask }: { readonly hit: Hit; readonly onErro
     <section className="stack" aria-label="Hit controls">
       <div className="view-head row">
         <div className="stack-tight grow">
-          <input className="title-input mono" aria-label="Hit name" value={hit.name} onChange={(e) => edit({ name: e.target.value }, 'name')} onBlur={seal} />
-          <div className="row nav-row">
+          {/* One line: what it is, its name, the trim it plays (what it plays on hover) and ♪ Song. (Magnus beslut) */}
+          <div className="row hit-head">
+            <h2 className="controls-heading">{heading}</h2>
+            <input className="title-input mono" aria-label="Hit name" value={hit.name} onChange={(e) => edit({ name: e.target.value }, 'name')} onBlur={seal} />
+            {sample !== undefined && (
+              <button
+                type="button"
+                className="link-text small"
+                title={source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}
+                onClick={() => {
+                  store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
+                  store.dispatch({ type: 'view', view: 'samples' });
+                }}
+              >
+                {`← Sample ${sample.trim}`}
+              </button>
+            )}
             <InSong heard={heard.hits.has(hit.id)} />
           </div>
-          <p className="muted">
-            {source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}
-            {window === null && sample !== undefined && ` · silent: ${trimName(sample)} has ${sample.markers.length} slices`}
-          </p>
+          {window === null && sample !== undefined && <p className="muted">{`Silent: ${trimName(sample)} has ${sample.markers.length} slices`}</p>}
         </div>
         <div className="row push">
           <button type="button" aria-expanded={replacing} onClick={() => setReplacing(!replacing)}>
