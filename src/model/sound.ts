@@ -72,12 +72,13 @@ const nearest = (layers: readonly Config[], has: (config: Config) => boolean): C
  */
 export function effectiveHit(project: Project, hit: Hit): Hit {
   const layers = configLayers(project, hit);
-  if (layers.length === 1) return hit;
+  const fit = layers.some((c) => c.pitchFit === true) ? fitPitch(project, hit) : 0;
+  if (layers.length === 1) return fit === 0 ? hit : { ...hit, pitch: hit.pitch + fit };
   const sum = (field: 'pitch' | 'volume' | 'pan') => layers.reduce((total, c) => total + c[field], 0);
   const flips = layers.filter((c) => c.direction === 'reverse').length;
   return {
     ...hit,
-    pitch: sum('pitch'),
+    pitch: sum('pitch') + fit,
     volume: sum('volume'),
     pan: sum('pan'),
     direction: flips % 2 === 1 ? 'reverse' : 'forward',
@@ -105,11 +106,24 @@ export const clampStretch = (factor: number): number =>
 /** A layer's own stretch factor; Fit to tempo is counted apart, once. */
 const layerFactor = (config: Config): number => (config.stretch.mode === 'factor' ? clampStretch(config.stretch.factor) : 1);
 
-/** Fit to tempo for a hit: its own sample's tempo over the song's, and 1 for a sample with no tempo. */
-function fitFactor(project: Project, hit: Hit): number {
+/** The tempo of a hit's own sample over the song's, and 1 for a sample with no tempo. */
+function tempoRatio(project: Project, hit: Hit): number {
   const sample = project.samples[hit.sampleId];
   const bpm = sample === undefined ? null : sampleBpm(sample);
-  return bpm === null || project.song.bpm <= 0 ? 1 : clampStretch(bpm / project.song.bpm);
+  return bpm === null || bpm <= 0 || project.song.bpm <= 0 ? 1 : bpm / project.song.bpm;
+}
+
+/** Fit to tempo by pitch, in semitones: what plays the hit's sample at the song's tempo, and 0 for a sample with no tempo. */
+export function fitPitch(project: Project, hit: Hit): number {
+  return -12 * Math.log2(tempoRatio(project, hit));
+}
+
+/**
+ * Fit to tempo by stretch: pitch first, then stretch, so the factor makes the
+ * hit as long as its steps with its pitch counted, and 1 if pitch already fits it.
+ */
+function fitFactor(project: Project, hit: Hit): number {
+  return clampStretch(tempoRatio(project, hit) * 2 ** (effectiveHit(project, hit).pitch / 12));
 }
 
 /**
