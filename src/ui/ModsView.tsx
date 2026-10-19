@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { EffectTarget, Id, Mod, ModDelay, ModEffect, ModFilter, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
 import { DEFAULT_MOD_DELAY, DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_REVERB, DEFAULT_MOD_STRETCH, MAX_FEEDBACK, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
 import { Delete } from './DeleteButton';
-import { InSong, InSongMark, useHeard } from './InSong';
+import { InSongMark, useHeard } from './InSong';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { StepGraph, SwapGraph, TapeGraph } from './ModGraph';
 import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
@@ -257,7 +257,6 @@ export function ModsView() {
             />
             <p className="muted row">
               {effectsLabel(mod)} · Play tries it on {previewId === null ? 'a loop (make one first)' : project.loops[previewId]?.name}, over the whole loop.
-              <InSong heard={heard.mods.has(mod.id)} />
             </p>
           </div>
           <div className="row push">

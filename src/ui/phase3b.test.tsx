@@ -225,21 +225,21 @@ describe('files, trims and matrices in the GUI', () => {
     // Plays and Replace with file are gone (decision 11).
     expect(screen.queryByRole('combobox', { name: 'Trim under the break' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Replace with file/ })).toBeNull();
-    // ← Samples, with the trim's full name in its title (decision 14).
-    expect(screen.getByRole('button', { name: '← Samples' }).title).toBe('Open amen trim 1 in Samples');
-    fireEvent.click(screen.getByRole('button', { name: '← Samples' }));
+    // The row under the tabs links back to the trim, with its full name in its title (decision 14).
+    const trim = within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'trim 1' });
+    expect(trim.title).toBe('amen trim 1, in Samples');
+    fireEvent.click(trim);
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample.id });
   });
 
-  it('Slicing has no Replace sample; Pads → opens the matrix in focus, and New matrix from slice makes a matrix of the slice', async () => {
+  it('Slicing has no Replace sample; the row under the tabs opens the matrix in focus, and New matrix from slice makes a matrix of the slice', async () => {
     const store = await setup(await sliced(), 'samples');
     expect(screen.queryByRole('button', { name: 'Replace sample…' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'New matrix from slice' }));
     const matrices = Object.values(store.getState().history.present.matrices);
     expect(matrices.map((m) => m.name)).toEqual(['amen 1', 'amen 2']);
     expect(matrices[1]!.pads).toHaveLength(1);
-    const slicing = screen.getByRole('region', { name: 'Slicing' });
-    fireEvent.click(within(slicing).getAllByRole('button', { name: 'Pads →' })[0]!);
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'amen 1' }));
     expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: matrices[0]!.id }, selection: { matrix: matrices[0]!.id, pad: null, hit: null } });
   });
 });

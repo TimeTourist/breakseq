@@ -26,7 +26,6 @@ import { ConfigPanels, anyTempo, ownStretch } from './ConfigPanels';
 import type { Layer } from './ConfigPanels';
 import { useApp, useOpen, useProject, useRun, useSeal } from './context';
 import { Delete } from './DeleteButton';
-import { InSong, useHeard } from './InSong';
 import { PlayIcon } from './icons';
 import { CHOICE_LABEL, middleEllipsis } from './labels';
 import type { PadsOpen } from './pads';
@@ -115,7 +114,6 @@ function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonl
   const run = useRun();
   const seal = useSeal();
   const open = useOpen();
-  const heard = useHeard();
   const [search, setSearch] = useState('');
   const [padSound, setPadSound] = useState(false);
   const query = search.trim().toLowerCase();
@@ -144,7 +142,6 @@ function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonl
         <span className="muted small">
           Row {rowNumber(row)} of {matrix.name}
         </span>
-        <InSong heard={heard.pads.has(pad.id)} />
         <div className="row push">
           <button type="button" aria-label={`Move ${pad.name} left`} title="One row earlier in the timeline" disabled={row === 0} onClick={() => onError(run(movePad(matrix.id, pad.id, row - 1)))}>
             ←
@@ -283,11 +280,9 @@ function ReplacePanel({ hit, onError }: { readonly hit: Hit; readonly onError: (
 /** A hit: Replace…, its region of its slice with handles, Variant, Delete, and its own config under its pad's and matrix's. */
 function HitControls({ heading, hit, onError, ask }: { readonly heading: string; readonly hit: Hit; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
   const project = useProject();
-  const { store } = useApp();
   const run = useRun();
   const seal = useSeal();
   const open = useOpen();
-  const heard = useHeard();
   const adding = useRunAdding(onError);
   const [replacing, setReplacing] = useState(false);
   const wave = useRef<HTMLDivElement>(null);
@@ -343,24 +338,12 @@ function HitControls({ heading, hit, onError, ask }: { readonly heading: string;
     <section className="stack" aria-label="Hit controls">
       <div className="view-head row">
         <div className="stack-tight grow">
-          {/* One line: what it is, its name, the trim it plays (what it plays on hover) and ♪ Song. (Magnus beslut) */}
+          {/* One line: what it is (what it plays on hover) and its name; the links are in the row under the tabs. (Magnus beslut) */}
           <div className="row hit-head">
-            <h2 className="controls-heading">{heading}</h2>
+            <h2 className="controls-heading" title={sample === undefined ? undefined : source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}>
+              {heading}
+            </h2>
             <input className="title-input mono" aria-label="Hit name" value={hit.name} onChange={(e) => edit({ name: e.target.value }, 'name')} onBlur={seal} />
-            {sample !== undefined && (
-              <button
-                type="button"
-                className="link-text small"
-                title={source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}
-                onClick={() => {
-                  store.dispatch({ type: 'sliceTarget', sampleId: sample.id });
-                  store.dispatch({ type: 'view', view: 'samples' });
-                }}
-              >
-                {`← Sample ${sample.trim}`}
-              </button>
-            )}
-            <InSong heard={heard.hits.has(hit.id)} />
           </div>
           {window === null && sample !== undefined && <p className="muted">{`Silent: ${trimName(sample)} has ${sample.markers.length} slices`}</p>}
         </div>

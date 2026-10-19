@@ -31,9 +31,8 @@ import { RenumberDialog } from './RenumberDialog';
 import { useAuditionPlayhead } from './AuditionPlayhead';
 import { PlayControls } from './PlayControls';
 import { Slider } from './Slider';
-import { InSong, useHeard } from './InSong';
 import { Waveform } from './Waveform';
-import { heardSamples, sampleLabel } from './labels';
+import { sampleLabel } from './labels';
 import { isTyping, modalOpen } from './isTyping';
 import { useCommitAfterPause } from './usePause';
 
@@ -84,8 +83,6 @@ interface TrimSlicingProps {
   readonly sample: Sample;
   /** How far through its matrix Play in the header is, 0–1, while it plays it. */
   readonly played: number | null;
-  /** Brings the trim's file in the table above into view. */
-  readonly toFile: () => void;
   /** Opens the trim's Trim, here below the table, and brings it into view. */
   readonly toTrim: () => void;
   /** The trim's Trim while it is open: shown above the waveform (fas 23b). */
@@ -132,7 +129,7 @@ interface SlicedProps extends Omit<TrimSlicingProps, 'sample'> {
 }
 
 /** A sliced trim: its waveform with numbered slices, the markers between them, and the 1/16 steps they land on. */
-function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, found, onFound }: SlicedProps) {
+function Sliced({ sample, played, toTrim, trim, toPads, stopTransport, found, onFound }: SlicedProps) {
   const project = useProject();
   const { store, services } = useApp();
   const run = useRun();
@@ -149,7 +146,6 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
   const [loopSample, setLoopSample] = useState(true);
   const auditioned = useAuditionPlayhead(playingSample);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
-  const heard = useHeard();
   const [made, setMade] = useState<Matrix | null>(null);
   /** A change that renumbers slices played more than once, waiting for New trim or Renumber. */
   const [asking, setAsking] = useState<{ readonly conflict: Renumber; readonly go: (newTrim: boolean) => void } | null>(null);
@@ -169,7 +165,6 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
   const toParts = (seconds: readonly number[]) => seconds.map((m) => m / duration);
   const by = slicedBy(sample, found);
   const transients = by === 'transients';
-  const heardHere = heardSamples(project, heard);
   // The audition's playhead, else Play in the header's through the matrix.
   const playhead = auditioned !== null ? (auditioned - sample.offset) / duration : played;
 
@@ -293,18 +288,9 @@ function Sliced({ sample, played, toFile, toTrim, trim, toPads, stopTransport, f
         <div className="stack-tight">
           <h2 className="mono">{sliceName(sample)}</h2>
           <div className="row nav-row">
-            <button type="button" className="link-text small" title={`${sample.name}, in the table above`} onClick={toFile}>
-              ← File
-            </button>
             <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, below" onClick={toTrim}>
               ← Trim
             </button>
-            {own !== undefined && (
-              <button type="button" className="link-text small" title={`Matrix ${own.name}, in Pads`} onClick={() => toPads(own)}>
-                Pads →
-              </button>
-            )}
-            <InSong heard={heardHere.has(sample.id)} />
           </div>
           <p className="muted row">
             <label className="field">
@@ -535,13 +521,11 @@ interface UnslicedProps extends Omit<TrimSlicingProps, 'sample'> {
  * are both chosen, then its matrix gets a pad per slice and a loop, in one
  * undo step. The file's cue markers, if it has any, are chosen to start with.
  */
-function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSliced }: UnslicedProps) {
+function Unsliced({ sample, toTrim, trim, stopTransport, onSliced }: UnslicedProps) {
   const project = useProject();
   const { services, store } = useApp();
   const run = useRun();
   const seal = useSeal();
-  const heard = useHeard();
-  const heardHere = heardSamples(project, heard);
   const cues = cueMarkers(sample);
   const [bars, setBars] = useState<number | null>(null);
   const [by, setBy] = useState<SliceBy | null>(cues === null ? null : 'cues');
@@ -551,7 +535,6 @@ function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSlice
   const playhead = useAuditionPlayhead(playing);
   const audio = sampleAudio(project, sample);
   const duration = sample.duration;
-  const own = ownMatrix(project, sample.id);
 
   const slice = (bars: number | null, by: SliceBy | null, mergeKey?: string) => {
     if (bars === null || by === null) return;
@@ -584,18 +567,9 @@ function Unsliced({ sample, toFile, toTrim, trim, toPads, stopTransport, onSlice
         <div className="stack-tight">
           <h2 className="mono">{sampleLabel(project, sample)}</h2>
           <div className="row nav-row">
-            <button type="button" className="link-text small" title={`${sample.name}, in the table above`} onClick={toFile}>
-              ← File
-            </button>
             <button type="button" className="link-text small" title="Trim the start and end of the sample, and pick its channel, below" onClick={toTrim}>
               ← Trim
             </button>
-            {own !== undefined && (
-              <button type="button" className="link-text small" title={`Matrix ${own.name}, in Pads`} onClick={() => toPads(own)}>
-                Pads →
-              </button>
-            )}
-            <InSong heard={heardHere.has(sample.id)} />
           </div>
           <p className={bars === null && by !== null ? 'warn-text' : 'muted'}>
             {bars === null && by !== null

@@ -108,24 +108,27 @@ describe('Samples: one page', () => {
     expect(lines.map((l) => l.style.left)).toEqual(['0%', '25%', '50%', '75%']);
   });
 
-  it('Pads → below the table sets the focus to the trim’s matrix and opens Pads', async () => {
+  it('the row under the tabs links the selected trim back to its file and on to its matrix and loop (Magnus beslut)', async () => {
     const project = build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4));
     const own = ownMatrix(project, first(project).id)!;
     const store = await setup(project);
-    fireEvent.click(within(screen.getByRole('region', { name: 'Slicing' })).getAllByRole('button', { name: 'Pads →' })[0]!);
+    const row = screen.getByRole('navigation', { name: 'Where you are' });
+    expect(row.textContent).toBe('amen.wav›trim 1→amen 1·1 loop');
+    fireEvent.click(within(row).getByRole('button', { name: 'amen 1' }));
     expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: own.id } });
   });
 
-  it('a trim not sliced has Pads → below the table too', async () => {
+  it('a trim not sliced has the row too, with its matrix and no loop', async () => {
     const project = build(() => addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
-    const store = await setup(project);
+    await setup(project);
+    const row = screen.getByRole('navigation', { name: 'Where you are' });
+    expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual(['snare.wav', 'snare 1']);
+    // The slicing keeps only ← Trim, which shows something on the same page.
     const links = screen.getByRole('region', { name: 'Slicing' }).querySelector('.nav-row')!;
-    expect(within(links as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['← File', '← Trim', 'Pads →']);
-    fireEvent.click(within(links as HTMLElement).getByRole('button', { name: 'Pads →' }));
-    expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: ownMatrix(project, first(project).id)!.id } });
+    expect(within(links as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['← Trim']);
   });
 
-  it('the links are below the table only: Creates has counts, and Slice ↓ alone, which selects the trim', async () => {
+  it('the table has no links but Slice ↓: Creates has counts, and Slice ↓ alone, which selects the trim', async () => {
     const store = await setup(
       build(
         () => addSample({ name: 'amen.wav', audio: constantAudio(2) }),
@@ -139,12 +142,6 @@ describe('Samples: one page', () => {
     expect([...table.querySelectorAll('.creates')].map((c) => c.textContent)).toEqual(['4 Slice ↓4 pads, 4 hits1 loop', '4 Slice ↓4 pads, 4 hits1 loop']);
     fireEvent.click(within(table).getAllByRole('button', { name: 'Slice ↓' })[1]!);
     expect(store.getState().sliceTarget).toBe(named(present(store), 'think.wav').id);
-  });
-
-  it('the slicing links back up the chain, then on to the tabs after it: ← File ← Trim Pads →', async () => {
-    await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)));
-    const links = screen.getByRole('region', { name: 'Slicing' }).querySelector('.nav-row')!;
-    expect(within(links as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['← File', '← Trim', 'Pads →']);
   });
 });
 

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createProject, cueMarkers, setSlicing } from '../model';
@@ -66,10 +66,10 @@ describe('slice lines: the matrix’s trim in Samples (decision 14)', () => {
   };
   const matrixOf = (project: Project) => Object.values(project.matrices)[0]!;
 
-  it('← Samples in Pads shows the trim with a line where each slice starts', async () => {
+  it('the trim in the row under the tabs, from Pads, shows the trim with a line where each slice starts', async () => {
     const project = amen();
     const store = await open(project, { matrix: matrixOf(project).id });
-    fireEvent.click(screen.getByRole('button', { name: '← Samples' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'trim 1' }));
     expect(store.getState().view).toBe('samples');
     const lines = ['01', '02', '03', '04'].map((n) => screen.getByRole('button', { name: `Play slice ${n}` }));
     expect(lines.map((l) => l.style.left)).toEqual(['0%', '25%', '50%', '75%']);
@@ -87,7 +87,7 @@ describe('slice lines: the matrix’s trim in Samples (decision 14)', () => {
     const project = amen();
     const sample = Object.values(project.samples)[0]!;
     const store = await open(project, { matrix: matrixOf(project).id });
-    fireEvent.click(screen.getByRole('button', { name: '← Samples' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'trim 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Play slice 03' }));
     await act(async () => {});
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample.id });

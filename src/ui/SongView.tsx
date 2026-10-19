@@ -58,7 +58,8 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
   const seal = useSeal();
   const open = useOpen();
   const [chip, setChip] = useState<{ ref: Id; loop: boolean } | null>(null);
-  const [selected, setSelected] = useState<Id | null>(null);
+  const selected = useSelect((s) => s.selection.clip ?? null);
+  const setSelected = (clip: Id | null) => store.dispatch({ type: 'select', selection: { clip } });
   const [hover, setHover] = useState<{ row: SongRow; step: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const resizing = useRef(false);

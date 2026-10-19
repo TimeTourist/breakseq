@@ -425,7 +425,6 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
           <TrimSlicing
             sample={selected}
             played={playedMatrix}
-            toFile={() => document.querySelector('tr[aria-current="true"]')?.closest('tbody')?.scrollIntoView?.({ block: 'start' })}
             toTrim={() => toTrim(selected.id)}
             trim={
               trimming === selected.id && (
