@@ -162,7 +162,14 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
             const isFolded = folded.has(audioId);
             return (
               <div key={audioId} className="file-group" role="group" aria-label={first.name}>
-                <div className="file-row">
+                <div
+                  className="file-row"
+                  title={isFolded ? 'Click to show its samples' : 'Click to hide its samples'}
+                  // A click on the file's row folds it, as ▼ does; its buttons keep their own. (Magnus beslut)
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('button') === null) fold(audioId);
+                  }}
+                >
                   <button
                     type="button"
                     className="icon-button small fold"

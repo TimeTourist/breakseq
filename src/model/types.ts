@@ -28,11 +28,11 @@ export interface Sample {
   readonly duration: number;
   /** Which channels play: everything plays in stereo, so Left, Right and Mono are the same in both. */
   readonly channel: SampleChannel;
-  /** Its number among the trims of its file, from 1: "amen trim 2". Never changes. */
+  /** Its number among the trims of its file, from 1: "amen sample 2". Never changes. */
   readonly trim: number;
   /** Cue markers in the file, in seconds from its start: offered in Slice. Absent when it has none. */
   readonly cues?: readonly number[];
-  /** Length in bars, giving its tempo; null when it is not sliced. */
+  /** Length in bars, giving its tempo, in 1/16 steps (0.25 is a quarter bar); null when it is not sliced. */
   readonly bars: number | null;
   /**
    * Where slices start, as parts 0–1 of the sample: sorted, the first at 0. [0]

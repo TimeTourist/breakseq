@@ -10,7 +10,6 @@ import {
   isUnsliced,
   makeOneShot,
   makeSampleFromSlices,
-  guessBars,
   markUnsliced,
   markersForBars,
   ownMatrix,
@@ -33,7 +32,7 @@ import { addClip } from './clips';
 import { matrixSequence } from './lengths';
 import { sampleBpm } from './owners';
 import { emptySong } from './project';
-import { hitSound, sliceName, slotHit as newHit, trimName } from './sound';
+import { gridMarkers, hitSound, roundBars, sliceName, slotHit as newHit, trimName } from './sound';
 import type { Hit, Id, Matrix, Pad, Project } from './types';
 import { MAX_LOOP_STEPS, NO_CONFIG } from './types';
 
@@ -691,7 +690,8 @@ describe('files, trims, slices and matrices', () => {
     const sample = project.samples[sampleId]!;
     const next = run(project, makeSampleFromSlices(sampleId, 3, 1));
     const made = by(next.samples, (s) => s.id !== sampleId);
-    expect(made).toMatchObject({ trim: 2, offset: sample.offset + 0.5, duration: 1.5, bars: guessBars(1.5) });
+    // In the tempo of the sample it came from: three quarters of its length, three quarters of its bars.
+    expect(made).toMatchObject({ trim: 2, offset: sample.offset + 0.5, duration: 1.5, bars: sample.bars! * 0.75 });
     expect(made.markers.map((m) => m * made.duration)).toEqual([0, 0.5, 1]);
     expect(ownMatrix(next, made.id)!.pads).toHaveLength(3);
     expect(next.matrices[matrixId]).toEqual(project.matrices[matrixId]);
@@ -699,6 +699,24 @@ describe('files, trims, slices and matrices', () => {
     // One slice is a one-shot.
     expect(by(run(project, makeSampleFromSlices(sampleId, 2, 2)).samples, (s) => s.id !== sampleId)).toMatchObject({ duration: 0.5, bars: null });
     expect(makeSampleFromSlices(sampleId, 1, 99)(project, ctx).ok).toBe(false);
+  });
+
+  it('bars go in 1/16 steps: a quarter bar slices, its loop is a whole bar, and the tempo follows (Claudes val.)', () => {
+    const { project, sampleId } = amen(4);
+    const sample = project.samples[sampleId]!;
+    const next = run(project, setSlicing(sampleId, 0.25, gridMarkers(0.25)));
+    const quarter = next.samples[sampleId]!;
+    expect(quarter.bars).toBe(0.25);
+    expect(quarter.markers).toHaveLength(4);
+    expect(sampleBpm(quarter)).toBeCloseTo((0.25 * 240) / sample.duration);
+    const own = ownMatrix(next, sampleId)!;
+    expect(next.loops[own.loop!]!.steps).toHaveLength(16);
+    expect(setSlicing(sampleId, 0.3)(project, ctx).ok).toBe(false);
+    expect(setSlicing(sampleId, 0)(project, ctx).ok).toBe(false);
+    expect(roundBars(0.3)).toBe(0.3125);
+    expect(roundBars(0.01)).toBe(1 / 16);
+    // A grid of 1/4 over 5/16 of a bar: the nearest whole number of slices.
+    expect(gridMarkers(0.3125, 4)).toEqual([0]);
   });
 
   it('renaming a matrix renames its own pads and hits and its loop; file, trim and slice stay', () => {

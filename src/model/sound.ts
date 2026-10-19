@@ -12,9 +12,21 @@ export const MIN_SLICE = 0.001;
 /** Slices per bar: 4 = 1/4, 8 = 1/8, 16 = 1/16. Finer grids would need more than 16 steps per bar. */
 export type SliceGrid = 4 | 8 | 16;
 
-/** Slice starts on an equal grid, as parts 0–1 of the sample. */
+/** The smallest step a sample's bars go in: a 1/16 of a bar, one step. (Claudes val.) */
+export const BAR_STEP = 1 / 16;
+
+/** Bars as a sample has them: to the nearest 1/16 of a bar, at least one 1/16. */
+export const roundBars = (bars: number): number => Math.max(BAR_STEP, Math.round(bars / BAR_STEP) * BAR_STEP);
+
+/** Whether `bars` is a length a sample can be sliced over: a whole number of 1/16 bars, at least one. */
+export const validBars = (bars: number): boolean => Number.isFinite(bars) && bars >= BAR_STEP - 1e-9 && Math.abs(bars / BAR_STEP - Math.round(bars / BAR_STEP)) < 1e-9;
+
+/**
+ * Slice starts on an equal grid, as parts 0–1 of the sample. Bars that are
+ * not whole give the nearest whole number of slices, at least one. (Claudes val.)
+ */
 export function gridMarkers(bars: number, grid: SliceGrid = 16): number[] {
-  const count = bars * grid;
+  const count = Math.max(1, Math.round(bars * grid));
   return Array.from({ length: count }, (_, i) => i / count);
 }
 

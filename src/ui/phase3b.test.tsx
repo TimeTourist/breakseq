@@ -235,10 +235,17 @@ describe('the file list (Magnus beslut)', () => {
     expect(within(list).getByText('2 samples')).toBeTruthy();
     fireEvent.click(button('Show the samples of amen.wav'));
     expect(rows()).toBe(3);
+    // A click on the file's row folds it too; its buttons keep their own. (Magnus beslut)
+    fireEvent.click(within(list).getByText('amen.wav'));
+    expect(rows()).toBe(1);
+    fireEvent.click(within(list).getByText('amen.wav'));
+    expect(rows()).toBe(3);
+    fireEvent.click(button('New sample of amen.wav'));
+    expect(rows()).toBe(4);
     fireEvent.click(button('Collapse all'));
     expect(rows()).toBe(0);
     fireEvent.click(button('Expand all'));
-    expect(rows()).toBe(3);
+    expect(rows()).toBe(4);
   });
 
   it('the list starts with Browse files…, …or drag and drop and Collapse all, on one row', async () => {
