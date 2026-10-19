@@ -81,7 +81,7 @@ describe('long names are shortened the same way everywhere', () => {
 
   it('a file name in Samples, with the whole name over it', async () => {
     await setup(longNames().project, { view: 'samples' });
-    const name = within(screen.getByRole('table')).getByText(middleEllipsis(FILE));
+    const name = within(screen.getByRole('region', { name: 'Files' })).getByText(middleEllipsis(FILE));
     expect(name.title).toBe(FILE);
   });
 

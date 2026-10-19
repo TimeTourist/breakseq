@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioData, Command, Project } from '../model';
-import { addPad, addSample, addTrim, copyHits, createMatrix, createProject, ownMatrix, sliceSample } from '../model';
+import { addSample, addTrim, copyHits, createMatrix, createProject, ownMatrix, sliceSample } from '../model';
 import { encodeWav } from '../engine';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
@@ -69,7 +69,7 @@ async function setup(project: Project, services: Services = makeServices()): Pro
 const present = (store: Store) => store.getState().history.present;
 const samples = (store: Store) => Object.values(present(store).samples);
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
-const pressed = (name: string | RegExp) => within(screen.getByRole('group', { name: 'Slice by' })).getByRole('button', { name }).getAttribute('aria-pressed');
+const pressed = (name: string | RegExp) => within(screen.getByRole('group', { name: 'Slices' })).getByRole('button', { name }).getAttribute('aria-pressed');
 const first = (p: Project) => Object.values(p.samples)[0]!;
 const named = (p: Project, name: string) => Object.values(p.samples).find((s) => s.name === name)!;
 
@@ -80,68 +80,84 @@ function clicks(times: readonly number[], seconds = 2, sampleRate = 8000): Audio
   return { sampleRate, channels: [channel, channel.slice()] };
 }
 
-describe('Samples: one page', () => {
-  it('importing and slicing Amen happens in one tab', async () => {
+describe('Samples: one page (Magnus beslut)', () => {
+  it('a file dropped anywhere on the page is imported; while files are dragged over it, Drop to import covers it', async () => {
     const store = await setup(createProject());
-    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Samples']);
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(screen.getAllByRole('main')).toHaveLength(1);
+    const page = screen.getByRole('main');
+    fireEvent.dragEnter(page, { dataTransfer: { types: ['Files'] } });
+    expect(screen.getByText('Drop to import')).toBeTruthy();
+    fireEvent.dragLeave(page, { dataTransfer: { types: ['Files'] } });
+    expect(screen.queryByText('Drop to import')).toBeNull();
     const wav = new File([new Uint8Array(encodeWav(constantAudio(2)))], 'amen.wav');
-    fireEvent.drop(document.querySelector('.dropzone')!, { dataTransfer: { files: [wav] } });
+    fireEvent.dragEnter(page, { dataTransfer: { types: ['Files'] } });
+    fireEvent.drop(screen.getByRole('region', { name: 'Files' }), { dataTransfer: { files: [wav], types: ['Files'] } });
     await waitFor(() => expect(samples(store)).toHaveLength(1));
-    fireEvent.click(button('Slice amen 1'));
-    // Sliced at once by default, then by 1/16.
-    expect(samples(store)[0]).toMatchObject({ bars: 1 });
+    expect(screen.queryByText('Drop to import')).toBeNull();
+    // A one shot, then sliced at once by 1/16 of a guessed bar, in the same tab.
+    expect(pressed('None')).toBe('true');
     fireEvent.click(button('1/16'));
     expect(samples(store)[0]).toMatchObject({ bars: 1 });
     expect(samples(store)[0]!.markers).toHaveLength(16);
     expect(store.getState().view).toBe('samples');
-    // The table and the slicing, both on the page.
-    expect(button('Slice ↓')).toBeTruthy();
     expect(button('Play slice 16')).toBeTruthy();
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
-  it("the trim's waveform shows its slices numbered", async () => {
+  it("the sample's waveform shows its slices numbered", async () => {
     await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)));
     const lines = ['01', '02', '03', '04'].map((n) => button(`Play slice ${n}`));
     expect(lines.map((l) => l.textContent)).toEqual(['01', '02', '03', '04']);
     expect(lines.map((l) => l.style.left)).toEqual(['0%', '25%', '50%', '75%']);
   });
 
-  it('the row under the tabs links the selected trim back to its file and on to its matrix and loop (Magnus beslut)', async () => {
+  it('the row under the tabs: the file as text · the sample › 1 matrix → · 1 loop → (Magnus beslut)', async () => {
     const project = build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4));
     const own = ownMatrix(project, first(project).id)!;
     const store = await setup(project);
     const row = screen.getByRole('navigation', { name: 'Where you are' });
-    expect(row.textContent).toBe('amen.wav›trim 1→amen 1·1 loop');
-    fireEvent.click(within(row).getByRole('button', { name: 'amen 1' }));
+    expect(row.textContent).toBe('amen.wav·sample 1›1 matrix →·1 loop →');
+    expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual(['1 matrix →', '1 loop →']);
+    const matrix = within(row).getByRole('button', { name: '1 matrix →' });
+    expect(matrix.title).toBe('Matrix amen 1 (4 pads), in Matrices');
+    fireEvent.click(matrix);
     expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: own.id } });
   });
 
-  it('a trim not sliced has the row too, with its matrix and no loop', async () => {
+  it('a one shot has the row too, with its matrix and no loop; the page has no links to other tabs', async () => {
     const project = build(() => addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
     await setup(project);
     const row = screen.getByRole('navigation', { name: 'Where you are' });
-    expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual(['snare.wav', 'snare 1']);
-    // The slicing keeps only ← Trim, which shows something on the same page.
-    const links = screen.getByRole('region', { name: 'Slicing' }).querySelector('.nav-row')!;
-    expect(within(links as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['← Trim']);
+    expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual(['1 matrix →']);
+    expect(within(screen.getByRole('main')).queryByRole('button', { name: /[←→]/ })).toBeNull();
+  });
+});
+
+describe('New sample from slices (Magnus beslut)', () => {
+  it('a click picks a slice, Shift-click picks a run of them; the button makes a sample of them and selects it', async () => {
+    const store = await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 8)));
+    expect(button('New sample from slice 01')).toBeTruthy();
+    fireEvent.click(button('Play slice 05'));
+    expect(button('New sample from slice 05')).toBeTruthy();
+    fireEvent.click(button('Play slice 03'), { shiftKey: true });
+    expect(['03', '04', '05'].map((n) => button(`Play slice ${n}`).getAttribute('aria-pressed'))).toEqual(['true', 'true', 'true']);
+    fireEvent.click(button('New sample from slices 03–05'));
+    expect(samples(store)).toHaveLength(2);
+    const made = samples(store).find((s) => s.trim === 2)!;
+    expect(store.getState().sliceTarget).toBe(made.id);
+    expect(made).toMatchObject({ offset: 0.5, duration: 0.75 });
+    expect(made.markers).toHaveLength(3);
+    // The sample it came from stays as it is.
+    expect(first(present(store)).markers).toHaveLength(8);
   });
 
-  it('the table has no links but Slice ↓: Creates has counts, and Slice ↓ alone, which selects the trim', async () => {
-    const store = await setup(
-      build(
-        () => addSample({ name: 'amen.wav', audio: constantAudio(2) }),
-        (p) => sliceSample(first(p).id, 1, 4),
-        () => addSample({ name: 'think.wav', audio: constantAudio(2) }),
-        (p) => sliceSample(named(p, 'think.wav').id, 1, 4),
-      ),
-    );
-    const table = screen.getByRole('table');
-    expect(within(table).queryByRole('button', { name: /→/ })).toBeNull();
-    expect([...table.querySelectorAll('.creates')].map((c) => c.textContent)).toEqual(['4 Slice ↓4 pads, 4 hits1 loop', '4 Slice ↓4 pads, 4 hits1 loop']);
-    fireEvent.click(within(table).getAllByRole('button', { name: 'Slice ↓' })[1]!);
-    expect(store.getState().sliceTarget).toBe(named(present(store), 'think.wav').id);
+  it('one slice makes a one shot', async () => {
+    const store = await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)));
+    fireEvent.click(button('Play slice 02'));
+    fireEvent.click(button('New sample from slice 02'));
+    const made = samples(store).find((s) => s.trim === 2)!;
+    expect(made).toMatchObject({ offset: 0.5, duration: 0.5, bars: null });
+    expect(pressed('None')).toBe('true');
   });
 });
 
@@ -180,8 +196,8 @@ describe('U1: Enter in Bars', () => {
   });
 });
 
-describe('U5: every trim is listed', () => {
-  it('trims not sliced do not say so in Trim, and a click shows one below', async () => {
+describe('U5: every sample is listed', () => {
+  it('one shots do not say "not sliced", and a click shows one in the editor', async () => {
     const project = build(
       () => addSample({ name: 'amen.wav', audio: constantAudio(2) }),
       (p) => sliceSample(first(p).id, 1, 4),
@@ -189,13 +205,12 @@ describe('U5: every trim is listed', () => {
       () => addSample({ name: 'snare.wav', audio: constantAudio(0.3) }),
     );
     const store = await setup(project);
-    const rows = [...document.querySelectorAll('table.sources tbody tr')];
+    const rows = [...document.querySelectorAll('.sample-row')];
     expect(rows).toHaveLength(3);
     expect(rows.map((r) => r.textContent?.includes('not sliced'))).toEqual([false, false, false]);
-    fireEvent.click(button('Select snare trim 1'));
+    fireEvent.click(button('Select snare sample 1'));
     expect(store.getState().sliceTarget).toBe(named(present(store), 'snare.wav').id);
-    expect(screen.getByRole('heading', { name: 'snare 1' })).toBeTruthy();
-    expect(screen.getByText(/Not sliced yet/)).toBeTruthy();
+    expect(button('Play snare 1')).toBeTruthy();
   });
 });
 
@@ -208,22 +223,18 @@ describe('U6: how it is sliced follows the markers', () => {
       ),
     );
     expect(pressed('1/16')).toBe('true');
-    expect(screen.getByText(/16 slices · equal 1\/16$/)).toBeTruthy();
     fireEvent.click(button('Transients'));
     expect(pressed('Transients')).toBe('true');
     expect(pressed('1/16')).toBe('false');
-    expect(screen.queryByText(/own markers/)).toBeNull();
-    expect(screen.getByText(/slices · transients$/)).toBeTruthy();
     act(() => void store.dispatch({ type: 'undo' }));
     expect(pressed('Transients')).toBe('false');
     expect(pressed('1/16')).toBe('true');
-    expect(screen.getByText(/16 slices · equal 1\/16$/)).toBeTruthy();
     act(() => void store.dispatch({ type: 'redo' }));
     expect(pressed('Transients')).toBe('true');
   });
 });
 
-describe('a new trim keeps markers at transients in the file (Magnus beslut)', () => {
+describe('trimming keeps markers at transients in the file (Magnus beslut)', () => {
   it('they stay where the hits are, one near the new start goes, and Transients stays chosen', async () => {
     const store = await setup(
       build(
@@ -237,7 +248,6 @@ describe('a new trim keeps markers at transients in the file (Magnus beslut)', (
       return s.markers.map((m) => Math.round((s.offset + m * s.duration) * 100) / 100);
     };
     expect(inFile()).toEqual([0, 0.3, 0.9, 1.4]);
-    fireEvent.click(button('Trim amen trim 1'));
     // 10 ms before the hit at 0.3 s: no tiny slice before it.
     fireEvent.change(screen.getByLabelText('Start ms'), { target: { value: '290' } });
     fireEvent.blur(screen.getByLabelText('Start ms'));
@@ -271,7 +281,6 @@ describe('Snap to nearest slice (Magnus beslut)', () => {
       ),
     );
     fireEvent.click(button('Transients'));
-    fireEvent.click(button('Trim amen trim 1'));
     const startMs = () => Math.round(first(present(store)).offset * 1000);
     fireEvent.keyDown(screen.getByRole('button', { name: /^Start at/ }), { key: 'ArrowRight' });
     expect(startMs()).toBe(1);
@@ -288,39 +297,7 @@ describe('Snap to nearest slice (Magnus beslut)', () => {
   });
 });
 
-describe("U7: the trim's ▶ is the header's Play", () => {
-  it('one stops the other', async () => {
-    const player = fakePlayer();
-    await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) })), makeServices(player));
-    fireEvent.click(button('Trim amen trim 1'));
-    await waitFor(() => expect((button('Play') as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(button('Play trim'));
-    expect(player.play).toHaveBeenCalledTimes(1);
-    expect(player.audition).not.toHaveBeenCalled();
-    expect(button('Stop')).toBeTruthy();
-    fireEvent.click(button('Stop'));
-    expect(button('Play trim')).toBeTruthy();
-    fireEvent.click(button('Play'));
-    expect(button('Stop trim')).toBeTruthy();
-    fireEvent.click(button('Stop trim'));
-    expect(button('Play')).toBeTruthy();
-    expect(player.stop).toHaveBeenCalledTimes(2);
-  });
-});
-
 describe('one thing plays at a time in Samples', () => {
-  it("the trim's ▶ waits for its own render: before it, Play would start what was shown before", async () => {
-    const player = fakePlayer();
-    await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) })), makeServices(player));
-    fireEvent.click(button('Trim amen trim 1'));
-    expect((button('Play trim') as HTMLButtonElement).disabled).toBe(true);
-    expect(button('Play trim').title).toBe('Rendering…');
-    await waitFor(() => expect((button('Play trim') as HTMLButtonElement).disabled).toBe(false));
-    expect(button('Play trim').title).toBe('Plays the trim looped, as Play at the top does');
-    fireEvent.click(button('Play trim'));
-    expect(player.play).toHaveBeenCalledTimes(1);
-  });
-
   it('a click on a slice to hear it stops Play in the header first', async () => {
     const player = fakePlayer();
     await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)), makeServices(player));
@@ -334,56 +311,22 @@ describe('one thing plays at a time in Samples', () => {
   });
 });
 
-describe('U12: Creates counts the pads and hits of the matrix', () => {
-  it('a trim not sliced whose matrix has 2 pads and 3 hits', async () => {
-    const project = build(
-      () => addSample({ name: 'snare_02.wav', audio: constantAudio(0.3) }),
-      (p) => addPad(ownMatrix(p, first(p).id)!.id),
-      (p) => {
-        const own = ownMatrix(p, first(p).id)!;
-        const hit = p.pads[own.pads[0]!]!.members[0]!;
-        return copyHits([hit], own.pads[1]!);
-      },
-      (p) => {
-        const own = ownMatrix(p, first(p).id)!;
-        return copyHits([p.pads[own.pads[0]!]!.members[0]!], own.pads[1]!);
-      },
-    );
-    await setup(project);
-    // The whole cell: the matrix's count, no link, nothing about one hit.
-    expect(document.querySelector('.creates')!.textContent).toBe('2 pads, 3 hits');
-  });
-});
-
-describe('U13: no object is named one-shot', () => {
-  it('New matrix from slice makes a matrix of the slice, opened in Pads with focus', async () => {
-    const store = await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4)));
-    expect(screen.queryByRole('button', { name: /one-shot/i })).toBeNull();
-    fireEvent.click(button('New matrix from slice'));
-    const made = Object.values(present(store).matrices).find((m) => m.name === 'amen 2')!;
-    expect(made.pads).toHaveLength(1);
-    expect(screen.queryByText(/one-shot/i)).toBeNull();
-    fireEvent.click(within(button('New matrix from slice').closest('section')!).getByRole('button', { name: 'Pads →' }));
-    expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: made.id } });
-  });
-});
-
-describe('U19: Delete trim on the last trim of a file', () => {
+describe('U19: Delete sample on the last sample of a file', () => {
   it('says the file goes with it', async () => {
     await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) })));
-    fireEvent.click(button(/^Delete trim/));
+    fireEvent.click(button(/^Delete sample/));
     expect(within(screen.getByRole('alertdialog')).getByText('file amen.wav')).toBeTruthy();
   });
 
-  it('but not while the file has another trim', async () => {
+  it('but not while the file has another sample', async () => {
     await setup(build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => addTrim(first(p).id)));
-    fireEvent.click(screen.getAllByRole('button', { name: /^Delete trim/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Delete sample/ })[0]!);
     expect(within(screen.getByRole('alertdialog')).queryByText('file amen.wav')).toBeNull();
   });
 });
 
 describe('Play at the top in Samples', () => {
-  it("plays the selected trim's matrix, also one not sliced", () => {
+  it('plays the selected sample, sliced or not (Magnus beslut)', () => {
     const project = build(
       () => addSample({ name: 'amen.wav', audio: constantAudio(2) }),
       (p) => sliceSample(first(p).id, 1, 4),
@@ -391,7 +334,7 @@ describe('Play at the top in Samples', () => {
     );
     const snare = named(project, 'snare.wav');
     const state = { ...initialState(project), view: 'samples' as const };
-    expect(subjectOf(project, state)?.key).toBe(`matrix:${ownMatrix(project, first(project).id)!.id}`);
-    expect(subjectOf(project, { ...state, sliceTarget: snare.id })?.key).toBe(`matrix:${ownMatrix(project, snare.id)!.id}`);
+    expect(subjectOf(project, state)?.key).toBe(`sample:${first(project).id}`);
+    expect(subjectOf(project, { ...state, sliceTarget: snare.id })?.key).toBe(`sample:${snare.id}`);
   });
 });

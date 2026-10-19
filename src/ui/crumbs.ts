@@ -23,11 +23,13 @@ export const isMenu = (crumb: Crumb): crumb is JumpMenu => 'items' in crumb;
 
 /**
  * The link row under the tabs, for what is selected on the tab one is on:
- * the way back up the chain (file › trim › matrix › pad › hit), what is
+ * the way back up the chain (file › sample › matrix › pad › hit), what is
  * selected, and on to what uses it, ♪ Song last when it is heard there.
  */
 export interface Trail {
   readonly back: readonly Crumb[];
+  /** Plain text before what is selected, not a link: the file in Samples ("amen.wav · sample 1"). */
+  readonly context?: { readonly label: string; readonly title: string };
   readonly current: { readonly label: string; readonly title: string } | null;
   readonly forward: readonly Crumb[];
   /** Heard in the song: "♪ Song →" last. */
@@ -47,14 +49,14 @@ const fileJump = (project: Project, sample: Sample): Jump => ({
   go: toTrim(fileSamples(project, sample.audioId)[0] ?? sample),
 });
 
-const trimJump = (sample: Sample): Jump => ({ label: `trim ${sample.trim}`, title: `${trimName(sample)}, in Samples`, go: toTrim(sample) });
+const trimJump = (sample: Sample): Jump => ({ label: `sample ${sample.trim}`, title: `${trimName(sample)}, in Samples`, go: toTrim(sample) });
 
 const toPads = (matrix: Matrix, pad: Id | null = null, hit: Id | null = null): Action[] => [
   { type: 'focus', matrix: matrix.id },
   { type: 'select', selection: { matrix: matrix.id, pad, hit }, view: 'pads' },
 ];
 
-const matrixJump = (matrix: Matrix): Jump => ({ label: middleEllipsis(matrix.name), title: `Matrix ${matrix.name}, in Pads`, go: toPads(matrix) });
+const matrixJump = (matrix: Matrix): Jump => ({ label: middleEllipsis(matrix.name), title: `Matrix ${matrix.name}, in Matrices`, go: toPads(matrix) });
 
 const loopJump = (loop: Loop): Jump => ({
   label: middleEllipsis(loop.name),
@@ -62,10 +64,10 @@ const loopJump = (loop: Loop): Jump => ({
   go: [{ type: 'select', selection: { loop: loop.id, step: null }, view: 'loops' }],
 });
 
-/** One jump as it is, several as a menu: "2 loops ▾". */
+/** One jump with its count and an arrow, its name on hover ("1 loop →"); several as a menu ("2 loops ▾"). (Magnus beslut) */
 function some(jumps: readonly Jump[], one: string, many: string): Crumb[] {
   if (jumps.length === 0) return [];
-  if (jumps.length === 1) return [{ ...jumps[0]!, label: `1 ${one}` }];
+  if (jumps.length === 1) return [{ ...jumps[0]!, label: `1 ${one} →` }];
   return [{ label: `${jumps.length} ${many}`, title: jumps.map((j) => j.title).join(', '), items: jumps }];
 }
 
@@ -89,18 +91,32 @@ const toLoop = (project: Project, loop: Loop): Crumb[] => {
   return some(matrices.map(matrixJump), 'matrix', 'matrices');
 };
 
+/** The matrices with a hit that plays a sample, its own first, and their pads that hold such a hit. */
+function sampleMatrices(project: Project, sample: Sample): { matrices: Matrix[]; pads: Id[] } {
+  const own = ownMatrix(project, sample.id);
+  const plays = (padId: Id) => (project.pads[padId]?.members ?? []).some((h) => project.hits[h]?.sampleId === sample.id);
+  const all = Object.values(project.matrices).filter((m) => m.id === own?.id || m.pads.some(plays));
+  const matrices = [...all.filter((m) => m.id === own?.id), ...all.filter((m) => m.id !== own?.id)];
+  return { matrices, pads: matrices.flatMap((m) => m.pads.filter(plays)) };
+}
+
+/**
+ * Samples: the file as plain text, the sample, and on to the matrices that
+ * play it and their loops: "amen.wav · sample 1 › 1 matrix → · 2 loops ▾ · ♪ Song →". (Magnus beslut)
+ */
 function samplesTrail(state: AppState, project: Project): Trail {
   const sample = project.samples[state.sliceTarget ?? ''] ?? Object.values(project.samples)[0];
   if (sample === undefined) return EMPTY;
   const own = ownMatrix(project, sample.id);
   const heard = heardInSong(project);
+  const { matrices, pads } = sampleMatrices(project, sample);
+  const count = (n: number) => `${n} pad${n === 1 ? '' : 's'}`;
+  const matrixJumps = matrices.map((m) => ({ ...matrixJump(m), label: `${middleEllipsis(m.name)} · ${count(m.pads.length)}`, title: `Matrix ${m.name} (${count(m.pads.length)}), in Matrices` }));
   return {
-    back: [fileJump(project, sample)],
-    current: { label: `trim ${sample.trim}`, title: trimName(sample) },
-    forward:
-      own === undefined
-        ? []
-        : [matrixJump(own), ...some(loopsWith(project, own.pads, own.loop).map(loopJump), 'loop', 'loops')],
+    back: [],
+    context: { label: middleEllipsis(sample.name), title: sample.name },
+    current: { label: `sample ${sample.trim}`, title: trimName(sample) },
+    forward: [...some(matrixJumps, 'matrix', 'matrices'), ...some(loopsWith(project, pads, own?.loop ?? null).map(loopJump), 'loop', 'loops')],
     song: [...heard.hits].some((h) => project.hits[h]?.sampleId === sample.id),
   };
 }
@@ -121,12 +137,12 @@ function padsTrail(state: AppState, project: Project): Trail {
     };
   }
   back.push(matrixJump(matrix));
-  const padJump: Jump = { label: padLabel(pad), title: `Pad ${pad.name}, in Pads`, go: toPads(matrix, pad.id) };
+  const padJump: Jump = { label: padLabel(pad), title: `Pad ${pad.name}, in Matrices`, go: toPads(matrix, pad.id) };
   const loops = some(loopsWith(project, [pad.id]).map(loopJump), 'loop', 'loops');
   if (hit === undefined) return { back, current: { label: padJump.label, title: `Pad ${pad.name}` }, forward: loops, song: heard.pads.has(pad.id) };
   back.push(padJump);
   const sample = project.samples[hit.sampleId];
-  // A hit that plays another trim than its matrix's links back to that trim too.
+  // A hit that plays another sample than its matrix's links back to that sample too.
   const plays: Crumb[] = sample !== undefined && sample.id !== matrix.sampleId ? [{ ...trimJump(sample), label: `plays ${middleEllipsis(trimName(sample))}` }] : [];
   return {
     back,

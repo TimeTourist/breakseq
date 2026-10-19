@@ -19,9 +19,15 @@ function on(from: Project, ...commands: ((p: Project) => Command)[]): Project {
 
 const named = (p: Project, name: string) => Object.values(p.samples).find((s) => s.name === name)!;
 const labels = (crumbs: readonly Crumb[]) => crumbs.map((c) => c.label);
-/** The row as one reads it: back › current → forward, ♪ Song last. */
+/** The row as one reads it: back › (context ·) current › forward, ♪ Song last. */
 const text = (t: Trail) =>
-  [...labels(t.back), t.current?.label ?? '', ...(t.forward.length > 0 || t.song ? ['→', ...labels(t.forward)] : []), ...(t.song ? ['♪ Song →'] : [])].join(' | ');
+  [
+    ...labels(t.back),
+    ...(t.context === undefined ? [] : [t.context.label, '·']),
+    t.current?.label ?? '',
+    ...(t.forward.length > 0 || t.song ? ['›', ...labels(t.forward)] : []),
+    ...(t.song ? ['♪ Song →'] : []),
+  ].join(' | ');
 
 /** amen.wav sliced in 4, think.wav sliced in 4, and a loop M1 with amen's pad 2 and think's pad 1, in the song. */
 function chain(): Project {
@@ -38,18 +44,24 @@ const thinkMatrix = (p: Project) => ownMatrix(p, named(p, 'think.wav').id)!;
 const state = (project: Project, patch: Partial<AppState>): AppState => ({ ...initialState(project), ...patch });
 
 describe('the row under the tabs (Magnus beslut)', () => {
-  it('Samples: the selected trim, back to its file, on to its matrix, its loop and ♪ Song', () => {
+  it('Samples: the file as plain text · the sample › 1 matrix → · 1 loop →, the name on hover (Magnus beslut)', () => {
     const p = chain();
-    expect(text(trail(state(p, { view: 'samples', sliceTarget: named(p, 'amen.wav').id })))).toBe('amen.wav | trim 1 | → | amen 1 | 1 loop');
+    const t = trail(state(p, { view: 'samples', sliceTarget: named(p, 'amen.wav').id }));
+    expect(text(t)).toBe('amen.wav | · | sample 1 | › | 1 matrix → | 1 loop →');
+    expect(t.back).toEqual([]);
+    expect(t.forward[0]).toMatchObject({ title: 'Matrix amen 1 (4 pads), in Matrices', go: [{ type: 'focus', matrix: amenMatrix(p).id }, {}] });
   });
 
-  it('Samples: ♪ Song when its loop is in the song, and the file jumps to the file’s first trim', () => {
+  it('Samples: several matrices playing the sample are a menu with their pads; ♪ Song when heard (Magnus beslut)', () => {
     const base = chain();
-    const loop = amenMatrix(base).loop!;
-    const p = on(base, () => addClip('main', loop, 0));
+    const amenHit = base.pads[amenMatrix(base).pads[1]!]!.members[0]!;
+    const p = on(base, (q) => copyHits([amenHit], thinkMatrix(q).pads[0]!), (q) => addClip('main', amenMatrix(q).loop!, 0));
     const t = trail(state(p, { view: 'samples', sliceTarget: named(p, 'amen.wav').id }));
+    const menu = t.forward[0]!;
+    expect(isMenu(menu) && menu.label).toBe('2 matrices');
+    expect(isMenu(menu) && menu.items.map((i) => i.label)).toEqual(['amen 1 · 4 pads', 'think 1 · 4 pads']);
+    expect(t.forward[1]!.label).toBe('2 loops');
     expect(t.song).toBe(true);
-    expect(t.back[0]).toMatchObject({ go: [{ type: 'sliceTarget', sampleId: named(p, 'amen.wav').id }, { type: 'view', view: 'samples' }] });
   });
 
   it('Pads: the matrix, a pad and a hit, each further down the path', () => {
@@ -57,22 +69,22 @@ describe('the row under the tabs (Magnus beslut)', () => {
     const m = amenMatrix(p);
     const pad = p.pads[m.pads[1]!]!;
     const hit = pad.members[0]!;
-    expect(text(trail(state(p, { view: 'pads', focus: { matrix: m.id, takeFrom: [] } })))).toBe('amen.wav | trim 1 | amen 1 | → | 1 loop');
+    expect(text(trail(state(p, { view: 'pads', focus: { matrix: m.id, takeFrom: [] } })))).toBe('amen.wav | sample 1 | amen 1 | › | 1 loop →');
     const padState = state(p, { view: 'pads', focus: { matrix: m.id, takeFrom: [] }, selection: { ...initialState().selection, pad: pad.id } });
-    expect(text(trail(padState))).toBe('amen.wav | trim 1 | amen 1 | 02 | → | 1 loop');
+    expect(text(trail(padState))).toBe('amen.wav | sample 1 | amen 1 | 02 | › | 1 loop →');
     const hitState = state(p, { view: 'pads', focus: { matrix: m.id, takeFrom: [] }, selection: { ...initialState().selection, pad: pad.id, hit } });
-    expect(text(trail(hitState))).toBe('amen.wav | trim 1 | amen 1 | 02 | hit 1 | → | 1 loop');
+    expect(text(trail(hitState))).toBe('amen.wav | sample 1 | amen 1 | 02 | hit 1 | › | 1 loop →');
     // The pad jumps to itself in Pads, with its matrix in focus.
     expect(trail(hitState).back[3]).toMatchObject({ go: [{ type: 'focus', matrix: m.id }, { type: 'select', selection: { pad: pad.id, hit: null }, view: 'pads' }] });
   });
 
-  it('Pads: a hit that plays another trim links to that trim too', () => {
+  it('Pads: a hit that plays another sample links to that sample too', () => {
     const base = chain();
     const thinkHit = base.pads[thinkMatrix(base).pads[0]!]!.members[0]!;
     const p = on(base, (q) => copyHits([thinkHit], amenMatrix(q).pads[0]!));
     const pad = p.pads[amenMatrix(p).pads[0]!]!;
     const t = trail(state(p, { view: 'pads', focus: { matrix: amenMatrix(p).id, takeFrom: [] }, selection: { ...initialState().selection, pad: pad.id, hit: pad.members[1]! } }));
-    expect(labels(t.forward)[0]).toBe('plays think trim 1');
+    expect(labels(t.forward)[0]).toBe('plays think sample 1');
   });
 
   it('Pads: nothing without a matrix in focus; Project: nothing', () => {
@@ -81,10 +93,10 @@ describe('the row under the tabs (Magnus beslut)', () => {
     expect(text(trail(state(p, { view: 'project' })))).toBe('');
   });
 
-  it('Loops: back to its one matrix with its trim, or a menu of its matrices', () => {
+  it('Loops: back to its one matrix with its sample, or a menu of its matrices', () => {
     const base = chain();
     const own = amenMatrix(base);
-    expect(text(trail(state(base, { view: 'loops', selection: { ...initialState().selection, loop: own.loop } })))).toBe('amen.wav | trim 1 | amen 1 | amen 1');
+    expect(text(trail(state(base, { view: 'loops', selection: { ...initialState().selection, loop: own.loop } })))).toBe('amen.wav | sample 1 | amen 1 | amen 1');
     const p = on(
       base,
       () => createLoop('Mixed', 'main', 1),
@@ -107,9 +119,9 @@ describe('the row under the tabs (Magnus beslut)', () => {
       (q) => addClip('modA', Object.values(q.mods)[0]!.id, 0),
       () => addClip('main', loop, 0),
     );
-    expect(text(trail(state(p, { view: 'mods' })))).toBe('Wobble | → | ♪ Song →');
+    expect(text(trail(state(p, { view: 'mods' })))).toBe('Wobble | › | ♪ Song →');
     const clip = p.song.clips.find((c) => c.ref === loop)!;
-    expect(text(trail(state(p, { view: 'song', selection: { ...initialState().selection, clip: clip.id } })))).toBe('amen.wav | trim 1 | amen 1 | amen 1 | Song');
+    expect(text(trail(state(p, { view: 'song', selection: { ...initialState().selection, clip: clip.id } })))).toBe('amen.wav | sample 1 | amen 1 | amen 1 | Song');
     expect(text(trail(state(p, { view: 'song' })))).toBe('Song');
   });
 

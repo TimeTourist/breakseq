@@ -300,7 +300,7 @@ describe('Pads: the controls', () => {
     const p = amen();
     const m = matrixNamed(p, 'amen 1');
     const { store } = await setup(p, m.id);
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'trim 1' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'sample 1' }));
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: m.sampleId });
   });
 });

@@ -11,7 +11,7 @@ import { isMenu, trail } from './crumbs';
 
 const LABELS: Record<View, string> = {
   samples: 'Samples',
-  pads: 'Pads',
+  pads: 'Matrices',
   loops: 'Loops',
   mods: 'Mods',
   song: 'Song',
@@ -29,6 +29,8 @@ interface HeaderProps {
 
 export function Header({ onView, playing, canPlay, onPlay, onStop, status }: HeaderProps) {
   const view = useSelect((s) => s.view);
+  const loop = useSelect((s) => s.loop);
+  const loopApplies = view !== 'song' && view !== 'project';
   const { store } = useApp();
   const history = useSelect((s) => s.history);
   const previous = history.past.at(-1);
@@ -70,6 +72,49 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
       </nav>
       <div className="transport">
         {status !== null && <span className="status">{status}</span>}
+        <label className="bpm">
+          <input
+            aria-label="Tempo in BPM"
+            inputMode="decimal"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => commitBpm()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+          />
+          <span>BPM</span>
+        </label>
+        {/* One button, as everywhere: Play, and Stop while it plays. */}
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={playing ? 'Stop' : 'Play'}
+          title={playing ? 'Stop' : 'Play'}
+          disabled={!playing && !canPlay}
+          onClick={playing ? onStop : onPlay}
+        >
+          {playing ? (
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <rect x="2" y="2" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 2.5v11l9-5.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+        {/* Loop, on to begin with: Play plays over and over, else once. The song loops its own loop region. (Magnus beslut) */}
+        <button
+          type="button"
+          className="loop-toggle"
+          aria-pressed={loopApplies && loop}
+          disabled={!loopApplies}
+          title={loopApplies ? (loop ? 'Play plays it over and over: click to play it once' : 'Play plays it once: click to loop it') : 'The song loops its own loop region, set in Song'}
+          onClick={() => store.dispatch({ type: 'loop', on: !loop })}
+        >
+          Loop
+        </button>
         <button
           type="button"
           className="icon-button"
@@ -94,38 +139,6 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
             <path d="M11 4l3 3-3 3M13.5 7H6a3.5 3.5 0 0 0 0 7h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        {/* One button, as everywhere: Play, and Stop while it plays. */}
-        <button
-          type="button"
-          className="icon-button"
-          aria-label={playing ? 'Stop' : 'Play'}
-          title={playing ? 'Stop' : 'Play'}
-          disabled={!playing && !canPlay}
-          onClick={playing ? onStop : onPlay}
-        >
-          {playing ? (
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <rect x="2" y="2" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 2.5v11l9-5.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-            </svg>
-          )}
-        </button>
-        <label className="bpm">
-          <input
-            aria-label="Tempo in BPM"
-            inputMode="decimal"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => commitBpm()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-            }}
-          />
-          <span>BPM</span>
-        </label>
         <SnapshotButtons />
       </div>
       <Crumbs />
@@ -178,6 +191,16 @@ function Crumbs() {
           </span>
         </span>
       ))}
+      {now.context !== undefined && (
+        <span className="crumb">
+          <span className="crumb-context" title={now.context.title}>
+            {now.context.label}
+          </span>
+          <span className="crumb-sep" aria-hidden="true">
+            ·
+          </span>
+        </span>
+      )}
       {now.current !== null && (
         <span className="crumb current" aria-current="location" title={now.current.title}>
           {now.current.label}
@@ -185,7 +208,7 @@ function Crumbs() {
       )}
       {(now.forward.length > 0 || now.song) && (
         <span className="crumb-sep" aria-hidden="true">
-          →
+          ›
         </span>
       )}
       {now.forward.map((c, i) => (

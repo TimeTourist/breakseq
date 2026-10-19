@@ -361,7 +361,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                   className="chip parent-chip"
                   aria-pressed={shelfMatrix === group.matrixId}
                   aria-label={`Matrix ${group.name}: lay out all its pads`}
-                  title="The whole matrix: a click plays it once and selects it; it lays out its pads one after another from the step. Double-click to edit it in Pads"
+                  title="The whole matrix: a click plays it once and selects it; it lays out its pads one after another from the step. Double-click to edit it in Matrices"
                   onDoubleClick={() => openMatrix(group.matrixId)}
                   onClick={() => {
                     setShelfMatrix(shelfMatrix === group.matrixId ? null : group.matrixId);
@@ -389,7 +389,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
                     onDoubleClick={() => openPad(p.id)}
                     aria-pressed={shelfPad === p.id}
                     aria-label={`Pad ${p.name}`}
-                    title={silent.has(p.id) ? `${p.name}: silent, its sample has fewer slices` : `${p.name} · ${lengthText(Math.max(1, padSteps(project, p)))} · double-click to edit in Pads`}
+                    title={silent.has(p.id) ? `${p.name}: silent, its sample has fewer slices` : `${p.name} · ${lengthText(Math.max(1, padSteps(project, p)))} · double-click to edit in Matrices`}
                     style={{ color: HIT_COLOR, boxShadow: `inset 0 -3px 0 ${HIT_COLOR}` }}
                     onClick={() => {
                       setShelfPad(shelfPad === p.id ? null : p.id);
@@ -414,7 +414,7 @@ export function LoopsView({ playhead }: LoopsViewProps) {
             </div>
           ))}
           </div>
-          <p className="muted small">Drag a pad or a whole matrix onto a step, or select it and click steps. A click on a pad plays it once; a double-click edits it in Pads.</p>
+          <p className="muted small">Drag a pad or a whole matrix onto a step, or select it and click steps. A click on a pad plays it once; a double-click edits it in Matrices.</p>
         </section>
       </main>
 

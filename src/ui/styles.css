@@ -374,97 +374,12 @@ p {
   border-radius: 10px;
 }
 
-/* Import */
-
-.dropzone {
-  border: 2px dashed var(--border-strong);
-  border-radius: 12px;
-  background: #131518;
-  min-height: 180px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  text-align: center;
-  color: var(--muted);
-}
-
-.dropzone.dragging {
-  border-color: var(--accent);
-}
-
-.dropzone-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text);
-}
-
 .errors {
   margin: 0;
   padding: 12px 16px 12px 32px;
   border: 1px solid var(--error);
   border-radius: 8px;
   color: var(--error);
-}
-
-.sources {
-  width: 100%;
-  min-width: 900px;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.sources th {
-  text-align: left;
-  padding: 12px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.sources td {
-  padding: 10px 16px;
-  border-bottom: 1px solid #22262b;
-  background: #131518;
-}
-
-/* One file a group: its name only on the first trim, a line only under the last. */
-.sources tbody.file-group tr:not(:last-child) > td {
-  border-bottom-color: transparent;
-}
-
-.sources tbody.file-group:not(:last-child) tr:last-child > td {
-  border-bottom: 1px solid var(--border-strong);
-}
-
-/* The trim shown below the table. */
-.sources tr.selected > td {
-  background: var(--raised);
-}
-
-.sources td.file .mono {
-  white-space: nowrap;
-}
-
-.sources .trim-of {
-  gap: 12px;
-}
-
-/* A trim's Delete and Trim, side by side. */
-.sources .trim-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.sources .creates {
-  gap: 4px 16px;
-  flex-wrap: wrap;
 }
 
 .bars {
@@ -1452,27 +1367,10 @@ input[type='search'] {
   }
 }
 
-/* Trim */
-
-/* Buttons in rows, lists and tables: 36 px, as segments and small icons. Actions on their own are 44 px. */
-.small-button,
-.sources td button:not(.link-text):not(.icon-button) {
-  min-height: 36px;
-  padding: 0 10px;
-  font-size: 13px;
-}
-
 .small-button[aria-expanded='true'],
 .icon-button[aria-expanded='true'] {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-/* The selected trim's Trim, below the table and above the waveform with its slicing. */
-.trim-below {
-  background: var(--sunken);
-  border-radius: 8px;
-  padding: 16px;
 }
 
 .trim-wave {
@@ -1692,14 +1590,6 @@ input[type='search'] {
 
 .sensitivity input[type='range'] {
   width: 120px;
-}
-
-/* Drag and drop */
-
-.drop-over,
-.dropzone.dragging {
-  outline: 2px dashed var(--accent);
-  outline-offset: -2px;
 }
 
 [draggable='true'] {
@@ -2781,4 +2671,222 @@ button.danger:hover:not(:disabled) {
   background: transparent;
   color: var(--accent);
   font: inherit;
+}
+
+/* Samples (Magnus beslut): the file list on the left, the selected sample's editor on the right. */
+.samples-view {
+  position: relative;
+  min-height: calc(100vh - 140px);
+}
+
+.samples-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.file-list {
+  flex: 1 1 300px;
+  max-width: 100%;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sample-panel {
+  flex: 999 1 560px;
+  min-width: 0;
+}
+
+/* Browse files, the drop hint and Collapse all: one line, never wrapped. (Magnus beslut) */
+.file-list-head {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0 8px 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.file-list-head > button:first-child {
+  flex: none;
+  padding: 0 10px;
+}
+
+.file-list-head .drop-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-list-head .icon-button {
+  flex: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.file-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-row,
+.sample-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-row {
+  padding: 6px 0 2px;
+  font-size: 13px;
+}
+
+.file-row .file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row .icon-button,
+.sample-row .icon-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.file-row .fold {
+  color: var(--accent);
+}
+
+.sample-row {
+  border-radius: 6px;
+}
+
+.sample-row.selected {
+  background: var(--selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* A sample's delete shows on its row when it is hovered, focused or selected. */
+.sample-row > .icon-button {
+  opacity: 0;
+}
+
+.sample-row:hover > .icon-button,
+.sample-row.selected > .icon-button,
+.sample-row > .icon-button:focus-visible {
+  opacity: 1;
+}
+
+.sample-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px 0 18px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+}
+
+.sample-row.selected .sample-pick {
+  color: var(--text);
+}
+
+.sample-pick .mono:first-child {
+  width: 20px;
+}
+
+.faint {
+  color: var(--faint);
+}
+
+.sample-editor .row-label {
+  width: 52px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.trim-row,
+.slices-row {
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.trim-row .field input {
+  width: 72px;
+}
+
+.slices-row {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.slices-row .field input {
+  width: 56px;
+}
+
+.sample-editor .help {
+  margin: 0;
+}
+
+.trim-wave.overview {
+  background: var(--sunken);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* A one shot's waveform is one button: a click plays it. */
+.slice-area.one-shot {
+  display: block;
+  width: 100%;
+  padding: 20px 0 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Files dragged over the page: the whole page takes them. (Magnus beslut) */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  background: rgb(16 17 19 / 0.82);
+  border: 2px dashed var(--accent);
+  pointer-events: none;
+}
+
+.drop-overlay-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.crumb-context {
+  color: var(--muted);
+}
+
+.crumbs .crumb-menu {
+  /* Slim: as wide as what it says, not as its longest item. */
+  field-sizing: content;
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }

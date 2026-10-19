@@ -40,14 +40,9 @@ describe('what Play plays', () => {
   const matrix = matrixOf(p);
   const sample = sampleOf(p);
 
-  it('is in Samples the trimmed sample, looped for a break; with no Trim open, the sliced sample’s matrix', () => {
-    const s = subjectOf(p, state(p, { view: 'samples', trimming: sample.id }));
-    expect(s).toMatchObject({ key: `sample:${sample.id}`, once: false, kind: 'preview' });
-  });
-
-  it('is in Samples the sample’s own matrix as laid out in Slice; the song when nothing is sliced', () => {
-    expect(subjectOf(p, state(p, { view: 'samples' }))).toMatchObject({ key: `matrix:${matrix.id}`, kind: 'song' });
-    expect(subjectOf(p, state(p, { view: 'samples', sliceTarget: sample.id }))).toMatchObject({ key: `matrix:${matrix.id}`, kind: 'song' });
+  it('is in Samples the selected sample, trimmed, sliced or not; the song when there is none (Magnus beslut)', () => {
+    expect(subjectOf(p, state(p, { view: 'samples' }))).toMatchObject({ key: `sample:${sample.id}`, once: false, kind: 'preview' });
+    expect(subjectOf(p, state(p, { view: 'samples', sliceTarget: sample.id }))).toMatchObject({ key: `sample:${sample.id}`, kind: 'preview' });
     expect(subjectOf(createProject(), state(createProject(), { view: 'samples' }))?.key).toBe(SONG_KEY);
   });
 
@@ -155,17 +150,17 @@ describe('Play in each view', () => {
     expect(lit[0]!.getAttribute('style')).toContain('grid-column: 6');
   });
 
-  it('in Samples, the slicing playhead runs through the trim each pass of its matrix', async () => {
+  it('in Samples, Play plays the sample, its playhead in both the file and the sample (Magnus beslut)', async () => {
     const p = split();
     const { at } = await setup(p, { view: 'samples' });
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    // A bar of 2 s: 2.5 s is a quarter into the second pass.
-    at(2.5);
+    // The sample is all of a 2 s file: 0.5 s is a quarter in.
+    at(0.5);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 50));
     });
-    const slicing = screen.getByRole('region', { name: 'Slicing' });
-    expect((slicing.querySelector('.playhead') as HTMLElement).style.left).toBe('25%');
+    const editor = screen.getByRole('region', { name: 'Sample' });
+    expect([...editor.querySelectorAll<HTMLElement>('.playhead')].map((h) => h.style.left)).toEqual(['25%', '25%']);
   });
 
   it('with a hit selected in Pads still loops the matrix, and shows Stop until the player stops', async () => {
@@ -248,15 +243,15 @@ describe('Delete matrix', () => {
   });
 });
 
-describe('Delete in Import', () => {
-  /** split with a second trim of the file, which nothing else uses. */
+describe('Delete in Samples', () => {
+  /** split with a second sample of the file, which nothing else uses. */
   const twoTrims = () => split(addTrim(sampleOf(split()).id));
 
-  it('in Import asks even for a trim nothing else uses, listing what goes with it', async () => {
+  it('in Samples asks even for a sample nothing else uses, listing what goes with it', async () => {
     const { store } = await setup(twoTrims(), { view: 'samples' });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete sample amen sample 2' }));
     const dialog = deleteDialog();
-    expect(dialog.getAttribute('aria-label')).toBe('Delete amen trim 2?');
+    expect(dialog.getAttribute('aria-label')).toBe('Delete amen sample 2?');
     expect(within(dialog).getByText('matrix amen 2')).toBeTruthy();
     expect(within(dialog).queryByText('Goes silent in')).toBeNull();
     answer(true);
@@ -264,29 +259,29 @@ describe('Delete in Import', () => {
     expect(Object.values(store.getState().history.present.samples).map((s) => s.trim)).toEqual([1]);
   });
 
-  it('a trim heard in the song lists where it goes silent', async () => {
+  it('a sample heard in the song lists where it goes silent', async () => {
     await setup(split(), { view: 'samples' });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete sample amen sample 1' }));
     expect(within(deleteDialog()).getByText('Song')).toBeTruthy();
     expect(within(deleteDialog()).getByText('4 pads')).toBeTruthy();
   });
 
   it('Escape closes the dialog without deleting', async () => {
     const { store } = await setup(split(), { view: 'samples' });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete trim amen trim 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete sample amen sample 1' }));
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(Object.keys(store.getState().history.present.samples)).toHaveLength(1);
   });
 
-  it('Delete file in Import takes every trim of the file, after asking', async () => {
+  it('Delete file in Samples takes every sample of the file, after asking', async () => {
     const { store } = await setup(twoTrims(), { view: 'samples' });
     fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
     answer(false);
     expect(Object.keys(store.getState().history.present.samples)).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Delete file amen.wav' }));
-    expect(within(deleteDialog()).getByText('amen trim 1 (matrix amen 1, 4 pads, 4 hits)')).toBeTruthy();
-    expect(within(deleteDialog()).getByText('amen trim 2 (matrix amen 2, 1 pad, 1 hit)')).toBeTruthy();
+    expect(within(deleteDialog()).getByText('amen sample 1 (matrix amen 1, 4 pads, 4 hits)')).toBeTruthy();
+    expect(within(deleteDialog()).getByText('amen sample 2 (matrix amen 2, 1 pad, 1 hit)')).toBeTruthy();
     answer(true);
     expect(store.getState().history.present.matrices).toEqual({});
     expect(store.getState().history.present.samples).toEqual({});

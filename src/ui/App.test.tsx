@@ -66,19 +66,19 @@ async function setup(project: Project = createProject(), view: View = 'samples')
 const heading = () => screen.getByRole('heading', { level: 1 }).textContent;
 
 describe('App', () => {
-  it('the tabs are Samples, Pads, Loops, Mods, Song, Project on keys 1–6', async () => {
+  it('the tabs are Samples, Matrices, Loops, Mods, Song, Project on keys 1–6', async () => {
     await setup();
-    const tabs = within(screen.getByRole('navigation', { name: 'Pipeline' }))
-      .getAllByRole('button')
-      .map((b) => b.textContent);
-    expect(tabs).toEqual(['1Samples', '2Pads', '3Loops', '4Mods', '5Song', '6Project']);
-    expect(heading()).toBe('Samples');
+    const nav = within(screen.getByRole('navigation', { name: 'Pipeline' }));
+    const tabs = nav.getAllByRole('button').map((b) => b.textContent);
+    expect(tabs).toEqual(['1Samples', '2Matrices', '3Loops', '4Mods', '5Song', '6Project']);
+    const current = () => nav.getAllByRole('button').find((b) => b.getAttribute('aria-current') === 'page')?.textContent;
+    expect(current()).toBe('1Samples');
     fireEvent.keyDown(window, { key: '5' });
     expect(heading()).toBe('Song');
     fireEvent.keyDown(window, { key: '2' });
-    expect(heading()).toBe('Pads');
+    expect(current()).toBe('2Matrices');
     fireEvent.keyDown(window, { key: '1' });
-    expect(heading()).toBe('Samples');
+    expect(current()).toBe('1Samples');
     fireEvent.keyDown(window, { key: '6' });
     expect(heading()).toBe('Project');
     // There is no seventh tab.
@@ -156,29 +156,15 @@ describe('Slice', () => {
     return marked.project;
   }
 
-  it('plays the whole sample, and the button stops it while it plays', async () => {
+  it('a one shot plays on a click anywhere in its waveform, once (Magnus beslut)', async () => {
     const services = fakeServices();
     const project = toSlice();
     render(<App store={createStore({ ...initialState(project), view: 'samples' })} services={services} />);
     await act(async () => {});
     const sample = Object.values(project.samples)[0]!;
-
-    fireEvent.click(screen.getByRole('button', { name: 'Play sample' }));
-
-    expect(services.player.audition).toHaveBeenCalledWith(
-      project.audio[sample.audioId],
-      sample.offset,
-      sample.duration,
-      expect.any(Function),
-      true,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Stop sample' }));
-    expect(services.player.stopAudition).toHaveBeenCalled();
-
-    // The player reports the end; the button goes back to Play.
-    const onEnded = vi.mocked(services.player.audition).mock.calls[0]![3]!;
-    act(() => onEnded());
-    expect(screen.getByRole('button', { name: 'Play sample' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Play sample' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Play amen 1' }));
+    expect(services.player.audition).toHaveBeenCalledWith(project.audio[sample.audioId], sample.offset, sample.duration, expect.any(Function), false);
   });
 });
 

@@ -164,6 +164,30 @@ export const makeOneShot =
     return addTrim(sampleId, { offset: of.offset + window.start, duration: window.end - window.start })(project, ctx);
   };
 
+/**
+ * Slices `first` to `last` of a sample made a sample of their own, in one
+ * step: a new trim of the file over just them, last among the file's. One
+ * slice is a one-shot (`makeOneShot`); several are sliced, with a copy of the
+ * sample's slice points and guessed bars. The sample stays as it is. (Magnus beslut)
+ */
+export const makeSampleFromSlices =
+  (sampleId: Id, first: number, last: number): Command =>
+  (project, ctx) => {
+    const of = project.samples[sampleId];
+    if (of === undefined) return notFound(sampleId);
+    const from = Math.min(first, last);
+    const to = Math.max(first, last);
+    if (from === to) return makeOneShot(sampleId, from)(project, ctx);
+    const start = sliceWindow(of, from);
+    const end = sliceWindow(of, to);
+    if (start === null || end === null) return invalid('The sample has no such slice');
+    const added = addTrimIn(project, of, { offset: of.offset + start.start, duration: end.end - start.start }, ctx);
+    if (typeof added === 'string') return invalid(added);
+    const made = Object.values(added.samples).find((s) => !(s.id in project.samples));
+    if (made === undefined) return invalid('The sample was not added');
+    return setSlicing(made.id, guessBars(made.duration), undefined, pointsOf(of))(added, ctx);
+  };
+
 export const renameMatrix =
   (matrixId: Id, name: string): Command =>
   (project) => {

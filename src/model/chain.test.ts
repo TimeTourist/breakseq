@@ -9,6 +9,8 @@ import {
   fileSamples,
   isUnsliced,
   makeOneShot,
+  makeSampleFromSlices,
+  guessBars,
   markUnsliced,
   markersForBars,
   ownMatrix,
@@ -577,7 +579,7 @@ describe('numbering', () => {
     const next = run(project, setMarkers(sampleId, [0, 0.5], true));
     const fresh = by(next.samples, (s) => !(s.id in project.samples));
     expect(fresh.trim).toBe(4);
-    expect(trimName(fresh)).toBe('amen trim 4');
+    expect(trimName(fresh)).toBe('amen sample 4');
   });
 
   it('without newTrim, slices count by number', () => {
@@ -656,7 +658,7 @@ describe('files, trims, slices and matrices', () => {
     const { project, sampleId, matrixId } = amen(4);
     const sample = project.samples[sampleId]!;
     expect(sample).toMatchObject({ name: 'amen.wav', trim: 1 });
-    expect(trimName(sample)).toBe('amen trim 1');
+    expect(trimName(sample)).toBe('amen sample 1');
     expect(sliceName(sample)).toBe('amen slice 1');
     expect(project.matrices[matrixId]!.name).toBe('amen 1');
   });
@@ -684,6 +686,21 @@ describe('files, trims, slices and matrices', () => {
     expect(makeOneShot(sampleId, 9)(project, ctx).ok).toBe(false);
   });
 
+  it('slices 02–04 made a sample of their own: sliced, with their slice points and guessed bars (Magnus beslut)', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const sample = project.samples[sampleId]!;
+    const next = run(project, makeSampleFromSlices(sampleId, 3, 1));
+    const made = by(next.samples, (s) => s.id !== sampleId);
+    expect(made).toMatchObject({ trim: 2, offset: sample.offset + 0.5, duration: 1.5, bars: guessBars(1.5) });
+    expect(made.markers.map((m) => m * made.duration)).toEqual([0, 0.5, 1]);
+    expect(ownMatrix(next, made.id)!.pads).toHaveLength(3);
+    expect(next.matrices[matrixId]).toEqual(project.matrices[matrixId]);
+    expect(next.samples[sampleId]).toEqual(sample);
+    // One slice is a one-shot.
+    expect(by(run(project, makeSampleFromSlices(sampleId, 2, 2)).samples, (s) => s.id !== sampleId)).toMatchObject({ duration: 0.5, bars: null });
+    expect(makeSampleFromSlices(sampleId, 1, 99)(project, ctx).ok).toBe(false);
+  });
+
   it('renaming a matrix renames its own pads and hits and its loop; file, trim and slice stay', () => {
     const { project, sampleId, matrixId } = amen(4);
     const next = run(project, renameMatrix(matrixId, 'think'));
@@ -692,7 +709,7 @@ describe('files, trims, slices and matrices', () => {
     expect(next.pads[matrix.pads[6]!]!.name).toBe('think 07');
     expect(rowHit(next, matrixId, 1).name).toBe('think 02');
     expect(next.loops[matrix.loop!]!.name).toBe('think');
-    expect(trimName(next.samples[sampleId]!)).toBe('amen trim 1');
+    expect(trimName(next.samples[sampleId]!)).toBe('amen sample 1');
     expect(sliceName(next.samples[sampleId]!)).toBe('amen slice 1');
     expect(renameMatrix(matrixId, ' ')(next, ctx).ok).toBe(false);
   });

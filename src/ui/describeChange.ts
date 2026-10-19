@@ -38,7 +38,7 @@ function samplesChange(before: Project, after: Project): string | null {
   const added = addedIds(before.samples, after.samples).map((id) => after.samples[id]!);
   if (added.length > 0) {
     const files = [...new Set(added.filter((s) => !(s.audioId in before.audio)).map((s) => s.audioId))];
-    if (files.length === 0) return added.length === 1 ? `new trim ${defaultMatrixName(added[0]!)}` : `${added.length} new trims`;
+    if (files.length === 0) return added.length === 1 ? `new sample ${defaultMatrixName(added[0]!)}` : `${added.length} new samples`;
     return files.length === 1 ? `import ${added.find((s) => s.audioId === files[0])!.name}` : `import ${files.length} files`;
   }
   const changed = Object.keys(after.samples).filter((id) => id in before.samples && before.samples[id] !== after.samples[id]);

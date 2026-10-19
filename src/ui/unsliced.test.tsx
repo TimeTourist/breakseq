@@ -69,7 +69,6 @@ async function setup(project: Project, view: View): Promise<Store> {
 
 const project = (store: Store) => store.getState().history.present;
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
-const pressed = (name: string | RegExp) => button(name).getAttribute('aria-pressed');
 
 /** A 2 s file, not sliced, marked Slice in Import or not. */
 function oneShot(name: string, marked: boolean, cues?: readonly number[]): Command[] {
@@ -80,118 +79,89 @@ function oneShot(name: string, marked: boolean, cues?: readonly number[]): Comma
 const sample = (store: Store, i = 0) => Object.values(project(store).samples)[i]!;
 const own = (store: Store, i = 0) => ownMatrix(project(store), sample(store, i).id)!;
 
-describe('a sample is sliced in Slice, not in Import', () => {
-  it('Slice in the table slices at once by default: transients at guessed bars, in one undo step', async () => {
+const slicesPressed = (name: string) => within(screen.getByRole('group', { name: 'Slices' })).getByRole('button', { name }).getAttribute('aria-pressed');
+const slices = (name: string) => within(screen.getByRole('group', { name: 'Slices' })).getByRole('button', { name });
+
+describe('Slices: None, or how it is sliced (Magnus beslut)', () => {
+  it('a one shot has None chosen; Transients slices it at once at guessed bars, in one undo step', async () => {
     const store = await setup(build(...oneShot('amen.wav', false)), 'samples');
-    expect(pressed('Slice amen 1')).toBe('false');
-    fireEvent.click(button('Slice amen 1'));
+    expect(slicesPressed('None')).toBe('true');
+    fireEvent.click(slices('Transients'));
     // 2 s guesses 1 bar (120 BPM).
     expect(sample(store).bars).toBe(1);
     expect('unsliced' in sample(store)).toBe(false);
     expect(own(store).loop).not.toBeNull();
-    expect(pressed('Slice amen 1')).toBe('true');
-    expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample(store).id, autoSlice: null });
-    expect(screen.getByText(/transients/)).toBeTruthy();
-    // One undo step back to not marked.
+    expect(slicesPressed('None')).toBe('false');
+    expect(slicesPressed('Transients')).toBe('true');
+    expect(screen.getByText('= 120.00 BPM')).toBeTruthy();
+    // One undo step back to the one shot.
     fireEvent.click(button(/^Undo/));
     expect(sample(store).bars).toBeNull();
-    expect('unsliced' in sample(store)).toBe(false);
-    // Undo does not slice it again.
-    expect(sample(store).bars).toBeNull();
+    expect(slicesPressed('None')).toBe('true');
   });
 
-  it('Create Slices ↓ on a file imported marked Slice slices it at its cues and guessed bars', async () => {
-    const store = await setup(build(...oneShot('amen.wav', true, [0.5])), 'samples');
-    fireEvent.click(button('Create Slices ↓'));
-    // The cue at 0.5 s of 2 s.
-    expect(sample(store)).toMatchObject({ bars: 1, markers: [0, 0.25] });
-    expect(screen.getByText('· 2 slices · cue markers')).toBeTruthy();
-  });
-
-  it('a trim not sliced yet: the cursor goes to Bars, and how to slice without bars says what is missing', async () => {
+  it('a grid slices at once too: 1/8 of a guessed bar', async () => {
     const store = await setup(build(...oneShot('amen.wav', false)), 'samples');
-    fireEvent.click(within(screen.getByRole('group', { name: 'Slice by' })).getByRole('button', { name: '1/16' }));
-    expect(screen.getByText('Set its bars to slice it.')).toBeTruthy();
-    expect(sample(store).bars).toBeNull();
-  });
-
-  it('Slice and Don\'t slice are one toggle, Slice: off again on a sample marked Slice is just as before', async () => {
-    const store = await setup(build(...oneShot('amen.wav', true)), 'samples');
-    expect(screen.queryByRole('button', { name: "Don't slice" })).toBeNull();
-    expect(pressed('Slice amen 1')).toBe('true');
-    fireEvent.click(button('Slice amen 1'));
-    expect(pressed('Slice amen 1')).toBe('false');
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect('unsliced' in sample(store)).toBe(false);
-    expect(screen.queryByRole('button', { name: 'Create Slices ↓' })).toBeNull();
-  });
-
-  it('the Trim column has no "not sliced"; a click selects a trim for slicing below', async () => {
-    const store = await setup(build(...oneShot('amen.wav', true), ...oneShot('think.wav', false)), 'samples');
-    expect(screen.queryByText('not sliced')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Select think trim 1' }));
-    expect(screen.getByRole('heading', { name: 'think 1' })).toBeTruthy();
-    expect(store.getState().sliceTarget).toBe(sample(store, 1).id);
-  });
-
-  it('nothing is made until both bars and how are chosen, then all of it in one undo step', async () => {
-    const store = await setup(build(...oneShot('amen.wav', true)), 'samples');
-    // No cues in the file: no Cue markers, nothing chosen.
-    expect(screen.queryByRole('button', { name: 'Cue markers' })).toBeNull();
-    expect(pressed('1/16')).toBe('false');
-    fireEvent.click(button('1/8'));
-    expect(sample(store).bars).toBeNull();
+    fireEvent.click(slices('1/8'));
+    expect(sample(store)).toMatchObject({ bars: 1 });
+    expect(sample(store).markers).toHaveLength(8);
+    expect(own(store).pads).toHaveLength(8);
+    expect(slicesPressed('1/8')).toBe('true');
+    // The bars change the grid with them.
     fireEvent.change(screen.getByLabelText('Bars in the sample'), { target: { value: '2' } });
-    expect(sample(store)).toMatchObject({ bars: 2 });
+    fireEvent.blur(screen.getByLabelText('Bars in the sample'));
     expect(sample(store).markers).toHaveLength(16);
-    expect(own(store).pads).toHaveLength(16);
-    expect(own(store).loop).not.toBeNull();
-    expect('unsliced' in sample(store)).toBe(false);
-    // Now the sample as sliced, its grid chosen.
-    expect(pressed('1/8')).toBe('true');
-    expect(screen.queryByText(/Not sliced yet/)).toBeNull();
-    act(() => store.dispatch({ type: 'undo' }));
-    expect(sample(store)).toMatchObject({ bars: null, unsliced: true });
-    expect(own(store)).toMatchObject({ loop: null });
-    expect(own(store).pads).toHaveLength(1);
   });
 
-  it('a file with cue markers has Cue markers chosen to start with: the bars slice it at them', async () => {
+  it('a file with cue markers is a one shot that offers Cues: they slice it at its cues and guessed bars', async () => {
     const store = await setup(build(...oneShot('cued.wav', false, [0.4, 1, 1.5])), 'samples');
     expect(sample(store)).toMatchObject({ bars: null, unsliced: true });
-    expect(pressed('Cue markers')).toBe('true');
-    fireEvent.change(screen.getByLabelText('Bars in the sample'), { target: { value: '1' } });
+    expect(slicesPressed('None')).toBe('true');
+    fireEvent.click(slices('Cues'));
     expect(sample(store).markers.map((m) => m * 2)).toEqual([0, 0.4, 1, 1.5]);
-    expect(pressed('Cue markers')).toBe('true');
+    expect(slicesPressed('Cues')).toBe('true');
     // The other ways stay to pick from, and the cues to go back to.
-    fireEvent.click(button('1/4'));
+    fireEvent.click(slices('1/4'));
     expect(sample(store).markers).toHaveLength(4);
-    expect(pressed('Cue markers')).toBe('false');
+    expect(slicesPressed('Cues')).toBe('false');
+  });
+
+  it('no Cues without cue markers in the sample', async () => {
+    await setup(build(...oneShot('amen.wav', false)), 'samples');
+    expect(within(screen.getByRole('group', { name: 'Slices' })).queryByRole('button', { name: 'Cues' })).toBeNull();
+  });
+
+  it('no Slice toggle, Type, Create Slices or Bars before it is sliced', async () => {
+    await setup(build(...oneShot('amen.wav', true)), 'samples');
+    expect(screen.queryByRole('button', { name: /^Slice amen/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create Slices ↓' })).toBeNull();
+    expect(screen.queryByLabelText('Bars in the sample')).toBeNull();
+    expect(screen.getByText('2000 ms', { selector: '.slices-row span' })).toBeTruthy();
   });
 });
 
-describe("Don't slice on a sliced sample", () => {
+describe("None on a sliced sample", () => {
   const sliced = () => build(...oneShot('amen.wav', true), (p, c) => setSlicing(Object.keys(p.samples)[0]!, 1)(p, c));
 
   it('asks first, listing what goes; Cancel leaves it sliced', async () => {
     const store = await setup(sliced(), 'samples');
-    fireEvent.click(button('Slice amen 1'));
+    fireEvent.click(slices('None'));
     const dialog = screen.getByRole('alertdialog', { name: "Don't slice amen 1?" });
     expect(dialog.textContent).toContain('15 pads');
     expect(dialog.textContent).toContain('loop amen 1');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(sample(store).bars).toBe(1);
-    expect(pressed('Slice amen 1')).toBe('true');
+    expect(slicesPressed('None')).toBe('false');
   });
 
-  it("Don't slice leaves a matrix of 1 pad with 1 hit", async () => {
+  it("Don't slice leaves a matrix of 1 pad with 1 hit, a one shot", async () => {
     const store = await setup(sliced(), 'samples');
-    fireEvent.click(button('Slice amen 1'));
+    fireEvent.click(slices('None'));
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: "Don't slice" }));
     expect(sample(store)).toMatchObject({ bars: null });
     expect(own(store)).toMatchObject({ loop: null });
     expect(own(store).pads).toHaveLength(1);
-    expect(screen.getByText(/^1 pad, 1 hit/)).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Files' })).getByText('one shot')).toBeTruthy();
   });
 });
