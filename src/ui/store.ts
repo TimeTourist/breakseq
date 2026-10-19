@@ -64,6 +64,8 @@ export interface AppState {
   readonly clipboard: Clip | null;
   /** The sample (trim) whose Trim is open in Samples, below the table: what Play plays there. Follows `sliceTarget`. */
   readonly trimming: Id | null;
+  /** A trim just marked Slice by a click: its slicing below slices it once by default (transients or its cues, at guessed bars). Undo never sets it. */
+  readonly autoSlice: Id | null;
 }
 
 export type Action =
@@ -86,7 +88,8 @@ export type Action =
   | { readonly type: 'projectFolder'; readonly state: Partial<ProjectFolderState> }
   | { readonly type: 'songCursor'; readonly step: number }
   | { readonly type: 'clipboard'; readonly clip: Clip | null }
-  | { readonly type: 'trimming'; readonly sampleId: Id | null };
+  | { readonly type: 'trimming'; readonly sampleId: Id | null }
+  | { readonly type: 'autoSlice'; readonly sampleId: Id | null };
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
@@ -98,6 +101,7 @@ export const initialState = (project: Project = createProject()): AppState => ({
   songCursor: 0,
   clipboard: null,
   trimming: null,
+  autoSlice: null,
 });
 
 /** The focus with matrices that are no longer in the project left out: a removed or undone matrix is no focus. */
@@ -160,6 +164,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, clipboard: action.clip }, error: null };
     case 'trimming':
       return { state: { ...state, trimming: action.sampleId }, error: null };
+    case 'autoSlice':
+      return { state: { ...state, autoSlice: action.sampleId }, error: null };
   }
 }
 

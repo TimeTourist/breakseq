@@ -132,6 +132,11 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
     if (sampleId !== null) select(sampleId);
     store.dispatch({ type: 'trimming', sampleId });
   };
+  /** Slices a trim marked Slice by default, once, below: see Unsliced. */
+  const sliceByDefault = (sampleId: Id) => {
+    store.dispatch({ type: 'autoSlice', sampleId });
+    toSlicing(sampleId);
+  };
   /** Selects a trim and brings its slicing into view; one not sliced yet gets the cursor in Bars, which slicing needs first. */
   const toSlicing = (sampleId: Id) => {
     select(sampleId);
@@ -364,7 +369,8 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                                 if (unsliced) run(setSlicing(sample.id, null));
                                 // Its slicing goes: ask first, as Delete does.
                                 else if (sliced) setToUnslice(sample.id);
-                                else run(markUnsliced(sample.id));
+                                // Sliced at once by default, in one undo step with the mark. (Magnus beslut)
+                                else if (run(markUnsliced(sample.id), `slice:${sample.id}`) === null) sliceByDefault(sample.id);
                               }}
                             >
                               Slice
@@ -383,7 +389,7 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                           <td>
                             <div className="row creates">
                               {unsliced && (
-                                <button type="button" className="link-text small" title={`Slice ${name} below: set its bars and how to slice it`} onClick={() => toSlicing(sample.id)}>
+                                <button type="button" className="link-text small" title={`Slice ${name} below: set its bars and how to slice it`} onClick={() => sliceByDefault(sample.id)}>
                                   Create Slices ↓
                                 </button>
                               )}
