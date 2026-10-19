@@ -287,12 +287,12 @@ function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix
         <span className="small muted">{kind === 'break' ? 'break' : 'one-shot'}</span>
       </button>
       <MatrixName key={matrix.id} matrix={matrix} onError={onError} />
-      <InSong heard={heard.matrices.has(matrix.id)} />
       {sample !== undefined && (
         <button type="button" className="link-text small" title={`Open ${trimName(sample)} in Samples`} onClick={toSamples}>
           ← Samples
         </button>
       )}
+      <InSong heard={heard.matrices.has(matrix.id)} />
       <div className="row push nowrap">
         <button type="button" title="An empty pad last in the matrix" onClick={() => adding(addPad(matrix.id), 'pads', (id) => select({ pad: id, hit: null }, 'pads'))}>
           + Pad

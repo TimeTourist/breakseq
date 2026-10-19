@@ -256,8 +256,8 @@ export function ModsView() {
               onBlur={seal}
             />
             <p className="muted row">
-              <InSong heard={heard.mods.has(mod.id)} />
               {effectsLabel(mod)} · Play tries it on {previewId === null ? 'a loop (make one first)' : project.loops[previewId]?.name}, over the whole loop.
+              <InSong heard={heard.mods.has(mod.id)} />
             </p>
           </div>
           <div className="row push">
