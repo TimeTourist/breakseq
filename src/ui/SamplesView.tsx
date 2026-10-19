@@ -132,10 +132,12 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
     if (sampleId !== null) select(sampleId);
     store.dispatch({ type: 'trimming', sampleId });
   };
-  /** Selects a trim and brings its slicing into view. */
+  /** Selects a trim and brings its slicing into view; one not sliced yet gets the cursor in Bars, which slicing needs first. */
   const toSlicing = (sampleId: Id) => {
     select(sampleId);
     below.current?.scrollIntoView?.({ block: 'start' });
+    // After the selected trim has rendered below.
+    requestAnimationFrame(() => below.current?.querySelector<HTMLInputElement>('input[aria-label="Bars in the sample"]')?.focus({ preventScroll: true }));
   };
   /** Opens the selected trim's Trim below the table (it stays open if it is) and brings it into view. */
   const toTrim = (sampleId: Id) => {

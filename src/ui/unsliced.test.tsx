@@ -95,6 +95,13 @@ describe('a sample is sliced in Slice, not in Import', () => {
     fireEvent.click(button('Create Slices ↓'));
     expect(store.getState()).toMatchObject({ view: 'samples', sliceTarget: sample(store).id });
     expect(screen.getByText(/Not sliced yet/)).toBeTruthy();
+    // The cursor goes to Bars, which slicing needs first.
+    await act(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Bars in the sample');
+    // How to slice without bars says what is missing.
+    fireEvent.click(within(screen.getByRole('group', { name: 'Slice by' })).getByRole('button', { name: '1/16' }));
+    expect(screen.getByText('Set its bars to slice it.')).toBeTruthy();
+    expect(sample(store).bars).toBeNull();
   });
 
   it('Slice and Don\'t slice are one toggle, Slice: off again on a sample marked Slice is just as before', async () => {
