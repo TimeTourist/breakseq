@@ -200,7 +200,7 @@ describe('Delete matrix', () => {
     const p = split();
     const matrix = matrixOf(p);
     const { store } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, matrix: matrix.id } });
-    fireEvent.click(screen.getByRole('button', { name: '♪ Song' }));
+    fireEvent.click(screen.getByRole('button', { name: '♪ Song →' }));
     expect(store.getState().view).toBe('song');
     act(() => void store.dispatch({ type: 'view', view: 'pads' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete matrix amen 1' }));

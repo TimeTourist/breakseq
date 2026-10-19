@@ -9,13 +9,13 @@ export function useHeard(): Heard {
   return useMemo(() => heardInSong(project), [project]);
 }
 
-/** "♪ Song" by a name when it is heard in the song: a click opens Song. Nothing when it is not. */
+/** "♪ Song →" by a name when it is heard in the song: a click opens Song. Nothing when it is not. */
 export function InSong({ heard }: { readonly heard: boolean }) {
   const open = useOpen();
   if (!heard) return null;
   return (
     <button type="button" className="link-text small in-song" title="Heard in the song: open Song" onClick={() => open({}, 'song')}>
-      ♪ Song
+      ♪ Song →
     </button>
   );
 }
