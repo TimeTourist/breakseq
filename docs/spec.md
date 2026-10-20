@@ -251,7 +251,7 @@ Play spelar det som visas i fliken:
 | Vy | Vad Play spelar |
 | --- | --- |
 | Samples | Den valda samplen, trimmad, loopad när Loop är på (även en one shot). Utan samples låten. *(Magnus beslut; ändras inte utan att fråga.)* |
-| Matrices | Alltid den visade matrisen som den läggs ut, pad efter pad (med utbytta slices), renderad i varv (se Varv i loop) och loopad, vad som än är valt. *(Magnus beslut; ändras inte utan att fråga.)* |
+| Matrices | Alltid den visade matrisen som den läggs ut, pad efter pad (med utbytta slices), renderad i varv (se Varv i loop) och loopad, vad som än är valt. *(Magnus beslut; ändras inte utan att fråga.)* Ett varv är exakt matrisens steg, inte hela takter: en matrix på 24 steg börjar om efter 24, utan tystnad. *(Magnus beslut; ändras inte utan att fråga.)* En matrix med bara tomma pads är ett tyst steg. *(Claudes val.)* Matrisens egen loop i Loops (Automatisk kedja) är fortfarande hela takter. |
 | Loops | Den valda loopen, renderad i varv (se Varv i loop) och loopad |
 | Mods | Moden på sin loop, renderad och loopad. Utan någon mod finns inget att spela. |
 | Song, Project | Hela låten, renderad och loopad |
