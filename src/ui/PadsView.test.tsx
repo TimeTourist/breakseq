@@ -365,6 +365,19 @@ describe('Matrices: drag and drop (Magnus beslut)', () => {
     expect(present(store).pads[m.pads[1]!]!.members).toEqual([first, second]);
   });
 
+  it('a hit dropped on its own pad off the hits (its number or empty part) becomes a variant, which opens', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id);
+    const [first] = p.pads[m.pads[1]!]!.members as [string, string];
+    drag(hitsIn(tiles()[1]!)[0]!, tiles()[1]!.querySelector<HTMLElement>('.pad-head')!, {}, () => expect(tiles()[1]!.dataset.drop).toBe('Variant'));
+    const members = present(store).pads[m.pads[1]!]!.members;
+    expect(members).toHaveLength(3);
+    expect(present(store).hits[members[2]!]).toMatchObject({ variantOf: first, name: `${p.hits[first]!.name} var` });
+    expect(store.getState().selection).toMatchObject({ pad: m.pads[1], hit: members[2] });
+    expect(store.getState().history.past).toHaveLength(1);
+  });
+
   it('dropped on the place after the pads it makes a new pad with copies', async () => {
     const p = amenAndSnares();
     const m = matrixNamed(p, 'amen 1');

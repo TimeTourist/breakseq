@@ -127,10 +127,14 @@ describe('where a drag drops (Magnus beslut)', () => {
 
   it('within its own pad a hit from the grid reorders, before or after the hit it is over', () => {
     expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, own, 'before'))).toEqual({ kind: 'reorder', padId: pad2.id, hitId: copied, to: 0 });
-    // Where it already is, or off the hits: nothing.
+    // Where it already is: nothing.
     expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, own, 'after'))).toBeNull();
     expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, copied))).toBeNull();
-    expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id))).toBeNull();
+    // Off the hits, on its own pad (its number or the empty part): a variant (Magnus beslut).
+    expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id))).toEqual({ kind: 'variant', padId: pad2.id, hitId: copied });
+    expect(dropLabel(p, { kind: 'hit', hitId: copied, from: 'grid' }, { kind: 'variant', padId: pad2.id, hitId: copied })).toBe('Variant');
+    // From the list, its own pad still gets a copy.
+    expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'list' }, onPad(pad2.id))).toEqual({ kind: 'add', padId: pad2.id, hitIds: [copied] });
     expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, onPad(pad2.id, copied, 'after'))).toEqual({ kind: 'reorder', padId: pad2.id, hitId: own, to: 1 });
   });
 
@@ -203,6 +207,14 @@ describe('what a drop does', () => {
     const withEmpty = apply(p, addPad(m.id));
     const newPad = matrixOf(withEmpty, 'amen 1').pads.at(-1)!;
     expect(run(withEmpty, dropCommand({ kind: 'add', padId: newPad, hitIds: [snare] })).pads[newPad]!.choice).toBe('top');
+  });
+
+  it('makes a variant of a hit, last in its pad, as the Variant button does', () => {
+    const hit = p.hits[pad2.members[0]!]!;
+    const after = run(p, dropCommand({ kind: 'variant', padId: pad2.id, hitId: hit.id }));
+    const members = after.pads[pad2.id]!.members;
+    expect(members).toHaveLength(3);
+    expect(after.hits[members[2]!]).toMatchObject({ name: `${hit.name} var`, variantOf: hit.id, sampleId: hit.sampleId });
   });
 
   it('reorders a hit within its pad, also to first', () => {
