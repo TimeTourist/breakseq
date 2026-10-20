@@ -69,7 +69,8 @@ const sampleJump = (sample: Sample): Jump => ({
 });
 
 const toMatrices = (matrix: Matrix, pad: Id | null = null, hit: Id | null = null): Action[] => [
-  { type: 'show', matrix: matrix.id },
+  // A matrix reached through the link row is pinned, whatever was pinned before. (Magnus beslut)
+  { type: 'focus', matrix: matrix.id },
   { type: 'select', selection: { matrix: matrix.id, pad, hit }, view: 'pads' },
 ];
 
