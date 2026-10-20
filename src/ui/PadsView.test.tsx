@@ -300,14 +300,14 @@ describe('Matrices: the matrix box', () => {
 });
 
 describe('Matrices: drag and drop (Magnus beslut)', () => {
-  it('a pad dragged from the list onto a pad adds copies of its hits last, Shift or not; the target says Copy', async () => {
+  it('a pad dragged from the list onto a pad adds copies of its hits last; the target says Copy', async () => {
     const p = amenAndSnares();
     const m = matrixNamed(p, 'amen 1');
     const snarePad = p.pads[matrixNamed(p, 'Snares').pads[0]!]!;
     const { store } = await setup(p, m.id);
     fireEvent.click(within(list()).getByRole('button', { name: 'Show the pads of Snares' }));
     const tile = tiles()[2]!;
-    drag(within(list()).getByRole('button', { name: 'Pad Snares 01' }), tile, { shiftKey: true }, () => expect(tile.dataset.drop).toBe('Copy'));
+    drag(within(list()).getByRole('button', { name: 'Pad Snares 01' }), tile, {}, () => expect(tile.dataset.drop).toBe('Copy'));
     expect(tile.dataset.drop).toBeUndefined();
     const pad = present(store).pads[m.pads[2]!]!;
     expect(pad.members).toHaveLength(3);
@@ -333,18 +333,17 @@ describe('Matrices: drag and drop (Magnus beslut)', () => {
     expect(pad.members[1]).not.toBe(snarePad.members[1]);
   });
 
-  it('a hit dragged in the grid to another pad is copied, and moved with Shift; the target says which', async () => {
+  it('a hit dragged in the grid to another pad is always copied, Shift or not; the target says Copy', async () => {
     const p = amen();
     const m = matrixNamed(p, 'amen 1');
     const { store } = await setup(p, m.id);
     const [first, second] = p.pads[m.pads[1]!]!.members as [string, string];
-    drag(hitsIn(tiles()[1]!)[1]!, tiles()[0]!, {}, () => expect(tiles()[0]!.dataset.drop).toBe('Copy · Shift: move'));
+    drag(hitsIn(tiles()[1]!)[1]!, tiles()[0]!, {}, () => expect(tiles()[0]!.dataset.drop).toBe('Copy'));
+    drag(hitsIn(tiles()[1]!)[1]!, tiles()[3]!, { shiftKey: true }, () => expect(tiles()[3]!.dataset.drop).toBe('Copy'));
     expect(present(store).pads[m.pads[1]!]!.members).toEqual([first, second]);
     expect(present(store).pads[m.pads[0]!]!.members).toHaveLength(2);
-    drag(hitsIn(tiles()[1]!)[1]!, tiles()[3]!, { shiftKey: true }, () => expect(tiles()[3]!.dataset.drop).toBe('Move (Shift)'));
-    expect(present(store).pads[m.pads[1]!]!.members).toEqual([first]);
-    expect(present(store).pads[m.pads[3]!]!.members.at(-1)).toBe(second);
-    expect(store.getState().selection).toMatchObject({ pad: m.pads[3], hit: second });
+    expect(present(store).pads[m.pads[3]!]!.members).toHaveLength(2);
+    expect(store.getState().selection).toMatchObject({ pad: m.pads[3], hit: null });
   });
 
   it('within its pad a hit dragged up or down reorders, always as a move, with a line where it goes', async () => {
@@ -362,11 +361,11 @@ describe('Matrices: drag and drop (Magnus beslut)', () => {
     expect(store.getState().history.past).toHaveLength(1);
     const [nowTop, nowBottom] = hitsIn(tiles()[1]!) as [HTMLButtonElement, HTMLButtonElement];
     place(nowBottom, { top: 130, height: 30 });
-    drag(nowTop, nowBottom, { clientY: 158, shiftKey: true });
+    drag(nowTop, nowBottom, { clientY: 158 });
     expect(present(store).pads[m.pads[1]!]!.members).toEqual([first, second]);
   });
 
-  it('dropped on the place after the pads it makes a new pad: copies, or the hit itself with Shift', async () => {
+  it('dropped on the place after the pads it makes a new pad with copies', async () => {
     const p = amenAndSnares();
     const m = matrixNamed(p, 'amen 1');
     const { store } = await setup(p, m.id);
@@ -376,12 +375,55 @@ describe('Matrices: drag and drop (Magnus beslut)', () => {
     expect(pads).toHaveLength(5);
     expect(present(store).pads[pads[4]!]!.members).toHaveLength(2);
     expect(store.getState().selection.pad).toBe(pads[4]);
-    const second = p.pads[m.pads[1]!]!.members[1]!;
     drag(hitsIn(tiles()[1]!)[1]!, newPadTile(), { shiftKey: true });
-    const after = present(store).matrices[m.id]!.pads;
-    expect(after).toHaveLength(6);
-    expect(present(store).pads[after[5]!]!.members).toEqual([second]);
-    expect(present(store).pads[m.pads[1]!]!.members).toHaveLength(1);
+    expect(present(store).matrices[m.id]!.pads).toHaveLength(6);
+    expect(present(store).pads[m.pads[1]!]!.members).toHaveLength(2);
+  });
+
+  /** Lays the grid out as `perRow` tiles of 100 px a row, with 6 px gaps, which happy-dom does not. */
+  const layOut = (perRow: number) =>
+    tiles().forEach((t, i) => place(t, { left: (i % perRow) * 106, top: Math.floor(i / perRow) * 106, width: 100, height: 100 }));
+  const head = (i: number) => tiles()[i]!.querySelector<HTMLElement>('.pad-head')!;
+
+  it('a pad dragged by its number beside another moves there, with its hits, and a line shows where; at the end of a row too', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id);
+    layOut(2);
+    const hits = (id: string) => present(store).pads[id]!.members;
+    const before = m.pads.map(hits);
+    // The right quarter of pad 01, the end of the first row: pad 04 lands after it.
+    drag(head(3), tiles()[0]!, { clientX: 90, clientY: 50 }, () => {
+      const line = tiles()[0]!.querySelector('.pad-insert.after');
+      expect(line?.textContent).toBe('Move pad here');
+      expect(tiles()[0]!.dataset.drop).toBeUndefined();
+    });
+    expect(present(store).matrices[m.id]!.pads).toEqual([m.pads[0], m.pads[3], m.pads[1], m.pads[2]]);
+    expect([0, 3, 1, 2].map((i) => hits(m.pads[i]!))).toEqual([0, 3, 1, 2].map((i) => before[i]));
+    expect(store.getState().history.past).toHaveLength(1);
+    expect(store.getState().selection.pad).toBe(m.pads[3]);
+    // The gap at the start of the second row (left of the pad there): pad 01 goes before it.
+    layOut(2);
+    drag(head(0), screen.getByRole('region', { name: 'Pads of the matrix' }), { clientX: 2, clientY: 150 });
+    expect(present(store).matrices[m.id]!.pads).toEqual([m.pads[3], m.pads[0], m.pads[1], m.pads[2]]);
+  });
+
+  it('a pad dropped on the middle of another copies its hits last into it; on itself nothing', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id);
+    layOut(4);
+    drag(head(0), tiles()[0]!, { clientX: 50, clientY: 50 }, () => expect(tiles()[0]!.dataset.drop).toBeUndefined());
+    expect(store.getState().history.past).toHaveLength(0);
+    drag(head(1), tiles()[2]!, { clientX: 262, clientY: 50 }, () => expect(tiles()[2]!.dataset.drop).toBe('Copy 2 hits into 03'));
+    expect(present(store).pads[m.pads[2]!]!.members).toHaveLength(3);
+    expect(present(store).pads[m.pads[1]!]!.members).toEqual(p.pads[m.pads[1]!]!.members);
+    expect(present(store).matrices[m.id]!.pads).toEqual(m.pads);
+    // On the new pad's place: a copy of it, last.
+    drag(head(1), newPadTile());
+    const pads = present(store).matrices[m.id]!.pads;
+    expect(pads).toHaveLength(5);
+    expect(present(store).pads[pads[4]!]!.members).toHaveLength(2);
   });
 
   it('a drag that ends without a drop leaves no mark', async () => {
@@ -392,7 +434,7 @@ describe('Matrices: drag and drop (Magnus beslut)', () => {
     const chip = hitsIn(tiles()[1]!)[1]!;
     fireEvent.dragStart(chip, { dataTransfer: transfer });
     dragAt('dragOver', tiles()[2]!, transfer);
-    expect(tiles()[2]!.dataset.drop).toBe('Copy · Shift: move');
+    expect(tiles()[2]!.dataset.drop).toBe('Copy');
     fireEvent.dragEnd(chip, { dataTransfer: transfer });
     expect(tiles()[2]!.dataset.drop).toBeUndefined();
     expect(newPadTile().textContent).toBe('+ drop here for a new pad');

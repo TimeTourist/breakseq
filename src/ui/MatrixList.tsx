@@ -206,7 +206,7 @@ export function MatrixList({ open, pinned, placing, show, onPlayPad, onError }: 
                         aria-pressed={padSelected}
                         aria-label={`Pad ${pad.name}`}
                         title="Click to select and hear the pad · drag it onto the grid to copy its hits"
-                        {...dragFrom(PAD_MIME, pad.id, { kind: 'pad', padId: pad.id })}
+                        {...dragFrom(PAD_MIME, pad.id, { kind: 'pad', padId: pad.id, from: 'list' })}
                         onClick={() => {
                           if (!locked) show(matrix.id, pad.id, null);
                           onPlayPad(pad);

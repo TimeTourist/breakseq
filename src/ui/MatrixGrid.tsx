@@ -4,11 +4,11 @@ import type { Id, Matrix, Pad } from '../model';
 import { hitSound, padSteps, sampleAudio, stepDuration } from '../model';
 import { matrixPassSteps } from '../engine';
 import { useApp, useOpen, useProject } from './context';
-import { HIT_MIME } from './dnd';
+import { HIT_MIME, PAD_MIME } from './dnd';
 import { InSongMark, useHeard } from './InSong';
 import { NAME_MAX, middleEllipsis, padSilent } from './labels';
 import type { DropTarget, Over, PadsOpen, Placing, Zoom } from './pads';
-import { PADS_PER_ROW, dropLabel, dropTarget, hitLabel, rowNumber, zoneOf } from './pads';
+import { PADS_PER_ROW, dropLabel, dropTarget, hitLabel, rowNumber, sideOf, zoneOf } from './pads';
 import { Waveform } from './Waveform';
 
 interface MatrixGridProps {
@@ -22,25 +22,40 @@ interface MatrixGridProps {
   readonly onPlayPad: (pad: Pad) => void;
 }
 
-/** What the pointer is over in pad `padId`: a hit chip and its upper or lower half, or the pad. */
+/** What the pointer is over in pad `padId`'s tile: a hit chip and its upper or lower half, or the pad; and the side of the tile. */
 function overAt(e: DragEvent, padId: Id): Over {
+  const tile = e.currentTarget.getBoundingClientRect();
+  const side = sideOf(e.clientX, tile.left, tile.width);
   const chip = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-hit]') : null;
-  if (chip === null || chip.dataset.hit === undefined) return { kind: 'pad', padId, hitId: null, zone: 'after' };
+  if (chip === null || chip.dataset.hit === undefined) return { kind: 'pad', padId, hitId: null, zone: 'after', side };
   const rect = chip.getBoundingClientRect();
-  return { kind: 'pad', padId, hitId: chip.dataset.hit, zone: zoneOf(e.clientY, rect.top, rect.height) };
+  return { kind: 'pad', padId, hitId: chip.dataset.hit, zone: zoneOf(e.clientY, rect.top, rect.height), side };
+}
+
+/** In a gap of the grid: the side of the nearest pad in the pointer's row, or null off any row. */
+function gapOver(e: DragEvent): Over | null {
+  const tiles = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('.pad-tile[data-pad]')).map((t) => ({ id: t.dataset.pad!, rect: t.getBoundingClientRect() }));
+  const row = tiles.filter((t) => e.clientY >= t.rect.top && e.clientY <= t.rect.bottom);
+  const near = row.reduce<(typeof row)[number] | null>((best, t) => {
+    const d = Math.abs(e.clientX - (t.rect.left + t.rect.width / 2));
+    return best === null || d < Math.abs(e.clientX - (best.rect.left + best.rect.width / 2)) ? t : best;
+  }, null);
+  if (near === null) return null;
+  return { kind: 'pad', padId: near.id, hitId: null, zone: 'after', side: e.clientX < near.rect.left + near.rect.width / 2 ? 'before' : 'after' };
 }
 
 const sameOver = (a: Over | null, b: Over) =>
-  a !== null && (a.kind === 'new' ? b.kind === 'new' : b.kind === 'pad' && a.padId === b.padId && a.hitId === b.hitId && a.zone === b.zone);
+  a !== null && (a.kind === 'new' ? b.kind === 'new' : b.kind === 'pad' && a.padId === b.padId && a.hitId === b.hitId && a.zone === b.zone && a.side === b.side);
 
 /**
  * The matrix's pads as a grid that wraps downward (Magnus beslut): each pad a
  * tile with its number (and ♪) and its hits under it, each hit with its own
  * waveform. A click on a pad's number selects and plays it, a click on a hit
  * selects and plays the hit. Drops (see `dropTarget`): copies onto a pad, a
- * hit from the grid moved with Shift, a hit reordered within its pad, and a
- * new pad on the place after the pads. While dragging, the target says Copy
- * or Move (Shift), or a line shows where a reordered hit goes.
+ * hit reordered within its pad, a pad dragged by its number moved beside
+ * another or copied into one, and a new pad on the place after the pads.
+ * While dragging, the target says what happens, and a line shows where a
+ * moved hit or pad goes.
  */
 export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayPad }: MatrixGridProps) {
   const project = useProject();
@@ -52,13 +67,15 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
   const selectedHit = open.kind === 'hit' ? open.hit.id : null;
   // Roving tabindex: the selected pad or hit is the grid's one Tab stop, else the first pad; arrows go on from there.
   const tabPad = selectedHit !== null ? null : (selectedPad ?? pads[0]?.id ?? null);
-  const [hover, setHover] = useState<{ readonly over: Over; readonly shift: boolean } | null>(null);
+  const [hover, setHover] = useState<Over | null>(null);
   // A drag that ends, dropped or not, leaves no mark.
   useEffect(() => {
     if (placing.dragging === null) setHover(null);
   }, [placing.dragging]);
-  const target: DropTarget | null = placing.dragging === null || hover === null ? null : dropTarget(project, placing.dragging, hover.over, hover.shift);
-  const label = placing.dragging === null || target === null ? null : dropLabel(placing.dragging, target);
+  const target: DropTarget | null = placing.dragging === null || hover === null ? null : dropTarget(project, placing.dragging, hover);
+  const label = placing.dragging === null || target === null ? null : dropLabel(project, placing.dragging, target);
+  /** Where a moved pad goes: a line at that side of the pad the pointer is by. */
+  const insertAt = target?.kind === 'movePad' && hover?.kind === 'pad' ? hover : null;
 
   /** The pad that plays now, while Play plays the matrix: it lights up. (Claudes val.) */
   const playingPad = (() => {
@@ -75,31 +92,33 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
     return null;
   })();
 
-  /** Drop handlers for a place: a pad's tile (and the hit chips in it), or the new pad's. */
-  const dropOn = (over: (e: DragEvent) => Over) => ({
+  /** Drop handlers for a place: a pad's tile (and the hit chips in it), the gaps of the grid, or the new pad's. */
+  const dropOn = (over: (e: DragEvent) => Over | null) => ({
     onDragOver: (e: DragEvent) => {
       if (placing.dragging === null) return;
       const at = over(e);
-      const next = dropTarget(project, placing.dragging, at, e.shiftKey);
-      if (next === null) {
+      const next = at === null ? null : dropTarget(project, placing.dragging, at);
+      if (at === null || next === null) {
         if (hover !== null) setHover(null);
         return;
       }
       e.preventDefault();
-      e.dataTransfer.dropEffect = next.kind === 'add' || (next.kind === 'new' && 'copy' in next.hits) ? 'copy' : 'move';
-      if (!sameOver(hover?.over ?? null, at) || hover?.shift !== e.shiftKey) setHover({ over: at, shift: e.shiftKey });
+      e.dataTransfer.dropEffect = next.kind === 'reorder' || next.kind === 'movePad' ? 'move' : 'copy';
+      if (!sameOver(hover, at)) setHover(at);
     },
     onDrop: (e: DragEvent) => {
       const dragged = placing.dragging;
       setHover(null);
       if (dragged === null) return;
-      const at = dropTarget(project, dragged, over(e), e.shiftKey);
-      if (at === null) return;
+      const at = over(e);
+      const target = at === null ? null : dropTarget(project, dragged, at);
+      if (target === null) return;
       e.preventDefault();
-      placing.place(at);
+      placing.place(target);
       placing.endDrag();
     },
   });
+  const gaps = dropOn(gapOver);
 
   return (
     <div
@@ -110,9 +129,17 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
       onDragLeave={(e) => {
         if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setHover(null);
       }}
+      // Only the gaps between the pads are the grid's own: a pad's tile takes its own drops.
+      onDragOver={(e) => {
+        if (e.target === e.currentTarget) gaps.onDragOver(e);
+      }}
+      onDrop={(e) => {
+        if (e.target === e.currentTarget) gaps.onDrop(e);
+      }}
     >
       {pads.map((pad, row) => {
-        const dropsHere = target !== null && (target.kind === 'add' || target.kind === 'move') && target.padId === pad.id;
+        const dropsHere = target !== null && target.kind === 'add' && target.padId === pad.id;
+        const insert = insertAt !== null && insertAt.padId === pad.id ? insertAt.side : null;
         return (
           <div
             key={pad.id}
@@ -121,13 +148,25 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
             data-drop={dropsHere ? label : undefined}
             {...dropOn((e) => overAt(e, pad.id))}
           >
+            {insert !== null && (
+              <span className={`pad-insert ${insert}`} aria-hidden="true">
+                <span className="pad-insert-label">{label}</span>
+              </span>
+            )}
             <button
               type="button"
               className="pad-head"
               aria-label={`Pad ${pad.name}`}
               aria-current={pad.id === selectedPad && selectedHit === null ? 'true' : undefined}
               tabIndex={pad.id === tabPad ? 0 : -1}
-              title={`${pad.name}: click to select and hear it`}
+              title={`${pad.name}: click to select and hear it; drag it beside another pad to move it, or onto one to copy its hits there`}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(PAD_MIME, pad.id);
+                e.dataTransfer.effectAllowed = 'copyMove';
+                placing.startDrag({ kind: 'pad', padId: pad.id, from: 'grid' });
+              }}
+              onDragEnd={placing.endDrag}
               onClick={() => {
                 select({ pad: pad.id, hit: null }, 'pads');
                 onPlayPad(pad);
@@ -146,7 +185,7 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
                 const place = String(i + 1);
                 const label = hitLabel(project, pad.id, row, hit);
                 const shown = `${place} ${middleEllipsis(label, NAME_MAX - place.length - 1)}${hit.direction === 'reverse' ? ' ◂' : ''}`;
-                const insert = target?.kind === 'reorder' && hover?.over.kind === 'pad' && hover.over.hitId === id ? ` insert-${hover.over.zone}` : '';
+                const insert = target?.kind === 'reorder' && hover?.kind === 'pad' && hover.hitId === id ? ` insert-${hover.zone}` : '';
                 return (
                   <li key={id} className={insert}>
                     <button
@@ -155,7 +194,7 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
                       aria-label={`${shown}, ${hit.name}`}
                       aria-current={id === selectedHit ? 'true' : undefined}
                       tabIndex={id === selectedHit ? 0 : -1}
-                      title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it; drag it onto another pad to copy it (Shift: move), or up or down in its pad to reorder`}
+                      title={`${hit.name}${i === 0 ? ' · first: plays by default' : ''} · click plays it; drag it onto another pad to copy it, or up or down in its pad to reorder`}
                       data-hit={id}
                       draggable
                       onDragStart={(e) => {

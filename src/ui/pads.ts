@@ -1,5 +1,5 @@
 import type { Command, Hit, Id, Matrix, Pad, Project } from '../model';
-import { addPadWith, baseName, copyHits, matrixOfPad, moveHitToPad, movePadMember, ok, padOfHit, sequence, setPadChoice } from '../model';
+import { addPadWith, baseName, copyHits, matrixOfPad, movePad, movePadMember, ok, padOfHit, sequence, setPadChoice } from '../model';
 import { replacedBy } from './labels';
 import type { Selection } from './store';
 
@@ -56,60 +56,96 @@ export function nextMatrixName(project: Project): string {
 
 /**
  * What is dragged in Matrices (Magnus beslut): a pad or a hit from the list,
- * always copied; or a hit chip in the grid, copied, or moved with Shift.
+ * always copied; a hit chip in the grid, copied, or reordered within its pad;
+ * or a pad by its number in the grid, moved or copied.
  */
-export type Dragged = { readonly kind: 'pad'; readonly padId: Id } | { readonly kind: 'hit'; readonly hitId: Id; readonly from: 'list' | 'grid' };
+export type Dragged =
+  | { readonly kind: 'pad'; readonly padId: Id; readonly from: 'list' | 'grid' }
+  | { readonly kind: 'hit'; readonly hitId: Id; readonly from: 'list' | 'grid' };
 
 /** Where on a hit chip the pointer is: its upper or lower half, where a reordered hit goes. */
 export type Zone = 'before' | 'after';
 
-/** What the pointer is over in the grid: a pad and the hit chip in it if any, or the empty place after the pads. */
-export type Over = { readonly kind: 'pad'; readonly padId: Id; readonly hitId: Id | null; readonly zone: Zone } | { readonly kind: 'new'; readonly matrixId: Id };
+/** Where on a pad's tile a dragged pad is: its outer quarter at either side (or the gap beside it), or its middle. */
+export type Side = 'before' | 'middle' | 'after';
 
 /**
- * What a drop does: adds copies last to a pad, moves a hit last to another
- * pad, moves a hit within its pad to index `to`, or makes a new pad last
- * with copies or the moved hit.
+ * What the pointer is over in the grid: a pad and the hit chip in it if any
+ * (for a hit), a pad and the side of it (for a pad), or the empty place after
+ * the pads.
+ */
+export type Over =
+  | { readonly kind: 'pad'; readonly padId: Id; readonly hitId: Id | null; readonly zone: Zone; readonly side: Side }
+  | { readonly kind: 'new'; readonly matrixId: Id };
+
+/**
+ * What a drop does: adds copies last to a pad, moves a hit within its pad to
+ * index `to`, moves a pad to place `to` in its matrix, or makes a new pad last
+ * with copies.
  */
 export type DropTarget =
   | { readonly kind: 'add'; readonly padId: Id; readonly hitIds: readonly Id[] }
-  | { readonly kind: 'move'; readonly padId: Id; readonly hitId: Id }
   | { readonly kind: 'reorder'; readonly padId: Id; readonly hitId: Id; readonly to: number }
-  | { readonly kind: 'new'; readonly matrixId: Id; readonly hits: { readonly copy: readonly Id[] } | { readonly move: Id } };
+  | { readonly kind: 'movePad'; readonly matrixId: Id; readonly padId: Id; readonly to: number }
+  | { readonly kind: 'new'; readonly matrixId: Id; readonly hitIds: readonly Id[] };
 
 /** The zone of a hit chip at `y`, for a chip `height` high from `top`: its upper or its lower half. */
 export const zoneOf = (y: number, top: number, height: number): Zone => (height > 0 && y - top > height / 2 ? 'after' : 'before');
+
+/** The outer part of a pad's tile at each side where a dragged pad goes beside it, not into it. (Claudes val.) */
+export const SIDE_PART = 0.25;
+
+/** The side of a pad's tile at `x`, for a tile `width` wide from `left`. */
+export const sideOf = (x: number, left: number, width: number): Side => {
+  if (width <= 0) return 'middle';
+  const at = (x - left) / width;
+  return at < SIDE_PART ? 'before' : at > 1 - SIDE_PART ? 'after' : 'middle';
+};
 
 /** The hits a drag brings: all of a pad's, or the one hit. */
 const hitsOf = (project: Project, dragged: Dragged): Id[] => (dragged.kind === 'pad' ? [...(project.pads[dragged.padId]?.members ?? [])] : [dragged.hitId]);
 
 /**
  * What dropping `dragged` over `over` does, or null when nothing (Magnus
- * beslut). From the list it always copies. A hit chip from the grid copies
- * to another pad or a new one, and moves with `shift`; within its own pad it
- * reorders, before or after the chip it is over.
+ * beslut). Hits are always copied, from the list or the grid; within its own
+ * pad a hit chip reorders, before or after the chip it is over. A pad dragged
+ * in the grid moves beside another pad (its outer quarter, or the gap), copies
+ * its hits into the middle of one, or makes a copy on the new pad's place; on
+ * itself it does nothing.
  */
-export function dropTarget(project: Project, dragged: Dragged, over: Over, shift: boolean): DropTarget | null {
+export function dropTarget(project: Project, dragged: Dragged, over: Over): DropTarget | null {
   const hits = hitsOf(project, dragged);
-  if (hits.length === 0) return null;
-  const moves = dragged.kind === 'hit' && dragged.from === 'grid' && shift;
-  if (over.kind === 'new') return { kind: 'new', matrixId: over.matrixId, hits: moves ? { move: hits[0]! } : { copy: hits } };
+  if (over.kind === 'new') return hits.length === 0 ? null : { kind: 'new', matrixId: over.matrixId, hitIds: hits };
   const pad = project.pads[over.padId];
   if (pad === undefined) return null;
+  if (dragged.kind === 'pad' && dragged.from === 'grid') {
+    const matrix = matrixOfPad(project, pad.id);
+    if (matrix === undefined || !matrix.pads.includes(dragged.padId)) return null;
+    if (over.side === 'middle') return pad.id === dragged.padId || hits.length === 0 ? null : { kind: 'add', padId: pad.id, hitIds: hits };
+    const gap = matrix.pads.indexOf(pad.id) + (over.side === 'after' ? 1 : 0);
+    const from = matrix.pads.indexOf(dragged.padId);
+    const to = gap > from ? gap - 1 : gap;
+    return to === from ? null : { kind: 'movePad', matrixId: matrix.id, padId: dragged.padId, to };
+  }
   if (dragged.kind === 'hit' && dragged.from === 'grid' && pad.members.includes(dragged.hitId)) {
     if (over.hitId === null || !pad.members.includes(over.hitId)) return null;
     const at = pad.members.indexOf(dragged.hitId);
     const to = over.hitId === dragged.hitId ? at : pad.members.filter((m) => m !== dragged.hitId).indexOf(over.hitId) + (over.zone === 'after' ? 1 : 0);
     return to === at ? null : { kind: 'reorder', padId: pad.id, hitId: dragged.hitId, to };
   }
-  return moves ? { kind: 'move', padId: pad.id, hitId: hits[0]! } : { kind: 'add', padId: pad.id, hitIds: hits };
+  return hits.length === 0 ? null : { kind: 'add', padId: pad.id, hitIds: hits };
 }
 
-/** What a drop says on its target while dragging: Copy, or Move (Shift); a hit from the grid that copies tells of Shift. */
-export function dropLabel(dragged: Dragged, target: DropTarget): string {
-  if (target.kind === 'move' || (target.kind === 'new' && 'move' in target.hits)) return 'Move (Shift)';
+/** What a drop says on its target while dragging: Copy, Move pad here, or Copy 3 hits into 02 for a pad dropped into another. */
+export function dropLabel(project: Project, dragged: Dragged, target: DropTarget): string {
+  if (target.kind === 'movePad') return 'Move pad here';
   if (target.kind === 'reorder') return 'Move';
-  return dragged.kind === 'hit' && dragged.from === 'grid' ? 'Copy · Shift: move' : 'Copy';
+  if (target.kind === 'add' && dragged.kind === 'pad' && dragged.from === 'grid') {
+    const matrix = matrixOfPad(project, target.padId);
+    const n = target.hitIds.length;
+    return `Copy ${n} hit${n === 1 ? '' : 's'} into ${rowNumber(matrix?.pads.indexOf(target.padId) ?? 0)}`;
+  }
+  return 'Copy';
 }
 
 /** A pad on Top that now has more than one hit turns Round robin, so what was added is heard. */
@@ -125,12 +161,12 @@ export function dropCommand(target: DropTarget): Command {
   switch (target.kind) {
     case 'add':
       return sequence(copyHits(target.hitIds, target.padId), roundRobinIfMore(target.padId));
-    case 'move':
-      return sequence(moveHitToPad(target.hitId, target.padId), roundRobinIfMore(target.padId));
+    case 'movePad':
+      return movePad(target.matrixId, target.padId, target.to);
     case 'reorder':
       return movePadMember(target.padId, target.hitId, target.to);
     case 'new':
-      return addPadWith(target.matrixId, target.hits);
+      return addPadWith(target.matrixId, target.hitIds);
   }
 }
 

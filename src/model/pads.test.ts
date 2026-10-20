@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Command } from './command';
 import { addSample, ownMatrix, setMarkers, setSlicing } from './chain';
-import { addPadWith, copyHits, createLoop, createMatrix, createMatrixFrom, moveHitToPad, moveMatrix, replaceHit, setBpm, setStep } from './commands';
+import { addPadWith, copyHits, createLoop, createMatrix, createMatrixFrom, moveMatrix, replaceHit, setBpm, setStep } from './commands';
 import { apply, createHistory, undo } from './history';
 import { matrixSequence } from './lengths';
 import { createProject } from './project';
@@ -133,31 +133,11 @@ describe('the order of matrices (Magnus beslut: reordered by drag in Matrices)',
   });
 });
 
-describe('moving a hit to another pad (Magnus beslut: Shift when dropping in the grid)', () => {
-  it('the hit itself goes last to the pad, and steps that locked it in the old pad fall back to the pad', () => {
-    const { project: p0, matrixId } = amenAndSnare();
-    const project = run(p0, createLoop('L', 'main', 1));
-    const loopId = by(project.loops, (l) => l.name === 'L').id;
-    const [pad0, pad1] = project.matrices[matrixId]!.pads;
-    const hit = rowHit(project, matrixId, 0);
-    const locked = run(project, setStep(loopId, 0, { padId: pad0!, memberId: hit.id }));
-    const next = run(locked, moveHitToPad(hit.id, pad1!));
-    expect(next.pads[pad0!]!.members).toEqual([]);
-    expect(next.pads[pad1!]!.members.at(-1)).toBe(hit.id);
-    expect(next.hits[hit.id]).toEqual(hit);
-    expect(next.loops[loopId]!.steps[0]).toMatchObject({ padId: pad0, memberId: null });
-    // To its own pad nothing changes.
-    expect(run(project, moveHitToPad(hit.id, pad0!)).pads).toEqual(project.pads);
-    expect(moveHitToPad('nope', pad1!)(project, ctx).ok).toBe(false);
-    expect(moveHitToPad(hit.id, 'nope')(project, ctx).ok).toBe(false);
-  });
-});
-
 describe('a new pad with hits (Magnus beslut: dropped on the empty place after the pads)', () => {
   it('copies make a new pad last, named after its row, Round robin with more than one', () => {
     const { project, matrixId, snareHit } = amenAndSnare();
     const a = rowHit(project, matrixId, 0);
-    const next = run(project, addPadWith(matrixId, { copy: [a.id, snareHit.id] }));
+    const next = run(project, addPadWith(matrixId, [a.id, snareHit.id]));
     const before = project.matrices[matrixId]!.pads.length;
     const pads = next.matrices[matrixId]!.pads;
     expect(pads).toHaveLength(before + 1);
@@ -168,14 +148,9 @@ describe('a new pad with hits (Magnus beslut: dropped on the empty place after t
     expect(next.hits[a.id]).toBe(a);
   });
 
-  it('with move, the hit itself leaves its pad for the new one, on Top', () => {
+  it('fails for a matrix or a hit that is not there', () => {
     const { project, matrixId } = amenAndSnare();
-    const a = rowHit(project, matrixId, 1);
-    const next = run(project, addPadWith(matrixId, { move: a.id }));
-    const pads = next.matrices[matrixId]!.pads;
-    expect(next.pads[pads[1]!]!.members).toEqual([]);
-    expect(next.pads[pads.at(-1)!]).toMatchObject({ members: [a.id], choice: 'top' });
-    expect(addPadWith('nope', { copy: [a.id] })(project, ctx).ok).toBe(false);
-    expect(addPadWith(matrixId, { copy: ['nope'] })(project, ctx).ok).toBe(false);
+    expect(addPadWith('nope', [rowHit(project, matrixId, 0).id])(project, ctx).ok).toBe(false);
+    expect(addPadWith(matrixId, ['nope'])(project, ctx).ok).toBe(false);
   });
 });
