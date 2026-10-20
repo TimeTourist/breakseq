@@ -40,7 +40,6 @@ interface SongViewProps {
   /** Seconds into the take while playing. */
   readonly playheadSeconds: number | null;
   readonly stepSeconds: number;
-  readonly rendering: boolean;
   readonly onNewTake: () => void;
   /** A click in the ruler: playing jumps to that step. */
   readonly onSeek: (step: number) => void;
@@ -49,7 +48,7 @@ interface SongViewProps {
 /** How far the pointer moves in the ruler before a click becomes a drag that marks the loop. */
 const DRAG_PX = 4;
 
-export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, onSeek }: SongViewProps) {
+export function SongView({ playheadSeconds, stepSeconds, onNewTake, onSeek }: SongViewProps) {
   const project = useProject();
   const { store } = useApp();
   const cursor = useSelect((s) => s.songCursor);
@@ -265,7 +264,6 @@ export function SongView({ playheadSeconds, stepSeconds, rendering, onNewTake, o
       <div className="view-head row">
         <div className="stack-tight">
           <h1>Song</h1>
-          {rendering && <p className="muted">Rendering…</p>}
         </div>
         <div className="row push">
           <label className="field">

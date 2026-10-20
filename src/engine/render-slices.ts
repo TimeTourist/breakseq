@@ -20,7 +20,7 @@ async function pieceAudio(project: Project, piece: Piece, song: AudioBuffer, sam
   }
   const length = Math.max(1, Math.ceil(piece.seconds * sampleRate));
   const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
-  scheduleHit(context, new Map(), project, piece.trigger, 0);
+  scheduleHit(context, project, piece.trigger, 0);
   const buffer = await context.startRendering();
   return [buffer.getChannelData(0).slice(), buffer.getChannelData(1).slice()];
 }

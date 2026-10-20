@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addClip, addSample, addTrim, createProject, setBpm, setHitSource, setSlicing } from '../model';
+import { addClip, addSample, addTrim, createProject, setBpm, setHitSource, setSlicing, updateSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { focusOn } from '../test/focus';
 import type { Trigger } from '../engine';
@@ -125,7 +125,7 @@ describe('Play in each view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(player.play).toHaveBeenCalledTimes(1);
 
-    act(() => void store.dispatch({ type: 'view', view: 'samples' }));
+    act(() => void store.dispatch({ type: 'view', view: 'loops' }));
     await settle();
     expect(player.play).toHaveBeenCalledTimes(2);
     expect(player.replace).not.toHaveBeenCalled();
@@ -134,6 +134,20 @@ describe('Play in each view', () => {
     await settle();
     expect(player.play).toHaveBeenCalledTimes(2);
     expect(player.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders nothing anew for a change that is not heard in what plays (Claudes val)', async () => {
+    const p = split();
+    const { store, player, services } = await setup(p, { view: 'samples' });
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    const renders = () => vi.mocked(services.renderPreview).mock.calls.length + vi.mocked(services.renderSong).mock.calls.length;
+    const before = renders();
+    // The sample plays as it is: the tempo and its name are not heard in it.
+    act(() => void store.dispatch({ type: 'run', command: setBpm(130) }));
+    act(() => void store.dispatch({ type: 'run', command: updateSample(sampleOf(p).id, { name: 'other' }) }));
+    await settle();
+    expect(renders()).toBe(before);
+    expect(player.replace).not.toHaveBeenCalled();
   });
 
   it('a loop played over several passes lights the same step in Loops each pass', async () => {
@@ -336,5 +350,63 @@ describe('the same controls everywhere, in Pads', () => {
     answer(true);
     expect(store.getState().history.present.hits[hit]).toBeUndefined();
     expect(store.getState().history.present.pads[pad]!.members).toEqual([]);
+  });
+});
+
+describe('rendering what Play plays', () => {
+  it('says Rendering… in the header on every tab while it renders (Claudes val)', async () => {
+    const p = split();
+    const { store, services } = await setup(p, { view: 'loops' });
+    let finish: (take: Take) => void = () => undefined;
+    vi.mocked(services.renderSong).mockImplementation(() => new Promise<Take>((resolve) => (finish = resolve)));
+    act(() => void store.dispatch({ type: 'run', command: setBpm(130) }));
+    await settle();
+    const indicator = screen.getByText('Rendering…');
+    expect(indicator.closest('header')).not.toBeNull();
+    expect(indicator.style.visibility).toBe('visible');
+    await act(async () => finish({ buffer: { duration: 2 } as AudioBuffer, triggers: [], tapes: [] }));
+    expect(screen.getByText('Rendering…').style.visibility).toBe('hidden');
+  });
+
+  it('cancels a render under way when a newer change comes; only the newest runs to the end', async () => {
+    const p = split();
+    const { store, services } = await setup(p, { view: 'loops' });
+    const signals: AbortSignal[] = [];
+    vi.mocked(services.renderSong).mockImplementation((_project, _rng, request) => {
+      if (request?.signal !== undefined) signals.push(request.signal);
+      return new Promise<Take>(() => undefined);
+    });
+    act(() => void store.dispatch({ type: 'run', command: setBpm(130) }));
+    await settle();
+    act(() => void store.dispatch({ type: 'run', command: setBpm(140) }));
+    await settle();
+    expect(signals).toHaveLength(2);
+    expect(signals[0]!.aborted).toBe(true);
+    expect(signals[1]!.aborted).toBe(false);
+  });
+
+  it('a change keeps the random picks, so it is the change that is heard; New take picks anew (Claudes val)', async () => {
+    const p = split();
+    const { store, services } = await setup(p, { view: 'song' });
+    let fresh = 0;
+    // Each fresh randomness counts on from its own number.
+    (services as { rng: Services['rng'] }).rng = () => {
+      const base = ++fresh;
+      let i = 0;
+      return () => (base * 10 + i++) / 1000;
+    };
+    const draws = () => {
+      const rng = vi.mocked(services.renderSong).mock.lastCall![1];
+      return [rng(), rng(), rng()];
+    };
+    act(() => void store.dispatch({ type: 'run', command: setBpm(130) }));
+    await settle();
+    const first = draws();
+    act(() => void store.dispatch({ type: 'run', command: setBpm(140) }));
+    await settle();
+    expect(draws()).toEqual(first);
+    fireEvent.click(screen.getByRole('button', { name: /New take/ }));
+    await settle();
+    expect(draws()).not.toEqual(first);
   });
 });

@@ -1,6 +1,6 @@
 import type { Project, Rng } from '../model';
 import { sampleAudio } from '../model';
-import { loopSongLooped, matrixSongLooped, modPreviewSong } from '../engine';
+import { heardOf, loopSongLooped, matrixSongLooped, modPreviewSong } from '../engine';
 import { currentLoopId } from './LoopsView';
 import { currentModId, previewLoopId } from './ModsView';
 import { selectedTrim } from './SamplesView';
@@ -11,9 +11,11 @@ import { matrixInView } from './store';
 /**
  * What Play plays in a view: what the view shows. `key` names it, so a new
  * render of the same thing swaps in seamlessly while something else starts
- * over. A song is rendered as a song; the rest as a preview.
+ * over. A song is rendered as a song; the rest as a preview. `sound` is what
+ * of the project can be heard in it: a change that leaves it the same (see
+ * sameHeard) is not rendered again.
  */
-export type Subject = { readonly key: string; readonly once: boolean } & (
+export type Subject = { readonly key: string; readonly once: boolean; readonly sound: unknown } & (
   | { readonly kind: 'song'; readonly project: Project }
   | { readonly kind: 'preview'; readonly preview: (rng: Rng) => Preview }
 );
@@ -23,7 +25,7 @@ export const SONG_KEY = 'song';
 
 export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'selection' | 'sliceTarget' | 'focus'>): Subject | null {
   const { view, selection } = state;
-  const song = (key: string, p: Project, once = false): Subject => ({ key, once, kind: 'song', project: p });
+  const song = (key: string, p: Project, once = false): Subject => ({ key, once, sound: heardOf(p), kind: 'song', project: p });
   switch (view) {
     case 'samples': {
       // The selected sample, trimmed, as it is (Magnus beslut); with none, the song.
@@ -35,8 +37,10 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       return {
         key: `sample:${sample.id}`,
         once: false,
+        // The trim of the file's audio, in its channels: its name is not heard.
+        sound: { audio: project.audio[sample.audioId], channel: sample.channel, from, to },
         kind: 'preview',
-        preview: () => ({ kind: 'audio', audio: { sampleRate: audio.sampleRate, channels: audio.channels.map((c) => c.slice(from, to)) } }),
+        preview: () => ({ kind: 'audio', audio, from, to }),
       };
     }
     case 'pads': {

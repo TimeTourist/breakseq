@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createProject, renameLoop } from '../model';
+import { addSample, createLoop, createProject, renameLoop, setBpm } from '../model';
 import { listSnapshots, readManifest, saveSnapshot, writeManifest } from '../engine';
 import { constantAudio, memoryFolder, sequentialIds } from '../test/fixtures';
 import { App } from './App';
@@ -224,5 +224,34 @@ describe('Project', () => {
     await act(async () => {});
     fireEvent.keyDown(window, { key: '6' });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Project');
+  });
+});
+
+describe('a snapshot played from Project', () => {
+  it('plays whole, without the song loop region, and a change to the project does not swap the song in (Claudes val)', async () => {
+    const folder = memoryFolder('Amen');
+    const s = services([folder]);
+    let playing = false;
+    const player = { ...s.player, play: vi.fn(() => void (playing = true)), isPlaying: () => playing } satisfies Player;
+    const store = createStore({ ...initialState(build(createLoop('basic', 'main', 1))), view: 'project' });
+    render(<App store={store} services={{ ...s, player }} />);
+    await act(async () => {});
+    await click('New');
+    await answer('Keep the current work');
+
+    await click('Play Start');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(player.setLoop).mock.lastCall).toEqual([null]);
+
+    // A change that is heard in the song: the song renders anew, but the snapshot plays on.
+    await act(async () => {
+      store.dispatch({ type: 'run', command: setBpm(150) });
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(player.replace).not.toHaveBeenCalled();
   });
 });

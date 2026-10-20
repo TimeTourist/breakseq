@@ -1,5 +1,5 @@
-import type { BufferCache, Tape, Trigger, Voice } from '../engine';
-import { hitPlay, scheduleHit } from '../engine';
+import type { Tape, Trigger, Voice } from '../engine';
+import { CHOKE_FADE, hitPlay, scheduleHit } from '../engine';
 import type { AudioData, Id, Project } from '../model';
 
 /** A rendered take: the audio and the triggers it was made from. */
@@ -11,6 +11,8 @@ export interface Take {
   readonly triggers: readonly Trigger[];
   /** Tape segments heard instead of triggers. */
   readonly tapes: readonly Tape[];
+  /** Seconds per 1/16 step, the grid a new take takes over on; missing for audio without steps, as a sample. */
+  readonly step?: number;
 }
 
 /** Lead time so a scheduled start is never in the past. */
@@ -49,22 +51,58 @@ export function runPosition(now: number, run: Run): number | null {
   return run.loop.start + ((at - run.loop.end) % length);
 }
 
-/** When a run next reaches the end of its loop, or the time after if that is too close to `now`. */
-export function nextRunBoundary(now: number, run: Run): number {
-  const length = run.loop.end - run.loop.start;
-  const first = run.startTime + (run.loop.end - run.offset);
-  if (now < first) return first - now < MIN_LEAD ? first + length : first;
-  const boundary = first + (Math.floor((now - first) / length) + 1) * length;
-  return boundary - now < MIN_LEAD ? boundary + length : boundary;
+/** How long the take that is taken over from fades out while the new one fades in, so the swap does not click. */
+export const SWAP_FADE = CHOKE_FADE;
+
+/** Where a new take takes over: when, and from how far into it. */
+export interface SwapPoint {
+  readonly at: number;
+  readonly offset: number;
 }
 
+/** A position in seconds on a grid of `from` seconds per step, as the same step on a grid of `to`. */
+const onGrid = (position: number, from: number | undefined, to: number | undefined): number =>
+  from === undefined || to === undefined || from <= 0 ? position : (position / from) * to;
+
 /**
- * When a new take should start while `duration`-long loops have played since
- * `startTime`: the end of the current loop, or the one after if that is too close.
+ * Where a new take takes over from a run, as soon as it can (Magnus beslut):
+ * at the next 1/16 step from `now`, at the same step in the new take, so the
+ * music goes on in time (Claudes val). With no steps, as for a sample, at once
+ * and at the same second. `oldStep` and `newStep` are the takes' seconds per
+ * step: the step is the same when the tempo changes.
+ *
+ * Looped, a position past the new take's loop goes round it: as far into the
+ * loop as the playhead is into its turn. Played once, a position past the new
+ * take's end has played out: null. (Claudes val.)
  */
-export function nextLoopBoundary(now: number, startTime: number, duration: number): number {
-  if (now < startTime) return startTime;
-  return nextRunBoundary(now, { startTime, offset: 0, loop: { start: 0, end: duration } });
+export function swapPoint(
+  now: number,
+  run: Run,
+  oldStep: number | undefined,
+  newStep: number | undefined,
+  next: { readonly loop: LoopRange; readonly once: boolean },
+): SwapPoint | null {
+  const soonest = Math.max(now + MIN_LEAD, run.startTime);
+  const position = runPosition(soonest, run) ?? run.offset;
+  let at = soonest;
+  let from = position;
+  if (oldStep !== undefined && oldStep > 0) {
+    const boundary = Math.ceil(position / oldStep - 1e-9) * oldStep;
+    if (!next.once && boundary >= run.loop.end - 1e-9) {
+      // The step after the last of the loop is its first.
+      at = soonest + (run.loop.end - position);
+      from = run.loop.start;
+    } else {
+      at = soonest + (boundary - position);
+      from = boundary;
+    }
+  }
+  let offset = onGrid(from, oldStep, newStep);
+  const { loop } = next;
+  if (next.once) return offset >= loop.end - 1e-9 ? null : { at, offset };
+  const length = loop.end - loop.start;
+  if (offset >= loop.end && length > 0) offset = loop.start + ((offset - loop.start) % length);
+  return { at, offset };
 }
 
 /** Where an audition is, in seconds of its audio: looped within its region, or null once a single play is over. */
@@ -91,6 +129,8 @@ export function playheadTrigger(triggers: readonly Trigger[], position: number):
 interface Segment extends Run {
   readonly take: Take;
   readonly source: AudioBufferSourceNode;
+  /** Its level: faded in and out when one take takes over from another. */
+  readonly gain: GainNode;
   /** Plays to the end and stops, rather than looping. */
   readonly once: boolean;
 }
@@ -101,7 +141,10 @@ export interface Player {
    * set with setLoop; with `once`, to its end and then it stops by itself.
    */
   readonly play: (take: Take, from?: number, once?: boolean) => void;
-  /** Swaps in a new take at the end of the current loop; starts nothing if stopped or playing once. */
+  /**
+   * Swaps in a new take of what plays as soon as it can (see swapPoint), looped
+   * or played once as before; starts nothing if stopped.
+   */
   readonly replace: (take: Take) => void;
   /** Jumps to `seconds` into what is playing; nothing if stopped. */
   readonly seek: (seconds: number) => void;
@@ -136,8 +179,6 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
   let auditioning: AudioBufferSourceNode | null = null;
   let hitVoice: Voice | null = null;
   let region: { startTime: number; offset: number; duration: number; loop: boolean } | null = null;
-  // Hit buffers are cached per project version, so edits to audio are never stale.
-  let hitCache: { project: Project; cache: BufferCache } | null = null;
 
   const stopAudition = () => {
     try {
@@ -159,26 +200,46 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
 
   let range: LoopRange | null = null;
 
-  const start = (take: Take, at: number, from: number, once = false): Segment => {
-    const c = ctx();
-    // Played once, it rings out; looped, what rings past the end is already at the start.
+  /** The part of a take a segment plays: played once, it rings out; looped, what rings past the end is already at the start. */
+  const playedOf = (take: Take, once: boolean): { buffer: AudioBuffer; loop: LoopRange } => {
     const buffer = once ? (take.full ?? take.buffer) : take.buffer;
-    const loop = once ? { start: 0, end: buffer.duration } : fitLoop(range, buffer.duration);
-    const offset = startOffset(from, loop);
+    return { buffer, loop: once ? { start: 0, end: buffer.duration } : fitLoop(range, buffer.duration) };
+  };
+
+  /** Starts a take at `at`, `from` seconds in; with `fadeIn`, from silence over SWAP_FADE. */
+  const start = (take: Take, at: number, from: number, once = false, fadeIn = false): Segment => {
+    const c = ctx();
+    const { buffer, loop } = playedOf(take, once);
+    const offset = fadeIn ? from : startOffset(from, loop);
     const source = c.createBufferSource();
     source.buffer = buffer;
     source.loop = !once;
     source.loopStart = loop.start;
     source.loopEnd = loop.end;
-    source.connect(c.destination);
+    const gain = c.createGain();
+    if (fadeIn) {
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(1, at + SWAP_FADE);
+    }
+    source.connect(gain).connect(c.destination);
     source.start(at, offset);
-    const segment: Segment = { take, source, startTime: at, offset, loop, once };
+    const segment: Segment = { take, source, gain, startTime: at, offset, loop, once };
     if (once) {
       source.onended = () => {
-        if (current?.source === source) current = null;
+        // Played out, or taken over from: the take after it, if any, is what plays.
+        if (current?.source !== source) return;
+        current = pending;
+        pending = null;
       };
     }
     return segment;
+  };
+
+  /** Fades a segment out from `at`, over SWAP_FADE, and stops it. */
+  const fadeOut = (segment: Segment, at: number) => {
+    segment.gain.gain.setValueAtTime(1, at);
+    segment.gain.gain.linearRampToValueAtTime(0, at + SWAP_FADE);
+    segment.source.stop(at + SWAP_FADE);
   };
 
   const stopAll = () => {
@@ -223,16 +284,30 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     },
     replace: (take) => {
       settle();
-      if (current === null || context === null || current.once) return;
+      if (current === null || context === null) return;
+      const { once } = current;
+      const { loop } = playedOf(take, once);
       if (pending !== null) {
-        // A newer take supersedes one that has not started yet; the current loop keeps its stop time.
+        // A newer take supersedes one that has not started yet: it takes over at the same time, from the same step.
         pending.source.stop();
-        pending = start(take, pending.startTime, fitLoop(range, take.buffer.duration).start);
+        const offset = onGrid(pending.offset, pending.take.step, take.step);
+        const length = loop.end - loop.start;
+        const fitted = once || offset < loop.end || length <= 0 ? offset : loop.start + ((offset - loop.start) % length);
+        if (once && fitted >= loop.end) {
+          pending = null;
+          return;
+        }
+        pending = start(take, pending.startTime, fitted, once, true);
         return;
       }
-      const at = nextRunBoundary(context.currentTime, current);
-      current.source.stop(at);
-      pending = start(take, at, fitLoop(range, take.buffer.duration).start);
+      const swap = swapPoint(context.currentTime, current, current.take.step, take.step, { loop, once });
+      if (swap === null) {
+        // Played once, the new take is already over where the playhead is: it stops, as it would have.
+        fadeOut(current, context.currentTime + MIN_LEAD);
+        return;
+      }
+      fadeOut(current, swap.at);
+      pending = start(take, swap.at, swap.offset, once, true);
     },
     seek: (seconds) => {
       if (current !== null) restart(seconds);
@@ -252,7 +327,10 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       current = { ...current, startTime: context.currentTime, offset: at, loop };
     },
     stop: stopAll,
-    isPlaying: () => current !== null,
+    isPlaying: () => {
+      settle();
+      return current !== null;
+    },
     currentTrigger: () => {
       const at = position();
       return current === null || at === null ? null : playheadTrigger(current.take.triggers, at);
@@ -263,8 +341,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       const c = ctx();
       const hit = project.hits[hitId];
       if (hit === undefined) return;
-      if (hitCache?.project.audio !== project.audio) hitCache = { project, cache: new Map() };
-      hitVoice = scheduleHit(c, hitCache.cache, project, hitPlay(project, hit), c.currentTime);
+      hitVoice = scheduleHit(c, project, hitPlay(project, hit), c.currentTime);
     },
     audition: (audio, offset, duration, onEnded, loop = false) => {
       stopAudition();

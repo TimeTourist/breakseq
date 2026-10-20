@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Trigger } from '../engine';
-import type { Project } from '../model';
+import { isRenderCancelled, sameHeard } from '../engine';
+import type { Project, Rng } from '../model';
 import { stepDuration } from '../model';
 import type { BackupInfo } from './backups';
 import { backupDue, summarize } from './backups';
@@ -11,6 +12,7 @@ import { isTyping, modalOpen } from './isTyping';
 import { LoopsView } from './LoopsView';
 import { ModsView } from './ModsView';
 import { PadsView } from './PadsView';
+import type { Subject } from './subject';
 import { SONG_KEY, subjectOf } from './subject';
 import type { Take } from './playback';
 import type { Services } from './services';
@@ -24,13 +26,6 @@ export const RENDER_DEBOUNCE_MS = 300;
 export const SAVE_DEBOUNCE_MS = 1000;
 
 
-/** Whether two projects render the same: all but the song's loop, which only says what plays over and over. */
-export const sameRender = (a: Project, b: Project): boolean =>
-  (Object.keys(a) as (keyof Project)[]).every((key) => key === 'song' || a[key] === b[key]) &&
-  a.song.bpm === b.song.bpm &&
-  a.song.bars === b.song.bars &&
-  a.song.clips === b.song.clips;
-
 /** A rendered take of what a view plays, with the subject it was rendered from. */
 export interface ShownTake {
   readonly take: Take;
@@ -39,26 +34,59 @@ export interface ShownTake {
 }
 
 /**
- * Renders what the view plays (see subjectOf) shortly after every change, and
- * on demand for a new random take. A new subject renders straight away.
+ * Randomness that a render of the same thing can draw again: every render of
+ * a subject gets the same numbers, in the same order, until `reset`. A change
+ * then keeps what Random and No repeat picked, so it is the change that is
+ * heard; New take, or another subject, picks anew. (Claudes val.)
+ */
+function replayable(fresh: () => Rng) {
+  let drawn: number[] = [];
+  let source: Rng | null = null;
+  return {
+    reset: () => {
+      drawn = [];
+      source = null;
+    },
+    rng: (): Rng => {
+      source ??= fresh();
+      const from = source;
+      const values = drawn;
+      let i = 0;
+      return () => {
+        if (i === values.length) values.push(from());
+        return values[i++]!;
+      };
+    },
+  };
+}
+
+/**
+ * Renders what the view plays (see subjectOf) shortly after every change that
+ * can be heard in it, and on demand for a new random take. A new subject
+ * renders straight away. A change while a render is under way cancels it: only
+ * the newest render runs to the end.
  */
 function useTake() {
   const { services, store } = useApp();
-  const latestFull = useProject();
-  // Marking or turning the song's loop on or off is no reason for a new take.
-  const stable = useRef(latestFull);
-  if (stable.current !== latestFull && !sameRender(stable.current, latestFull)) stable.current = latestFull;
-  const full = stable.current;
+  const project = useProject();
   // Only a change of what plays, not of every selection, renders anew.
-  const key = useSelect((s) => subjectOf(full, s)?.key ?? null);
+  const key = useSelect((s) => subjectOf(project, s)?.key ?? null);
   // Only a new key renders anew; the rest of the state is read as it is then.
-  const subject = useMemo(() => (key === null ? null : subjectOf(full, store.getState())), [full, key, store]);
+  const latestSubject = useMemo(() => (key === null ? null : subjectOf(project, store.getState())), [project, key, store]);
+  // A change that is not heard in it, as a new name or a matrix it does not play, renders nothing.
+  const stable = useRef<Subject | null>(null);
+  if (latestSubject === null) stable.current = null;
+  else if (stable.current === null || stable.current.key !== latestSubject.key || !sameHeard(stable.current.sound, latestSubject.sound)) stable.current = latestSubject;
+  const subject = stable.current;
   const [shown, setShown] = useState<ShownTake | null>(null);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const latest = useRef(0);
   const lastKey = useRef<string | null>(null);
+  const lastNonce = useRef(nonce);
+  const random = useRef<ReturnType<typeof replayable> | null>(null);
+  random.current ??= replayable(() => services.rng());
 
   useEffect(() => {
     const id = ++latest.current;
@@ -71,19 +99,25 @@ function useTake() {
     setRendering(true);
     const fresh = subject.key !== lastKey.current;
     lastKey.current = subject.key;
+    // Something else, or New take: new random picks.
+    if (fresh || nonce !== lastNonce.current) random.current!.reset();
+    lastNonce.current = nonce;
+    const controller = new AbortController();
+    const request = { signal: controller.signal };
     const timer = setTimeout(
       () => {
-        const rng = services.rng();
+        const rng = random.current!.rng();
         // Through a promise, so a render that throws at once is reported like one that fails later.
         Promise.resolve()
-          .then(() => (subject.kind === 'song' ? services.renderSong(subject.project, rng) : services.renderPreview(subject.preview(rng))))
+          .then(() => (subject.kind === 'song' ? services.renderSong(subject.project, rng, request) : services.renderPreview(subject.preview(rng), request)))
           .then((take) => {
             if (id !== latest.current) return;
-            setShown({ take, key: subject.key, once: subject.once });
+            // The same audio as what is shown, as when nothing heard changed: nothing to swap in.
+            setShown((before) => (before !== null && before.key === subject.key && before.take.buffer === take.buffer && before.once === subject.once ? before : { take, key: subject.key, once: subject.once }));
             setError(null);
           })
           .catch((e: unknown) => {
-            if (id === latest.current) setError(e instanceof Error ? e.message : String(e));
+            if (id === latest.current && !isRenderCancelled(e)) setError(e instanceof Error ? e.message : String(e));
           })
           .finally(() => {
             if (id === latest.current) setRendering(false);
@@ -91,10 +125,13 @@ function useTake() {
       },
       fresh ? 0 : RENDER_DEBOUNCE_MS,
     );
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [subject, nonce, services]);
 
-  return { shown, rendering, error, newTake: useCallback(() => setNonce((n) => n + 1), []) };
+  return { shown, rendering, error, key, newTake: useCallback(() => setNonce((n) => n + 1), []) };
 }
 
 /** Shown when an autosave from before Matrix was set aside as a backup. */
@@ -219,7 +256,7 @@ function Shell() {
   const [playing, setPlaying] = useState(false);
   // What is playing: a subject's key, or a snapshot played from Project, which is not the song.
   const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const { shown, rendering, error: renderError, newTake } = useTake();
+  const { shown, rendering, error: renderError, newTake, key: playsKey } = useTake();
   const { error: saveError, backups, restore, notice, dismissNotice } = useAutosave();
   const playhead = usePlayhead(playing, () => {
     setPlaying(false);
@@ -261,22 +298,34 @@ function Shell() {
     setPlayingKey(null);
   };
 
-  // While playing, a new render of the same thing takes over where its loop ends;
-  // something else, as after a change of view, starts straight away.
-  const following = useRef({ playing, playingKey });
-  following.current = { playing, playingKey };
+  // While playing, a new render of the same thing takes over as soon as it can
+  // (Magnus beslut); something else, as after a change of view, starts straight away.
+  // A snapshot played from Project goes on until the view changes: a change to the project is not it.
+  const snapshotView = useRef<View | null>(null);
+  const following = useRef({ playing, playingKey, view });
+  following.current = { playing, playingKey, view };
   useEffect(() => {
-    if (!following.current.playing) return;
+    const now = following.current;
+    if (!now.playing) return;
+    if (now.playingKey === 'snapshot' && now.view === snapshotView.current) return;
     // A view with nothing to play stops what played, unless it is a snapshot from Project.
     if (shown === null) {
-      if (following.current.playingKey !== 'snapshot') stop();
+      if (now.playingKey !== 'snapshot') stop();
       return;
     }
-    if (shown.key === following.current.playingKey) services.player.replace(shown.take);
+    if (shown.key === now.playingKey) services.player.replace(shown.take);
     else start(shown);
     // Only a new take decides this; start reads the latest of the rest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, services]);
+
+  // Leaving Project while a snapshot plays: the new view's sound starts, also when it is the song already rendered.
+  useEffect(() => {
+    const now = following.current;
+    if (now.playing && now.playingKey === 'snapshot' && view !== snapshotView.current && shown !== null && shown.key === playsKey) start(shown);
+    // Only the view decides this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   // Loop switched while something plays: it starts again, looped or once (the song from its start point).
   useEffect(() => {
@@ -319,6 +368,7 @@ function Shell() {
         onView={setView}
         playing={playing}
         canPlay={shown !== null}
+        rendering={rendering}
         onPlay={play}
         onStop={stop}
         status={status}
@@ -365,7 +415,12 @@ function Shell() {
           backups={services.backups === undefined ? null : backups}
           onRestore={restore}
           onPlayTake={(snapshotTake) => {
+            // A snapshot plays whole: the song's loop region is the loaded song's, not the snapshot's. (Claudes val)
+            // TODO(spec): whether Loop in the header applies to a snapshot's ▶; it loops it, as before.
+            services.player.stopAudition();
+            services.player.setLoop(null);
             services.player.play(snapshotTake);
+            snapshotView.current = view;
             setPlayingKey('snapshot');
             setPlaying(true);
           }}
@@ -375,7 +430,6 @@ function Shell() {
         <SongView
           playheadSeconds={songPlays ? playhead.seconds : null}
           stepSeconds={step}
-          rendering={rendering}
           onNewTake={newTake}
           onSeek={(at) => {
             if (playing && songPlays) services.player.seek(at * step);
