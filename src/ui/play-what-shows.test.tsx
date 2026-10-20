@@ -48,7 +48,7 @@ describe('what Play plays', () => {
 
   it('is in Pads always the matrix in focus in a loop, whatever is selected', () => {
     const sel = initialState(p).selection;
-    const focus = { matrix: matrix.id, takeFrom: [] };
+    const focus = { matrix: matrix.id, loopPins: [] };
     const looped = { key: `matrix:${matrix.id}`, once: false, kind: 'song' };
     expect(subjectOf(p, state(p, { view: 'pads', focus, selection: sel }))).toMatchObject(looped);
     expect(subjectOf(p, state(p, { view: 'pads', focus, selection: { ...sel, pad: matrix.pads[1]!, hit: memberOf(p, 1) } }))).toMatchObject(looped);
@@ -111,7 +111,7 @@ const settle = () =>
 async function setup(project: Project, patch: Partial<AppState>) {
   const fake = services();
   const selected = focusOn(project, patch.selection ?? {});
-  const focus = selected.matrix === null ? { matrix: Object.keys(project.matrices)[0] ?? null, takeFrom: [] } : selected;
+  const focus = selected.matrix === null ? { matrix: Object.keys(project.matrices)[0] ?? null, loopPins: [] } : selected;
   const store: Store = createStore({ ...initialState(project), focus, ...patch });
   render(<App store={store} services={fake.services} />);
   await settle();

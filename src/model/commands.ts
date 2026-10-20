@@ -370,6 +370,48 @@ export const moveSteps =
     return ok({ ...project, loops: { ...project.loops, [loopId]: { ...loop, steps } } });
   };
 
+/**
+ * Lays `steps` out in a loop from step `at`, over what is there, empty steps
+ * too (Magnus beslut): Ctrl+V of copied steps. Steps past the loop's end are
+ * dropped.
+ */
+export const pasteSteps =
+  (loopId: Id, at: number, steps: readonly Step[]): Command =>
+  (project) => {
+    const loop = project.loops[loopId];
+    if (loop === undefined) return notFound(loopId);
+    if (!Number.isInteger(at) || at < 0 || at >= loop.steps.length) return invalid('That step is not in the loop');
+    const next = [...loop.steps];
+    steps.forEach((s, i) => {
+      if (at + i < next.length) next[at + i] = s;
+    });
+    return ok({ ...project, loops: { ...project.loops, [loopId]: { ...loop, steps: next } } });
+  };
+
+/**
+ * Moves a loop to place `to` (0 is first) in the project's order of loops,
+ * the order Loops lists them in, tagged `kind`: dragged into the other group
+ * it changes from Main to Fill or back (Magnus beslut).
+ */
+export const moveLoop =
+  (loopId: Id, to: number, kind: LoopKind): Command =>
+  (project) => {
+    const loop = project.loops[loopId];
+    if (loop === undefined) return notFound(loopId);
+    const order = moved(Object.keys(project.loops), loopId, to);
+    return ok({ ...project, loops: Object.fromEntries(order.map((id) => [id, id === loopId ? { ...loop, kind } : project.loops[id]!])) });
+  };
+
+/** A copy of a loop, "<name> copy", with its tag and steps, last in the order: to change apart from it. */
+export const cloneLoop =
+  (loopId: Id): Command =>
+  (project, ctx) => {
+    const loop = project.loops[loopId];
+    if (loop === undefined) return notFound(loopId);
+    const copy: Loop = { ...loop, id: ctx.newId(), name: `${loop.name} copy` };
+    return ok({ ...project, loops: { ...project.loops, [copy.id]: copy } });
+  };
+
 export const setStep =
   (loopId: Id, index: number, patch: Patch<Step>): Command =>
   (project) => {

@@ -1,5 +1,5 @@
 import type { Id, Loop, Matrix, Mod, Pad, Project, Sample } from '../model';
-import { heardInSong, loopMatrices, ownMatrix, trimName } from '../model';
+import { STEPS_PER_BAR, heardInSong, loopMatrices, ownMatrix, trimName } from '../model';
 import { middleEllipsis, padLabel } from './labels';
 import type { Action, AppState } from './store';
 import { matrixInView } from './store';
@@ -182,11 +182,14 @@ function matricesTrail(state: AppState, project: Project): Trail {
   };
 }
 
+/** Loops: the loop is the current step, with the selected step weaker after it (T2 · step 03). (Magnus beslut) */
 function loopsTrail(state: AppState, project: Project): Trail {
   const loop = project.loops[state.selection.loop ?? ''] ?? Object.values(project.loops)[0];
   if (loop === undefined) return EMPTY;
+  const at = state.selection.step;
+  const detail = at === null || at >= loop.steps.length ? undefined : `T${Math.floor(at / STEPS_PER_BAR) + 1} · step ${String((at % STEPS_PER_BAR) + 1).padStart(2, '0')}`;
   return {
-    steps: [...backToLoop(project, loop), ...current({ label: middleEllipsis(loop.name), title: `Loop ${loop.name}` })],
+    steps: [...backToLoop(project, loop), ...current({ label: middleEllipsis(loop.name), title: `Loop ${loop.name}`, ...(detail === undefined ? {} : { detail }) })],
     song: heardInSong(project).loops.has(loop.id),
   };
 }

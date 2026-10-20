@@ -46,14 +46,6 @@ export function hitLabel(project: Project, padId: Id, row: number, hit: Hit): st
   return baseName(hit.name);
 }
 
-/** The name of a new matrix: Matrix 1, or the next number not taken. */
-export function nextMatrixName(project: Project): string {
-  const names = new Set(Object.values(project.matrices).map((m) => m.name));
-  let n = 1;
-  while (names.has(`Matrix ${n}`)) n += 1;
-  return `Matrix ${n}`;
-}
-
 /**
  * What is dragged in Matrices (Magnus beslut): a pad or a hit from the list,
  * always copied; a hit chip in the grid, copied, or reordered within its pad;

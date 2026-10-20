@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
 import { addPad, addSample, copyHits, createMatrix, setPadChoice, createProject, renameMatrix, setHitSource, setSlicing, sliceSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
-import { AUTOSCROLL_EDGE_PX, AUTOSCROLL_MAX_PX, autoscrollStep, dropCommand, dropLabel, dropTarget, hitLabel, nextMatrixName, padsOpen, sideOf, stepSelection, zoneOf } from './pads';
+import { AUTOSCROLL_EDGE_PX, AUTOSCROLL_MAX_PX, autoscrollStep, dropCommand, dropLabel, dropTarget, hitLabel, padsOpen, sideOf, stepSelection, zoneOf } from './pads';
 import { initialState } from './store';
 
 const ctx = sequentialIds();
@@ -81,15 +81,6 @@ describe('hit labels', () => {
     const copy = p.hits[p.pads[snares.pads[0]!]!.members[0]!]!;
     expect(hitLabel(p, snares.pads[0]!, 0, copy)).toBe(snare.name);
     expect(snare.name).toMatch(/^snare/);
-  });
-});
-
-describe('a new matrix', () => {
-  it('is Matrix 1, then the next number free', () => {
-    const p = amen();
-    expect(nextMatrixName(p)).toBe('Matrix 1');
-    expect(nextMatrixName(apply(p, createMatrix('Matrix 1')))).toBe('Matrix 2');
-    expect(nextMatrixName(apply(p, createMatrix('Matrix 2')))).toBe('Matrix 1');
   });
 });
 

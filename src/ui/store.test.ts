@@ -12,8 +12,8 @@ function twoMatrices() {
 }
 
 describe('focus', () => {
-  it('starts with no focus matrix and nothing to take from', () => {
-    expect(createStore().getState().focus).toEqual({ matrix: null, takeFrom: [] });
+  it('starts with no focus matrix and no matrix pinned in Loops', () => {
+    expect(createStore().getState().focus).toEqual({ matrix: null, loopPins: [] });
   });
 
   it('is set and cleared by the focus action', () => {
@@ -45,34 +45,34 @@ describe('focus', () => {
     const { store, a } = twoMatrices();
     store.dispatch({ type: 'focus', matrix: a });
     store.dispatch({ type: 'load', project: createProject() });
-    expect(store.getState().focus).toEqual({ matrix: null, takeFrom: [], shown: null });
+    expect(store.getState().focus).toEqual({ matrix: null, loopPins: [], shown: null });
   });
 });
 
-describe('take from', () => {
+describe('the pins in Loops (Magnus beslut: several, apart from the Matrices pin)', () => {
   it('adds and removes matrices, each once', () => {
     const { store, a, b } = twoMatrices();
-    store.dispatch({ type: 'takeFrom', matrix: a, on: true });
-    store.dispatch({ type: 'takeFrom', matrix: a, on: true });
-    store.dispatch({ type: 'takeFrom', matrix: b, on: true });
-    expect(store.getState().focus.takeFrom).toEqual([a, b]);
-    store.dispatch({ type: 'takeFrom', matrix: a, on: false });
-    expect(store.getState().focus.takeFrom).toEqual([b]);
+    store.dispatch({ type: 'loopPin', matrix: a, on: true });
+    store.dispatch({ type: 'loopPin', matrix: a, on: true });
+    store.dispatch({ type: 'loopPin', matrix: b, on: true });
+    expect(store.getState().focus.loopPins).toEqual([a, b]);
+    store.dispatch({ type: 'loopPin', matrix: a, on: false });
+    expect(store.getState().focus.loopPins).toEqual([b]);
   });
 
   it('drops removed matrices', () => {
     const { store, a, b } = twoMatrices();
-    store.dispatch({ type: 'takeFrom', matrix: a, on: true });
-    store.dispatch({ type: 'takeFrom', matrix: b, on: true });
+    store.dispatch({ type: 'loopPin', matrix: a, on: true });
+    store.dispatch({ type: 'loopPin', matrix: b, on: true });
     store.dispatch({ type: 'run', command: remove('matrix', a) });
-    expect(store.getState().focus.takeFrom).toEqual([b]);
+    expect(store.getState().focus.loopPins).toEqual([b]);
   });
 
   it('is view state: not in the undo history', () => {
     const { store, a } = twoMatrices();
     const before = store.getState().history;
     store.dispatch({ type: 'focus', matrix: a });
-    store.dispatch({ type: 'takeFrom', matrix: a, on: true });
+    store.dispatch({ type: 'loopPin', matrix: a, on: true });
     expect(store.getState().history).toBe(before);
   });
 });
