@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
 import { addPad, addSample, copyHits, createMatrix, setPadChoice, createProject, renameMatrix, setHitSource, setSlicing, sliceSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
-import { AUTOSCROLL_EDGE_PX, AUTOSCROLL_MAX_PX, autoscrollStep, dropCommand, dropLabel, dropTarget, hitLabel, nextMatrixName, padsOpen, stepSelection, zoneOf } from './pads';
+import { AUTOSCROLL_EDGE_PX, AUTOSCROLL_MAX_PX, autoscrollStep, dropCommand, dropLabel, dropTarget, hitLabel, nextMatrixName, padsOpen, sideOf, stepSelection, zoneOf } from './pads';
 import { initialState } from './store';
 
 const ctx = sequentialIds();
@@ -111,59 +111,70 @@ describe('where a drag drops (Magnus beslut)', () => {
   const [own, copied] = pad2.members as [string, string];
   const snaresPad = p.pads[matrixOf(p, 'Snares').pads[0]!]!;
   const snare = snaresPad.members[0]!;
-  const onPad = (padId: string, hitId: string | null = null, zone: 'before' | 'after' = 'after') => ({ kind: 'pad' as const, padId, hitId, zone });
+  const onPad = (padId: string, hitId: string | null = null, zone: 'before' | 'after' = 'after', side: 'before' | 'middle' | 'after' = 'middle') => ({ kind: 'pad' as const, padId, hitId, zone, side });
 
-  it('from the list a pad or a hit always copies onto a pad, Shift or not, on a hit of it or not', () => {
-    for (const shift of [false, true]) {
-      expect(dropTarget(p, { kind: 'hit', hitId: snare, from: 'list' }, onPad(pad2.id), shift)).toEqual({ kind: 'add', padId: pad2.id, hitIds: [snare] });
-      expect(dropTarget(p, { kind: 'hit', hitId: snare, from: 'list' }, onPad(pad2.id, own, 'before'), shift)).toEqual({ kind: 'add', padId: pad2.id, hitIds: [snare] });
-      expect(dropTarget(p, { kind: 'pad', padId: snaresPad.id }, onPad(pad3.id), shift)).toEqual({ kind: 'add', padId: pad3.id, hitIds: snaresPad.members });
-    }
+  it('from the list a pad or a hit always copies onto a pad, on a hit of it or not', () => {
+    expect(dropTarget(p, { kind: 'hit', hitId: snare, from: 'list' }, onPad(pad2.id))).toEqual({ kind: 'add', padId: pad2.id, hitIds: [snare] });
+    expect(dropTarget(p, { kind: 'hit', hitId: snare, from: 'list' }, onPad(pad2.id, own, 'before', 'before'))).toEqual({ kind: 'add', padId: pad2.id, hitIds: [snare] });
+    expect(dropTarget(p, { kind: 'pad', padId: snaresPad.id, from: 'list' }, onPad(pad3.id, null, 'after', 'after'))).toEqual({ kind: 'add', padId: pad3.id, hitIds: snaresPad.members });
     // A hit of the pad itself, from the list, is copied into it too.
-    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'list' }, onPad(pad2.id), false)).toEqual({ kind: 'add', padId: pad2.id, hitIds: [own] });
+    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'list' }, onPad(pad2.id))).toEqual({ kind: 'add', padId: pad2.id, hitIds: [own] });
   });
 
-  it('a hit from the grid copies to another pad, and moves there with Shift', () => {
-    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, onPad(pad3.id), false)).toEqual({ kind: 'add', padId: pad3.id, hitIds: [own] });
-    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, onPad(pad3.id), true)).toEqual({ kind: 'move', padId: pad3.id, hitId: own });
+  it('a hit from the grid is always copied to another pad: there is no Shift-move', () => {
+    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, onPad(pad3.id))).toEqual({ kind: 'add', padId: pad3.id, hitIds: [own] });
   });
 
-  it('within its own pad a hit from the grid reorders, before or after the hit it is over, Shift or not', () => {
-    for (const shift of [false, true]) {
-      expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, own, 'before'), shift)).toEqual({ kind: 'reorder', padId: pad2.id, hitId: copied, to: 0 });
-      // Where it already is, or off the hits: nothing.
-      expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, own, 'after'), shift)).toBeNull();
-      expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, copied), shift)).toBeNull();
-      expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id), shift)).toBeNull();
-    }
-    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, onPad(pad2.id, copied, 'after'), false)).toEqual({ kind: 'reorder', padId: pad2.id, hitId: own, to: 1 });
+  it('within its own pad a hit from the grid reorders, before or after the hit it is over', () => {
+    expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, own, 'before'))).toEqual({ kind: 'reorder', padId: pad2.id, hitId: copied, to: 0 });
+    // Where it already is, or off the hits: nothing.
+    expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, own, 'after'))).toBeNull();
+    expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id, copied))).toBeNull();
+    expect(dropTarget(p, { kind: 'hit', hitId: copied, from: 'grid' }, onPad(pad2.id))).toBeNull();
+    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, onPad(pad2.id, copied, 'after'))).toEqual({ kind: 'reorder', padId: pad2.id, hitId: own, to: 1 });
   });
 
-  it('on the place after the pads a new pad: copies, or the hit itself from the grid with Shift', () => {
+  it('a pad from the grid moves beside another, copies into the middle of one, and does nothing on itself', () => {
+    const pad1 = m.pads[0]!;
+    const pad4 = m.pads[3]!;
+    const grid = { kind: 'pad' as const, padId: pad1, from: 'grid' as const };
+    expect(dropTarget(p, grid, onPad(pad3.id, null, 'after', 'before'))).toEqual({ kind: 'movePad', matrixId: m.id, padId: pad1, to: 1 });
+    expect(dropTarget(p, grid, onPad(pad4, null, 'after', 'after'))).toEqual({ kind: 'movePad', matrixId: m.id, padId: pad1, to: 3 });
+    expect(dropTarget(p, { kind: 'pad', padId: pad4, from: 'grid' }, onPad(pad1, null, 'after', 'before'))).toEqual({ kind: 'movePad', matrixId: m.id, padId: pad4, to: 0 });
+    // Where it is already: beside itself or its neighbour's near side.
+    expect(dropTarget(p, grid, onPad(pad1, null, 'after', 'before'))).toBeNull();
+    expect(dropTarget(p, grid, onPad(pad2.id, null, 'after', 'before'))).toBeNull();
+    expect(dropTarget(p, grid, onPad(pad1))).toBeNull();
+    expect(dropTarget(p, grid, onPad(pad3.id))).toEqual({ kind: 'add', padId: pad3.id, hitIds: p.pads[pad1]!.members });
+    // A pad of another matrix does not move into this one.
+    expect(dropTarget(p, { kind: 'pad', padId: snaresPad.id, from: 'grid' }, onPad(pad3.id, null, 'after', 'before'))).toBeNull();
+  });
+
+  it('on the place after the pads a new pad with copies', () => {
     const after = { kind: 'new' as const, matrixId: m.id };
-    expect(dropTarget(p, { kind: 'pad', padId: snaresPad.id }, after, true)).toEqual({ kind: 'new', matrixId: m.id, hits: { copy: snaresPad.members } });
-    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, after, false)).toEqual({ kind: 'new', matrixId: m.id, hits: { copy: [own] } });
-    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, after, true)).toEqual({ kind: 'new', matrixId: m.id, hits: { move: own } });
+    expect(dropTarget(p, { kind: 'pad', padId: snaresPad.id, from: 'list' }, after)).toEqual({ kind: 'new', matrixId: m.id, hitIds: snaresPad.members });
+    expect(dropTarget(p, { kind: 'hit', hitId: own, from: 'grid' }, after)).toEqual({ kind: 'new', matrixId: m.id, hitIds: [own] });
+    expect(dropTarget(p, { kind: 'pad', padId: pad2.id, from: 'grid' }, after)).toEqual({ kind: 'new', matrixId: m.id, hitIds: pad2.members });
   });
 
   it('an empty pad brings nothing', () => {
     const q = apply(p, addPad(m.id));
     const empty = matrixOf(q, 'amen 1').pads.at(-1)!;
-    expect(dropTarget(q, { kind: 'pad', padId: empty }, onPad(pad2.id), false)).toBeNull();
+    expect(dropTarget(q, { kind: 'pad', padId: empty, from: 'list' }, onPad(pad2.id))).toBeNull();
   });
 
-  it('the target says what happens: Copy, Move (Shift), and from the grid that Shift moves', () => {
-    expect(dropLabel({ kind: 'pad', padId: snaresPad.id }, { kind: 'add', padId: pad3.id, hitIds: [snare] })).toBe('Copy');
-    expect(dropLabel({ kind: 'hit', hitId: own, from: 'grid' }, { kind: 'add', padId: pad3.id, hitIds: [own] })).toBe('Copy · Shift: move');
-    expect(dropLabel({ kind: 'hit', hitId: own, from: 'grid' }, { kind: 'move', padId: pad3.id, hitId: own })).toBe('Move (Shift)');
-    expect(dropLabel({ kind: 'hit', hitId: own, from: 'grid' }, { kind: 'new', matrixId: m.id, hits: { move: own } })).toBe('Move (Shift)');
+  it('the target says what happens: Copy, Move pad here, or Copy 2 hits into 03', () => {
+    expect(dropLabel(p, { kind: 'pad', padId: snaresPad.id, from: 'list' }, { kind: 'add', padId: pad3.id, hitIds: [snare] })).toBe('Copy');
+    expect(dropLabel(p, { kind: 'hit', hitId: own, from: 'grid' }, { kind: 'add', padId: pad3.id, hitIds: [own] })).toBe('Copy');
+    expect(dropLabel(p, { kind: 'pad', padId: pad2.id, from: 'grid' }, { kind: 'movePad', matrixId: m.id, padId: pad2.id, to: 3 })).toBe('Move pad here');
+    expect(dropLabel(p, { kind: 'pad', padId: pad2.id, from: 'grid' }, { kind: 'add', padId: pad3.id, hitIds: pad2.members })).toBe('Copy 2 hits into 03');
   });
 
-  it('the zone of a hit chip is its upper or lower half', () => {
-    expect(zoneOf(2, 0, 30)).toBe('before');
+  it('the zone of a hit chip is its upper or lower half, and the side of a pad its outer quarters', () => {
     expect(zoneOf(14, 0, 30)).toBe('before');
     expect(zoneOf(16, 0, 30)).toBe('after');
     expect(zoneOf(0, 0, 0)).toBe('before');
+    expect([10, 30, 50, 70, 90].map((x) => sideOf(x, 0, 100))).toEqual(['before', 'middle', 'middle', 'middle', 'after']);
   });
 });
 
@@ -183,7 +194,6 @@ describe('what a drop does', () => {
     expect(after.hits[members[1]!]).toMatchObject({ sampleId: p.hits[snare]!.sampleId, name: p.hits[snare]!.name });
     expect(members[1]).not.toBe(snare);
     expect(after.pads[pad3.id]!.choice).toBe('roundRobin');
-    // The original stays where it was.
     expect(after.pads[snaresPad.id]!.members).toEqual(snaresPad.members);
   });
 
@@ -195,32 +205,23 @@ describe('what a drop does', () => {
     expect(run(withEmpty, dropCommand({ kind: 'add', padId: newPad, hitIds: [snare] })).pads[newPad]!.choice).toBe('top');
   });
 
-  it('a pad from the list is copied last, hit by hit', () => {
-    const after = run(p, dropCommand({ kind: 'add', padId: pad3.id, hitIds: snaresPad.members }));
-    expect(after.pads[pad3.id]!.members.slice(1).map((h) => after.hits[h]!.name)).toEqual(snaresPad.members.map((h) => p.hits[h]!.name));
-  });
-
-  it('moves a hit itself to another pad, leaving its own', () => {
-    const hit = pad2.members[1]!;
-    const after = run(p, dropCommand({ kind: 'move', padId: pad3.id, hitId: hit }));
-    expect(after.pads[pad2.id]!.members).toEqual([pad2.members[0]]);
-    expect(after.pads[pad3.id]!.members).toEqual([pad3.members[0], hit]);
-    expect(after.pads[pad3.id]!.choice).toBe('roundRobin');
-  });
-
   it('reorders a hit within its pad, also to first', () => {
     const after = run(p, dropCommand({ kind: 'reorder', padId: pad2.id, hitId: pad2.members[1]!, to: 0 }));
     expect(after.pads[pad2.id]!.members).toEqual([pad2.members[1], pad2.members[0]]);
   });
 
-  it('makes a new pad last with copies, or with the moved hit', () => {
-    const copied = run(p, dropCommand({ kind: 'new', matrixId: m.id, hits: { copy: [snare] } }));
+  it('moves a pad with its hits to another place in the matrix', () => {
+    const after = run(p, dropCommand({ kind: 'movePad', matrixId: m.id, padId: m.pads[0]!, to: 2 }));
+    expect(matrixOf(after, 'amen 1').pads).toEqual([m.pads[1], m.pads[2], m.pads[0], m.pads[3]]);
+    expect(after.pads[m.pads[0]!]!.members).toEqual(p.pads[m.pads[0]!]!.members);
+  });
+
+  it('makes a new pad last with copies', () => {
+    const copied = run(p, dropCommand({ kind: 'new', matrixId: m.id, hitIds: [snare] }));
     const made = copied.pads[matrixOf(copied, 'amen 1').pads.at(-1)!]!;
     expect(made.members).toHaveLength(1);
     expect(copied.hits[made.members[0]!]!.sampleId).toBe(p.hits[snare]!.sampleId);
-    const moved = run(p, dropCommand({ kind: 'new', matrixId: m.id, hits: { move: pad2.members[1]! } }));
-    expect(moved.pads[matrixOf(moved, 'amen 1').pads.at(-1)!]!.members).toEqual([pad2.members[1]]);
-    expect(moved.pads[pad2.id]!.members).toEqual([pad2.members[0]]);
+    expect(copied.pads[snaresPad.id]!.members).toEqual(snaresPad.members);
   });
 });
 

@@ -122,6 +122,7 @@ function usePlacing(onError: (error: string | null) => void): Placing {
       const now = store.getState().history.present;
       if (target.kind === 'add') select({ pad: target.padId, hit: null }, 'pads');
       else if (target.kind === 'new') select({ pad: now.matrices[target.matrixId]?.pads.at(-1) ?? null, hit: null }, 'pads');
+      else if (target.kind === 'movePad') select({ pad: target.padId, hit: null }, 'pads');
       else select({ pad: target.padId, hit: target.hitId }, 'pads');
     },
   };

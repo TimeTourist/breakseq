@@ -200,42 +200,16 @@ const copyHitsTo =
   };
 
 /**
- * Moves a hit, itself, last to another pad: it keeps its id and its own
- * config. Steps that locked it in its old pad fall back to the pad's choice,
- * as when a member is removed. Moving to its own pad does nothing.
+ * A new pad last in a matrix, named after its row, holding copies of
+ * `hitIds`; Round robin when it gets more than one. One undo step.
  */
-export const moveHitToPad = (hitId: Id, toPadId: Id): Command => following(moveHitTo(hitId, toPadId));
-
-/** `moveHitToPad` without following, for commands built on it. */
-const moveHitTo =
-  (hitId: Id, toPadId: Id): Command =>
-  (project) => {
-    if (project.hits[hitId] === undefined) return notFound(hitId);
-    const to = project.pads[toPadId];
-    if (to === undefined) return notFound(toPadId);
-    const from = padOfHit(project, hitId);
-    if (from === undefined) return invalid('The hit is in no pad');
-    if (from.id === to.id) return ok(project);
-    const pads = { ...project.pads, [from.id]: { ...from, members: from.members.filter((m) => m !== hitId) }, [to.id]: { ...to, members: [...to.members, hitId] } };
-    const unlock = (s: Step): Step => (s.padId === from.id && s.memberId === hitId ? { ...s, memberId: null } : s);
-    const loops = Object.fromEntries(
-      Object.entries(project.loops).map(([id, l]) => [id, l.steps.some((s) => s.padId === from.id && s.memberId === hitId) ? { ...l, steps: l.steps.map(unlock) } : l]),
-    );
-    return ok({ ...project, pads, loops });
-  };
-
-/**
- * A new pad last in a matrix, named after its row, holding hits: copies of
- * `copy`, or with `move` that one hit itself (`moveHitToPad`). Round robin
- * when it gets more than one hit. One undo step.
- */
-export const addPadWith = (matrixId: Id, hits: { readonly copy: readonly Id[] } | { readonly move: Id }): Command =>
+export const addPadWith = (matrixId: Id, hitIds: readonly Id[]): Command =>
   following((project, ctx) => {
     const matrix = project.matrices[matrixId];
     if (matrix === undefined) return notFound(matrixId);
     const pad = emptyPad(ctx.newId(), rowName(matrix.name, matrix.pads.length));
     const added = setMatrix(setPad(project, pad), { ...matrix, pads: [...matrix.pads, pad.id] });
-    const filled = 'copy' in hits ? copyHitsTo(hits.copy, pad.id)(added, ctx) : moveHitTo(hits.move, pad.id)(added, ctx);
+    const filled = copyHitsTo(hitIds, pad.id)(added, ctx);
     if (!filled.ok) return filled;
     const made = filled.project.pads[pad.id]!;
     return ok(made.members.length > 1 ? setPad(filled.project, { ...made, choice: 'roundRobin' }) : filled.project);
