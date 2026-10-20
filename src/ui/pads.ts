@@ -1,5 +1,5 @@
 import type { Command, Hit, Id, Matrix, Pad, Project } from '../model';
-import { addPadWith, baseName, copyHits, matrixOfPad, movePad, movePadMember, ok, padOfHit, sequence, setPadChoice } from '../model';
+import { addPadWith, addVariant, baseName, copyHits, matrixOfPad, movePad, movePadMember, ok, padOfHit, sequence, setPadChoice } from '../model';
 import { replacedBy } from './labels';
 import type { Selection } from './store';
 
@@ -86,6 +86,7 @@ export type Over =
 export type DropTarget =
   | { readonly kind: 'add'; readonly padId: Id; readonly hitIds: readonly Id[] }
   | { readonly kind: 'reorder'; readonly padId: Id; readonly hitId: Id; readonly to: number }
+  | { readonly kind: 'variant'; readonly padId: Id; readonly hitId: Id }
   | { readonly kind: 'movePad'; readonly matrixId: Id; readonly padId: Id; readonly to: number }
   | { readonly kind: 'new'; readonly matrixId: Id; readonly hitIds: readonly Id[] };
 
@@ -128,7 +129,8 @@ export function dropTarget(project: Project, dragged: Dragged, over: Over): Drop
     return to === from ? null : { kind: 'movePad', matrixId: matrix.id, padId: dragged.padId, to };
   }
   if (dragged.kind === 'hit' && dragged.from === 'grid' && pad.members.includes(dragged.hitId)) {
-    if (over.hitId === null || !pad.members.includes(over.hitId)) return null;
+    // Off the hit chips, on its own pad (its number or the empty part of its tile): a variant, as the Variant button makes. (Magnus beslut; the split is Claudes val.)
+    if (over.hitId === null || !pad.members.includes(over.hitId)) return { kind: 'variant', padId: pad.id, hitId: dragged.hitId };
     const at = pad.members.indexOf(dragged.hitId);
     const to = over.hitId === dragged.hitId ? at : pad.members.filter((m) => m !== dragged.hitId).indexOf(over.hitId) + (over.zone === 'after' ? 1 : 0);
     return to === at ? null : { kind: 'reorder', padId: pad.id, hitId: dragged.hitId, to };
@@ -140,6 +142,7 @@ export function dropTarget(project: Project, dragged: Dragged, over: Over): Drop
 export function dropLabel(project: Project, dragged: Dragged, target: DropTarget): string {
   if (target.kind === 'movePad') return 'Move pad here';
   if (target.kind === 'reorder') return 'Move';
+  if (target.kind === 'variant') return 'Variant';
   if (target.kind === 'add' && dragged.kind === 'pad' && dragged.from === 'grid') {
     const matrix = matrixOfPad(project, target.padId);
     const n = target.hitIds.length;
@@ -165,6 +168,8 @@ export function dropCommand(target: DropTarget): Command {
       return movePad(target.matrixId, target.padId, target.to);
     case 'reorder':
       return movePadMember(target.padId, target.hitId, target.to);
+    case 'variant':
+      return (project, ctx) => addVariant(target.hitId, `${project.hits[target.hitId]?.name ?? ''} var`)(project, ctx);
     case 'new':
       return addPadWith(target.matrixId, target.hitIds);
   }

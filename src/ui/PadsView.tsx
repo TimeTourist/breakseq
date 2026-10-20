@@ -123,6 +123,8 @@ function usePlacing(onError: (error: string | null) => void): Placing {
       if (target.kind === 'add') select({ pad: target.padId, hit: null }, 'pads');
       else if (target.kind === 'new') select({ pad: now.matrices[target.matrixId]?.pads.at(-1) ?? null, hit: null }, 'pads');
       else if (target.kind === 'movePad') select({ pad: target.padId, hit: null }, 'pads');
+      // The new variant opens, as the Variant button opens it.
+      else if (target.kind === 'variant') select({ pad: target.padId, hit: now.pads[target.padId]?.members.at(-1) ?? null }, 'pads');
       else select({ pad: target.padId, hit: target.hitId }, 'pads');
     },
   };

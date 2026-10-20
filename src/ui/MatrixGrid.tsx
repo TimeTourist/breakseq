@@ -138,7 +138,7 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
       }}
     >
       {pads.map((pad, row) => {
-        const dropsHere = target !== null && target.kind === 'add' && target.padId === pad.id;
+        const dropsHere = target !== null && (target.kind === 'add' || target.kind === 'variant') && target.padId === pad.id;
         const insert = insertAt !== null && insertAt.padId === pad.id ? insertAt.side : null;
         return (
           <div
