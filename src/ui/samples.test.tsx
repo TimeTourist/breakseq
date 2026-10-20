@@ -122,7 +122,7 @@ describe('Samples: one page (Magnus beslut)', () => {
     const matrix = within(row).getByRole('button', { name: '1 matrix →' });
     expect(matrix.title).toBe('Matrix amen 1 (4 pads), in Matrices');
     fireEvent.click(matrix);
-    expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: own.id } });
+    expect(store.getState()).toMatchObject({ view: 'pads', focus: { shown: own.id } });
   });
 
   it('a one shot has the row too, with its matrix and no loop; the page has no links to other tabs', async () => {

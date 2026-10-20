@@ -299,9 +299,10 @@ function HitControls({ hit, onError, ask }: { readonly hit: Hit; readonly onErro
       {replacing && <ReplacePanel hit={hit} onError={onError} />}
 
       {audio !== undefined && sample !== undefined && window !== null && duration > 0 && (
-        <div className="panel wave-panel">
-          <div className="wave-region" ref={wave}>
-            <Waveform audio={audio} offset={sample.offset + window.start} duration={duration} height={160} />
+        <div className="stack-tight">
+          {/* Slim, as Trim's overview in Samples (Magnus beslut): its slice, with the region between two handles. */}
+          <div className="trim-wave overview" ref={wave}>
+            <Waveform audio={audio} offset={sample.offset + window.start} duration={duration} height={52} />
             <div className="region-shade" style={{ left: 0, width: `${hit.region.start * 100}%` }} />
             <div className="region-shade" style={{ left: `${hit.region.end * 100}%`, right: 0 }} />
             {handle('start')}

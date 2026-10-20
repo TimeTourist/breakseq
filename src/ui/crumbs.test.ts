@@ -49,7 +49,7 @@ describe('the row under the tabs: one chain, one step per tab (Magnus beslut)', 
     const p = chain();
     const t = trail(state(p, { view: 'samples', sliceTarget: named(p, 'amen.wav').id }));
     expect(text(t)).toBe('amen.wav · [sample 1] › 1 matrix → › 1 loop →');
-    expect(links(t)[0]).toMatchObject({ title: 'Matrix amen 1 (4 pads), in Matrices', go: [{ type: 'focus', matrix: amenMatrix(p).id }, {}] });
+    expect(links(t)[0]).toMatchObject({ title: 'Matrix amen 1 (4 pads), in Matrices', go: [{ type: 'show', matrix: amenMatrix(p).id }, {}] });
   });
 
   it('Samples: several matrices playing the sample are a menu with their pads; ♪ Song when heard', () => {

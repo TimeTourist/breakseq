@@ -2,6 +2,7 @@ import type { Id, Loop, Matrix, Mod, Pad, Project, Sample } from '../model';
 import { heardInSong, loopMatrices, ownMatrix, trimName } from '../model';
 import { middleEllipsis, padLabel } from './labels';
 import type { Action, AppState } from './store';
+import { matrixInView } from './store';
 
 /** Plain text before a link or the current step: the file before its sample ("amen.wav · sample 1"). Never a link. */
 export interface Context {
@@ -68,7 +69,7 @@ const sampleJump = (sample: Sample): Jump => ({
 });
 
 const toMatrices = (matrix: Matrix, pad: Id | null = null, hit: Id | null = null): Action[] => [
-  { type: 'focus', matrix: matrix.id },
+  { type: 'show', matrix: matrix.id },
   { type: 'select', selection: { matrix: matrix.id, pad, hit }, view: 'pads' },
 ];
 
@@ -160,7 +161,7 @@ function samplesTrail(state: AppState, project: Project): Trail {
  * and loops follow what is selected. (Claudes val.)
  */
 function matricesTrail(state: AppState, project: Project): Trail {
-  const matrix = project.matrices[state.focus.matrix ?? ''];
+  const matrix = project.matrices[matrixInView(state.focus) ?? ''];
   if (matrix === undefined) return EMPTY;
   const heard = heardInSong(project);
   const pad: Pad | undefined = matrix.pads.includes(state.selection.pad ?? '') ? project.pads[state.selection.pad!] : undefined;
