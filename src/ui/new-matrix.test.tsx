@@ -57,7 +57,7 @@ const shots = () => apply(createProject(), addSample({ name: 'kick.wav', audio: 
 async function open() {
   const project = shots();
   const { s, playHit } = services();
-  const store = createStore({ ...initialState(project), view: 'pads' });
+  const store = createStore({ ...initialState(project), view: 'loops' });
   render(<App store={store} services={s} />);
   await act(async () => {});
   fireEvent.click(screen.getByRole('button', { name: '+ New matrix' }));
@@ -135,7 +135,7 @@ describe('+ New matrix', () => {
     expect(fireEvent.keyDown(checkbox, { key: ' ' })).toBe(true);
     expect(player.play).not.toHaveBeenCalled();
     fireEvent.keyDown(checkbox, { key: '2' });
-    expect(store.getState().view).toBe('pads');
+    expect(store.getState().view).toBe('loops');
     fireEvent.keyDown(checkbox, { key: 'z', ctrlKey: true });
     expect(store.getState().history.present.matrices[matrix.id]!.name).toBe('renamed');
     expect(screen.getByRole('alertdialog')).toBeTruthy();

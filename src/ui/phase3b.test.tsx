@@ -211,7 +211,9 @@ describe('files and samples in the GUI', () => {
     const store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: matrix.id, takeFrom: [] } });
     render(<App store={store} services={fakeServices()} />);
     await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: `Rename ${matrix.name}` }));
     fireEvent.change(screen.getByLabelText('Matrix name'), { target: { value: 'think' } });
+    fireEvent.keyDown(screen.getByLabelText('Matrix name'), { key: 'Enter' });
     expect(store.getState().history.present.matrices[matrix.id]!.name).toBe('think');
     expect(store.getState().history.present.pads[matrix.pads[0]!]!.name).toBe('think 01');
     const link = within(screen.getByRole('navigation', { name: 'Where you are' })).getByRole('button', { name: 'sample 1' });

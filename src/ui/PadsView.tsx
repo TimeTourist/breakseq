@@ -1,146 +1,141 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Id, Matrix, Pad, Project } from '../model';
 import { padPicker } from '../engine';
-import { addPad, cloneMatrix, matrixKind, renameMatrix } from '../model';
-import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
+import { addPad, cloneMatrix, matrixKind, padSteps, renameMatrix } from '../model';
+import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import type { PadsPlay } from './ControlsPanel';
 import { ControlsPanel, useRunAdding } from './ControlsPanel';
 import { DeleteMatrix } from './DeleteMatrix';
-import { FocusBar } from './FocusBar';
 import { MatrixKindIcon } from './icons';
 import { isTyping, modalOpen } from './isTyping';
-import type { Dragged, DropTarget, PadsOpen, Placing, Zoom } from './pads';
-import { autoscrollStep, dropCommand, padsOpen, replacedWith, stepSelection } from './pads';
-import { TakeFromShelf } from './TakeFromShelf';
-import { Timeline } from './Timeline';
+import { MatrixGrid } from './MatrixGrid';
+import { MatrixList } from './MatrixList';
+import type { DropTarget, Dragged, PadsOpen, Placing, Zoom } from './pads';
+import { ZOOMS, autoscrollStep, dropCommand, padsOpen, stepSelection } from './pads';
+import { RenameInPlace } from './RenameInPlace';
+
+const ZOOM_LABEL: Record<Zoom, string> = { fit: 'Fit', '1 bar': '1 bar' };
 
 /**
- * Pads: where all that is heard is shaped (decision 3, layout B). The focus
- * bar on top; the matrix in focus as its row and a timeline of its pads; the
- * shelf of the matrices taken from; and the controls for what is selected
- * underneath: a hit, a pad or the matrix.
+ * Matrices (Magnus beslut): the matrices as a tree on the left, as Samples
+ * lists its files, and on the right the matrix shown, its pads as a grid that
+ * wraps downward, and the controls for what is selected under it: a hit, a
+ * pad or the matrix. The matrix shown is the one whose row, pad or hit was
+ * clicked last; it is the store's focus, which Play and the link row follow.
  */
 export function PadsView({ transport }: { readonly transport: PadsPlay }) {
   const project = useProject();
+  const { store } = useApp();
   const focus = useSelect((s) => s.focus);
   const selection = useSelect((s) => s.selection);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<Zoom>('fit');
-  const open = padsOpen(project, focus.matrix, selection);
+  const first = Object.keys(project.matrices)[0] ?? null;
+  // With none shown yet (or the one shown gone), the first matrix is. (Claudes val.)
+  useEffect(() => {
+    if (focus.matrix === null && first !== null) store.dispatch({ type: 'focus', matrix: first });
+  }, [focus.matrix, first, store]);
+  const open = padsOpen(project, focus.matrix ?? first, selection);
+  const show = useShow();
   const placing = usePlacing(setError);
   const playPad = usePlayPad();
   const ask = usePadsKeys(open, playPad);
   usePageAutoscroll();
   const matrixPlays = open !== null && transport.played !== null && transport.played.key === `matrix:${open.matrix.id}`;
 
+  if (first === null)
+    return (
+      <main className="view pads-view">
+        <div className="panel stack-tight">
+          <p className="muted">No matrices yet. Every sample in Samples gets one.</p>
+          <div className="row nav-row">
+            <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'samples' })}>
+              ← Samples
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+
   return (
-    <main className="view wide pads-view">
-      <FocusBar title="Matrices" transport={transport} />
+    <main className="view pads-view">
       {error !== null && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {open === null ? (
-        <NoFocus />
-      ) : (
-        <>
-          <MatrixRow matrix={open.matrix} selected={open.kind === 'matrix'} onError={setError} ask={ask.matrix} />
-          <Timeline
-            matrix={open.matrix}
-            open={open}
-            zoom={zoom}
-            onZoom={setZoom}
-            playedSeconds={matrixPlays ? transport.played!.seconds : null}
-            onError={setError}
-            placing={placing}
-            onPlayPad={playPad}
-          />
-          <TakeFromShelf placing={placing} />
-          <ControlsPanel open={open} onError={setError} ask={ask.selected} />
-        </>
-      )}
+      <div className="samples-layout">
+        <MatrixList open={open} placing={placing} show={show} onPlayPad={playPad} onError={setError} />
+        {open !== null && (
+          <div className="matrix-side stack">
+            <MatrixBox
+              matrix={open.matrix}
+              open={open}
+              zoom={zoom}
+              onZoom={setZoom}
+              playedSeconds={matrixPlays ? transport.played!.seconds : null}
+              placing={placing}
+              onPlayPad={playPad}
+              onError={setError}
+              ask={ask.matrix}
+            />
+            <ControlsPanel open={open} onError={setError} ask={ask.selected} />
+          </div>
+        )}
+      </div>
     </main>
   );
 }
 
-/** Pads with no matrix in focus: choose one above, or slice a sample in Samples to get one. */
-function NoFocus() {
-  const project = useProject();
+/** Shows a matrix in Matrices, with a pad or a hit of it selected, or the matrix itself. */
+function useShow() {
   const { store } = useApp();
-  const none = Object.keys(project.matrices).length === 0;
-  return (
-    <div className="panel stack-tight">
-      <p className="muted">{none ? 'No matrices yet. Every sample in Samples gets one; or make one with + New matrix.' : 'Choose a matrix to work on, under Focus above.'}</p>
-      {none && (
-        <div className="row nav-row">
-          <button type="button" className="link-text small" onClick={() => store.dispatch({ type: 'view', view: 'samples' })}>
-            ← Samples
-          </button>
-        </div>
-      )}
-    </div>
+  const select = useOpen();
+  return useCallback(
+    (matrixId: Id, pad: Id | null, hit: Id | null) => {
+      store.dispatch({ type: 'focus', matrix: matrixId });
+      select({ matrix: matrixId, pad, hit }, 'pads');
+    },
+    [store, select],
   );
 }
 
 /**
- * Drag and tap to place: what is dragged, what is picked by a tap, and
- * placing either as one undo step. A pick goes after it is placed, on
- * Escape, or on a tap anywhere but a pad, a hit or the shelf.
+ * Drag in Matrices: what is dragged, and placing it as one undo step. What
+ * was placed is selected after: the pad it went to, the moved hit, or the new pad.
  */
 function usePlacing(onError: (error: string | null) => void): Placing {
   const run = useRun();
   const { store } = useApp();
   const select = useOpen();
   const [dragging, setDragging] = useState<Dragged | null>(null);
-  const [picked, setPicked] = useState<Dragged | null>(null);
-  useEffect(() => {
-    if (picked === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      // Escape in a dialog is the dialog's.
-      if (e.key !== 'Escape' || modalOpen()) return;
-      e.preventDefault();
-      setPicked(null);
-    };
-    const onClick = (e: MouseEvent) => {
-      if (!(e.target instanceof Element && e.target.closest('.pad-column, .take-from-shelf') !== null)) setPicked(null);
-    };
-    window.addEventListener('keydown', onKey);
-    document.addEventListener('click', onClick);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.removeEventListener('click', onClick);
-    };
-  }, [picked]);
   return {
     dragging,
-    picked,
     startDrag: setDragging,
     endDrag: () => setDragging(null),
-    pick: setPicked,
-    place: (what: Dragged, target: DropTarget) => {
-      setPicked(null);
-      const before = store.getState().history.present;
-      const error = run(dropCommand(what, target));
+    place: (target: DropTarget) => {
+      const error = run(dropCommand(target));
       onError(error);
-      // A replaced hit is gone: its copy is selected, so the controls stay on a hit.
-      const copy = error === null ? replacedWith(before, store.getState().history.present, target) : null;
-      if (copy !== null) select({ pad: target.padId, hit: copy }, 'pads');
+      if (error !== null) return;
+      const now = store.getState().history.present;
+      if (target.kind === 'add') select({ pad: target.padId, hit: null }, 'pads');
+      else if (target.kind === 'new') select({ pad: now.matrices[target.matrixId]?.pads.at(-1) ?? null, hit: null }, 'pads');
+      else select({ pad: target.padId, hit: target.hitId }, 'pads');
     },
   };
 }
 
-/** The pad or hit button a key went to in the timeline, as what is open: arrows step on from it, not from the selection. */
+/** The pad or hit button a key went to in the grid, as what is open: arrows step on from it, not from the selection. */
 function keyOrigin(target: EventTarget | null, project: Project, now: PadsOpen): PadsOpen | null {
   const button = target instanceof Element ? target.closest<HTMLElement>('.pad-head, [data-hit]') : null;
-  const padId = button?.closest<HTMLElement>('.pad-column')?.dataset.pad;
+  const padId = button?.closest<HTMLElement>('.pad-tile')?.dataset.pad;
   if (button == null || padId === undefined) return null;
   return padsOpen(project, now.matrix.id, { pad: padId, hit: button.dataset.hit ?? null });
 }
 
-/** The timeline's button for a pad, or a hit of it. */
+/** The grid's button for a pad, or a hit of it. */
 function timelineButton(padId: Id, hitId: Id | null): HTMLElement | null {
-  const column = Array.from(document.querySelectorAll<HTMLElement>('.pad-column')).find((c) => c.dataset.pad === padId);
+  const column = Array.from(document.querySelectorAll<HTMLElement>('.pad-tile')).find((c) => c.dataset.pad === padId);
   if (column === undefined) return null;
   return hitId === null ? column.querySelector<HTMLElement>('.pad-head') : (Array.from(column.querySelectorAll<HTMLElement>('[data-hit]')).find((b) => b.dataset.hit === hitId) ?? null);
 }
@@ -222,63 +217,48 @@ function usePadsKeys(open: PadsOpen | null, playPad: (pad: Pad) => void) {
   return ask;
 }
 
-/**
- * The matrix's name: renamed as it is typed, but a name typed empty is only a
- * draft until blur or Enter, which commit it; only then does it fail.
- */
-function MatrixName({ matrix, onError }: { readonly matrix: Matrix; readonly onError: (error: string | null) => void }) {
-  const run = useRun();
-  const seal = useSeal();
-  const [draft, setDraft] = useState<string | null>(null);
-  const mergeKey = `matrix:${matrix.id}:name`;
-  const commit = () => {
-    // A name that is not empty is in already.
-    if (draft !== null && draft.trim() === '') onError(run(renameMatrix(matrix.id, draft), mergeKey));
-    setDraft(null);
-    seal();
-  };
-  return (
-    <input
-      className="title-input mono grow"
-      aria-label="Matrix name"
-      value={draft ?? matrix.name}
-      onChange={(e) => {
-        const name = e.target.value;
-        setDraft(name);
-        onError(name.trim() === '' ? null : run(renameMatrix(matrix.id, name), mergeKey));
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') commit();
-      }}
-      onBlur={commit}
-    />
-  );
+interface MatrixBoxProps {
+  readonly matrix: Matrix;
+  readonly open: PadsOpen;
+  readonly zoom: Zoom;
+  readonly onZoom: (zoom: Zoom) => void;
+  readonly playedSeconds: number | null;
+  readonly placing: Placing;
+  readonly onPlayPad: (pad: Pad) => void;
+  readonly onError: (error: string | null) => void;
+  /** Asks to delete the matrix each time this changes (the Delete key). */
+  readonly ask: number;
 }
 
 /**
- * The matrix in focus, on top of its timeline: selecting it shows its config
- * below. Its name, ← Samples to its trim, ♪ Song, + Pad, Clone and Delete.
+ * The matrix shown, in one box (Magnus beslut): a header row with its kind,
+ * Rename, + Pad, Clone, Delete, its size and Fit | 1 bar, over the grid of its
+ * pads. A click in the box off a pad, a hit or a control selects the matrix.
  */
-function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix; readonly selected: boolean; readonly onError: (error: string | null) => void; readonly ask: number }) {
+function MatrixBox({ matrix, open, zoom, onZoom, playedSeconds, placing, onPlayPad, onError, ask }: MatrixBoxProps) {
+  const project = useProject();
   const { store } = useApp();
+  const run = useRun();
   const select = useOpen();
   const adding = useRunAdding(onError);
   const kind = matrixKind(matrix);
+  const steps = matrix.pads.reduce((sum, id) => sum + (project.pads[id] === undefined ? 0 : padSteps(project, project.pads[id])), 0);
   return (
-    <section className={`matrix-row row${selected ? ' current' : ''}`} aria-label="Matrix">
-      <button
-        type="button"
-        className="matrix-select"
-        aria-label={`Matrix ${matrix.name}`}
-        aria-current={selected ? 'true' : undefined}
-        title="The matrix: its config applies to every pad"
-        onClick={() => select({ matrix: matrix.id, pad: null, hit: null }, 'pads')}
-      >
-        <MatrixKindIcon kind={kind} />
-        <span className="small muted">{kind === 'break' ? 'break' : 'one-shot'}</span>
-      </button>
-      <MatrixName key={matrix.id} matrix={matrix} onError={onError} />
-      <div className="row push nowrap">
+    <section
+      className={`panel matrix-box${open.kind === 'matrix' ? ' current' : ''}`}
+      aria-label="Matrix"
+      onClick={(e) => {
+        // Off a pad, a hit or a control, a click selects the matrix. (Magnus beslut)
+        if (e.target instanceof Element && e.target.closest('button, input, select, label, a, .pad-tile') !== null) return;
+        if (open.kind !== 'matrix') select({ matrix: matrix.id, pad: null, hit: null }, 'pads');
+      }}
+    >
+      <div className="box-head">
+        <span className="kind-chip" title={kind === 'break' ? 'A break: its pads are slices in order' : 'A one-shot: one pad'}>
+          <MatrixKindIcon kind={kind} />
+          {kind === 'break' ? 'break' : 'one-shot'}
+        </span>
+        <RenameInPlace key={matrix.id} name={matrix.name} what="matrix" onRename={(name) => run(renameMatrix(matrix.id, name))} onError={onError} />
         <button type="button" title="An empty pad last in the matrix" onClick={() => adding(addPad(matrix.id), 'pads', (id) => select({ pad: id, hit: null }, 'pads'))}>
           + Pad
         </button>
@@ -294,16 +274,27 @@ function MatrixRow({ matrix, selected, onError, ask }: { readonly matrix: Matrix
         >
           Clone
         </button>
-        <DeleteMatrix matrix={matrix} onError={onError} ask={ask} onDeleted={() => select({ matrix: null, pad: null, hit: null }, 'pads')} />
+        <DeleteMatrix matrix={matrix} onError={onError} ask={ask} icon onDeleted={() => select({ matrix: null, pad: null, hit: null }, 'pads')} />
+        <span className="muted small mono push">
+          {matrix.pads.length} pad{matrix.pads.length === 1 ? '' : 's'} · {steps} step{steps === 1 ? '' : 's'}
+        </span>
+        <div className="segmented" role="group" aria-label="Zoom">
+          {ZOOMS.map((z) => (
+            <button key={z} type="button" aria-pressed={zoom === z} onClick={() => onZoom(z)}>
+              {ZOOM_LABEL[z]}
+            </button>
+          ))}
+        </div>
       </div>
+      <MatrixGrid matrix={matrix} open={open} zoom={zoom} playedSeconds={playedSeconds} placing={placing} onPlayPad={onPlayPad} />
     </section>
   );
 }
 
 /**
- * While something is dragged in Pads, the pointer near the top of the window
- * (just under the sticky header) or its bottom scrolls the page, so a timeline
- * scrolled out of view comes back to drop on, as the timeline's box scrolls sideways.
+ * While something is dragged in Matrices, the pointer near the top of the
+ * window (just under the sticky header) or its bottom scrolls the page, so a
+ * grid scrolled out of view comes back to drop on.
  */
 function usePageAutoscroll() {
   useEffect(() => {

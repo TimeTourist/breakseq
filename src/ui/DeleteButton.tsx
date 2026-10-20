@@ -141,10 +141,12 @@ interface DeleteProps {
   readonly onError: (error: string | null) => void;
   /** Asks again each time this changes. */
   readonly ask?: number | undefined;
+  /** As an icon, in tight rows. */
+  readonly icon?: boolean;
 }
 
 /** Delete for a pad, hit, loop or mod. A pad takes its hits with it, a hit leaves its pad. */
-export function Delete({ kind, id, name, onDeleted, onError, ask }: DeleteProps) {
+export function Delete({ kind, id, name, onDeleted, onError, ask, icon = false }: DeleteProps) {
   const project = useProject();
   const run = useRun();
   const hits = kind === 'pad' ? (project.pads[id]?.members.length ?? 0) : 0;
@@ -158,6 +160,7 @@ export function Delete({ kind, id, name, onDeleted, onError, ask }: DeleteProps)
       onDeleted={onDeleted}
       onError={onError}
       ask={ask}
+      icon={icon}
     />
   );
 }

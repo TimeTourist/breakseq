@@ -2,29 +2,21 @@ import { useState } from 'react';
 import type { Matrix } from '../model';
 import { matrixKind } from '../model';
 import { useApp, useProject, useSelect } from './context';
-import type { PadsPlay } from './ControlsPanel';
 import { MatrixKindIcon } from './icons';
 import { middleEllipsis } from './labels';
 import { NewMatrixDialog } from './NewMatrixDialog';
-import { PlayControls } from './PlayControls';
 
 /** A break or a one-shot in a list where no icon fits, as the icons draw them. */
 const kindMark = (m: Matrix) => (matrixKind(m) === 'break' ? '≡' : '•');
 
-interface FocusBarProps {
-  /** Play matrix, shown with a matrix in focus; none in Loops. */
-  readonly transport?: PadsPlay;
-  /** The view's name, as the heading; none in Loops, whose heading is its loop. */
-  readonly title?: string;
-}
-
 /**
- * The top of Pads: the matrix in focus, the matrices taken from, + New matrix
- * and ▶ Play matrix, the same Play as in the header: the matrix in focus, in a
- * loop, whatever is selected. Focus and Take from are the view's choice, not
- * the project's, and are not undone (decision 16).
+ * The top of Loops: the matrix in focus and the matrices taken from, which
+ * fill its pad shelf, and + New matrix. Focus and Take from are the view's
+ * choice, not the project's, and are not undone (decision 16). Matrices has
+ * none of it since its list took over (Magnus beslut); Loops keeps it until
+ * Loops is redesigned. TODO(spec): Loops' own design.
  */
-export function FocusBar({ transport, title }: FocusBarProps) {
+export function FocusBar() {
   const project = useProject();
   const { store } = useApp();
   const focus = useSelect((s) => s.focus);
@@ -36,7 +28,6 @@ export function FocusBar({ transport, title }: FocusBarProps) {
   const toFocus = (id: string) => store.dispatch({ type: 'focus', matrix: id === '' ? null : id });
   return (
     <div className="focus-bar row">
-      {title !== undefined && <h1>{title}</h1>}
       <div className="row nowrap focus-pick">
         <span className="label">Focus</span>
         {focused !== undefined && <MatrixKindIcon kind={matrixKind(focused)} />}
@@ -71,14 +62,6 @@ export function FocusBar({ transport, title }: FocusBarProps) {
         <button type="button" className="dashed" onClick={() => setMaking(true)}>
           + New matrix
         </button>
-        {focused !== undefined && transport !== undefined && (
-          <PlayControls
-            what="matrix"
-            playing={transport.playing}
-            onToggle={transport.onToggle}
-            title="Plays the matrix in focus, in a loop; click a pad or a hit to hear it · Space plays and stops"
-          />
-        )}
       </div>
       {making && <NewMatrixDialog onClose={() => setMaking(false)} />}
     </div>
