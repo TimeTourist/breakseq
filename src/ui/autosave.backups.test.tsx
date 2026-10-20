@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '../model';
 import { addSample, createProject } from '../model';
@@ -145,14 +145,16 @@ describe('autosave backups', () => {
     change(store, 150);
     act(() => void store.dispatch({ type: 'view', view: 'project' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    // Load, as a backup's button is called now (Magnus beslut); the work would be lost, so it asks first.
+    fireEvent.click(screen.getAllByRole('button', { name: /^Load the backup of / })[0]!);
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Are you sure?' })).getByRole('button', { name: 'Yes, load' }));
     await settle();
 
     expect(store.getState().history.present).toEqual(saved);
     expect(store.getState().history.past).toHaveLength(0);
     // The work with 150 BPM is a backup now, so the restore can be undone.
     expect(backups.kept.at(-1)!.song.bpm).toBe(150);
-    expect(screen.getAllByRole('button', { name: 'Restore' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /^Load the backup of / })).toHaveLength(2);
   });
 
   it('lists the backups when the load failed, and a restore turns autosave on', async () => {
@@ -169,7 +171,8 @@ describe('autosave backups', () => {
     const row = screen.getByRole('group', { name: /^Backup / });
     expect(row.textContent).toContain('Hek-tick');
     expect(row.textContent).toContain('1 sample · 2 loops · 3 clips');
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    // Nothing to lose: it loads without asking.
+    fireEvent.click(screen.getByRole('button', { name: /^Load the backup of / }));
     await settle(SAVE_DEBOUNCE_MS * 2);
 
     expect(store.getState().history.present).toEqual(old);

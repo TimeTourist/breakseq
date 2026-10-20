@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { setBpm } from '../model';
 import { useApp, useProject, useRun, useSelect } from './context';
+import { ConfirmLoad } from './ConfirmLoad';
 import { useSnapshots } from './snapshots';
 import { useCommitAfterPause } from './usePause';
 import { describeChange } from './describeChange';
@@ -244,8 +245,9 @@ function Crumbs() {
  * Both need a project folder, opened in Project.
  */
 function SnapshotButtons() {
-  const { folder, active, changed, save, newSnapshot } = useSnapshots();
+  const { folder, active, changed, save, newSnapshot, load } = useSnapshots();
   const [naming, setNaming] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -267,6 +269,23 @@ function SnapshotButtons() {
         <span className="status error" role="alert">
           {error}
         </span>
+      )}
+      {/* Load the active snapshot as last saved: off with nothing changed, as Save is, and it asks first (Magnus beslut). */}
+      <button
+        type="button"
+        disabled={busy || folder === null || active === null || !changed}
+        title={folder === null ? noFolder : 'Load the active snapshot as last saved'}
+        onClick={() => setConfirming(true)}
+      >
+        Load
+      </button>
+      {confirming && active !== null && (
+        <ConfirmLoad
+          onAnswer={(yes) => {
+            setConfirming(false);
+            if (yes) attempt(() => load(active));
+          }}
+        />
       )}
       <button type="button" disabled={busy || folder === null || active === null || !changed} title={saveTitle} onClick={() => attempt(save)}>
         Save

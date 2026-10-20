@@ -8,6 +8,7 @@ import { createProject } from '../model';
 import { useApp, useSelect } from './context';
 import type { RememberedFolder } from './folders';
 import type { Take } from './playback';
+import { ConfirmLoad } from './ConfirmLoad';
 import { useSnapshots } from './snapshots';
 import type { BackupInfo } from './backups';
 import { BACKUP_KEEP, backupTime, summaryText } from './backups';
@@ -48,10 +49,12 @@ interface ProjectViewProps {
 export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, onPlayTake, backups, onRestore }: ProjectViewProps) {
   const { store, services } = useApp();
   const folders = services.folders;
-  const { folder, active, changed, snapshots, setFolder, refresh, save } = useSnapshots();
+  const { folder, active, changed, snapshots, setFolder, refresh, save, load: loadInfo } = useSnapshots();
   const present = useSelect((s) => s.history.present);
   const [error, setError] = useState<string | null>(null);
   const [ask, setAsk] = useState<Ask | null>(null);
+  /** A Load waiting for Are you sure?: every Load asks first when changes would be lost (Magnus beslut). */
+  const [confirming, setConfirming] = useState<(() => Promise<void>) | null>(null);
   const [remembered, setRemembered] = useState<RememberedFolder | null>(null);
   const [busy, setBusy] = useState(false);
   /** The time backups are told against ("12 min ago"), kept current. */
@@ -183,20 +186,13 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
       }
     });
 
+  /** Loads, after Are you sure? when there are unsaved changes; with none, straight away (Magnus beslut). */
+  const askToLoad = (go: () => Promise<void>) => {
+    if (unsaved) setConfirming(() => go);
+    else void attempt(go);
+  };
   /** Loads a snapshot; the active one loads as it was saved, throwing away the changes since. */
-  const load = (info: SnapshotInfo) =>
-    guarded(
-      `Load “${info.name}”`,
-      async () => {
-        if (folder === null) return;
-        const project = await loadSnapshot(folder, info.file);
-        store.dispatch({ type: 'load', project });
-        await writeManifest(folder, info.file);
-        setFolder({ active: info, saved: comparable(project) });
-        await refresh(folder);
-      },
-      info.file !== active?.file,
-    );
+  const load = (info: SnapshotInfo) => askToLoad(() => loadInfo(info));
 
   const open = () =>
     guarded('Open another project', async () => {
@@ -361,20 +357,30 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
         <section className="panel stack" aria-label="Autosave backups">
           <h2 className="label">Autosave backups</h2>
           <p className="muted small">
-            The browser keeps the last {BACKUP_KEEP}: the project as it was when the page loaded, then one every 5 minutes while you work. Restore swaps one in like Load; the work you have now is kept as a backup first.
+            The browser keeps the last {BACKUP_KEEP}: the project as it was when the page loaded, then one every 5 minutes while you work. Load swaps one in as a snapshot’s Load does; the work you have now is kept as a backup first.
           </p>
           {backups.map((b) => (
             <div key={b.id} className="snapshot-row" role="group" aria-label={`Backup ${backupTime(b.at, now)}`}>
               <span className="mono muted">{backupTime(b.at, now)}</span>
               <span className="grow snapshot-name">{b.summary.snapshot ?? <span className="muted">No snapshot</span>}</span>
               <span className="muted small">{summaryText(b.summary)}</span>
-              <button type="button" disabled={busy} onClick={() => void attempt(() => onRestore(b.id))}>
-                Restore
+              <button type="button" disabled={busy} aria-label={`Load the backup of ${backupTime(b.at, now)}`} onClick={() => askToLoad(() => onRestore(b.id))}>
+                Load
               </button>
             </div>
           ))}
           {backups.length === 0 && <p className="muted small">No backups yet.</p>}
         </section>
+      )}
+
+      {confirming !== null && (
+        <ConfirmLoad
+          onAnswer={(yes) => {
+            const go = confirming;
+            setConfirming(null);
+            if (yes) void attempt(go);
+          }}
+        />
       )}
 
       {ask !== null && (
