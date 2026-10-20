@@ -183,7 +183,7 @@ function Crumbs() {
         }}
       >
         <option value="" disabled>
-          {c.label} ▾
+          {c.label}
         </option>
         {c.items.map((item, i) => (
           <option key={i} value={i} title={item.title}>

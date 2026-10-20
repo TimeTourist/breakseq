@@ -180,11 +180,11 @@ describe('Play in each view', () => {
   });
 });
 
-describe('the timeline in Pads', () => {
-  it('shows the pads of the matrix in focus, and of another when it is in focus', async () => {
+describe('the grid in Matrices', () => {
+  it('shows the pads of the matrix shown, and of another when it is shown', async () => {
     const p = split(addSample({ name: 'snare.wav', audio: constantAudio(0.1) }));
     const { store } = await setup(p, { view: 'pads' });
-    const timeline = () => screen.getByRole('region', { name: 'Timeline' });
+    const timeline = () => screen.getByRole('region', { name: 'Pads of the matrix' });
     expect(within(timeline()).getAllByRole('button', { name: /^Pad / }).map((b) => b.getAttribute('aria-label'))).toEqual(['Pad amen 1 01', 'Pad amen 1 02', 'Pad amen 1 03', 'Pad amen 1 04']);
     const snare = Object.values(p.matrices).find((m) => m.name === 'snare 1')!;
     act(() => void store.dispatch({ type: 'focus', matrix: snare.id }));
@@ -290,26 +290,26 @@ describe('Delete in Samples', () => {
 });
 
 describe('the same controls everywhere, in Pads', () => {
-  it('▶ in the focus bar is Play matrix, as Space is, with a hit selected too; its playhead runs over the timeline, pass after pass', async () => {
+  it('Play in the header plays the matrix, as Space does, with a hit selected too; the pad that plays lights up, pass after pass', async () => {
     const p = split();
     const hit = memberOf(p, 1);
     const { player, at } = await setup(p, { view: 'pads', selection: { ...initialState(p).selection, pad: matrixOf(p).pads[1]!, hit } });
-    const timeline = screen.getByRole('region', { name: 'Timeline' });
-    const first = timeline.querySelector<HTMLElement>('.pad-column')!;
-    const playheadAt = async (seconds: number) => {
+    const grid = screen.getByRole('region', { name: 'Pads of the matrix' });
+    const playingAt = async (seconds: number) => {
       at(seconds);
       await act(async () => {
         await new Promise((r) => setTimeout(r, 50));
       });
-      return parseFloat(timeline.querySelector<HTMLElement>('.playhead')!.style.left);
+      return Array.from(grid.querySelectorAll<HTMLElement>('.pad-tile.playing')).map((t) => t.dataset.pad);
     };
-    fireEvent.click(screen.getByRole('button', { name: 'Play matrix' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(player.play).toHaveBeenLastCalledWith(expect.anything(), 0, false);
-    // A bar of 2 s: 0.25 s is halfway through pad 01, and so is 2.25 s, a pass later.
-    expect(await playheadAt(0.25)).toBeCloseTo(parseFloat(first.style.width) / 2);
-    expect(await playheadAt(2.25)).toBeCloseTo(parseFloat(first.style.width) / 2);
+    // A bar of 2 s in four pads: 0.25 s is in pad 01, and so is 2.25 s, a pass later; 0.75 s in pad 02.
+    expect(await playingAt(0.25)).toEqual([matrixOf(p).pads[0]]);
+    expect(await playingAt(2.25)).toEqual([matrixOf(p).pads[0]]);
+    expect(await playingAt(0.75)).toEqual([matrixOf(p).pads[1]]);
     expect(screen.getByRole('region', { name: 'Hit controls' }).querySelector('.playhead')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Stop matrix' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(player.stop).toHaveBeenCalled();
   });
 

@@ -38,8 +38,10 @@ export interface ProjectFolderState {
 }
 
 /**
- * The matrix the Samples and Pads tabs work on, and the matrices their pads are
- * taken from. View state: not in the undo history and not in the project file.
+ * The matrix Matrices shows (the one whose row, pad or hit was clicked last
+ * in its list), which Play and the link row follow there; and in Loops the
+ * matrix in focus and those taken from for its pad shelf. View state: not in
+ * the undo history and not in the project file.
  */
 export interface Focus {
   readonly matrix: Id | null;

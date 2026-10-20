@@ -103,7 +103,8 @@ describe('the pad shelf in Loops follows the focus', () => {
     expect(store.getState().focus.matrix).toBe(h1.id);
     store.dispatch({ type: 'view', view: 'pads' });
     await act(async () => {});
-    expect((screen.getByRole('combobox', { name: 'Matrix in focus' }) as HTMLSelectElement).value).toBe(h1.id);
+    // Matrices shows it.
+    expect(screen.getByRole('button', { name: 'Matrix h1 1' }).className).toContain('shown');
   });
 
   it('with no focus the shelf asks for one', async () => {

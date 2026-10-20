@@ -143,10 +143,10 @@ describe('Double-click opens the editor', () => {
     expect(state().view).toBe('pads');
     expect(state().selection.pad).toBe(pad.id);
 
-    // In Pads, a hit of the pad opens it for editing.
-    fireEvent.click(within(screen.getByRole('list', { name: 'Hits in this pad' })).getByRole('button', { name: 'snare 1' }));
+    // In Matrices, a hit of the pad opens it for editing.
+    fireEvent.click(within(screen.getByRole('region', { name: 'Pads of the matrix' })).getByRole('button', { name: new RegExp(`, ${hit.name}$`) }));
     expect(state().selection.hit).toBe(hit.id);
-    expect(screen.getByLabelText('Hit name')).toHaveProperty('value', hit.name);
+    expect(within(screen.getByRole('region', { name: 'Hit controls' })).getByRole('button', { name: `Rename ${hit.name}` })).toBeTruthy();
 
     fireEvent.keyDown(window, { key: '5' });
     fireEvent.doubleClick(clip(/^Roll, /));

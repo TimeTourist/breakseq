@@ -3,14 +3,11 @@ import type { Command, Hit, Id, Matrix, Pad } from '../model';
 import {
   PAD_CHOICES,
   addVariant,
-  baseName,
-  copyHits,
   effectiveHit,
   fitBpm,
   hitStretch,
   matrixOfPad,
   movePad,
-  movePadMember,
   padOfHit,
   renamePad,
   sampleAudio,
@@ -26,10 +23,10 @@ import { ConfigPanels, anyTempo, ownStretch } from './ConfigPanels';
 import type { Layer } from './ConfigPanels';
 import { useApp, useOpen, useProject, useRun, useSeal } from './context';
 import { Delete } from './DeleteButton';
-import { PlayIcon } from './icons';
-import { CHOICE_LABEL, middleEllipsis } from './labels';
+import { CHOICE_LABEL } from './labels';
 import type { PadsOpen } from './pads';
-import { controlsHeading, rowNumber } from './pads';
+import { rowNumber } from './pads';
+import { RenameInPlace } from './RenameInPlace';
 import { RegionHandle } from './RegionHandle';
 import { Waveform } from './Waveform';
 
@@ -66,18 +63,30 @@ interface ControlsProps {
   readonly ask?: number | undefined;
 }
 
-/** The controls under the timeline, for what is selected: a hit, a pad, or the matrix, under a heading that says which. */
+/**
+ * The controls under the grid, for what is selected: a hit, a pad, or the
+ * matrix. The link row under the tabs says which; every setting shows, none
+ * folded away (Magnus beslut).
+ */
 export function ControlsPanel({ open, onError, ask }: ControlsProps) {
+  return open.kind === 'hit' ? (
+    <HitControls key={open.hit.id} hit={open.hit} onError={onError} ask={ask} />
+  ) : open.kind === 'pad' ? (
+    <PadControls key={open.pad.id} pad={open.pad} matrix={open.matrix} onError={onError} ask={ask} />
+  ) : (
+    <MatrixControls matrix={open.matrix} onError={onError} />
+  );
+}
+
+/** A panel's sound settings under a label and a line of help. */
+function Sound({ label, help, layer }: { readonly label: string; readonly help: string; readonly layer: Layer }) {
   return (
-    <div className="stack-tight">
-      {open.kind !== 'hit' && <h2 className="controls-heading">{controlsHeading(open)}</h2>}
-      {open.kind === 'hit' ? (
-        <HitControls key={open.hit.id} heading={controlsHeading(open)} hit={open.hit} onError={onError} ask={ask} />
-      ) : open.kind === 'pad' ? (
-        <PadControls key={open.pad.id} pad={open.pad} matrix={open.matrix} onError={onError} ask={ask} />
-      ) : (
-        <MatrixControls matrix={open.matrix} onError={onError} />
-      )}
+    <div className="stack-tight" role="group" aria-label={label}>
+      <div className="sound-head">
+        <span className="label">{label}</span>
+        <span className="muted small">{help}</span>
+      </div>
+      <ConfigPanels layer={layer} />
     </div>
   );
 }
@@ -95,30 +104,22 @@ function MatrixControls({ matrix, onError }: { readonly matrix: Matrix; readonly
     played: ownStretch(matrix.config, []),
   };
   return (
-    <section className="stack" aria-label="Matrix controls">
-      <p className="muted small">
-        {matrix.pads.length} pad{matrix.pads.length === 1 ? '' : 's'}, played in order · the matrix’s config applies to every pad
-      </p>
-      <ConfigPanels layer={layer} />
+    <section className="panel stack" aria-label="Matrix controls">
+      <Sound label="Matrix sound" help="Applies to every pad of the matrix. Click a pad or a hit for its own." layer={layer} />
     </section>
   );
 }
 
 /**
- * A pad: its name, how it picks, its hits in order (the first plays by
- * default), adding more as copies, and its sound laid over all its hits.
+ * A pad (Magnus beslut): one header row with Rename, ← and → that move it a
+ * place in the matrix, Delete, how it picks (Pad plays) and how many hits it
+ * has; under it the pad's sound, laid over all its hits. Its hits are in the
+ * grid: dragged up or down there to reorder, and dragged in from the list.
  */
 function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonly matrix: Matrix; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
   const project = useProject();
-  const { services } = useApp();
   const run = useRun();
-  const seal = useSeal();
   const open = useOpen();
-  const [search, setSearch] = useState('');
-  const [padSound, setPadSound] = useState(false);
-  const query = search.trim().toLowerCase();
-  const available = Object.values(project.hits).filter((h) => !pad.members.includes(h.id) && (query === '' || h.name.toLowerCase().includes(query)));
-  const move = (id: Id, to: number) => onError(run(movePadMember(pad.id, id, to)));
   const row = matrix.pads.indexOf(pad.id);
   const above = [{ name: 'matrix' as const, config: matrix.config }];
   const layer: Layer = {
@@ -131,101 +132,36 @@ function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonl
   };
   return (
     <section className="panel stack" aria-label="Pad controls">
-      <div className="row">
-        <input
-          className="title-input mono"
-          aria-label="Pad name"
-          value={pad.name}
-          onChange={(e) => onError(run(renamePad(pad.id, e.target.value), `pad:${pad.id}:name`))}
-          onBlur={seal}
-        />
-        <span className="muted small">
-          Row {rowNumber(row)} of {matrix.name}
-        </span>
-        <div className="row push">
-          <button type="button" aria-label={`Move ${pad.name} left`} title="One row earlier in the timeline" disabled={row === 0} onClick={() => onError(run(movePad(matrix.id, pad.id, row - 1)))}>
-            ←
-          </button>
-          <button
-            type="button"
-            aria-label={`Move ${pad.name} right`}
-            title="One row later in the timeline"
-            disabled={row === matrix.pads.length - 1}
-            onClick={() => onError(run(movePad(matrix.id, pad.id, row + 1)))}
-          >
-            →
-          </button>
-          <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} ask={ask} onDeleted={() => open({ pad: null, hit: null, matrix: matrix.id }, 'pads')} />
-        </div>
-      </div>
-
-      <div className="row">
-        <span className="label">Pad plays</span>
-        <div className="segmented" role="group" aria-label="Pad plays">
+      <div className="box-head">
+        <span className="label">Pad</span>
+        <RenameInPlace key={pad.id} name={pad.name} what="pad" onRename={(name) => run(renamePad(pad.id, name))} onError={onError} />
+        <button type="button" className="icon-button small" aria-label={`Move ${pad.name} left`} title="One place earlier in the matrix" disabled={row === 0} onClick={() => onError(run(movePad(matrix.id, pad.id, row - 1)))}>
+          ←
+        </button>
+        <button
+          type="button"
+          className="icon-button small"
+          aria-label={`Move ${pad.name} right`}
+          title="One place later in the matrix"
+          disabled={row === matrix.pads.length - 1}
+          onClick={() => onError(run(movePad(matrix.id, pad.id, row + 1)))}
+        >
+          →
+        </button>
+        <Delete kind="pad" id={pad.id} name={pad.name} onError={onError} ask={ask} icon onDeleted={() => open({ pad: null, hit: null, matrix: matrix.id }, 'pads')} />
+        <span className="label pad-plays-label">Pad plays</span>
+        <div className="segmented" role="group" aria-label="Pad plays" title="A step lock goes first, then a mod, then the pad’s own choice">
           {PAD_CHOICES.map((c) => (
             <button key={c} type="button" aria-pressed={pad.choice === c} onClick={() => onError(run(setPadChoice(pad.id, c)))}>
               {CHOICE_LABEL[c]}
             </button>
           ))}
         </div>
+        <span className="muted small mono push">
+          {pad.members.length} hit{pad.members.length === 1 ? '' : 's'}
+        </span>
       </div>
-
-      <ol className="members" aria-label="Hits in this pad">
-        {pad.members.map((id, i) => {
-          const h = project.hits[id];
-          if (h === undefined) return null;
-          return (
-            <li key={id} className={`member${i === 0 ? ' first' : ''}`}>
-              <span className="member-num mono">{i + 1}</span>
-              <button type="button" className="link-text mono grow ellipsis" title={h.name} onClick={() => open({ pad: pad.id, hit: id }, 'pads')}>
-                {middleEllipsis(baseName(h.name))}
-              </button>
-              <span className="muted small">{i === 0 && pad.choice === 'top' ? 'default' : ''}</span>
-              <button type="button" className="icon-button small" aria-label={`Play ${h.name}`} onClick={() => services.player.playHit(project, id)}>
-                <PlayIcon />
-              </button>
-              <button type="button" className="icon-button small" aria-label={`Move ${h.name} up`} disabled={i === 0} onClick={() => move(id, i - 1)}>
-                ↑
-              </button>
-              <button type="button" className="icon-button small" aria-label={`Move ${h.name} down`} disabled={i === pad.members.length - 1} onClick={() => move(id, i + 1)}>
-                ↓
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-      {pad.members.length === 0 && <p className="muted small">This pad has no hits yet.</p>}
-
-      <details className="add-hits">
-        <summary>+ Hit · a copy of it is added last in the pad</summary>
-        <input type="search" placeholder="Search hits" aria-label="Search hits" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <div className="add-list">
-          {available.slice(0, 200).map((h) => (
-            <div key={h.id} className="add-row">
-              <span className="mono grow ellipsis" title={h.name}>
-                {middleEllipsis(baseName(h.name))}
-              </span>
-              <button type="button" aria-label={`Add ${h.name} to pad`} onClick={() => onError(run(copyHits([h.id], pad.id)))}>
-                Add
-              </button>
-            </div>
-          ))}
-          {available.length === 0 && <p className="muted small">No hits to add.</p>}
-        </div>
-      </details>
-
-      <div className="stack-tight">
-        <button type="button" className="link-text small" aria-expanded={padSound} onClick={() => setPadSound(!padSound)}>
-          {padSound ? '▾' : '▸'} Pad sound
-        </button>
-        {padSound && (
-          <div className="stack" role="group" aria-label="Pad sound">
-            <p className="muted small">Laid over every hit of the pad: pitch, volume and pan add, the rest applies where a hit has none of its own.</p>
-            <ConfigPanels layer={layer} />
-          </div>
-        )}
-      </div>
-      <p className="muted small">A step lock goes first, then a mod, then the pad’s own choice.</p>
+      <Sound label="Pad sound" help="Laid over every hit of the pad: pitch, volume and pan add, the rest applies where a hit has none of its own." layer={layer} />
     </section>
   );
 }
@@ -277,8 +213,12 @@ function ReplacePanel({ hit, onError }: { readonly hit: Hit; readonly onError: (
   );
 }
 
-/** A hit: Replace…, its region of its slice with handles, Variant, Delete, and its own config under its pad's and matrix's. */
-function HitControls({ heading, hit, onError, ask }: { readonly heading: string; readonly hit: Hit; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
+/**
+ * A hit (Magnus beslut): one header row with Rename, Replace…, Variant,
+ * Delete and what it plays; under it its region of its slice with handles,
+ * and its own sound under its pad's and matrix's.
+ */
+function HitControls({ hit, onError, ask }: { readonly hit: Hit; readonly onError: (error: string | null) => void; readonly ask?: number | undefined }) {
   const project = useProject();
   const run = useRun();
   const seal = useSeal();
@@ -335,32 +275,26 @@ function HitControls({ heading, hit, onError, ask }: { readonly heading: string;
     played: hitStretch(project, hit),
   };
   return (
-    <section className="stack" aria-label="Hit controls">
-      <div className="view-head row">
-        <div className="stack-tight grow">
-          {/* One line: what it is (what it plays on hover) and its name; the links are in the row under the tabs. (Magnus beslut) */}
-          <div className="row hit-head">
-            <h2 className="controls-heading" title={sample === undefined ? undefined : source === undefined ? `Plays ${what}` : `Variant of ${source.name}, plays ${what}`}>
-              {heading}
-            </h2>
-            <input className="title-input mono" aria-label="Hit name" value={hit.name} onChange={(e) => edit({ name: e.target.value }, 'name')} onBlur={seal} />
-          </div>
-          {window === null && sample !== undefined && <p className="muted">{`Silent: ${trimName(sample)} has ${sample.markers.length} slices`}</p>}
-        </div>
-        <div className="row push">
-          <button type="button" aria-expanded={replacing} onClick={() => setReplacing(!replacing)}>
-            Replace…
-          </button>
-          <button
-            type="button"
-            title="A copy of this hit in the same pad, to change: reversed, pitched, shorter"
-            onClick={() => adding(addVariant(hit.id, `${hit.name} var`), 'hits', (id) => open({ hit: id }, 'pads'))}
-          >
-            Variant
-          </button>
-          <Delete kind="hit" id={hit.id} name={hit.name} onError={onError} ask={ask} onDeleted={() => open({ hit: null }, 'pads')} />
-        </div>
+    <section className="panel stack" aria-label="Hit controls">
+      <div className="box-head">
+        <span className="label">Hit</span>
+        <RenameInPlace key={hit.id} name={hit.name} what="hit" onRename={(name) => run(updateHit(hit.id, { name }))} onError={onError} />
+        <button type="button" aria-expanded={replacing} title="Play another slice or sample; its settings and region stay" onClick={() => setReplacing(!replacing)}>
+          Replace…
+        </button>
+        <button
+          type="button"
+          title="A copy of this hit in the same pad, to change: reversed, pitched, shorter"
+          onClick={() => adding(addVariant(hit.id, `${hit.name} var`), 'hits', (id) => open({ hit: id }, 'pads'))}
+        >
+          Variant
+        </button>
+        <Delete kind="hit" id={hit.id} name={hit.name} onError={onError} ask={ask} icon onDeleted={() => open({ hit: null }, 'pads')} />
+        <span className="muted small mono push ellipsis" title={source === undefined ? undefined : `Variant of ${source.name}`}>
+          plays {what}
+        </span>
       </div>
+      {window === null && sample !== undefined && <p className="muted">{`Silent: ${trimName(sample)} has ${sample.markers.length} slices`}</p>}
 
       {replacing && <ReplacePanel hit={hit} onError={onError} />}
 
@@ -390,7 +324,7 @@ function HitControls({ heading, hit, onError, ask }: { readonly heading: string;
         </div>
       )}
 
-      <ConfigPanels layer={layer} />
+      <Sound label="Hit sound" help="Its own; the pad’s and the matrix’s are laid over it." layer={layer} />
     </section>
   );
 }

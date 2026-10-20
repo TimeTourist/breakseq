@@ -85,7 +85,7 @@ describe('long names are shortened the same way everywhere', () => {
     expect(name.title).toBe(FILE);
   });
 
-  it('a hit in the Pads timeline and on the Take from shelf, with the whole name over it', async () => {
+  it('a hit in the Matrices grid and list, with the whole name over it', async () => {
     const { project, kit, own } = longNames();
     const hit = Object.values(project.hits).find((h) => project.pads[kit.pads[0]!]!.members.includes(h.id))!;
     expect(hit.name.length).toBeGreaterThan(NAME_MAX);
@@ -95,10 +95,8 @@ describe('long names are shortened the same way everywhere', () => {
     expect(shown.length).toBeLessThanOrEqual(NAME_MAX);
     expect(shown).toContain('…');
     expect(chip.title.startsWith(hit.name)).toBe(true);
-    const shelf = within(screen.getByRole('region', { name: 'Take from shelf' }));
-    const onShelf = shelf.getAllByRole('button').find((b) => b.classList.contains('hit-chip'))!;
-    expect(onShelf.textContent!.length).toBeLessThanOrEqual(NAME_MAX);
-    expect(onShelf.textContent).toContain('…');
+    const listed = within(screen.getByRole('region', { name: 'Matrices' })).getByRole('button', { name: new RegExp(`^Pad ${project.pads[kit.pads[0]!]!.name}`) });
+    expect(listed.textContent).toContain('…');
   });
 
   it("a loop in Loops' menu: one line, shortened, the whole name over it", async () => {

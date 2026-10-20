@@ -39,7 +39,7 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       };
     }
     case 'pads': {
-      // Always the matrix in focus, in a loop, whatever is selected (Magnus decision, phase 23b): a click plays a pad or a hit.
+      // Always the matrix shown, in a loop, whatever is selected (Magnus beslut): a click plays a pad or a hit.
       const matrixId = state.focus.matrix;
       if (matrixId === null || project.matrices[matrixId] === undefined) return null;
       return song(`matrix:${matrixId}`, matrixSongLooped(project, matrixId));

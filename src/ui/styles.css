@@ -1134,39 +1134,6 @@ input[type='search'] {
   }
 }
 
-/* Pads */
-
-.pad-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.pad-tile {
-  aspect-ratio: 1;
-  min-height: 56px;
-  padding: 0 2px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
-.pad-tile[aria-current='true'] {
-  background: var(--selected);
-  border: 2px solid var(--text);
-}
-
-.pad-tile-label {
-  font-size: 13px;
-  font-weight: 600;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .members {
   list-style: none;
   margin: 0;
@@ -2898,8 +2865,271 @@ button.danger:hover:not(:disabled) {
 .crumbs .crumb-menu {
   /* Slim: as wide as what it says, not as its longest item. */
   field-sizing: content;
-  /* Its own ▾ in the text, not the browser's arrow as well. */
+  /* Like the buttons and chips beside it, with a chevron of its own (Magnus beslut). */
   appearance: none;
+  -webkit-appearance: none;
+  min-height: 30px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%23e8b04a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.crumbs .crumb-menu:hover {
+  border-color: var(--faint);
+  background-color: var(--selected);
+}
+
+.crumbs .crumb-menu:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.crumbs .crumb-menu option {
+  background: var(--raised);
+  color: var(--text);
+}
+
+/* Matrices (Magnus beslut): the matrices as a tree on the left, as Samples lists its files; the matrix shown on the right. */
+.matrix-side {
+  flex: 999 1 560px;
+  min-width: 0;
+}
+
+.matrix-list .label {
+  padding-left: 4px;
+}
+
+.matrix-tree-row {
+  gap: 2px;
+  border-top: 2px solid transparent;
+  border-radius: 6px;
+}
+
+/* A dragged matrix row goes before the row it is dropped on: a line shows where. */
+.matrix-tree-row.drop-before {
+  border-top-color: var(--accent);
+}
+
+.matrix-tree-row.dragged {
+  opacity: 0.4;
+}
+
+.matrix-tree-row .grip {
+  color: var(--faint);
+  cursor: grab;
+  padding: 0 2px;
+}
+
+.matrix-pick {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+}
+
+.matrix-pick.shown .file-name {
+  color: var(--accent);
+}
+
+.matrix-list .pad-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matrix-list .fold-space {
+  flex: none;
+  width: 36px;
+}
+
+.matrix-list .pad-row .sample-pick,
+.matrix-list .hit-row .sample-pick {
+  min-height: 34px;
+  padding-left: 4px;
+  cursor: grab;
+}
+
+.matrix-list .hit-row .sample-pick {
+  padding-left: 52px;
+}
+
+.matrix-list .in-song-mark {
+  color: var(--accent);
+}
+
+/* The header row of a box: what it is, its actions, and on the right its size and settings. */
+.box-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.box-head > button:not(.icon-button) {
+  min-height: 36px;
+}
+
+.box-head .push {
+  margin-left: auto;
+}
+
+.box-head .pad-plays-label {
+  margin-left: 8px;
+}
+
+.kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.rename-field {
+  min-height: 36px;
+  width: 220px;
+  border-color: var(--accent);
+}
+
+.sound-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.matrix-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The pads as a grid that wraps downward (Magnus beslut). */
+.pad-grid {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+
+.pad-tile {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
   border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sunken);
+}
+
+.pad-tile.current {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.pad-tile.playing {
+  box-shadow: inset 0 0 0 2px var(--accent-dim);
+}
+
+.pad-tile.silent {
+  opacity: 0.4;
+}
+
+.pad-tile .pad-head {
+  min-height: 24px;
   border-radius: 4px;
+}
+
+.pad-tile.current .pad-head {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pad-tile .pad-empty {
+  text-align: center;
+  padding: 6px 0;
+}
+
+.pad-tile .hit-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 4px 6px;
+  cursor: grab;
+}
+
+.hit-wave {
+  display: block;
+  height: 16px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hit-wave .waveform {
+  width: 100%;
+  display: block;
+}
+
+.pad-tile .hit-line {
+  display: flex;
+  /* Centred, but a long label starts at its place number. */
+  justify-content: safe center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* The empty place after the pads: a drop makes a new pad. */
+.pad-tile.new-pad {
+  min-height: 70px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
+  border-style: dashed;
+  background: transparent;
+}
+
+/* What a drop does, on its target: Copy, or Move (Shift). */
+.pad-tile[data-drop] {
+  border: 1px dashed var(--accent);
+  background: rgb(232 176 74 / 0.12);
+}
+
+.pad-tile[data-drop]:not(.new-pad)::before {
+  content: attr(data-drop);
+  align-self: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.pad-tile.new-pad[data-drop] {
+  color: var(--accent);
 }
