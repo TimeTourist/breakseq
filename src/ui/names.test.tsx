@@ -89,7 +89,7 @@ describe('long names are shortened the same way everywhere', () => {
     const { project, kit, own } = longNames();
     const hit = Object.values(project.hits).find((h) => project.pads[kit.pads[0]!]!.members.includes(h.id))!;
     expect(hit.name.length).toBeGreaterThan(NAME_MAX);
-    await setup(project, { view: 'pads', focus: { matrix: kit.id, takeFrom: [own.id] } });
+    await setup(project, { view: 'pads', focus: { matrix: kit.id, loopPins: [own.id] } });
     const chip = within(screen.getByRole('list', { name: /^Hits of/ })).getByRole('button');
     const shown = chip.querySelector('.hit-label')!.textContent!;
     expect(shown.length).toBeLessThanOrEqual(NAME_MAX);
@@ -101,9 +101,9 @@ describe('long names are shortened the same way everywhere', () => {
 
   it("a loop in Loops' menu: one line, shortened, the whole name over it", async () => {
     await setup(longNames().project, { view: 'loops' });
-    const menu = within(screen.getByRole('complementary', { name: 'Loops' }));
+    const menu = within(screen.getByRole('region', { name: 'Loops' }));
     const item = menu.getByTitle(LOOP);
-    expect(item.classList.contains('loop-item')).toBe(true);
-    expect(item.querySelector('.loop-name')!.textContent).toBe(middleEllipsis(LOOP));
+    expect(item.classList.contains('loop-name')).toBe(true);
+    expect(item.textContent).toBe(middleEllipsis(LOOP));
   });
 });

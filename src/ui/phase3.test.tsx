@@ -59,12 +59,12 @@ function build(...commands: Command[]): Project {
   }, createProject());
 }
 
-/** The app on `view`, with the matrix named `focus` (else the first) in focus in Pads, taking from those named `takeFrom`. */
-async function setup(project: Project, view: View, focus?: string, takeFrom: readonly string[] = []): Promise<Store> {
+/** The app on `view`, with the matrix named `focus` (else the first) pinned in Matrices, and those named `pins` pinned in Loops. */
+async function setup(project: Project, view: View, focus?: string, pins: readonly string[] = []): Promise<Store> {
   const matrices = Object.values(project.matrices);
   const focused = (focus === undefined ? matrices[0] : matrices.find((m) => m.name === focus))?.id ?? null;
-  const taken = takeFrom.map((name) => matrices.find((m) => m.name === name)!.id);
-  const store = createStore({ ...initialState(project), view, focus: { matrix: focused, takeFrom: taken } });
+  const pinned = pins.map((name) => matrices.find((m) => m.name === name)!.id);
+  const store = createStore({ ...initialState(project), view, focus: { matrix: focused, loopPins: pinned } });
   render(<App store={store} services={fakeServices()} />);
   await act(async () => {});
   return store;
@@ -91,6 +91,7 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
     // Loops: a new main with the pad on two steps.
     fireEvent.keyDown(window, { key: '3' });
     fireEvent.click(button('+ New loop'));
+    fireEvent.click(button(`Pin ${matrix.name}`));
     fireEvent.click(button(`Pad ${pad.name}`));
     fireEvent.click(button(/^Bar 1, step 5:/));
     fireEvent.click(button(/^Bar 1, step 13:/));
@@ -296,7 +297,7 @@ describe('Loops', () => {
     expect(present(store).loops[loop.id]!.steps[0]!.padId).toBeNull();
   });
 
-  it('Shift-click selects a block of steps; a drag moves it, Alt copies it, Delete empties it', async () => {
+  it('Shift-click selects a block of steps; a drag moves it, also with Alt, and Delete empties it', async () => {
     const { project: withPad, pad } = twoHitPad(createLoop(null, 'main', 1));
     const loop = Object.values(withPad.loops)[0]!;
     const store = await setup(applyAll(withPad, setStep(loop.id, 5, { padId: pad.id }), setStep(loop.id, 7, { padId: pad.id })), 'loops');
@@ -314,20 +315,22 @@ describe('Loops', () => {
       fireEvent(stepButton(to), drop);
     };
 
+    // Each pad is one tile over its own two steps (6–7, 8–9).
     fireEvent.click(stepButton(6));
     fireEvent.click(stepButton(8), { shiftKey: true });
-    expect([6, 7, 8].every((n) => stepButton(n).className.includes('selected'))).toBe(true);
+    expect([6, 8].every((n) => stepButton(n).className.includes('selected'))).toBe(true);
 
-    // Grabbed at step 7, dropped on step 11: the block 6–8 lands on 10–12.
-    drag(7, 11);
+    // Grabbed at step 8, dropped on step 12: the block 6–8 lands on 10–12.
+    drag(8, 12);
     expect(filled()).toEqual([10, 12]);
-    expect([10, 11, 12].every((n) => stepButton(n).className.includes('selected'))).toBe(true);
+    expect([10, 12].every((n) => stepButton(n).className.includes('selected'))).toBe(true);
 
+    // Alt copies no more: a drag always moves (Magnus beslut).
     drag(10, 2, true);
-    expect(filled()).toEqual([2, 4, 10, 12]);
+    expect(filled()).toEqual([2, 4]);
 
-    fireEvent.keyDown(stepButton(3), { key: 'Delete' });
-    expect(filled()).toEqual([10, 12]);
+    fireEvent.keyDown(stepButton(2), { key: 'Delete' });
+    expect(filled()).toEqual([]);
   });
 
   it('the length is set in bars, beats and 1/16, saved on leaving the fields, and keeps the steps on the way', async () => {

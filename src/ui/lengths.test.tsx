@@ -68,12 +68,12 @@ async function setup(project: Project, view: View) {
 const boxes = (row: Element) => [...row.querySelectorAll<HTMLElement>('.hold')].map((b) => b.style.gridColumn);
 
 describe('hit lengths', () => {
-  it('Loops boxes each slice of the laid out matrix up to the next: 2, 2 and 12 steps', async () => {
+  it('Loops shows each slice of the laid out matrix as one tile over its own steps: 2, 2 and 12 (Magnus beslut)', async () => {
     await setup(split(), 'loops');
     const steps = screen.getAllByRole('button', { name: /^Bar 1, step \d+:/ });
-    expect(steps).toHaveLength(16);
     // Column 1 is the row's T1 label, so step 1 is column 2.
-    expect(boxes(steps[0]!.parentElement!)).toEqual(['2 / span 2', '4 / span 2', '6 / span 12']);
+    expect(steps.map((s) => s.style.gridColumn)).toEqual(['2 / span 2', '4 / span 2', '6 / span 12']);
+    expect(steps[0]!.parentElement!.querySelectorAll('.hold-tail')).toHaveLength(0);
   });
 
   it('Slice boxes each slice up to the next on the 1/16 grid', async () => {

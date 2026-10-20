@@ -3202,3 +3202,93 @@ button.danger:hover:not(:disabled) {
 .pad-tile .pad-head {
   cursor: grab;
 }
+
+/* Loops (Magnus beslut): the loops and the matrices to pin in a list, the loop's box, shelf and step on the right. */
+.loops-list .list-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.loops-list .sample-pick {
+  gap: 6px;
+  min-height: 34px;
+  padding-left: 8px;
+}
+
+.loops-list .loop-row .sample-pick {
+  cursor: grab;
+}
+
+.loops-list .grip {
+  color: var(--faint);
+}
+
+/* A dragged loop goes before the row it is dropped on, or last in the group it is dropped on. */
+.loops-list .loop-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.loops-list .file-row.drop-last {
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+  border-radius: 6px;
+}
+
+.loops-list .matrix-pin-row .pin {
+  flex: none;
+  color: var(--faint);
+}
+
+.loops-list .matrix-pin-row .pin.pinned {
+  color: var(--accent);
+}
+
+.loop-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Yellow frames what is selected, and only that (Magnus beslut): the loop's box, or a step. */
+.loop-box.current {
+  border-color: var(--accent);
+}
+
+.loops-view .step.selected {
+  outline-color: var(--accent);
+}
+
+/* A pad over its own steps: one tile, its label at the start. */
+.loops-view .step.wide {
+  align-items: stretch;
+  padding: 0 6px;
+}
+
+.loops-view .step-wave {
+  display: block;
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.loops-view .step-wave .waveform {
+  width: 100%;
+  display: block;
+}
+
+/* Where a hit holds on past its own pad's steps, to the next hit. */
+.hold-tail {
+  align-self: end;
+  height: 6px;
+  margin-bottom: 8px;
+  border-radius: 3px;
+  background: var(--hold);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.member-choice {
+  flex-wrap: wrap;
+}

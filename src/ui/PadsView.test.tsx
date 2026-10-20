@@ -87,7 +87,7 @@ const settle = () =>
 async function setup(project: Project, shown: string | null, patch: Partial<AppState> = {}, rng?: () => () => number) {
   const fake = services();
   if (rng !== undefined) Object.assign(fake.services, { rng });
-  const store: Store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: null, takeFrom: [], shown }, ...patch });
+  const store: Store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: null, loopPins: [], shown }, ...patch });
   render(<App store={store} services={fake.services} />);
   await settle();
   return { store, ...fake };
@@ -702,18 +702,14 @@ describe('Matrices: the pin (Magnus beslut)', () => {
     expect(store.getState().selection.pad).toBe(m.pads[3]);
   });
 
-  it('the pin is the matrix in focus in Loops, and is not undone', async () => {
+  it('the Matrices pin is apart from the pins in Loops, and is not undone (Magnus beslut)', async () => {
     const p = amenAndSnares();
     const snaresId = matrixNamed(p, 'Snares').id;
     const { store } = await setup(p, matrixNamed(p, 'amen 1').id);
     fireEvent.click(within(list()).getByRole('button', { name: 'Pin Snares' }));
-    act(() => void store.dispatch({ type: 'view', view: 'loops' }));
-    await settle();
-    expect((screen.getByRole('combobox', { name: 'Matrix in focus' }) as HTMLSelectElement).value).toBe(snaresId);
-    fireEvent.change(screen.getByRole('combobox', { name: 'Matrix in focus' }), { target: { value: matrixNamed(p, 'amen 1').id } });
-    act(() => void store.dispatch({ type: 'view', view: 'pads' }));
-    await settle();
-    expect(within(list()).getByRole('button', { name: 'Unpin amen 1' })).toBeTruthy();
+    expect(store.getState().focus).toMatchObject({ matrix: snaresId, loopPins: [] });
+    act(() => void store.dispatch({ type: 'loopPin', matrix: matrixNamed(p, 'amen 1').id, on: true }));
+    expect(store.getState().focus.matrix).toBe(snaresId);
     expect(store.getState().history.past).toHaveLength(0);
   });
 });
