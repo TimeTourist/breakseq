@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import type { Folder, SnapshotInfo } from '../engine';
-import { comparable, listSnapshots, saveSnapshot, writeManifest } from '../engine';
+import { comparable, listSnapshots, loadSnapshot, saveSnapshot, writeManifest } from '../engine';
 import { useApp, useSelect } from './context';
 import type { ProjectFolderState } from './store';
 
 /**
- * The project folder's snapshots and the two things done to them from the
- * header: Save over the active one, and keep the work as a New snapshot. Used
- * by the header and by Project, so both always show the same.
+ * The project folder's snapshots and what is done to them from the header:
+ * Load the active one as last saved, Save over it, and keep the work as a New
+ * snapshot. Used by the header and by Project, so both always show the same.
  */
 export function useSnapshots() {
   const { store } = useApp();
@@ -39,5 +39,15 @@ export function useSnapshots() {
     return info;
   };
 
-  return { folder, active, changed, snapshots, setFolder, refresh, save, newSnapshot };
+  /** Loads a snapshot as it was saved, which becomes the active one; a load starts a new undo history. */
+  const load = async (info: SnapshotInfo) => {
+    if (folder === null) return;
+    const project = await loadSnapshot(folder, info.file);
+    store.dispatch({ type: 'load', project });
+    await writeManifest(folder, info.file);
+    setFolder({ active: info, saved: comparable(project) });
+    await refresh(folder);
+  };
+
+  return { folder, active, changed, snapshots, setFolder, refresh, save, newSnapshot, load };
 }

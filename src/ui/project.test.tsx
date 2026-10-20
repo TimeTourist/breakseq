@@ -69,6 +69,14 @@ const click = async (name: string | RegExp) => {
     fireEvent.click(screen.getByRole('button', { name }));
   });
 };
+/** Answers Are you sure?, which every Load asks with unsaved changes (Magnus beslut). */
+const sure = async (label: 'Yes, load' | 'Cancel') => {
+  const dialog = screen.getByRole('alertdialog', { name: 'Are you sure?' });
+  expect(dialog.textContent).toContain('Changes since last save are lost.');
+  await act(async () => {
+    fireEvent.click(within(dialog).getByRole('button', { name: label }));
+  });
+};
 const answer = async (label: string) => {
   await act(async () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: label }));
@@ -112,7 +120,7 @@ describe('Project', () => {
     expect((await listSnapshots(folder)).map((s) => s.name)).toEqual(['Start']);
   });
 
-  it('a new snapshot becomes active and leaves the old one; loading the old one asks first, and Discard brings it back with a fresh undo', async () => {
+  it('a new snapshot becomes active and leaves the old one; loading the old one asks Are you sure?, and Yes brings it back with a fresh undo', async () => {
     const folder = memoryFolder('Amen');
     const store = await setup(build(createLoop('basic', 'main', 1)), [folder]);
     await click('New');
@@ -135,8 +143,7 @@ describe('Project', () => {
       store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Unsaved') });
     });
     await click('Load Start');
-    expect(screen.getByRole('dialog').textContent).toContain('not in “Hek-tick Amen groove”');
-    await answer('Discard changes');
+    await sure('Yes, load');
 
     expect(loopName(store)).toBe('basic');
     expect(store.getState().history.past).toHaveLength(0);
@@ -146,7 +153,7 @@ describe('Project', () => {
     expect(new TextDecoder().decode((await folder.read(hek.file))!)).not.toContain('Unsaved');
   });
 
-  it('Load on the active snapshot goes back to it as saved, asking first without Save first', async () => {
+  it('Load on the active snapshot, on Project or in the header, goes back to it as saved after Are you sure?', async () => {
     const folder = memoryFolder('Amen');
     const store = await setup(build(createLoop('basic', 'main', 1)), [folder]);
     await click('New');
@@ -155,31 +162,40 @@ describe('Project', () => {
       store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Unsaved') });
     });
     await click('Load Start');
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.textContent).toContain('not in “Start”');
-    expect(within(dialog).queryByRole('button', { name: 'Save first' })).toBeNull();
-    await answer('Discard changes');
+    await sure('Yes, load');
     expect(loopName(store)).toBe('basic');
     expect(store.getState().history.past).toHaveLength(0);
+    // The header's Load: off with nothing changed, as Save is.
+    const headerLoad = () => screen.getByRole('button', { name: 'Load' });
+    expect(headerLoad()).toHaveProperty('disabled', true);
+    expect(headerLoad().title).toBe('Load the active snapshot as last saved');
+    await act(async () => {
+      store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Again') });
+    });
+    expect(headerLoad()).toHaveProperty('disabled', false);
+    await click('Load');
+    await sure('Cancel');
+    expect(loopName(store)).toBe('Again');
+    await click('Load');
+    await sure('Yes, load');
+    expect(loopName(store)).toBe('basic');
+    expect(headerLoad()).toHaveProperty('disabled', true);
   });
 
-  it('Save first, then load: the changes go into the active snapshot before the other one loads', async () => {
+  it('with no unsaved changes a snapshot loads straight away, without asking', async () => {
     const folder = memoryFolder('Amen');
     const store = await setup(build(createLoop('basic', 'main', 1)), [folder]);
     await click('New');
     await answer('Keep the current work');
-    // New snapshot in the header asks for a name.
-    await click('New snapshot');
-    fireEvent.change(screen.getByRole('textbox', { name: 'New snapshot name' }), { target: { value: 'Second' } });
-    await click('Keep');
     await act(async () => {
       store.dispatch({ type: 'run', command: renameLoop(Object.keys(present(store).loops)[0]!, 'Kept') });
     });
+    await click('New snapshot');
+    fireEvent.change(screen.getByRole('textbox', { name: 'New snapshot name' }), { target: { value: 'Second' } });
+    await click('Keep');
     await click('Load Start');
-    await answer('Save first');
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(loopName(store)).toBe('basic');
-    const second = (await listSnapshots(folder)).find((s) => s.name === 'Second')!;
-    expect(new TextDecoder().decode((await folder.read(second.file))!)).toContain('Kept');
   });
 
   it('Open loads the active snapshot of a folder that has a project', async () => {
