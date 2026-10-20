@@ -64,3 +64,13 @@ export function MatrixKindIcon({ kind }: { readonly kind: 'break' | 'one-shot' }
     </span>
   );
 }
+
+/** Pin a matrix in Matrices: a thumbtack. */
+export function PinIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2h4l-.5 4 2.5 2.5H4L6.5 6z" />
+      <path d="M8 8.5V14" />
+    </svg>
+  );
+}

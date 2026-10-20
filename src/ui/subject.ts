@@ -6,6 +6,7 @@ import { currentModId, previewLoopId } from './ModsView';
 import { selectedTrim } from './SamplesView';
 import type { Preview } from './services';
 import type { AppState } from './store';
+import { matrixInView } from './store';
 
 /**
  * What Play plays in a view: what the view shows. `key` names it, so a new
@@ -40,7 +41,7 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
     }
     case 'pads': {
       // Always the matrix shown, in a loop, whatever is selected (Magnus beslut): a click plays a pad or a hit.
-      const matrixId = state.focus.matrix;
+      const matrixId = matrixInView(state.focus);
       if (matrixId === null || project.matrices[matrixId] === undefined) return null;
       return song(`matrix:${matrixId}`, matrixSongLooped(project, matrixId));
     }

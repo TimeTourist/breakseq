@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMatrix, createProject, remove } from '../model';
-import { createStore, initialState } from './store';
+import { createStore, initialState, matrixInView } from './store';
 
 /** A store whose project has two matrices; returns their ids. */
 function twoMatrices() {
@@ -45,7 +45,7 @@ describe('focus', () => {
     const { store, a } = twoMatrices();
     store.dispatch({ type: 'focus', matrix: a });
     store.dispatch({ type: 'load', project: createProject() });
-    expect(store.getState().focus).toEqual({ matrix: null, takeFrom: [] });
+    expect(store.getState().focus).toEqual({ matrix: null, takeFrom: [], shown: null });
   });
 });
 
@@ -74,5 +74,19 @@ describe('take from', () => {
     store.dispatch({ type: 'focus', matrix: a });
     store.dispatch({ type: 'takeFrom', matrix: a, on: true });
     expect(store.getState().history).toBe(before);
+  });
+});
+
+describe('the pin and the matrix shown (Magnus beslut)', () => {
+  it('shows a matrix; a pin keeps the view and moves when a link shows another; unpinned, the view stays', () => {
+    const { store, a, b } = twoMatrices();
+    store.dispatch({ type: 'show', matrix: a });
+    expect(store.getState().focus).toMatchObject({ matrix: null, shown: a });
+    store.dispatch({ type: 'focus', matrix: b });
+    expect(matrixInView(store.getState().focus)).toBe(b);
+    store.dispatch({ type: 'show', matrix: a });
+    expect(store.getState().focus).toMatchObject({ matrix: a, shown: a });
+    store.dispatch({ type: 'focus', matrix: null });
+    expect(store.getState().focus).toMatchObject({ matrix: null, shown: a });
   });
 });

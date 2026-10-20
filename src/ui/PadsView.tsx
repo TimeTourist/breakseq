@@ -13,6 +13,7 @@ import { MatrixList } from './MatrixList';
 import type { DropTarget, Dragged, PadsOpen, Placing, Zoom } from './pads';
 import { ZOOMS, autoscrollStep, dropCommand, padsOpen, stepSelection } from './pads';
 import { RenameInPlace } from './RenameInPlace';
+import { matrixInView } from './store';
 
 const ZOOM_LABEL: Record<Zoom, string> = { fit: 'Fit', '1 bar': '1 bar' };
 
@@ -20,8 +21,8 @@ const ZOOM_LABEL: Record<Zoom, string> = { fit: 'Fit', '1 bar': '1 bar' };
  * Matrices (Magnus beslut): the matrices as a tree on the left, as Samples
  * lists its files, and on the right the matrix shown, its pads as a grid that
  * wraps downward, and the controls for what is selected under it: a hit, a
- * pad or the matrix. The matrix shown is the one whose row, pad or hit was
- * clicked last; it is the store's focus, which Play and the link row follow.
+ * pad or the matrix. The matrix shown is the pinned one, else the one whose
+ * row, pad or hit was clicked last; Play and the link row follow it.
  */
 export function PadsView({ transport }: { readonly transport: PadsPlay }) {
   const project = useProject();
@@ -31,11 +32,12 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<Zoom>('fit');
   const first = Object.keys(project.matrices)[0] ?? null;
+  const inView = matrixInView(focus);
   // With none shown yet (or the one shown gone), the first matrix is. (Claudes val.)
   useEffect(() => {
-    if (focus.matrix === null && first !== null) store.dispatch({ type: 'focus', matrix: first });
-  }, [focus.matrix, first, store]);
-  const open = padsOpen(project, focus.matrix ?? first, selection);
+    if (inView === null && first !== null) store.dispatch({ type: 'show', matrix: first });
+  }, [inView, first, store]);
+  const open = padsOpen(project, inView ?? first, selection);
   const show = useShow();
   const placing = usePlacing(setError);
   const playPad = usePlayPad();
@@ -65,7 +67,7 @@ export function PadsView({ transport }: { readonly transport: PadsPlay }) {
         </p>
       )}
       <div className="samples-layout">
-        <MatrixList open={open} placing={placing} show={show} onPlayPad={playPad} onError={setError} />
+        <MatrixList open={open} pinned={focus.matrix} placing={placing} show={show} onPlayPad={playPad} onError={setError} />
         {open !== null && (
           <div className="matrix-side stack">
             <MatrixBox
@@ -93,7 +95,7 @@ function useShow() {
   const select = useOpen();
   return useCallback(
     (matrixId: Id, pad: Id | null, hit: Id | null) => {
-      store.dispatch({ type: 'focus', matrix: matrixId });
+      store.dispatch({ type: 'show', matrix: matrixId });
       select({ matrix: matrixId, pad, hit }, 'pads');
     },
     [store, select],
@@ -267,7 +269,8 @@ function MatrixBox({ matrix, open, zoom, onZoom, playedSeconds, placing, onPlayP
           title="A copy of the whole matrix, with its own pads and hits, to change apart from this one"
           onClick={() =>
             adding(cloneMatrix(matrix.id), 'matrices', (id) => {
-              store.dispatch({ type: 'focus', matrix: id });
+              // The copy shows; a pin moves to it. (Claudes val.)
+              store.dispatch({ type: 'show', matrix: id });
               select({ matrix: id, pad: null, hit: null }, 'pads');
             })
           }

@@ -38,15 +38,24 @@ export interface ProjectFolderState {
 }
 
 /**
- * The matrix Matrices shows (the one whose row, pad or hit was clicked last
- * in its list), which Play and the link row follow there; and in Loops the
- * matrix in focus and those taken from for its pad shelf. View state: not in
- * the undo history and not in the project file.
+ * Which matrix Matrices shows, and Loops' shelf. View state: not in the undo
+ * history and not in the project file (Magnus beslut).
  */
 export interface Focus {
+  /**
+   * The pinned matrix (Magnus beslut): while there is one Matrices always
+   * shows it, and a click on another matrix's pad or hit only plays it. It is
+   * the matrix in focus in Loops, whose shelf it fills.
+   */
   readonly matrix: Id | null;
+  /** The matrices taken from in Loops. */
   readonly takeFrom: readonly Id[];
+  /** The matrix Matrices shows while none is pinned: the one whose row, pad or hit was clicked last. Missing is none. */
+  readonly shown?: Id | null;
 }
+
+/** The matrix Matrices shows: the pinned one, else the one clicked last. */
+export const matrixInView = (focus: Focus): Id | null => focus.matrix ?? focus.shown ?? null;
 
 /**
  * The matrices taken from, as shown and used: the matrix in focus is not one,
@@ -87,8 +96,10 @@ export type Action =
   | { readonly type: 'select'; readonly selection: Partial<Selection>; readonly view?: View }
   | { readonly type: 'undo' }
   | { readonly type: 'redo' }
-  /** Sets the focus matrix, or clears it with null. */
+  /** Pins a matrix (the focus in Loops), or unpins with null; Matrices goes on showing what it showed. */
   | { readonly type: 'focus'; readonly matrix: Id | null }
+  /** Shows a matrix in Matrices, as a link or a click on it does; a pin, if any, moves to it. */
+  | { readonly type: 'show'; readonly matrix: Id }
   /** Adds a matrix to the ones taken from, or removes it. */
   | { readonly type: 'takeFrom'; readonly matrix: Id; readonly on: boolean }
   | { readonly type: 'view'; readonly view: View }
@@ -118,8 +129,9 @@ export const initialState = (project: Project = createProject()): AppState => ({
 /** The focus with matrices that are no longer in the project left out: a removed or undone matrix is no focus. */
 const settleFocus = (focus: Focus, project: Project): Focus => {
   const matrix = focus.matrix !== null && project.matrices[focus.matrix] !== undefined ? focus.matrix : null;
+  const shown = (focus.shown ?? null) !== null && project.matrices[focus.shown!] !== undefined ? focus.shown! : null;
   const takeFrom = focus.takeFrom.filter((id) => project.matrices[id] !== undefined);
-  return matrix === focus.matrix && takeFrom.length === focus.takeFrom.length ? focus : { matrix, takeFrom };
+  return matrix === focus.matrix && shown === (focus.shown ?? null) && takeFrom.length === focus.takeFrom.length ? focus : { matrix, takeFrom, shown };
 };
 
 /** The state with a new history, its focus settled on the project the history now shows. */
@@ -150,7 +162,10 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'redo':
       return { state: withHistory(state, redo(state.history)), error: null };
     case 'focus':
-      return { state: { ...state, focus: { ...state.focus, matrix: action.matrix } }, error: null };
+      // Unpinned, Matrices goes on showing the matrix it showed.
+      return { state: { ...state, focus: { ...state.focus, matrix: action.matrix, shown: action.matrix ?? matrixInView(state.focus) } }, error: null };
+    case 'show':
+      return { state: { ...state, focus: { ...state.focus, shown: action.matrix, matrix: state.focus.matrix === null ? null : action.matrix } }, error: null };
     case 'takeFrom': {
       const others = state.focus.takeFrom.filter((id) => id !== action.matrix);
       return { state: { ...state, focus: { ...state.focus, takeFrom: action.on ? [...others, action.matrix] : others } }, error: null };

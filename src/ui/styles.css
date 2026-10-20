@@ -2940,7 +2940,22 @@ button.danger:hover:not(:disabled) {
 }
 
 .matrix-pick.shown .file-name {
+  font-weight: 600;
+}
+
+/* The pin: always there, grey, and yellow when pinned. */
+.matrix-list .file-row .pin {
+  flex: none;
+  color: var(--faint);
+}
+
+.matrix-list .file-row .pin.pinned {
   color: var(--accent);
+}
+
+/* A pad's ▸/▼ always shows, not only on hover or when selected (Magnus beslut). */
+.matrix-list .sample-row > .icon-button {
+  opacity: 1;
 }
 
 .matrix-list .pad-group {
@@ -3016,6 +3031,11 @@ button.danger:hover:not(:disabled) {
   gap: 4px 10px;
 }
 
+.matrix-box.current {
+  /* Yellow frames what is selected, and only that (Magnus beslut): here the matrix. */
+  border-color: var(--accent);
+}
+
 .matrix-box {
   display: flex;
   flex-direction: column;
@@ -3088,6 +3108,17 @@ button.danger:hover:not(:disabled) {
 .hit-wave .waveform {
   width: 100%;
   display: block;
+}
+
+.pad-tile .hit-chip.replaced {
+  /* Its label says it (04→02); yellow is for what is selected. */
+  color: var(--text);
+  background: var(--sunken);
+}
+
+.pad-tile .hit-chip.replaced[aria-current='true'] {
+  color: var(--accent);
+  background: var(--accent-bg);
 }
 
 .pad-tile .hit-line {

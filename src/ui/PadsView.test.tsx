@@ -83,11 +83,11 @@ const settle = () =>
     await new Promise((r) => setTimeout(r, 350));
   });
 
-/** Matrices with `shown` shown (the store's focus). */
+/** Matrices with `shown` shown and nothing pinned. */
 async function setup(project: Project, shown: string | null, patch: Partial<AppState> = {}, rng?: () => () => number) {
   const fake = services();
   if (rng !== undefined) Object.assign(fake.services, { rng });
-  const store: Store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: shown, takeFrom: [] }, ...patch });
+  const store: Store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: null, takeFrom: [], shown }, ...patch });
   render(<App store={store} services={fake.services} />);
   await settle();
   return { store, ...fake };
@@ -173,7 +173,7 @@ describe('Matrices: the list (Magnus beslut)', () => {
     const snares = matrixNamed(p, 'Snares');
     const { store } = await setup(p, matrixNamed(p, 'amen 1').id);
     fireEvent.click(within(list()).getByRole('button', { name: 'Matrix Snares' }));
-    expect(store.getState().focus.matrix).toBe(snares.id);
+    expect(store.getState().focus.shown).toBe(snares.id);
     expect(screen.getByRole('region', { name: 'Matrix controls' })).toBeTruthy();
     expect(tiles()).toHaveLength(1);
     // It unfolds too.
@@ -187,7 +187,7 @@ describe('Matrices: the list (Magnus beslut)', () => {
     const { store, player } = await setup(p, matrixNamed(p, 'amen 1').id);
     fireEvent.click(within(list()).getByRole('button', { name: 'Show the pads of Snares' }));
     fireEvent.click(within(list()).getByRole('button', { name: 'Pad Snares 01' }));
-    expect(store.getState().focus.matrix).toBe(snares.id);
+    expect(store.getState().focus.shown).toBe(snares.id);
     expect(store.getState().selection).toMatchObject({ pad: snarePad.id, hit: null });
     expect(player.playHit).toHaveBeenLastCalledWith(expect.anything(), snarePad.members[0]);
     fireEvent.click(within(list()).getByRole('button', { name: 'Show the hits of Snares 01' }));
@@ -291,7 +291,7 @@ describe('Matrices: the matrix box', () => {
     expect(store.getState().selection.pad).toBe(added);
     fireEvent.click(screen.getByRole('button', { name: 'Clone' }));
     const clone = matrixNamed(present(store), 'amen 1 copy');
-    expect(store.getState().focus.matrix).toBe(clone.id);
+    expect(store.getState().focus.shown).toBe(clone.id);
     expect(within(list()).getByRole('button', { name: 'Matrix amen 1 copy' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Delete matrix amen 1 copy' }));
     fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Delete amen 1 copy?' })).getByRole('button', { name: 'Delete' }));
@@ -595,7 +595,97 @@ describe('Matrices: no matrices', () => {
   it('with none shown, the first matrix is', async () => {
     const p = amenAndSnares();
     const { store } = await setup(p, null);
-    expect(store.getState().focus.matrix).toBe(matrixNamed(p, 'amen 1').id);
+    expect(store.getState().focus.shown).toBe(matrixNamed(p, 'amen 1').id);
     expect(tiles()).toHaveLength(4);
   });
 });
+
+describe('Matrices: the pin (Magnus beslut)', () => {
+  it('every matrix row has a pin; one at a time: another moves it, the pinned one unpins', async () => {
+    const p = amenAndSnares();
+    const amenId = matrixNamed(p, 'amen 1').id;
+    const snaresId = matrixNamed(p, 'Snares').id;
+    const { store } = await setup(p, amenId);
+    expect(within(list()).getAllByRole('button', { name: /^Pin / })).toHaveLength(Object.keys(p.matrices).length);
+    expect(within(list()).getByRole('button', { name: 'Pin amen 1' }).title).toBe('Pin: keep this matrix in view; clicks elsewhere only play');
+    fireEvent.click(within(list()).getByRole('button', { name: 'Pin amen 1' }));
+    expect(store.getState().focus.matrix).toBe(amenId);
+    expect(within(list()).getByRole('button', { name: 'Unpin amen 1' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(within(list()).getByRole('button', { name: 'Pin Snares' }));
+    expect(store.getState().focus.matrix).toBe(snaresId);
+    expect(tiles()).toHaveLength(1);
+    expect(within(list()).getByRole('button', { name: 'Pin amen 1' }).getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(within(list()).getByRole('button', { name: 'Unpin Snares' }));
+    expect(store.getState().focus.matrix).toBeNull();
+    // Unpinned, the view stays where it was.
+    expect(tiles()).toHaveLength(1);
+  });
+
+  it('pinned, a click on another matrix’s pad or hit only plays it, and its row only folds; dragging from it still copies', async () => {
+    const p = amenAndSnares();
+    const m = matrixNamed(p, 'amen 1');
+    const snarePad = p.pads[matrixNamed(p, 'Snares').pads[0]!]!;
+    const { store, player } = await setup(p, m.id, { selection: { ...initialState(p).selection, pad: m.pads[1]!, hit: null } });
+    fireEvent.click(within(list()).getByRole('button', { name: 'Pin amen 1' }));
+    fireEvent.click(within(list()).getByRole('button', { name: 'Show the pads of Snares' }));
+    fireEvent.click(within(list()).getByRole('button', { name: 'Pad Snares 01' }));
+    expect(player.playHit).toHaveBeenLastCalledWith(expect.anything(), snarePad.members[0]);
+    expect(matrixShown(store)).toBe(m.id);
+    expect(store.getState().selection.pad).toBe(m.pads[1]);
+    fireEvent.click(within(list()).getByRole('button', { name: 'Show the hits of Snares 01' }));
+    fireEvent.click(within(list()).getByRole('button', { name: /^Hit 2 / }));
+    expect(player.playHit).toHaveBeenLastCalledWith(expect.anything(), snarePad.members[1]);
+    expect(store.getState().selection.pad).toBe(m.pads[1]);
+    fireEvent.click(within(list()).getByRole('button', { name: 'Matrix Snares' }));
+    expect(matrixShown(store)).toBe(m.id);
+    expect(within(list()).queryByRole('button', { name: 'Pad Snares 01' })).toBeNull();
+    fireEvent.click(within(list()).getByRole('button', { name: 'Show the pads of Snares' }));
+    drag(within(list()).getByRole('button', { name: 'Pad Snares 01' }), tiles()[2]!);
+    expect(present(store).pads[m.pads[2]!]!.members).toHaveLength(3);
+    // Its own pads select as before.
+    fireEvent.click(within(list()).getByRole('button', { name: 'Pad amen 1 04' }));
+    expect(store.getState().selection.pad).toBe(m.pads[3]);
+  });
+
+  it('the pin is the matrix in focus in Loops, and is not undone', async () => {
+    const p = amenAndSnares();
+    const snaresId = matrixNamed(p, 'Snares').id;
+    const { store } = await setup(p, matrixNamed(p, 'amen 1').id);
+    fireEvent.click(within(list()).getByRole('button', { name: 'Pin Snares' }));
+    act(() => void store.dispatch({ type: 'view', view: 'loops' }));
+    await settle();
+    expect((screen.getByRole('combobox', { name: 'Matrix in focus' }) as HTMLSelectElement).value).toBe(snaresId);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Matrix in focus' }), { target: { value: matrixNamed(p, 'amen 1').id } });
+    act(() => void store.dispatch({ type: 'view', view: 'pads' }));
+    await settle();
+    expect(within(list()).getByRole('button', { name: 'Unpin amen 1' })).toBeTruthy();
+    expect(store.getState().history.past).toHaveLength(0);
+  });
+});
+
+describe('Matrices: yellow frames what is selected, and only that (Magnus beslut)', () => {
+  const framed = () => Array.from(document.querySelectorAll('.pad-tile.current, .matrix-box.current, .hit-chip[aria-current="true"]')).map((e) => e.className.split(' ')[0]);
+
+  it('a hit: only its chip; a pad: only its tile; the matrix: only the box', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    const { store } = await setup(p, m.id);
+    expect(framed()).toEqual(['panel']);
+    act(() => void store.dispatch({ type: 'select', selection: { pad: m.pads[1]!, hit: null } }));
+    expect(framed()).toEqual(['pad-tile']);
+    act(() => void store.dispatch({ type: 'select', selection: { pad: m.pads[1]!, hit: p.pads[m.pads[1]!]!.members[1]! } }));
+    expect(framed()).toEqual(['hit-chip']);
+  });
+
+  it('the hit’s region is set on a slim waveform, as Trim’s overview', async () => {
+    const p = amen();
+    const m = matrixNamed(p, 'amen 1');
+    await setup(p, m.id, { selection: { ...initialState(p).selection, pad: m.pads[1]!, hit: p.pads[m.pads[1]!]!.members[0]! } });
+    const panel = screen.getByRole('region', { name: 'Hit controls' });
+    const wave = panel.querySelector<HTMLElement>('.trim-wave.overview')!;
+    expect(wave).toBeTruthy();
+    expect(within(wave).getByRole('button', { name: /^Start at/ })).toBeTruthy();
+  });
+});
+
+const matrixShown = (store: Store) => store.getState().focus.matrix ?? store.getState().focus.shown;

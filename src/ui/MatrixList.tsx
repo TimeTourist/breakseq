@@ -4,7 +4,7 @@ import type { Id, Matrix, Pad } from '../model';
 import { matrixKind, moveMatrix } from '../model';
 import { useApp, useProject, useRun } from './context';
 import { HIT_MIME, PAD_MIME } from './dnd';
-import { FoldAllIcon, FoldIcon, MatrixKindIcon } from './icons';
+import { FoldAllIcon, FoldIcon, MatrixKindIcon, PinIcon } from './icons';
 import { InSongMark, useHeard } from './InSong';
 import { middleEllipsis } from './labels';
 import type { PadsOpen, Placing } from './pads';
@@ -18,6 +18,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 interface MatrixListProps {
   /** What is open: the matrix the view shows, and the pad or hit selected in it. */
   readonly open: PadsOpen | null;
+  /** The pinned matrix, if any. */
+  readonly pinned: Id | null;
   readonly placing: Placing;
   /** Shows a matrix, and selects a pad or a hit of it, or the matrix with neither. */
   readonly show: (matrixId: Id, padId: Id | null, hitId: Id | null) => void;
@@ -28,16 +30,18 @@ interface MatrixListProps {
 
 /**
  * The matrices as a tree, as Samples lists its files (Magnus beslut): a
- * matrix with ▼, its pads under it, and the hits of a pad with more than one
- * under ▸/▼. Unfolding replaces Focus: several can be open, and the view
- * shows the matrix whose row, pad or hit was clicked last. A click on a pad or
- * a hit selects and plays it. Pads and hits are dragged from here onto the
- * grid, always as copies; a matrix's row is dragged to reorder the list.
+ * matrix with a pin and ▼, its pads under it, and the hits of a pad with more
+ * than one under ▸/▼. Several can be open. With no pin the view shows the
+ * matrix whose row, pad or hit was clicked last, and a click on a pad or a hit
+ * selects and plays it; with a matrix pinned the view keeps to it, and a
+ * click on another matrix's pad or hit only plays it, its row only folds. Pads
+ * and hits are dragged from here onto the grid, always as copies; a matrix's
+ * row is dragged to reorder the list.
  */
-export function MatrixList({ open, placing, show, onPlayPad, onError }: MatrixListProps) {
+export function MatrixList({ open, pinned, placing, show, onPlayPad, onError }: MatrixListProps) {
   const project = useProject();
   const run = useRun();
-  const { services } = useApp();
+  const { services, store } = useApp();
   const heard = useHeard();
   const matrices = Object.values(project.matrices);
   const shown = open?.matrix.id ?? null;
@@ -117,12 +121,31 @@ export function MatrixList({ open, placing, show, onPlayPad, onError }: MatrixLi
       {matrices.map((matrix) => {
         const unfoldedNow = isOpen(matrix.id);
         const kind = matrixKind(matrix);
+        // Another matrix is pinned: clicks here only play, and its row only folds. (Claudes val.)
+        const locked = pinned !== null && pinned !== matrix.id;
+        const isPinned = pinned === matrix.id;
         return (
           <div key={matrix.id} className="file-group" role="group" aria-label={matrix.name}>
             <div className={`file-row matrix-tree-row${rowOver === matrix.id ? ' drop-before' : ''}${rowDragged === matrix.id ? ' dragged' : ''}`} title="Drag to reorder" {...reorder(matrix)}>
               <span className="grip" aria-hidden="true">
                 ⋮⋮
               </span>
+              <button
+                type="button"
+                className={`icon-button small pin${isPinned ? ' pinned' : ''}`}
+                aria-pressed={isPinned}
+                aria-label={`${isPinned ? 'Unpin' : 'Pin'} ${matrix.name}`}
+                title={isPinned ? 'Pinned: this matrix stays in view and clicks elsewhere only play. Click to unpin' : 'Pin: keep this matrix in view; clicks elsewhere only play'}
+                onClick={() => {
+                  store.dispatch({ type: 'focus', matrix: isPinned ? null : matrix.id });
+                  if (!isPinned) {
+                    setUnfolded((was) => new Set([...was, matrix.id]));
+                    if (open?.matrix.id !== matrix.id) show(matrix.id, null, null);
+                  }
+                }}
+              >
+                <PinIcon />
+              </button>
               <button
                 type="button"
                 className="icon-button small fold"
@@ -139,6 +162,10 @@ export function MatrixList({ open, placing, show, onPlayPad, onError }: MatrixLi
                 aria-label={`Matrix ${matrix.name}`}
                 title={`${matrix.name}: click for the matrix`}
                 onClick={() => {
+                  if (locked) {
+                    setUnfolded((was) => toggle(was, matrix.id));
+                    return;
+                  }
                   setUnfolded((was) => new Set([...was, matrix.id]));
                   show(matrix.id, null, null);
                 }}
@@ -181,7 +208,7 @@ export function MatrixList({ open, placing, show, onPlayPad, onError }: MatrixLi
                         title="Click to select and hear the pad · drag it onto the grid to copy its hits"
                         {...dragFrom(PAD_MIME, pad.id, { kind: 'pad', padId: pad.id })}
                         onClick={() => {
-                          show(matrix.id, pad.id, null);
+                          if (!locked) show(matrix.id, pad.id, null);
                           onPlayPad(pad);
                         }}
                       >
@@ -205,7 +232,7 @@ export function MatrixList({ open, placing, show, onPlayPad, onError }: MatrixLi
                               title="Click to select and hear the hit · drag it onto the grid to copy it"
                               {...dragFrom(HIT_MIME, hitId, { kind: 'hit', hitId, from: 'list' })}
                               onClick={() => {
-                                show(matrix.id, pad.id, hitId);
+                                if (!locked) show(matrix.id, pad.id, hitId);
                                 services.player.playHit(project, hitId);
                               }}
                             >

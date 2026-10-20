@@ -87,11 +87,11 @@ export function LoopsView({ playhead }: LoopsViewProps) {
   /** Opens a pad in Pads, with the matrix it is a row of in focus. */
   const openPad = (padId: Id) => {
     const matrixId = matrixOfPad(project, padId)?.id ?? null;
-    store.dispatch({ type: 'focus', matrix: matrixId });
+    if (matrixId !== null) store.dispatch({ type: 'show', matrix: matrixId });
     open({ pad: padId, hit: null, matrix: matrixId }, 'pads');
   };
   const openMatrix = (matrixId: Id) => {
-    store.dispatch({ type: 'focus', matrix: matrixId });
+    store.dispatch({ type: 'show', matrix: matrixId });
     open({ matrix: matrixId, pad: null, hit: null }, 'pads');
   };
   const playMatrix = (matrixId: Id) =>

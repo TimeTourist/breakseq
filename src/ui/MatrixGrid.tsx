@@ -116,7 +116,7 @@ export function MatrixGrid({ matrix, open, zoom, playedSeconds, placing, onPlayP
         return (
           <div
             key={pad.id}
-            className={`pad-tile${pad.id === selectedPad ? ' current' : ''}${pad.id === playingPad ? ' playing' : ''}${padSilent(project, pad) ? ' silent' : ''}`}
+            className={`pad-tile${pad.id === selectedPad && selectedHit === null ? ' current' : ''}${pad.id === playingPad ? ' playing' : ''}${padSilent(project, pad) ? ' silent' : ''}`}
             data-pad={pad.id}
             data-drop={dropsHere ? label : undefined}
             {...dropOn((e) => overAt(e, pad.id))}
