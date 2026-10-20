@@ -73,13 +73,17 @@ export function previewPasses(project: Project, steps: readonly Step[]): number 
   return Math.min(most, whole * Math.ceil(random / whole));
 }
 
-/** How long a matrix plays on its own, in steps: whole bars, at least one, as a break always was. */
+/**
+ * How long a matrix plays on its own, in steps: exactly its pads' steps, not
+ * whole bars, so a loop of it goes straight on from its last step (Magnus
+ * beslut). Steps are whole 1/16s; a matrix of only empty pads is one silent
+ * step. (Claudes val.)
+ */
 export function matrixPassSteps(project: Project, matrixId: Id): number {
-  const total = Math.max(0, ...matrixSequence(project, matrixId).map((s) => s.step + s.length));
-  return Math.max(1, Math.ceil(total / STEPS_PER_BAR)) * STEPS_PER_BAR;
+  return Math.max(1, ...matrixSequence(project, matrixId).map((s) => s.step + s.length));
 }
 
-/** The project with a matrix laid out as a loop: each pad on its step, from step 0, in whole bars. */
+/** The project with a matrix laid out as a loop: each pad on its step, from step 0, as long as its steps. */
 function withMatrixLoop(project: Project, matrixId: Id): { project: Project; loop: Loop } {
   const steps = Array.from({ length: matrixPassSteps(project, matrixId) }, () => emptyStep);
   for (const { padId, step } of matrixSequence(project, matrixId)) steps[step] = { ...emptyStep, padId };

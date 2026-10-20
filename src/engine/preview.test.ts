@@ -16,10 +16,11 @@ import {
   createMatrix,
   addPad,
   matrixSteps,
+  addPadWith,
 } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { generateTake } from './generate';
-import { MAX_PREVIEW_STEPS, PAD_ROUNDS, hitRun, loopSongLooped, matrixSong, matrixSongLooped, previewPasses } from './preview';
+import { MAX_PREVIEW_STEPS, PAD_ROUNDS, hitRun, loopSongLooped, matrixPassSteps, matrixSong, matrixSongLooped, previewPasses } from './preview';
 
 const ctx = sequentialIds();
 const run = (project: Project, ...commands: Command[]) =>
@@ -129,10 +130,10 @@ describe('previews', () => {
     expect(generateTake(song, () => 0).triggers.map((t) => t.step)).toEqual([0, 4, 8, 12]);
   });
 
-  it('matrixSong is whole bars: a one-shot is one bar, and a matrix of 20 steps is two', () => {
+  it('matrixSong is exactly as long as the matrix’s steps, not whole bars (Magnus beslut): a one-shot of one step is one step, 20 steps are 20', () => {
     const one = run(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }), setBpm(120));
     const shot = matrixSong(one, Object.values(one.matrices)[0]!.id);
-    expect(shot.song.bars).toBe(1);
+    expect(shot.song.bars * 16).toBe(1);
     expect(generateTake(shot, () => 0).triggers.map((t) => t.step)).toEqual([0]);
 
     // At 120 BPM a step is 0.125 s: a 0.75 s hit takes 6 steps and a 1.75 s hit 14, together 20.
@@ -144,10 +145,31 @@ describe('previews', () => {
     const [first, second] = project.matrices[matrix.id]!.pads;
     project = run(project, copyHits(a!.members, first!), copyHits(b!.members, second!));
     expect(matrixSteps(project, matrix.id)).toBe(20);
+    expect(matrixPassSteps(project, matrix.id)).toBe(20);
 
     const song = matrixSong(project, matrix.id);
-    expect(song.song.bars).toBe(2);
+    expect(song.song.bars * 16).toBe(20);
     expect(generateTake(song, () => 0).triggers.map((t) => t.step)).toEqual([0, 6]);
+  });
+
+  it('looped, the next pass starts right after the matrix’s last step: four slices and two copies of slice 03 are 24 steps, with no silence after', () => {
+    const p0 = split();
+    const m = matrixOf(p0);
+    const slice3 = p0.pads[m.pads[2]!]!.members;
+    // Two new pads with a copy of slice 03 each, round robin on pad 01 so the preview takes passes.
+    const p = run(p0, addPadWith(m.id, slice3), addPadWith(m.id, slice3), copyHits(p0.pads[m.pads[1]!]!.members, m.pads[0]!), setPadChoice(m.pads[0]!, 'roundRobin'));
+    expect(matrixPassSteps(p, m.id)).toBe(24);
+    const song = matrixSongLooped(p, m.id);
+    expect(song.song.bars * 16).toBe(48);
+    const steps = generateTake(song, () => 0).triggers.map((t) => t.bar * 16 + t.step);
+    expect(steps).toEqual([0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44]);
+  });
+
+  it('a matrix of only empty pads plays one silent step (Claudes val)', () => {
+    const p = run(createProject(), createMatrix('Empty'));
+    const m = Object.values(p.matrices)[0]!;
+    expect(matrixPassSteps(p, m.id)).toBe(1);
+    expect(generateTake(matrixSong(p, m.id), () => 0).triggers).toEqual([]);
   });
 
   it('plays a matrix as laid out, so a replaced slice plays what replaced it', () => {
