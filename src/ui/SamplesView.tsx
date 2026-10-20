@@ -6,6 +6,7 @@ import { useApp, useProject, useRun, useSelect } from './context';
 import { DeleteButton } from './DeleteButton';
 import { FoldAllIcon, FoldIcon, NewSampleIcon } from './icons';
 import { SampleEditor } from './SliceEditor';
+import { sampleMatrices, toMatrices } from './crumbs';
 import { middleEllipsis } from './labels';
 
 /** The samples grouped by file, files in import order and each file's samples in number order. */
@@ -95,6 +96,16 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
     if (run(addTrim(of.id)) !== null) return;
     const added = Object.keys(store.getState().history.present.samples).find((id) => !(id in before));
     if (added !== undefined) select(added);
+  };
+
+  /**
+   * A double-click opens the sample's matrix in Matrices, pinned, as a link in
+   * the row under the tabs does (Magnus beslut): its own, else the first that
+   * plays it; with none, nothing. (Claudes val.)
+   */
+  const openMatrix = (sample: Sample) => {
+    const matrix = sampleMatrices(project, sample).matrices[0];
+    if (matrix !== undefined) toMatrices(matrix).forEach((action) => store.dispatch(action));
   };
 
   const playingKey = transport.playingKey;
@@ -201,7 +212,15 @@ export function SamplesView({ transport }: { readonly transport: SamplesTranspor
                     const isSelected = sample.id === selected?.id;
                     return (
                       <div key={sample.id} className={`sample-row${isSelected ? ' selected' : ''}`}>
-                        <button type="button" className="sample-pick" aria-pressed={isSelected} aria-label={`Select ${trimName(sample)}`} onClick={() => select(sample.id)}>
+                        <button
+                          type="button"
+                          className="sample-pick"
+                          aria-pressed={isSelected}
+                          aria-label={`Select ${trimName(sample)}`}
+                          title="Double-click: open its matrix"
+                          onClick={() => select(sample.id)}
+                          onDoubleClick={() => openMatrix(sample)}
+                        >
                           <span className="mono faint">{sample.trim}</span>
                           <span className="grow">{sample.bars === null ? 'one shot' : plural(sample.markers.length, 'slice')}</span>
                           <span className="mono faint small">{sample.bars === null ? `${Math.round(sample.duration * 1000)} ms` : plural(sample.bars, 'bar')}</span>

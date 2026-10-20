@@ -68,7 +68,7 @@ const sampleJump = (sample: Sample): Jump => ({
   ],
 });
 
-const toMatrices = (matrix: Matrix, pad: Id | null = null, hit: Id | null = null): Action[] => [
+export const toMatrices = (matrix: Matrix, pad: Id | null = null, hit: Id | null = null): Action[] => [
   // A matrix reached through the link row is pinned, whatever was pinned before. (Magnus beslut)
   { type: 'focus', matrix: matrix.id },
   { type: 'select', selection: { matrix: matrix.id, pad, hit }, view: 'pads' },
@@ -124,7 +124,7 @@ function loopsWith(project: Project, pads: readonly Id[], first: Id | null = nul
 }
 
 /** The matrices with a hit that plays a sample, its own first, and their pads that hold such a hit. */
-function sampleMatrices(project: Project, sample: Sample): { matrices: Matrix[]; pads: Id[] } {
+export function sampleMatrices(project: Project, sample: Sample): { matrices: Matrix[]; pads: Id[] } {
   const own = ownMatrix(project, sample.id);
   const plays = (padId: Id) => (project.pads[padId]?.members ?? []).some((h) => project.hits[h]?.sampleId === sample.id);
   const all = Object.values(project.matrices).filter((m) => m.id === own?.id || m.pads.some(plays));

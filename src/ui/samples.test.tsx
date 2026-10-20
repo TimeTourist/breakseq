@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioData, Command, Project } from '../model';
-import { addSample, addTrim, copyHits, createMatrix, createProject, ownMatrix, sliceSample } from '../model';
+import { addSample, addTrim, copyHits, createMatrix, createProject, ownMatrix, removeAnyway, sliceSample } from '../model';
 import { encodeWav } from '../engine';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
@@ -123,6 +123,36 @@ describe('Samples: one page (Magnus beslut)', () => {
     expect(matrix.title).toBe('Matrix amen 1 (4 pads), in Matrices');
     fireEvent.click(matrix);
     expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: own.id, shown: own.id } });
+  });
+
+  it('a double-click on a sample row opens its own matrix in Matrices, unfolded and pinned; a click only selects (Magnus beslut)', async () => {
+    const project = build(() => addSample({ name: 'amen.wav', audio: constantAudio(2) }), (p) => sliceSample(first(p).id, 1, 4));
+    const own = ownMatrix(project, first(project).id)!;
+    const store = await setup(project);
+    const row = screen.getByRole('button', { name: 'Select amen sample 1' });
+    expect(row.title).toBe('Double-click: open its matrix');
+    fireEvent.click(row);
+    expect(store.getState().view).toBe('samples');
+    fireEvent.doubleClick(row);
+    expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: own.id, shown: own.id } });
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'Unpin amen 1' })).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Matrices' })).getByRole('button', { name: 'Pad amen 1 01' })).toBeTruthy();
+  });
+
+  it('without a matrix of its own, a double-click opens the first that plays it; with none, nothing (Claudes val)', async () => {
+    const ownOf = (p: Project) => ownMatrix(p, first(p).id)!;
+    const kitOf = (p: Project) => Object.values(p.matrices).find((m) => m.name === 'Kit')!;
+    const snare = () => addSample({ name: 'snare.wav', audio: constantAudio(0.1) });
+    const used = build(snare, () => createMatrix('Kit'), (p) => copyHits(p.pads[ownOf(p).pads[0]!]!.members, kitOf(p).pads[0]!), (p) => removeAnyway('matrix', ownOf(p).id));
+    const kit = kitOf(used);
+    const store = await setup(used);
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Select snare sample 1' }));
+    expect(store.getState()).toMatchObject({ view: 'pads', focus: { matrix: kit.id } });
+    cleanup();
+    const alone = await setup(build(snare, (p) => removeAnyway('matrix', ownOf(p).id)));
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Select snare sample 1' }));
+    expect(alone.getState().view).toBe('samples');
   });
 
   it('a one shot has the row too, with its matrix and no loop; the page has no links to other tabs', async () => {
