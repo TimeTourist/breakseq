@@ -13,18 +13,68 @@ export const CHOKE_FADE = 0.003;
 
 const dbToGain = (db: number) => 10 ** (db / 20);
 
-/** The sample's own audio as a buffer, reversed for 'reverse'. */
-function sampleBuffer(context: BaseAudioContext, sample: Sample, audio: AudioData, direction: Direction): AudioBuffer {
-  // Both ends are rounded, so neighbouring slices share their boundary frame exactly.
-  const from = Math.round(sample.offset * audio.sampleRate);
-  const length = Math.max(1, Math.round((sample.offset + sample.duration) * audio.sampleRate) - from);
-  const buffer = context.createBuffer(audio.channels.length, length, audio.sampleRate);
+/** Numbers for audio objects, so a cache key can tell one file's audio from another's without reading it. */
+const audioNumbers = new WeakMap<AudioData, number>();
+let nextAudioNumber = 1;
+
+/** A number that stands for this audio object: the same object always has the same one. */
+export function audioKey(audio: AudioData): number {
+  let key = audioNumbers.get(audio);
+  if (key === undefined) {
+    key = nextAudioNumber++;
+    audioNumbers.set(audio, key);
+  }
+  return key;
+}
+
+/**
+ * Sample buffers kept between renders, per file's audio: the clean one per
+ * trim, channel and direction, and the distorted ones per dist. They go when the audio goes.
+ */
+const sampleBuffers = new WeakMap<AudioData, Map<string, AudioBuffer>>();
+
+const buffersOf = (raw: AudioData): Map<string, AudioBuffer> => {
+  let buffers = sampleBuffers.get(raw);
+  if (buffers === undefined) {
+    buffers = new Map();
+    sampleBuffers.set(raw, buffers);
+  }
+  return buffers;
+};
+
+/** The frames of a sample within its audio. Both ends are rounded, so neighbouring slices share their boundary frame exactly. */
+function sampleFrames(sample: Sample, sampleRate: number): { readonly from: number; readonly length: number } {
+  const from = Math.round(sample.offset * sampleRate);
+  return { from, length: Math.max(1, Math.round((sample.offset + sample.duration) * sampleRate) - from) };
+}
+
+/** The sample's own audio as a buffer, reversed for 'reverse'; made once and kept. */
+function sampleBuffer(raw: AudioData, sample: Sample, audio: AudioData, direction: Direction): AudioBuffer {
+  const buffers = buffersOf(raw);
+  const key = `${sample.offset}:${sample.duration}:${sample.channel}:${direction}`;
+  const kept = buffers.get(key);
+  if (kept !== undefined) return kept;
+  const { from, length } = sampleFrames(sample, audio.sampleRate);
+  const buffer = new AudioBuffer({ numberOfChannels: Math.max(1, audio.channels.length), length, sampleRate: audio.sampleRate });
   audio.channels.forEach((channel, i) => {
     const data = channel.slice(from, from + length);
     if (direction === 'reverse') data.reverse();
     buffer.copyToChannel(data, i);
   });
+  buffers.set(key, buffer);
   return buffer;
+}
+
+/** A clean sample buffer distorted, made once per dist and kept beside it. */
+function distortedBuffer(raw: AudioData, cleanKey: string, clean: AudioBuffer, dist: NonNullable<HitPlay['dist']>): AudioBuffer {
+  const buffers = buffersOf(raw);
+  const key = `${cleanKey}:${dist.mode}:${dist.amount.toFixed(4)}`;
+  const kept = buffers.get(key);
+  if (kept !== undefined) return kept;
+  const distorted = new AudioBuffer({ numberOfChannels: clean.numberOfChannels, length: clean.length, sampleRate: clean.sampleRate });
+  for (let c = 0; c < clean.numberOfChannels; c++) distorted.copyToChannel(distort(clean.getChannelData(c), dist), c);
+  buffers.set(key, distorted);
+  return distorted;
 }
 
 /** What one voice plays: a hit with its final settings, as a trigger carries them. */
@@ -35,8 +85,6 @@ export interface Voice {
   readonly stop: () => void;
 }
 
-/** Sample buffers made on one context, per sample and direction. */
-export type BufferCache = Map<string, AudioBuffer>;
 
 /** A hit played as it is, with no mods: its own settings plus those of its pad and matrix layers. */
 export function hitPlay(project: Project, hit: Hit): HitPlay {
@@ -63,47 +111,33 @@ export interface Route {
   readonly space: Space | null;
 }
 
-/**
- * Schedules one voice on any context, offline or live: region, direction,
- * pitch as playback rate, stretch as grains, volume and fade out. If `chokeAt`
- * comes before the voice ends, it fades out from there over CHOKE_FADE. What it
- * sends to the reverb and delay is the voice as heard, cut where it is cut; the
- * reverb and delay ring on.
- */
-export function scheduleHit(
-  context: BaseAudioContext,
-  cache: BufferCache,
-  project: Project,
-  play: HitPlay,
-  start: number,
-  chokeAt = Infinity,
-  route: Route = { dry: context.destination, space: null },
-): Voice | null {
+/** What a voice plays and when it ends, worked out without audio: a render sizes its parts by it. */
+interface VoicePlan {
+  readonly hit: Hit;
+  readonly sample: Sample;
+  /** The file's audio, and the sample's channels of it. */
+  readonly raw: AudioData;
+  readonly audio: AudioData;
+  /** The region within the sample's buffer as it is played (mirrored backwards). */
+  readonly region: { readonly start: number; readonly end: number };
+  /** Where it starts in the buffer, on a whole frame. */
+  readonly offset: number;
+  readonly rate: number;
+  readonly plan: ReturnType<typeof grainPlan> | null;
+  readonly naturalEnd: number;
+  readonly choked: boolean;
+  /** When its sources stop: at its end, or after the choke's fade. */
+  readonly stopAt: number;
+}
+
+function planVoice(project: Project, play: HitPlay, start: number, chokeAt: number, sampleRate: number): VoicePlan | null {
   const hit = project.hits[play.hitId];
   const sample = hit === undefined ? undefined : hitSound(project, hit)?.sample;
+  const raw = sample === undefined ? undefined : project.audio[sample.audioId];
   // The sample's channel choice: always stereo.
   const audio = sample === undefined ? undefined : sampleAudio(project, sample);
-  if (hit === undefined || sample === undefined || audio === undefined) return null;
-
-  // Backwards buffers are worked out once per sample, and distorted ones once per dist.
-  const key = `${sample.id}:${sample.channel}:${play.direction}`;
-  let clean = cache.get(key);
-  if (clean === undefined) {
-    clean = sampleBuffer(context, sample, audio, play.direction);
-    cache.set(key, clean);
-  }
-  let buffer = clean;
-  if (play.dist !== null) {
-    const distKey = `${key}:${play.dist.mode}:${play.dist.amount.toFixed(4)}`;
-    let distorted = cache.get(distKey);
-    if (distorted === undefined) {
-      const source = clean;
-      distorted = context.createBuffer(source.numberOfChannels, source.length, source.sampleRate);
-      for (let c = 0; c < source.numberOfChannels; c++) distorted.copyToChannel(distort(source.getChannelData(c), play.dist), c);
-      cache.set(distKey, distorted);
-    }
-    buffer = distorted;
-  }
+  if (hit === undefined || sample === undefined || raw === undefined || audio === undefined) return null;
+  const bufferDuration = sampleFrames(sample, audio.sampleRate).length / audio.sampleRate;
 
   // In a reversed buffer the region is mirrored. It starts on a whole frame, so
   // slices of one sample played one after another give back the sample exactly.
@@ -111,7 +145,7 @@ export function scheduleHit(
     play.direction === 'forward'
       ? play.region
       : { start: sample.duration - play.region.end, end: sample.duration - play.region.start };
-  const onFrame = (t: number) => Math.round(t * buffer.sampleRate) / buffer.sampleRate;
+  const onFrame = (t: number) => Math.round(t * audio.sampleRate) / audio.sampleRate;
   const offset = onFrame(region.start);
   const rate = 2 ** (play.pitch / 12);
   // A stretched voice is grains; the grid from the break starts at the sample's start (its end, backwards).
@@ -126,12 +160,62 @@ export function scheduleHit(
           grain: play.stretch.grain / 1000,
           origin: play.stretch.from === 'sample' ? 0 : offset,
           // From the hit, grains stay within it; from the sample, they may read on into the next slice.
-          limit: play.stretch.from === 'sample' ? buffer.duration : onFrame(region.end),
+          limit: play.stretch.from === 'sample' ? bufferDuration : onFrame(region.end),
         });
   // It ends on a whole frame too: the buffer goes on past the slice, into the next one.
   const naturalEnd = start + (plan === null ? Math.max(0, onFrame(region.end) - offset) / rate : plan.length);
   // A next trigger within a frame of the end is not a choke: the voice ends there, without a fade.
-  const choked = chokeAt < naturalEnd - 1.5 / context.sampleRate;
+  const choked = chokeAt < naturalEnd - 1.5 / sampleRate;
+  // A quarter of a frame early, so the frame where the next sound starts is not played as well. Not half:
+  // halfway between frames, which frame it stops on would be up to rounding, and a part rendered on its own could differ.
+  const stopAt = choked ? chokeAt + CHOKE_FADE : Math.min(naturalEnd, chokeAt) - 0.25 / sampleRate;
+  return { hit, sample, raw, audio, region, offset, rate, plan, naturalEnd, choked, stopAt };
+}
+
+/** How long a voice's filter can ring after its sound stops: to about −60 dB, at most 2 s. */
+function filterRing(play: HitPlay, sampleRate: number): number {
+  if (play.filter === null) return 0;
+  const { frequency, q } = filterSettings(play.filter, sampleRate);
+  const resonance = Math.max(Math.SQRT1_2, 10 ** (q / 20));
+  return Math.min(2, (7 * resonance) / (Math.PI * Math.max(1, frequency))) + 0.01;
+}
+
+/**
+ * When a voice is over, with what its filter rings after it, or null when it
+ * plays nothing. Without audio: a render sizes its parts by it.
+ */
+export function voiceEnd(project: Project, play: HitPlay, start: number, chokeAt: number, sampleRate: number): number | null {
+  const plan = planVoice(project, play, start, chokeAt, sampleRate);
+  return plan === null ? null : plan.stopAt + filterRing(play, sampleRate);
+}
+
+/**
+ * Schedules one voice on any context, offline or live: region, direction,
+ * pitch as playback rate, stretch as grains, volume and fade out. If `chokeAt`
+ * comes before the voice ends, it fades out from there over CHOKE_FADE. What it
+ * sends to the reverb and delay is the voice as heard, cut where it is cut; the
+ * reverb and delay ring on. Sample buffers are made once and kept between renders.
+ */
+export function scheduleHit(
+  context: BaseAudioContext,
+  project: Project,
+  play: HitPlay,
+  start: number,
+  chokeAt = Infinity,
+  route: Route = { dry: context.destination, space: null },
+  origin = 0,
+): Voice | null {
+  const voicePlan = planVoice(project, play, start, chokeAt, context.sampleRate);
+  // Times are worked out in the song and moved to the context's time last, through frames: a
+  // part rendered on its own then starts and stops every sound on the frame one long render does.
+  const sampleRate = context.sampleRate;
+  const when = (t: number) => (origin === 0 ? t : (t * sampleRate - origin) / sampleRate);
+  if (voicePlan === null) return null;
+  const { hit, sample, raw, audio, region, offset, rate, plan, naturalEnd, choked, stopAt } = voicePlan;
+
+  // Backwards buffers are worked out once per sample, and distorted ones once per dist.
+  const clean = sampleBuffer(raw, sample, audio, play.direction);
+  const buffer = play.dist === null ? clean : distortedBuffer(raw, `${sample.offset}:${sample.duration}:${sample.channel}:${play.direction}`, clean, play.dist);
 
   // Dist keeps the level: the region played has the same RMS after it as before.
   const channelsOf = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c));
@@ -146,18 +230,19 @@ export function scheduleHit(
   const levelAt = (t: number) => (t <= fadeStart ? level : (level * (naturalEnd - t)) / (naturalEnd - fadeStart));
 
   const gain = context.createGain();
-  gain.gain.setValueAtTime(level, start);
+  gain.gain.value = level;
+  gain.gain.setValueAtTime(level, when(start));
   if (choked) {
     if (fadeStart < chokeAt) {
-      gain.gain.setValueAtTime(level, fadeStart);
-      gain.gain.linearRampToValueAtTime(levelAt(chokeAt), chokeAt);
+      gain.gain.setValueAtTime(level, when(fadeStart));
+      gain.gain.linearRampToValueAtTime(levelAt(chokeAt), when(chokeAt));
     } else {
-      gain.gain.setValueAtTime(level, chokeAt);
+      gain.gain.setValueAtTime(level, when(chokeAt));
     }
-    gain.gain.linearRampToValueAtTime(0, chokeAt + CHOKE_FADE);
+    gain.gain.linearRampToValueAtTime(0, when(chokeAt + CHOKE_FADE));
   } else if (fadeOut > 0) {
-    gain.gain.setValueAtTime(level, fadeStart);
-    gain.gain.linearRampToValueAtTime(0, naturalEnd);
+    gain.gain.setValueAtTime(level, when(fadeStart));
+    gain.gain.linearRampToValueAtTime(0, when(naturalEnd));
   }
 
   // Pan is balance with equal power: the middle as without pan, and towards one
@@ -194,16 +279,14 @@ export function scheduleHit(
     biquad.connect(gain);
     input = biquad;
   }
-  // Half a frame early, so the frame where the next sound starts is not played as well.
-  const stopAt = choked ? chokeAt + CHOKE_FADE : Math.min(naturalEnd, chokeAt) - 0.5 / context.sampleRate;
   const sources: AudioBufferSourceNode[] = [];
   const voice = (at: number, from: number, until: number, into: AudioNode) => {
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = rate;
     source.connect(into);
-    source.start(at, from);
-    source.stop(until);
+    source.start(when(at), from);
+    source.stop(when(until));
     sources.push(source);
   };
 
@@ -217,7 +300,10 @@ export function scheduleHit(
       const until = Math.min(start + g.at + g.length, stopAt);
       if (skip >= g.length || at >= until) continue;
       const envelope = context.createGain();
-      envelope.gain.setValueCurveAtTime(grainCurve(g.shape, skip / g.length), at, start + g.at + g.length - at);
+      const curve = grainCurve(g.shape, skip / g.length);
+      // Until the curve starts, its first value: not 1, which a grain starting a hair before it would play for a frame.
+      envelope.gain.value = curve[0] ?? 0;
+      envelope.gain.setValueCurveAtTime(curve, when(at), start + g.at + g.length - at);
       envelope.connect(input);
       voice(at, g.from + skip * rate, until, envelope);
     }
@@ -235,39 +321,50 @@ export function scheduleHit(
   };
 }
 
-/** Plays triggers on a context, one voice: each trigger is cut where the next sound starts. */
-function scheduleTriggers(
-  context: BaseAudioContext,
-  project: Project,
-  triggers: readonly Trigger[],
-  cuts: readonly number[],
-  sampleRate: number,
-  route: Route = { dry: context.destination, space: null },
-) {
-  const cache: BufferCache = new Map();
+/** A trigger placed on a whole frame, with where the next sound cuts it. */
+export interface PlacedVoice {
+  readonly trigger: Trigger;
+  /** The frame it starts on. */
+  readonly frame: number;
+  /** The frame where the next trigger or tape starts and cuts it, or Infinity. */
+  readonly chokeFrame: number;
+}
+
+/**
+ * Triggers in time order, each on a whole frame and cut where the next sound
+ * starts: the next trigger, or a cut such as a tape. One voice.
+ */
+export function placeVoices(triggers: readonly Trigger[], cuts: readonly number[], sampleRate: number): PlacedVoice[] {
   const sorted = [...triggers].sort((a, b) => a.time - b.time);
   // Starts are placed on whole sample frames. Between frames Web Audio interpolates,
   // which dulls a slice by a varying amount; on a frame a slice plays back bit for bit.
-  const onFrame = (time: number) => Math.round(time * sampleRate) / sampleRate;
-  const starts = [...sorted.map((t) => onFrame(t.time)), ...cuts.map(onFrame)].sort((a, b) => a - b);
-  sorted.forEach((trigger) => {
-    const start = onFrame(trigger.time);
-    const next = starts.find((s) => s > start);
-    scheduleHit(context, cache, project, trigger, start, next ?? Infinity, route);
+  const frameOf = (time: number) => Math.round(time * sampleRate);
+  const starts = [...sorted.map((t) => frameOf(t.time)), ...cuts.map(frameOf)].sort((a, b) => a - b);
+  let next = 0;
+  return sorted.map((trigger) => {
+    const frame = frameOf(trigger.time);
+    while (next < starts.length && starts[next]! <= frame) next++;
+    return { trigger, frame, chokeFrame: starts[next] ?? Infinity };
   });
 }
 
+/** Plays placed voices on a context whose time 0 is frame `origin` of the song. */
+export function scheduleVoices(context: BaseAudioContext, project: Project, voices: readonly PlacedVoice[], route: Route, origin = 0): void {
+  const sampleRate = context.sampleRate;
+  for (const v of voices) scheduleHit(context, project, v.trigger, v.frame / sampleRate, v.chokeFrame / sampleRate, route, origin);
+}
+
 /** Renders triggers alone into a buffer of `duration` seconds. */
-async function renderPart(triggers: readonly Trigger[], project: Project, duration: number, sampleRate: number, cutAt: number): Promise<AudioBuffer> {
+export async function renderPart(triggers: readonly Trigger[], project: Project, duration: number, sampleRate: number, cutAt: number): Promise<AudioBuffer> {
   const length = Math.max(1, Math.round(duration * sampleRate));
   const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
   // The recording ends at the segment's end: what still rings is cut there.
-  scheduleTriggers(context, project, triggers, [cutAt], sampleRate);
+  scheduleVoices(context, project, placeVoices(triggers, [cutAt], sampleRate), { dry: context.destination, space: null });
   return context.startRendering();
 }
 
-const reversed = (context: BaseAudioContext, buffer: AudioBuffer): AudioBuffer => {
-  const copy = context.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+const reversed = (buffer: AudioBuffer): AudioBuffer => {
+  const copy = new AudioBuffer({ numberOfChannels: buffer.numberOfChannels, length: buffer.length, sampleRate: buffer.sampleRate });
   for (let i = 0; i < buffer.numberOfChannels; i++) copy.copyToChannel(buffer.getChannelData(i).slice().reverse(), i);
   return copy;
 };
@@ -275,15 +372,15 @@ const reversed = (context: BaseAudioContext, buffer: AudioBuffer): AudioBuffer =
 /**
  * Plays a tape: its recording round and round as its passes say, with the
  * speed ramping as playback rate, so pitch and length follow like tape. It
- * fades out over CHOKE_FADE at its end.
+ * fades out over CHOKE_FADE at its end. The context's time 0 is the song's start.
  */
-function scheduleTape(context: BaseAudioContext, tape: Tape, recording: AudioBuffer) {
-  const backwards = reversed(context, recording);
+export function scheduleTape(context: BaseAudioContext, tape: Tape, recording: AudioBuffer, out: AudioNode = context.destination): void {
+  const backwards = reversed(recording);
   const gain = context.createGain();
   gain.gain.setValueAtTime(1, tape.time);
   gain.gain.setValueAtTime(1, Math.max(tape.time, tape.end - CHOKE_FADE));
   gain.gain.linearRampToValueAtTime(0, tape.end);
-  gain.connect(context.destination);
+  gain.connect(out);
   // Like tape, it gets quieter as it slows below 1×, so at 0× it is silent: a
   // stopped buffer would otherwise hold its last sample.
   const level = context.createGain();
@@ -313,11 +410,12 @@ export interface Rendered {
 }
 
 /**
- * Renders a take to audio offline. One voice: a new trigger or tape cuts the
- * sound before it with a short fade. Beside it the reverb and delay ring out.
- * Tapes record the hits alone.
+ * Renders a take to audio offline, all of it on one context. One voice: a new
+ * trigger or tape cuts the sound before it with a short fade. Beside it the
+ * reverb and delay ring out. Tapes record the hits alone. renderTakeWithTail
+ * renders the same in parts, which is faster for anything long; this is what it is checked against.
  */
-export async function renderTakeWithTail(
+export async function renderTakeWhole(
   take: Take,
   project: Project,
   sampleRate: number,
@@ -329,20 +427,15 @@ export async function renderTakeWithTail(
   const length = Math.max(1, Math.round(seconds * sampleRate));
   const context = new OfflineAudioContext({ numberOfChannels: 2, length: length + Math.round(ring * sampleRate), sampleRate });
   const route: Route = { dry: mix === 'space' ? null : context.destination, space: mix === 'dry' ? null : createSpace(context, context.destination, project.song.bpm) };
-  scheduleTriggers(context, project, take.triggers, take.tapes.map((t) => t.time), sampleRate, route);
+  scheduleVoices(context, project, placeVoices(take.triggers, take.tapes.map((t) => t.time), sampleRate), route);
   if (mix !== 'space') take.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!));
   const full = await context.startRendering();
-  return { full, buffer: full.length === length ? full : folded(context, full, length) };
-}
-
-/** Renders a take to audio offline, exactly as long as the song or `seconds`: ready to loop. */
-export async function renderTake(take: Take, project: Project, sampleRate: number, seconds = songDuration(project.song)): Promise<AudioBuffer> {
-  return (await renderTakeWithTail(take, project, sampleRate, seconds)).buffer;
+  return { full, buffer: full.length === length ? full : folded(full, length) };
 }
 
 /** The first `length` frames of `full`, with the frames after them added from the start, round and round. */
-function folded(context: BaseAudioContext, full: AudioBuffer, length: number): AudioBuffer {
-  const out = context.createBuffer(full.numberOfChannels, length, full.sampleRate);
+export function folded(full: AudioBuffer, length: number): AudioBuffer {
+  const out = new AudioBuffer({ numberOfChannels: full.numberOfChannels, length, sampleRate: full.sampleRate });
   for (let c = 0; c < full.numberOfChannels; c++) {
     const from = full.getChannelData(c);
     const to = new Float32Array(length);
@@ -352,10 +445,8 @@ function folded(context: BaseAudioContext, full: AudioBuffer, length: number): A
   return out;
 }
 
-/** Renders triggers to audio offline, with no tapes. */
-export async function renderTriggers(triggers: readonly Trigger[], project: Project, sampleRate: number): Promise<AudioBuffer> {
-  return renderTake({ triggers, tapes: [] }, project, sampleRate);
-}
+export { CHUNK_BARS, createRenderCache, isRenderCancelled, renderTake, renderTakeWithTail, renderTriggers } from './render-chunks';
+export type { RenderCache, RenderOptions } from './render-chunks';
 
 /** The shortest and longest reverb, in seconds, at size 0 and 1. */
 export const REVERB_SECONDS = { min: 0.3, max: 4 } as const;
@@ -418,21 +509,38 @@ export function reverbImpulse(size: number, sampleRate: number): Float32Array<Ar
   });
 }
 
+/** Rooms as buffers, per size and sample rate: worked out once and kept between renders. */
+const impulses = new Map<string, AudioBuffer>();
+
+function impulseBuffer(size: number, sampleRate: number): AudioBuffer {
+  const key = `${size}:${sampleRate}`;
+  let buffer = impulses.get(key);
+  if (buffer === undefined) {
+    const impulse = reverbImpulse(size, sampleRate);
+    buffer = new AudioBuffer({ numberOfChannels: 2, length: impulse[0]!.length, sampleRate });
+    impulse.forEach((data, c) => buffer!.copyToChannel(data, c));
+    impulses.set(key, buffer);
+  }
+  return buffer;
+}
+
+/** The key a reverb is shared by: voices that send to the same size send to one room. */
+export const reverbKey = (size: number): string => size.toFixed(2);
+/** The key a delay is shared by. */
+export const delayKey = (delay: DelayPlay): string => `${delay.steps}:${delay.feedback.toFixed(3)}`;
+
 /** The reverb and delay on a context, made as they are first sent to and shared by all voices after. */
 export function createSpace(context: BaseAudioContext, out: AudioNode, bpm: number): Space {
   const reverbs = new Map<string, AudioNode>();
   const delays = new Map<string, AudioNode>();
   return {
     reverb: (size) => {
-      const key = size.toFixed(2);
+      const key = reverbKey(size);
       let input = reverbs.get(key);
       if (input === undefined) {
         const convolver = context.createConvolver();
         convolver.normalize = false;
-        const impulse = reverbImpulse(Number(key), context.sampleRate);
-        const buffer = context.createBuffer(2, impulse[0]!.length, context.sampleRate);
-        impulse.forEach((data, c) => buffer.copyToChannel(data, c));
-        convolver.buffer = buffer;
+        convolver.buffer = impulseBuffer(Number(key), context.sampleRate);
         convolver.connect(out);
         input = convolver;
         reverbs.set(key, input);
@@ -440,7 +548,7 @@ export function createSpace(context: BaseAudioContext, out: AudioNode, bpm: numb
       return input;
     },
     delay: (delay) => {
-      const key = `${delay.steps}:${delay.feedback.toFixed(3)}`;
+      const key = delayKey(delay);
       let input = delays.get(key);
       if (input === undefined) {
         const time = delay.steps * stepDuration(bpm);

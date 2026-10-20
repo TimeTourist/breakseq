@@ -1,6 +1,8 @@
 import type { AudioData, Project, Rng } from '../model';
 import type { HitRun } from '../engine';
-import { EXPORT_SAMPLE_RATE, encodeWav, generateTake, midiExport, renderTakeWithTail, rexExport } from '../engine';
+import type { RenderCache, RenderOptions } from '../engine';
+import { EXPORT_SAMPLE_RATE, createRenderCache, encodeWav, generateTake, midiExport, renderTakeWithTail, rexExport } from '../engine';
+import { stepDuration } from '../model';
 import type { FolderService } from './folders';
 import { browserFolders } from './folders';
 import type { BackupStorage } from './backups';
@@ -15,9 +17,10 @@ export interface Services {
   /** Backups of the autosave; without it, Project shows none. */
   readonly backups?: BackupStorage;
   readonly player: Player;
-  readonly renderSong: (project: Project, rng: Rng) => Promise<Take>;
+  /** Renders the song; parts already rendered are kept, and with `signal` it gives up once that aborts. */
+  readonly renderSong: (project: Project, rng: Rng, options?: RenderRequest) => Promise<Take>;
   /** Renders what a view plays that is not a song: hits one after another, or a sample's audio as it is. */
-  readonly renderPreview: (preview: Preview) => Promise<Take>;
+  readonly renderPreview: (preview: Preview, options?: RenderRequest) => Promise<Take>;
   /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
   readonly exportWav: (take: Take, name?: string) => void;
   /** Saves the song as a MIDI file and a WAV of its sounds in slots; says how many sounds. */
@@ -32,26 +35,52 @@ export interface Services {
   readonly folders?: FolderService;
 }
 
-/** Something Play plays that is not a song. */
-export type Preview =
-  | { readonly kind: 'hits'; readonly project: Project; readonly run: HitRun }
-  | { readonly kind: 'audio'; readonly audio: AudioData };
-
-async function renderPreview(preview: Preview): Promise<Take> {
-  if (preview.kind === 'hits') {
-    const take = { triggers: preview.run.triggers, tapes: [] };
-    return { ...take, ...withTail(await renderTakeWithTail(take, preview.project, EXPORT_SAMPLE_RATE, preview.run.seconds)) };
-  }
-  const { audio } = preview;
-  const length = Math.max(1, audio.channels[0]?.length ?? 0);
-  const buffer = new AudioBuffer({ numberOfChannels: Math.max(1, audio.channels.length), length, sampleRate: audio.sampleRate });
-  audio.channels.forEach((channel, i) => buffer.copyToChannel(Float32Array.from(channel), i));
-  return { buffer, triggers: [], tapes: [] };
+/** What a render may be told: when to give up because it is no longer wanted. */
+export interface RenderRequest {
+  readonly signal?: AbortSignal;
 }
 
-async function renderSong(project: Project, rng: Rng): Promise<Take> {
-  const take = generateTake(project, rng);
-  return { ...withTail(await renderTakeWithTail(take, project, EXPORT_SAMPLE_RATE)), triggers: take.triggers, tapes: take.tapes };
+/** Something Play plays that is not a song: hits one after another, or frames `from` to `to` of some audio. */
+export type Preview =
+  | { readonly kind: 'hits'; readonly project: Project; readonly run: HitRun }
+  | { readonly kind: 'audio'; readonly audio: AudioData; readonly from: number; readonly to: number };
+
+/** Renders with one cache for everything Play plays, so a render after a change renders only what changed. */
+export function renderers(cache: RenderCache = createRenderCache()) {
+  // Audio played as it is, per audio and frames: the same take again when nothing changed.
+  const audioTakes = new WeakMap<AudioData, Map<string, Take>>();
+  const options = (request: RenderRequest | undefined): RenderOptions => (request?.signal === undefined ? { cache } : { cache, signal: request.signal });
+
+  const renderPreview = async (preview: Preview, request?: RenderRequest): Promise<Take> => {
+    if (preview.kind === 'hits') {
+      const take = { triggers: preview.run.triggers, tapes: [] };
+      const rendered = await renderTakeWithTail(take, preview.project, EXPORT_SAMPLE_RATE, preview.run.seconds, 'all', options(request));
+      return { ...take, ...withTail(rendered) };
+    }
+    const { audio, from, to } = preview;
+    const key = `${from}:${to}`;
+    let takes = audioTakes.get(audio);
+    if (takes === undefined) {
+      takes = new Map();
+      audioTakes.set(audio, takes);
+    }
+    const kept = takes.get(key);
+    if (kept !== undefined) return kept;
+    const length = Math.max(1, to - from);
+    const buffer = new AudioBuffer({ numberOfChannels: Math.max(1, audio.channels.length), length, sampleRate: audio.sampleRate });
+    audio.channels.forEach((channel, i) => buffer.copyToChannel(Float32Array.from(channel.subarray(from, to)), i));
+    const take: Take = { buffer, triggers: [], tapes: [] };
+    takes.set(key, take);
+    return take;
+  };
+
+  const renderSong = async (project: Project, rng: Rng, request?: RenderRequest): Promise<Take> => {
+    const take = generateTake(project, rng);
+    const rendered = await renderTakeWithTail(take, project, EXPORT_SAMPLE_RATE, undefined, 'all', options(request));
+    return { ...withTail(rendered), triggers: take.triggers, tapes: take.tapes, step: stepDuration(project.song.bpm) };
+  };
+
+  return { renderSong, renderPreview };
 }
 
 /** A take's buffers: `full` only when something rings past the end. */
@@ -107,8 +136,7 @@ export function browserServices(): Services {
     backups: indexedDbBackups(),
     folders: browserFolders(),
     player: createPlayer(),
-    renderSong,
-    renderPreview,
+    ...renderers(),
     exportWav,
     exportMidi,
     exportRex,

@@ -26,9 +26,11 @@ interface HeaderProps {
   readonly onPlay: () => void;
   readonly onStop: () => void;
   readonly status: string | null;
+  /** A render of what Play plays is under way. */
+  readonly rendering?: boolean;
 }
 
-export function Header({ onView, playing, canPlay, onPlay, onStop, status }: HeaderProps) {
+export function Header({ onView, playing, canPlay, onPlay, onStop, status, rendering = false }: HeaderProps) {
   const view = useSelect((s) => s.view);
   const loop = useSelect((s) => s.loop);
   const { store } = useApp();
@@ -72,6 +74,10 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status }: Hea
       </nav>
       <div className="transport">
         {status !== null && <span className="status">{status}</span>}
+        {/* On every tab, while what Play plays renders: always there, so the header does not move. (Claudes val) */}
+        <span className="rendering muted small" role="status" aria-hidden={!rendering} style={{ visibility: rendering ? 'visible' : 'hidden' }}>
+          Rendering…
+        </span>
         <label className="bpm">
           <input
             aria-label="Tempo in BPM"
