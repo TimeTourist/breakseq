@@ -1,5 +1,18 @@
 import type { Chance, LaneStep, LaneTarget, Rng, StepEffect } from './types';
-import { CHANCES, DEFAULT_MOD_DELAY, DEFAULT_MOD_DIST, DEFAULT_MOD_REVERB, DEFAULT_MOD_STRETCH, MAX_LANE_STEPS, isDice } from './types';
+import {
+  CHANCES,
+  DEFAULT_MOD_DELAY,
+  DEFAULT_MOD_DIST,
+  DEFAULT_MOD_FREEZE,
+  DEFAULT_MOD_REVERB,
+  DEFAULT_MOD_REVERSE,
+  DEFAULT_MOD_REWIND,
+  DEFAULT_MOD_SCRAMBLE,
+  DEFAULT_MOD_STRETCH,
+  DEFAULT_MOD_STUTTER,
+  MAX_LANE_STEPS,
+  isDice,
+} from './types';
 
 /**
  * Step lanes (see Stegrader): what a lane holds for each target, and the
@@ -36,6 +49,13 @@ export const LANES: Readonly<Record<LaneTarget, LaneRange>> = {
   filter: { min: 60, max: 18000, zero: 18000, step: 10, log: true, unit: 'Hz' },
   reverb: { min: 0, max: 100, zero: 0, step: 5, unit: '%' },
   delay: { min: 0, max: 100, zero: 0, step: 5, unit: '%' },
+  // The audio mods (see Mods som samplar det som hörs): Scramble's value is the chance a cell is swapped,
+  // Stutter's the repeat (0 off, 1 1/16, 2 1/32, 3 1/64), and the rest on or off.
+  scramble: { min: 0, max: 100, zero: 0, step: 5, unit: '% swap' },
+  stutter: { min: 0, max: 3, zero: 0, step: 1, unit: 'repeat' },
+  freeze: { min: 0, max: 1, zero: 0, step: 1, onOff: true, unit: 'on/off' },
+  reverse: { min: 0, max: 1, zero: 0, step: 1, onOff: true, unit: 'on/off' },
+  rewind: { min: 0, max: 1, zero: 0, step: 1, onOff: true, unit: 'fires' },
 };
 
 /** Free pitch is drawn in tenths of a semitone. (Claudes val.) */
@@ -46,7 +66,11 @@ export const semitones = (effect: Pick<StepEffect, 'target' | 'pitch'>): boolean
 
 /** Whether a target's values, and its dice rolls, are whole numbers. */
 export const wholeValues = (effect: Pick<StepEffect, 'target' | 'pitch'>): boolean =>
-  effect.target === 'ratchet' || effect.target === 'padMember' || effect.target === 'direction' || (effect.target === 'pitch' && semitones(effect));
+  effect.target === 'ratchet' ||
+  effect.target === 'padMember' ||
+  effect.target === 'stutter' ||
+  LANES[effect.target].onOff === true ||
+  (effect.target === 'pitch' && semitones(effect));
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 
@@ -79,27 +103,29 @@ export function denorm(effect: Pick<StepEffect, 'target' | 'pitch'>, n: number):
 /** The zero value of a target: what it does nothing at. */
 export const zeroOf = (target: LaneTarget): number => LANES[target].zero;
 
-/** What a new effect's steps are: the zero value, except Reverb (100) and Delay (80), which are throws. */
-const NEW_VALUE: Partial<Record<LaneTarget, number>> = { reverb: 100, delay: 80 };
+/** What a new effect's steps are: the zero value, except Reverb (100) and Delay (80), which are throws, and Scramble (50). */
+const NEW_VALUE: Partial<Record<LaneTarget, number>> = { reverb: 100, delay: 80, scramble: 50 };
 
-/** A new step effect: 4 steps of a beat, each at the zero value (Reverb 100, Delay 80), with the target's own settings. */
+/** Each target's own settings in a new effect. */
+const NEW_SETTINGS: Partial<Record<LaneTarget, Partial<StepEffect>>> = {
+  pitch: { pitch: { values: 'semitones' } },
+  filter: { filter: { type: 'lowpass', resonance: 0.3 } },
+  dist: { dist: DEFAULT_MOD_DIST },
+  stretch: { stretch: DEFAULT_MOD_STRETCH },
+  reverb: { reverb: DEFAULT_MOD_REVERB },
+  delay: { delay: DEFAULT_MOD_DELAY },
+  scramble: { scramble: DEFAULT_MOD_SCRAMBLE },
+  stutter: { stutter: DEFAULT_MOD_STUTTER },
+  freeze: { freeze: DEFAULT_MOD_FREEZE },
+  reverse: { reverse: DEFAULT_MOD_REVERSE },
+  rewind: { rewind: DEFAULT_MOD_REWIND },
+};
+
+/** A new step effect: 4 steps of a beat, each at the zero value (Reverb 100, Delay 80, Scramble 50), with the target's own settings. */
 export function newStepEffect(target: LaneTarget): StepEffect {
   const v = NEW_VALUE[target] ?? zeroOf(target);
   const lane = Array.from({ length: 4 }, () => ({ v }));
-  const own: Partial<StepEffect> =
-    target === 'pitch'
-      ? { pitch: { values: 'semitones' } }
-      : target === 'filter'
-        ? { filter: { type: 'lowpass', resonance: 0.3 } }
-        : target === 'dist'
-          ? { dist: DEFAULT_MOD_DIST }
-          : target === 'stretch'
-            ? { stretch: DEFAULT_MOD_STRETCH }
-            : target === 'reverb'
-              ? { reverb: DEFAULT_MOD_REVERB }
-              : target === 'delay'
-                ? { delay: DEFAULT_MOD_DELAY }
-                : {};
+  const own = NEW_SETTINGS[target] ?? {};
   return { target, step: 'beat', lane, ...own };
 }
 
@@ -125,8 +151,8 @@ export function moveEdge(lane: readonly LaneStep[], i: number, edge: 'lo' | 'hi'
 
 /**
  * Step `i` made a dice step (a band of ±15 % of the range round its value,
- * chance 100; on an on/off lane 0–1 and 50 %), or a dice step fixed again in
- * the middle of its band.
+ * chance 100; on an on/off lane 0–1 and 50 %; on Stutter one choice either
+ * side), or a dice step fixed again in the middle of its band.
  */
 export function toggleDice(effect: StepEffect, i: number): LaneStep[] {
   const range = LANES[effect.target];
@@ -134,6 +160,8 @@ export function toggleDice(effect: StepEffect, i: number): LaneStep[] {
     if (k !== i) return s;
     if (isDice(s)) return { v: quantize(effect, (s.lo + s.hi) / 2) };
     if (range.onOff === true) return { lo: 0, hi: 1, chance: 50 };
+    // Stutter's few choices: one either side, as the sketch.
+    if (effect.target === 'stutter') return { lo: clamp(s.v - 1, range.min, range.max), hi: clamp(s.v + 1, range.min, range.max), chance: 100 };
     const n = norm(effect.target, s.v);
     return { lo: denorm(effect, n - 0.15), hi: denorm(effect, n + 0.15), chance: 100 };
   });

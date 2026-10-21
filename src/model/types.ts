@@ -241,7 +241,28 @@ export interface Loop {
 }
 
 /** What a mod changes. Applied in this order, whatever row the mod is in. */
-export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'tempo'] as const;
+export const MOD_TARGETS = [
+  'swap',
+  'padMember',
+  'ratchet',
+  'pitch',
+  'volume',
+  'pan',
+  'direction',
+  'stretch',
+  'dist',
+  'filter',
+  'reverb',
+  'delay',
+  'tempo',
+  // The audio mods last, so the targets before them keep their numbers in dice rolls.
+  'scramble',
+  'stutter',
+  'freeze',
+  'reverse',
+  'rewind',
+  'halftime',
+] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
 /** How often Swap's Stack and Tempo pick: every 1/16, beat or bar. */
@@ -286,8 +307,8 @@ export type Chance = (typeof CHANCES)[number];
 export type LaneStep = { readonly v: number } | { readonly lo: number; readonly hi: number; readonly chance: Chance };
 export const isDice = (step: LaneStep): step is Extract<LaneStep, { lo: number }> => 'lo' in step;
 
-/** Targets with a lane: every target that sets a value on a step, all but Swap and Tempo. */
-export const LANE_TARGETS = ['padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay'] as const;
+/** Targets with a lane: every target that sets a value on a step, all but Swap and Tempo, and the audio mods but Halftime. */
+export const LANE_TARGETS = ['padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'scramble', 'stutter', 'freeze', 'reverse', 'rewind'] as const;
 export type LaneTarget = (typeof LANE_TARGETS)[number];
 
 /** Targets that set something on a step as it plays: the lanes and Tempo. */
@@ -319,7 +340,89 @@ export interface StepEffect {
   readonly reverb?: ModReverb;
   /** For Delay only: its time and feedback; the value is the amount in percent. Missing means DEFAULT_MOD_DELAY. */
   readonly delay?: ModDelay;
+  /** For Scramble only; the value is the chance in percent that a cell is swapped. Missing means DEFAULT_MOD_SCRAMBLE. */
+  readonly scramble?: ModScramble;
+  /** For Stutter only; the value is the repeat: 0 off, 1 1/16, 2 1/32, 3 1/64. Missing means DEFAULT_MOD_STUTTER. */
+  readonly stutter?: ModStutter;
+  /** For Freeze only; the value is on or off. Missing means DEFAULT_MOD_FREEZE. */
+  readonly freeze?: ModFreeze;
+  /** For Reverse only; the value is on or off. Missing means DEFAULT_MOD_REVERSE. */
+  readonly reverse?: ModReverse;
+  /** For Rewind only; the value is on (fires) or off. Missing means DEFAULT_MOD_REWIND. */
+  readonly rewind?: ModRewind;
 }
+
+/**
+ * Audio mods sample what is heard under their clip (see Mods som samplar det
+ * som hörs): Main or Fill with the step mods, reverb and delay, and tape;
+ * never themselves or one another.
+ */
+export const AUDIO_TARGETS = ['scramble', 'stutter', 'freeze', 'reverse', 'rewind', 'halftime'] as const;
+export type AudioTarget = (typeof AUDIO_TARGETS)[number];
+
+/** Cells of the song's grid, in 1/16 steps: 1/32, 1/16, 1/8 or a beat. */
+export const CELL_SIZES = [0.5, 1, 2, 4] as const;
+export type CellSize = (typeof CELL_SIZES)[number];
+
+/** Where Scramble takes cells from: the whole song, a number of bars round the clip, or inside the clip. */
+export type ScrambleFrom = 'song' | 'around' | 'clip';
+export interface ModScramble {
+  readonly cell: CellSize;
+  readonly from: ScrambleFrom;
+  /** Bars either side of the clip, for 'around'. */
+  readonly around: 1 | 2 | 4;
+  /** The chance in percent that a swapped cell plays backwards. */
+  readonly reverse: 0 | 25 | 50 | 100;
+}
+export const DEFAULT_MOD_SCRAMBLE: ModScramble = { cell: 1, from: 'song', around: 2, reverse: 0 };
+
+/** How much a stutter repeats, in 1/16 steps: the start of a window of this size on the song's grid. */
+export const STUTTER_GRABS = [1, 2, 4] as const;
+export interface ModStutter {
+  readonly grabs: (typeof STUTTER_GRABS)[number];
+  /** Semitones each repeat goes up or down from the one before. */
+  readonly pitch: -2 | -1 | 0 | 1 | 2;
+  /** The part of each repeat that is heard, in percent. */
+  readonly gate: 100 | 75 | 50;
+}
+export const DEFAULT_MOD_STUTTER: ModStutter = { grabs: 1, pitch: 0, gate: 100 };
+
+export interface ModFreeze {
+  /** The grain held, in ms. */
+  readonly grain: 10 | 30 | 80;
+  /** How far round the frozen point each grain may start, in percent of a grain. */
+  readonly spread: 0 | 25 | 50;
+  /** dB. */
+  readonly level: -6 | -3 | 0;
+}
+export const DEFAULT_MOD_FREEZE: ModFreeze = { grain: 30, spread: 0, level: 0 };
+
+export interface ModReverse {
+  readonly cell: CellSize;
+}
+export const DEFAULT_MOD_REVERSE: ModReverse = { cell: 1 };
+
+/**
+ * How a rewind moves over its step: Fast at an even speed; Slowing fast at
+ * first, then coming to a stop; Spin-back braking from playing, turning and
+ * spinning backwards faster and faster.
+ */
+export type RewindCurve = 'fast' | 'slowing' | 'spinBack';
+export interface ModRewind {
+  /** How far back it pulls, in 1/16 steps: a beat, two beats or a bar. */
+  readonly pullBack: 4 | 8 | 16;
+  readonly curve: RewindCurve;
+}
+export const DEFAULT_MOD_REWIND: ModRewind = { pullBack: 4, curve: 'fast' };
+
+/** Plays what is heard under the whole clip at another speed: pitch follows like a record, or is kept (stretch). No lane. */
+export interface HalftimeEffect {
+  readonly target: 'halftime';
+  readonly speed: 0.5 | 0.75 | 2;
+  readonly keepPitch: boolean;
+}
+export const HALFTIME_SPEEDS = [0.5, 0.75, 2] as const;
+export const DEFAULT_HALFTIME: HalftimeEffect = { target: 'halftime', speed: 0.5, keepPitch: false };
 
 export interface ModReverb {
   readonly size: number;
@@ -408,7 +511,7 @@ export interface TapeEffect {
   readonly flutter: number;
 }
 
-export type ModEffect = StepEffect | TempoEffect | SwapEffect | TapeEffect;
+export type ModEffect = StepEffect | TempoEffect | SwapEffect | TapeEffect | HalftimeEffect;
 export type EffectTarget = ModEffect['target'];
 
 /** A mod does things through its effects: at most one per target. A new mod has none, and does nothing until it gets one. */
@@ -425,6 +528,8 @@ export const tempoOf = (mod: Mod | undefined): TempoEffect | undefined => mod?.e
 export const swapOf = (mod: Mod | undefined): SwapEffect | undefined => mod?.effects.find((e): e is SwapEffect => e.target === 'swap');
 export const tapeOf = (mod: Mod | undefined): TapeEffect | undefined =>
   mod?.effects.find((e): e is TapeEffect => e.target === 'tape');
+export const isAudioEffect = (effect: ModEffect): boolean => (AUDIO_TARGETS as readonly string[]).includes(effect.target);
+export const halftimeOf = (mod: Mod | undefined): HalftimeEffect | undefined => mod?.effects.find((e): e is HalftimeEffect => e.target === 'halftime');
 
 export type SongRow = 'main' | 'fill' | 'modA' | 'modB';
 

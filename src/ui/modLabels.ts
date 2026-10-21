@@ -16,6 +16,12 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   delay: 'Delay',
   tempo: 'Tempo (slip)',
   tape: 'Tape',
+  scramble: 'Scramble',
+  stutter: 'Stutter',
+  freeze: 'Freeze',
+  reverse: 'Reverse',
+  rewind: 'Rewind',
+  halftime: 'Halftime',
 };
 
 /** The order of + Add effect and of a new mod's cards (see Sidan). Scratch and the audio mods come in later phases. */
