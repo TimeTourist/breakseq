@@ -48,3 +48,8 @@ export function memoryFolder(name = 'Project'): Folder & { readonly files: Map<s
     list: async (dir) => [...files.keys()].filter((p) => p.startsWith(`${dir}/`)).map((p) => p.slice(dir.length + 1)).filter((p) => !p.includes('/')),
   };
 }
+
+/** Generate options that draw every random choice from one Rng in turn, as takes did before seeds: for tests of what a random value does. */
+export function withRng(rng: () => number): { readonly dice: () => () => number } {
+  return { dice: () => rng };
+}

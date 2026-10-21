@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Id, PadChoice, Project } from '../model';
 import { addSample, createLoop, createMod, copyHits, createMatrix, createProject, setBpm, setPadChoice, setSongBars, setSongCell, setStep } from '../model';
-import { constantAudio, seededRng, sequenceRng, sequentialIds } from '../test/fixtures';
+import { constantAudio, seededRng, sequenceRng, sequentialIds, withRng } from '../test/fixtures';
 import { generateTriggers } from './generate';
 
 const ctx = sequentialIds();
@@ -37,7 +37,7 @@ function hats(choice: PadChoice, bars = 2) {
   return { project, pad, loop, hits };
 }
 
-const names = (project: Project, rng = sequenceRng([0])) => generateTriggers(project, rng).map((t) => project.hits[t.hitId]!.name.replace(/ 1$/, ''));
+const names = (project: Project, rng = sequenceRng([0])) => generateTriggers(project, withRng(rng)).map((t) => project.hits[t.hitId]!.name.replace(/ 1$/, ''));
 
 describe("the pad's choice", () => {
   it('Top plays member 1, as before', () => {

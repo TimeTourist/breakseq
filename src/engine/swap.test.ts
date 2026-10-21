@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Id, ModEffect, ModRate, Project, ShufflePick, StackPick, SwapEffect } from '../model';
 import { addClip, addSample, createLoop, createMod, copyHits, createMatrix, createProject, setBpm, setSongBars, setStep } from '../model';
-import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
+import { constantAudio, seededRng, sequentialIds, withRng } from '../test/fixtures';
 import { generateTriggers } from './generate';
 import { shuffleOrder, stackPick } from './swap';
 
@@ -61,7 +61,7 @@ const shuffle = (pick: ShufflePick): SwapEffect => ({ target: 'swap', rate: 'ste
 
 /** The hit on each of the first `n` steps, by name, '-' where silent. */
 const heard = (project: Project, nameOf: (id: Id | undefined) => string, n = 8, rng: () => number = () => 0) => {
-  const triggers = generateTriggers(project, rng);
+  const triggers = generateTriggers(project, withRng(rng));
   return Array.from({ length: n }, (_, s) => nameOf(triggers.find((t) => t.step === s)?.hitId));
 };
 

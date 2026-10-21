@@ -180,7 +180,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
       setRendering(info.file);
       try {
         const project = await loadSnapshot(folder, info.file);
-        then(await services.renderSong(project, services.rng()));
+        then(await services.renderSong(project));
       } finally {
         setRendering(null);
       }

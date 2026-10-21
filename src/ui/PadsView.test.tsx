@@ -52,6 +52,7 @@ function services() {
   const player = {
     play: vi.fn(() => void (playing = true)),
     replace: vi.fn(),
+    queue: vi.fn(),
     seek: vi.fn(),
     setLoop: vi.fn(),
     stop: vi.fn(() => void (playing = false)),
@@ -580,7 +581,10 @@ describe('Matrices: Play', () => {
     fireEvent.click(within(list()).getByRole('button', { name: 'Matrix kick 1' }));
     await settle();
     expect(player.play).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(s.renderSong).mock.lastCall![0].song.clips).toHaveLength(1);
+    // The kick's matrix, in passes of its one step from the start (a block is at least a bar, Claudes val).
+    const played = vi.mocked(s.renderSong).mock.lastCall![0];
+    expect(played.loops['preview-matrix']!.name).toBe('kick 1');
+    expect(played.song.clips.map((c) => c.start)).toEqual(played.song.clips.map((_, i) => i * played.loops['preview-matrix']!.steps.length));
   });
 });
 

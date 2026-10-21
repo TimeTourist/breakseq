@@ -3,7 +3,7 @@ import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createProject, setBpm, setSongBars, setSongCell, sliceSample, sampleBpm } from '../model';
-import { seededRng, sequentialIds } from '../test/fixtures';
+import { seededRng, sequentialIds, withRng } from '../test/fixtures';
 import { generateTriggers } from './generate';
 import { renderTriggers } from './render';
 
@@ -42,7 +42,7 @@ describe('a sliced break played at its own tempo', () => {
     expect(ownBpm).toBeCloseTo(bpm, 3);
     project = run(project, setBpm(ownBpm), setSongBars(bars), setSongCell('main', 0, m1));
 
-    const triggers = generateTriggers(project, seededRng(1));
+    const triggers = generateTriggers(project, withRng(seededRng(1)));
     const rendered = await renderTriggers(triggers, project, SAMPLE_RATE);
 
     // Starts land on sample frames and neighbouring slices share their boundaries,

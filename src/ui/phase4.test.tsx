@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
 import { addSample, createLoop, createMod, createProject, setSongCell, setStep } from '../model';
-import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
+import { constantAudio, seededRng, sequentialIds, withRng } from '../test/fixtures';
 import { App } from './App';
 import { parseValues, randomMod } from './modText';
 import type { Player, Take } from './playback';
@@ -21,6 +21,7 @@ function services(): Services {
   const player: Player = {
     play: vi.fn(),
     replace: vi.fn(),
+    queue: vi.fn(),
     seek: vi.fn(),
     setLoop: vi.fn(),
     stop: vi.fn(),
@@ -95,7 +96,7 @@ describe('Mods', () => {
     fireEvent.click(button(mod.name));
     clickLane('Mod A', 0);
 
-    expect(generateTriggers(present(store), () => 0).map((t) => t.pitch)).toEqual([0, 3, 5, 7]);
+    expect(generateTriggers(present(store), withRng(() => 0)).map((t) => t.pitch)).toEqual([0, 3, 5, 7]);
   });
 
   it('a random effect draws an example roll, whole values within its range, and can roll another', async () => {
@@ -245,7 +246,7 @@ describe('randomMod', () => {
       if (target === 'direction') expect(shape.kind).not.toBe('ramp');
       const placed = apply(project, createMod('r', [mod]), setSongCell('main', 0, loops[0]!));
       const id = Object.keys(placed.mods)[0]!;
-      expect(() => generateTriggers(apply(placed, setSongCell('modA', 0, id)), seededRng(seed))).not.toThrow();
+      expect(() => generateTriggers(apply(placed, setSongCell('modA', 0, id)), withRng(seededRng(seed)))).not.toThrow();
     }
   });
 

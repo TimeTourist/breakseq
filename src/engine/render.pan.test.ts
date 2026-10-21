@@ -3,7 +3,7 @@ import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Hit, Project, StepEffect } from '../model';
 import { addSample, channelAudio, createLoop, createMod, createProject, effectiveHit, sampleAudio, setBpm, setMatrixConfig, setSlicing, setSampleChannel, setSongCell, setStep, updateHit } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
 import { panGains } from './colour';
 import { generateTriggers } from './generate';
 import { renderTriggers } from './render';
@@ -33,7 +33,7 @@ function shot(audio: AudioData, change: Partial<Hit> = {}) {
 
 /** Left and right 0.1 s in. */
 async function heard(project: Project): Promise<[number, number]> {
-  const buffer = await renderTriggers(generateTriggers(project, () => 0), project, SAMPLE_RATE);
+  const buffer = await renderTriggers(generateTriggers(project, withRng(() => 0)), project, SAMPLE_RATE);
   const at = Math.round(0.1 * SAMPLE_RATE);
   return [buffer.getChannelData(0)[at]!, buffer.getChannelData(1)[at]!];
 }
@@ -92,9 +92,9 @@ describe('pan', () => {
     const b = run(a, createMod('b', [pan([100])]));
     const [modA, modB] = Object.keys(b.mods);
     const both = run(b, setSongCell('modA', 0, modA!), setSongCell('modB', 0, modB!));
-    const triggers = generateTriggers(both, () => 0);
+    const triggers = generateTriggers(both, withRng(() => 0));
     // −0.3 + 0.5 + 1 = 1.2, kept at 1.
     expect(triggers[0]!.pan).toBe(1);
-    expect(generateTriggers(run(b, setSongCell('modA', 0, modA!)), () => 0)[0]!.pan).toBeCloseTo(0.2);
+    expect(generateTriggers(run(b, setSongCell('modA', 0, modA!)), withRng(() => 0))[0]!.pan).toBeCloseTo(0.2);
   });
 });

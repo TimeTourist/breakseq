@@ -1,4 +1,6 @@
 import type { Clip, Mod, Project, Rng, TapeCurve, TapeDirection, TapeEffect } from '../model';
+import type { Dice } from './random';
+import { CHOICE } from './random';
 import { stepDuration, tapeOf } from '../model';
 import type { Trigger } from './generate';
 import type { ModRun } from './mods';
@@ -147,6 +149,8 @@ export function tapePasses(tape: Tape): TapePass[] {
 /** A tape run over song steps: the clip and its tape, where it plays. */
 export interface TapeWindow {
   readonly clip: Clip;
+  /** The mod with the tape: its seed gives wow and flutter. */
+  readonly mod: Mod;
   readonly tape: TapeEffect;
   /** Song steps it plays over: from `start` up to `end`. */
   readonly start: number;
@@ -167,7 +171,7 @@ export function tapeWindows(runs: { readonly A: readonly (ModRun | null)[]; read
     if (last !== undefined && last.clip.id === run.clip.id && last.end === t) {
       windows[windows.length - 1] = { ...last, end: t + 1 };
     } else {
-      windows.push({ clip: run.clip, tape: tapeOf(run.mod as Mod)!, start: t, end: t + 1 });
+      windows.push({ clip: run.clip, mod: run.mod, tape: tapeOf(run.mod)!, start: t, end: t + 1 });
     }
   });
   return windows;
@@ -193,9 +197,10 @@ export function wobbles(tape: Pick<TapeEffect, 'wow' | 'flutter'>, rng: Rng): Wo
 /**
  * Turns a window into a tape over what was heard. What you see is what you
  * hear: the segment starts where the clip starts on the timeline, even when its
- * start was trimmed, and the speed ramps from there.
+ * start was trimmed, and the speed ramps from there. Wow and flutter come from
+ * the mod's and the clip's seeds and where in the clip the window starts.
  */
-export function windowTape(project: Project, window: TapeWindow, heard: readonly Trigger[], rng: Rng): Tape {
+export function windowTape(project: Project, window: TapeWindow, heard: readonly Trigger[], dice: Dice): Tape {
   const stepTime = stepDuration(project.song.bpm);
   const { clip, tape } = window;
   const start = clip.start * stepTime;
@@ -210,6 +215,6 @@ export function windowTape(project: Project, window: TapeWindow, heard: readonly
     length,
     direction: tape.direction,
     speed: { from: tape.speed.from, to: tape.speed.to, ramp: (tape.rampOver ?? clip.length) * stepTime, curve: tape.curve },
-    wobble: wobbles(tape, rng),
+    wobble: wobbles(tape, dice(CHOICE.tape, window.mod.seed, clip.seed, window.start - clip.start)),
   };
 }

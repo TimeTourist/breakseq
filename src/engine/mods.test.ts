@@ -19,7 +19,7 @@ import {
   stepDuration,
   updateHit,
 } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
 import type { Trigger } from './generate';
 import { generateTriggers } from './generate';
 
@@ -92,7 +92,7 @@ describe('fas 7: a mod with several effects', () => {
     );
     project = run(project, setSongCell('modA', 0, newest(before.mods, project.mods)));
 
-    const triggers = generateTriggers(project, () => 0);
+    const triggers = generateTriggers(project, withRng(() => 0));
 
     expect(at(triggers, 0).map((t) => t.pitch)).toEqual([7, 7, 7, 7]);
     expect(at(triggers, 4).map((t) => t.pitch)).toEqual([7, 7, 7, 7]);
@@ -103,7 +103,7 @@ describe('fas 7: a mod with several effects', () => {
     let [project] = withLoop(base, { 0: pad.K! });
     project = withMod(project, { target: 'pitch', rate: 'step', shape: { kind: 'list', values: [3] } }, 'modA');
     project = withMod(project, { target: 'pitch', rate: 'step', shape: { kind: 'list', values: [4] } }, 'modB');
-    expect(at(generateTriggers(project, () => 0), 0).map((t) => t.pitch)).toEqual([7]);
+    expect(at(generateTriggers(project, withRng(() => 0)), 0).map((t) => t.pitch)).toEqual([7]);
   });
 });
 
@@ -114,7 +114,7 @@ describe('random pitch', () => {
     const pitches = (whole: boolean) => {
       const project = withMod(loop, { target: 'pitch', rate: 'step', shape: { kind: 'random', min: 1, max: 4, chance: 100, whole } }, 'modA');
       let seed = 0;
-      return generateTriggers(project, () => ((seed = (seed + 0.137) % 1), seed)).map((t) => t.pitch);
+      return generateTriggers(project, withRng(() => ((seed = (seed + 0.137) % 1), seed))).map((t) => t.pitch);
     };
     expect(pitches(true).every((p) => Number.isInteger(p) && p >= 1 && p <= 4)).toBe(true);
     expect(pitches(false).some((p) => !Number.isInteger(p))).toBe(true);
@@ -131,7 +131,7 @@ describe('fas 4: mods', () => {
     // Clips over steps 5 and 13, where the snares are.
     project = run(project, addClip('modA', roll, 4, 1), addClip('modA', roll, 12, 1));
 
-    const triggers = generateTriggers(project, () => 0);
+    const triggers = generateTriggers(project, withRng(() => 0));
 
     expect(at(triggers, 0)).toHaveLength(1);
     expect(at(triggers, 4).map((t) => t.time)).toEqual([0, 1, 2, 3].map((i) => 4 * STEP + (i * STEP) / 4));
@@ -143,7 +143,7 @@ describe('fas 4: mods', () => {
     let [project] = withLoop(base, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.S1!])));
     project = withMod(project, { target: 'pitch', rate: 'beat', shape: { kind: 'ramp', from: 0, to: 12 } }, 'modA');
 
-    expect(generateTriggers(project, () => 0).map((t) => t.pitch)).toEqual([0, 4, 8, 12].flatMap((p) => [p, p, p, p]));
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.pitch)).toEqual([0, 4, 8, 12].flatMap((p) => [p, p, p, p]));
   });
 
   it('1/3 tempo: a bar of slip plays content steps 0–5 every third step, and the next bar starts on time', () => {
@@ -151,7 +151,7 @@ describe('fas 4: mods', () => {
     let [project] = withLoop(base, Object.fromEntries(Array.from({ length: 32 }, (_, i) => [i, pad.S1!])), 2);
     project = withMod(project, { target: 'tempo', rate: 'bar', shape: { kind: 'list', values: [1 / 3] } }, 'modA');
 
-    const triggers = generateTriggers(project, () => 0);
+    const triggers = generateTriggers(project, withRng(() => 0));
     const slipped = triggers.filter((t) => t.time < 16 * STEP - 1e-9);
 
     expect(slipped.map((t) => [t.bar, t.step])).toEqual([0, 1, 2, 3, 4, 5].map((s) => [0, s]));
@@ -167,7 +167,7 @@ describe('fas 4: mods', () => {
     project = withMod(project, { target: 'tempo', rate: 'bar', shape: { kind: 'list', values: [1 / 3] } }, 'modA', []);
     project = run(project, addClip('modA', Object.keys(project.mods)[0]!, 0, 32));
 
-    const slipped = generateTriggers(project, () => 0).filter((t) => t.time < 32 * STEP - 1e-9);
+    const slipped = generateTriggers(project, withRng(() => 0)).filter((t) => t.time < 32 * STEP - 1e-9);
 
     // Eleven content steps (0–10) over one clip of two bars, all from the start of the content.
     expect(slipped.map((t) => t.bar * 16 + t.step)).toEqual(Array.from({ length: 11 }, (_, i) => i));
@@ -179,7 +179,7 @@ describe('fas 4: mods', () => {
     project = withMod(project, { target: 'tempo', rate: 'bar', shape: { kind: 'list', values: [1 / 2] } }, 'modA', []);
     project = run(project, addClip('modA', Object.keys(project.mods)[0]!, 4, 8));
 
-    const triggers = generateTriggers(project, () => 0);
+    const triggers = generateTriggers(project, withRng(() => 0));
     const steps = triggers.filter((t) => t.time < 16 * STEP - 1e-9).map((t) => [t.step, +(t.time / STEP).toFixed(3)]);
 
     // Steps 0–3 on time; from step 4 at half speed until step 12 on the clock; then on time from 12.
@@ -190,10 +190,10 @@ describe('fas 4: mods', () => {
     const { project: base, pad, snare } = kit();
     let [project] = withLoop(base, { 0: pad.Snares!, 4: pad.Snares! });
     const two = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [2] } }, 'modA');
-    expect(generateTriggers(two, () => 0).map((t) => t.hitId)).toEqual([snare[1], snare[1]]);
+    expect(generateTriggers(two, withRng(() => 0)).map((t) => t.hitId)).toEqual([snare[1], snare[1]]);
 
     project = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [5] } }, 'modA');
-    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([snare[0], snare[0]]);
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.hitId)).toEqual([snare[0], snare[0]]);
   });
 
   it('Cycle with no values, per step, goes round the members where it hits a step: 1, 2, 3, 4, 1', () => {
@@ -201,7 +201,7 @@ describe('fas 4: mods', () => {
     let [project] = withLoop(base, { 2: pad.Snares!, 6: pad.Snares!, 10: pad.Snares!, 14: pad.Snares!, 18: pad.Snares! }, 2);
     project = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'cycle', values: [] } }, 'modA', [0, 1]);
 
-    const snares = generateTriggers(project, () => 0).filter((t) => t.hitId !== hit.K);
+    const snares = generateTriggers(project, withRng(() => 0)).filter((t) => t.hitId !== hit.K);
 
     expect(snares.map((t) => t.hitId)).toEqual([snare[0], snare[1], snare[2], snare[3], snare[0]]);
   });
@@ -211,13 +211,13 @@ describe('fas 4: mods', () => {
     let [project] = withLoop(run(base, updateHit(hit.S1!, { volume: -2 })), { 0: pad.S1! });
     project = withMod(project, { target: 'volume', rate: 'bar', shape: { kind: 'list', values: [-6] } }, 'modA');
     project = withMod(project, { target: 'volume', rate: 'bar', shape: { kind: 'list', values: [3] } }, 'modB');
-    expect(generateTriggers(project, () => 0).map((t) => t.volume)).toEqual([-5]);
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.volume)).toEqual([-5]);
 
     let [dir] = withLoop(base, { 0: pad.S1! });
     dir = withMod(dir, { target: 'direction', rate: 'bar', shape: { kind: 'list', values: [1] } }, 'modA');
-    expect(generateTriggers(dir, () => 0).map((t) => t.direction)).toEqual(['reverse']);
+    expect(generateTriggers(dir, withRng(() => 0)).map((t) => t.direction)).toEqual(['reverse']);
     dir = withMod(dir, { target: 'direction', rate: 'bar', shape: { kind: 'list', values: [0] } }, 'modB');
-    expect(generateTriggers(dir, () => 0).map((t) => t.direction)).toEqual(['forward']);
+    expect(generateTriggers(dir, withRng(() => 0)).map((t) => t.direction)).toEqual(['forward']);
   });
 
 });
@@ -238,7 +238,7 @@ describe("a matrix's config", () => {
     const { project: base, matrix, sliceHit } = slicedSample();
     const project = run(base, setMatrixConfig(matrix.id, { pitch: 1, volume: -3 }), updateHit(sliceHit(1), { pitch: 1 }));
 
-    const triggers = generateTriggers(project, () => 0);
+    const triggers = generateTriggers(project, withRng(() => 0));
 
     expect(triggers.map((t) => t.pitch)).toEqual([1, 2, 1, 1]);
     expect(triggers.map((t) => t.volume)).toEqual([-3, -3, -3, -3]);
@@ -247,7 +247,7 @@ describe("a matrix's config", () => {
   it('reverse on the matrix turns each slice round; a reversed slice plays forward again', () => {
     const { project: base, matrix, sliceHit } = slicedSample();
     const project = run(base, setMatrixConfig(matrix.id, { direction: 'reverse' }), updateHit(sliceHit(2), { direction: 'reverse' }));
-    expect(generateTriggers(project, () => 0).map((t) => t.direction)).toEqual(['reverse', 'reverse', 'forward', 'reverse']);
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.direction)).toEqual(['reverse', 'reverse', 'forward', 'reverse']);
   });
 
   it("the matrix's fade applies where a slice has none", () => {

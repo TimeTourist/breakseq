@@ -3,7 +3,7 @@ import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Hit, Project, StepEffect } from '../model';
 import { addSample, createLoop, createMod, createProject, hitColour, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit } from '../model';
-import { sequentialIds } from '../test/fixtures';
+import { sequentialIds, withRng } from '../test/fixtures';
 import { rms } from './colour';
 import { generateTriggers } from './generate';
 import { midiPlan } from './midi';
@@ -36,7 +36,7 @@ function shot(hz: number, change: Partial<Hit> = {}) {
 
 /** The RMS of the first 0.3 s heard. */
 async function heard(project: Project) {
-  const buffer = await renderTriggers(generateTriggers(project, () => 0), project, SAMPLE_RATE);
+  const buffer = await renderTriggers(generateTriggers(project, withRng(() => 0)), project, SAMPLE_RATE);
   return rms([buffer.getChannelData(0)], Math.round(0.05 * SAMPLE_RATE), Math.round(0.3 * SAMPLE_RATE));
 }
 
@@ -77,7 +77,7 @@ describe('Dist and Filter mods', () => {
     const { project, loop } = shot(220, { dist: { mode: 'drive', amount: 0.5 } });
     const p = run(project, ...[4, 8, 12].map((s) => setStep(loop.id, s, { padId: Object.values(project.pads)[0]!.id })));
     const ramp = withMod(p, { target: 'dist', rate: 'beat', shape: { kind: 'ramp', from: 0, to: 1 }, dist: { mode: 'crush' } });
-    const triggers = generateTriggers(ramp, () => 0);
+    const triggers = generateTriggers(ramp, withRng(() => 0));
     expect(triggers.map((t) => t.dist)).toEqual([0, 1 / 3, 2 / 3, 1].map((amount) => ({ mode: 'crush', amount })));
     expect(midiPlan(ramp, { triggers, tapes: [] }).pieces).toHaveLength(4);
   });
@@ -85,6 +85,6 @@ describe('Dist and Filter mods', () => {
   it('a Filter mod sweeps the cutoff with its type and resonance', () => {
     const { project } = shot(220);
     const sweep = withMod(project, { target: 'filter', rate: 'step', shape: { kind: 'list', values: [300] }, filter: { type: 'highpass', resonance: 0.5 } });
-    expect(generateTriggers(sweep, () => 0)[0]!.filter).toEqual({ type: 'highpass', cutoff: 300, resonance: 0.5 });
+    expect(generateTriggers(sweep, withRng(() => 0))[0]!.filter).toEqual({ type: 'highpass', cutoff: 300, resonance: 0.5 });
   });
 });

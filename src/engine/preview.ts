@@ -1,7 +1,9 @@
 import type { Hit, Id, Loop, Project, Step } from '../model';
 import { STEPS_PER_BAR, emptyStep, matrixSequence } from '../model';
 import type { Trigger } from './generate';
-import { loopSong } from './generate';
+import { generateTake, loopSong, modPreviewSong } from './generate';
+import type { PickState } from './pad-choice';
+import { NO_PICKS } from './pad-choice';
 import { triggerSeconds } from './midi';
 import { hitPlay } from './render';
 
@@ -100,14 +102,51 @@ export function matrixSong(project: Project, matrixId: Id): Project {
   return loopSong(laid.project, laid.loop.id);
 }
 
-/** A matrix as matrixSong lays it out, over as many passes as its pads need to be heard looped (see previewPasses). */
-export function matrixSongLooped(project: Project, matrixId: Id): Project {
-  const laid = withMatrixLoop(project, matrixId);
-  return loopSong(laid.project, laid.loop.id, previewPasses(laid.project, laid.loop.steps));
+/** The shortest a block of passes is, in steps: a bar, so the next block has time to render. (Claudes val.) */
+export const MIN_BLOCK_STEPS = STEPS_PER_BAR;
+
+/**
+ * How many passes of `steps` a block holds: `wanted`, and at least enough for
+ * MIN_BLOCK_STEPS, but no more than MAX_PREVIEW_STEPS; always at least one.
+ */
+export function blockPasses(steps: number, wanted = 1): number {
+  if (steps <= 0) return 1;
+  const most = Math.max(1, Math.floor(MAX_PREVIEW_STEPS / steps));
+  return Math.max(1, Math.min(most, Math.max(wanted, Math.ceil(MIN_BLOCK_STEPS / steps))));
 }
 
-/** A loop on its own, over as many passes as its pads need to be heard looped (see previewPasses). */
-export function loopSongLooped(project: Project, loopId: Id): Project {
+/**
+ * Play in Matrices, Loops and Mods renders in blocks, one after the other as
+ * it plays: block `block` holds passes block·n … block·n + n − 1, each with its
+ * own number in its seeds (see Varv i loop). A block of a matrix or loop holds
+ * as many passes as its pads need to be heard (previewPasses), and at least a bar.
+ */
+export function matrixBlock(project: Project, matrixId: Id, block: number): Project {
+  const laid = withMatrixLoop(project, matrixId);
+  const passes = blockPasses(laid.loop.steps.length, previewPasses(laid.project, laid.loop.steps));
+  return loopSong(laid.project, laid.loop.id, passes, block * passes);
+}
+
+/** A loop on its own, block `block` of its passes (see matrixBlock). */
+export function loopBlock(project: Project, loopId: Id, block: number): Project {
   const loop = project.loops[loopId];
-  return loopSong(project, loopId, loop === undefined ? 1 : previewPasses(project, loop.steps));
+  const passes = loop === undefined ? 1 : blockPasses(loop.steps.length, previewPasses(project, loop.steps));
+  return loopSong(project, loopId, passes, block * passes);
+}
+
+/** A mod on a loop, block `block` of its passes: each pass the loop once with the mod over it, and at least a bar. */
+export function modBlock(project: Project, modId: Id, loopId: Id, block: number): Project {
+  const passes = blockPasses(project.loops[loopId]?.steps.length ?? 0);
+  return modPreviewSong(project, modId, loopId, passes, block * passes);
+}
+
+/**
+ * Where the pads' choices stand when block `block` starts: the blocks before
+ * it generated in turn (triggers only), so Round robin and No repeat go on
+ * where the last block ended, and the same blocks give the same.
+ */
+export function blockStart(blocks: (block: number) => Project, block: number): PickState {
+  let state = NO_PICKS;
+  for (let b = 0; b < block; b++) state = generateTake(blocks(b), { from: state }).end ?? state;
+  return state;
 }
