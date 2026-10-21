@@ -3,7 +3,7 @@ import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Hit, Project, StepEffect } from '../model';
 import { addSample, createLoop, createMod, createProject, hitSpace, setBpm, setSongBars, setSongCell, setStep, updateHit } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
 import { generateTake } from './generate';
 import { renderTakeWithTail, spaceRing } from './render';
 import { midiExport, renderSlices } from './render-slices';
@@ -69,7 +69,7 @@ describe('reverb and delay on a hit', () => {
   it('the reverb rings on after the next hit cuts the hit that sent to it', async () => {
     // A, 1 s long with all of it sent to a mid-sized reverb, is cut at 0.5 s by B, which sends nothing.
     const { project } = song({ seconds: 1, steps: [0], change: { reverb: { amount: 1, size: 0.5 } } }, [2]);
-    const take = generateTake(project, () => 0);
+    const take = generateTake(project, withRng(() => 0));
     const space = await renderTakeWithTail(take, project, SAMPLE_RATE, undefined, 'space');
     // B is heard until 1.5 s; after it only A's reverb can be heard.
     expect(peak(space.full, 1.6, 2.0)).toBeGreaterThan(0.001);
@@ -80,7 +80,7 @@ describe('reverb and delay on a hit', () => {
   it('a delay echoes at its time in the song\'s tempo, and with no feedback once', async () => {
     // At 60 BPM a 1/8 is 0.5 s.
     const { project } = song({ seconds: 0.05, steps: [0], change: { delay: { amount: 1, steps: 2, feedback: 0 } } });
-    const { full } = await renderTakeWithTail(generateTake(project, () => 0), project, SAMPLE_RATE, undefined, 'space');
+    const { full } = await renderTakeWithTail(generateTake(project, withRng(() => 0)), project, SAMPLE_RATE, undefined, 'space');
     expect(peak(full, 0, 0.45)).toBe(0);
     expect(peak(full, 0.5, 0.55)).toBeCloseTo(0.5, 2);
     expect(peak(full, 0.6, 1.2)).toBe(0);
@@ -89,7 +89,7 @@ describe('reverb and delay on a hit', () => {
   it('what rings past the end comes in at the start of the looped take; the full take rings on after it', async () => {
     // A on the last step, 3.75 s, with a large reverb.
     const { project } = song({ seconds: 0.1, steps: [15], change: { reverb: { amount: 1, size: 1 } } });
-    const take = generateTake(project, () => 0);
+    const take = generateTake(project, withRng(() => 0));
     expect(spaceRing(take.triggers, 60)).toBe(4);
     const { buffer, full } = await renderTakeWithTail(take, project, SAMPLE_RATE);
     expect(buffer.duration).toBeCloseTo(4, 5);
@@ -103,7 +103,7 @@ describe('reverb and delay on a hit', () => {
 
   it('with nothing sent the take is as it was: as long as the song, nothing after', async () => {
     const { project } = song({ seconds: 0.1, steps: [0, 8] });
-    const { buffer, full } = await renderTakeWithTail(generateTake(project, () => 0), project, SAMPLE_RATE);
+    const { buffer, full } = await renderTakeWithTail(generateTake(project, withRng(() => 0)), project, SAMPLE_RATE);
     expect(full).toBe(buffer);
     expect(buffer.duration).toBeCloseTo(4, 5);
   });
@@ -114,7 +114,7 @@ describe('reverb and delay as mods', () => {
 
   it('a Reverb mod sends the hits under it, in place of the hit\'s own; 0 sends none', () => {
     const { project } = song({ seconds: 0.1, steps: [0, 1, 2], change: { reverb: { amount: 0.2, size: 0.1 } } });
-    const triggers = generateTake(withMod(project, reverb([60, 0], 0.8)), () => 0).triggers;
+    const triggers = generateTake(withMod(project, reverb([60, 0], 0.8)), withRng(() => 0)).triggers;
     expect(triggers.map((t) => t.reverb)).toEqual([{ amount: 0.6, size: 0.8 }, null, { amount: 0.6, size: 0.8 }]);
   });
 
@@ -124,7 +124,7 @@ describe('reverb and delay as mods', () => {
     const b = run(a, createMod('b', [reverb([50], 0.9)]));
     const [modA, modB] = Object.keys(b.mods);
     const both = run(b, setSongCell('modA', 0, modA!), setSongCell('modB', 0, modB!));
-    expect(generateTake(both, () => 0).triggers[0]!.reverb).toEqual({ amount: 1, size: 0.9 });
+    expect(generateTake(both, withRng(() => 0)).triggers[0]!.reverb).toEqual({ amount: 1, size: 0.9 });
   });
 
   it('a Delay mod at random sends some hits and not others', () => {
@@ -133,7 +133,7 @@ describe('reverb and delay as mods', () => {
     // The rng gives a chance roll, then a value, for each step: below 0.5 sends.
     const rolls = [0.1, 0, 0.9, 0.1, 0, 0.9];
     let i = 0;
-    const triggers = generateTake(withMod(project, delay), () => rolls[i++ % rolls.length]!).triggers;
+    const triggers = generateTake(withMod(project, delay), withRng(() => rolls[i++ % rolls.length]!)).triggers;
     expect(triggers.map((t) => t.delay?.amount ?? 0)).toEqual([0.5, 0, 0.5, 0]);
   });
 });
@@ -143,7 +143,7 @@ describe('exports with reverb and delay', () => {
     const dry = song({ seconds: 0.1, steps: [0] }).project;
     const wet = song({ seconds: 0.1, steps: [0], change: { reverb: { amount: 1, size: 0.3 } } }).project;
     const exported = async (project: Project) => {
-      const take = generateTake(project, () => 0);
+      const take = generateTake(project, withRng(() => 0));
       const { buffer } = await renderTakeWithTail(take, project, SAMPLE_RATE);
       return { take, buffer, out: await midiExport(project, { ...take, buffer }, SAMPLE_RATE) };
     };

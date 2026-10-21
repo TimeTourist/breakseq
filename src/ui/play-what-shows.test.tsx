@@ -76,6 +76,7 @@ function services() {
   const player = {
     play: vi.fn(() => void (playing = true)),
     replace: vi.fn(),
+    queue: vi.fn(),
     seek: vi.fn(),
     setLoop: vi.fn(),
     stop: vi.fn(() => void (playing = false)),
@@ -372,7 +373,7 @@ describe('rendering what Play plays', () => {
     const p = split();
     const { store, services } = await setup(p, { view: 'loops' });
     const signals: AbortSignal[] = [];
-    vi.mocked(services.renderSong).mockImplementation((_project, _rng, request) => {
+    vi.mocked(services.renderSong).mockImplementation((_project, request) => {
       if (request?.signal !== undefined) signals.push(request.signal);
       return new Promise<Take>(() => undefined);
     });
@@ -385,28 +386,51 @@ describe('rendering what Play plays', () => {
     expect(signals[1]!.aborted).toBe(false);
   });
 
-  it('a change keeps the random picks, so it is the change that is heard; New take picks anew (Claudes val)', async () => {
+  it('a change does not reroll: the song is rendered from its seeds, the same project the same; New take is gone', async () => {
     const p = split();
     const { store, services } = await setup(p, { view: 'song' });
-    let fresh = 0;
-    // Each fresh randomness counts on from its own number.
-    (services as { rng: Services['rng'] }).rng = () => {
-      const base = ++fresh;
-      let i = 0;
-      return () => (base * 10 + i++) / 1000;
-    };
-    const draws = () => {
-      const rng = vi.mocked(services.renderSong).mock.lastCall![1];
-      return [rng(), rng(), rng()];
-    };
     act(() => void store.dispatch({ type: 'run', command: setBpm(130) }));
     await settle();
-    const first = draws();
-    act(() => void store.dispatch({ type: 'run', command: setBpm(140) }));
+    const [project, request] = vi.mocked(services.renderSong).mock.lastCall!;
+    expect(project).toBe(store.getState().history.present);
+    expect(request?.from).toBeUndefined();
+    expect(screen.queryByRole('button', { name: /New take/ })).toBeNull();
+    act(() => void store.dispatch({ type: 'view', view: 'song' }));
+    expect(screen.queryByRole('button', { name: /New take/ })).toBeNull();
+  });
+
+  it('Play in Loops with Loop on renders the next pass as the first plays, queues it, and the one after once it starts (Varv i loop)', async () => {
+    const p = split();
+    const { store, services, player } = await setup(p, { view: 'loops' });
+    const renders = () => vi.mocked(services.renderSong).mock.calls.length;
+    const before = renders();
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     await settle();
-    expect(draws()).toEqual(first);
-    fireEvent.click(screen.getByRole('button', { name: /New take/ }));
+    expect(renders()).toBe(before + 1);
+    expect(player.queue).toHaveBeenCalledTimes(1);
+    // Block 1: the passes after the first block, their clips seeded by their numbers.
+    const [next] = vi.mocked(services.renderSong).mock.lastCall!;
+    const [firstShown] = vi.mocked(services.renderSong).mock.calls[before - 1]!;
+    expect(next.song.clips.map((c) => c.seed)).not.toEqual(firstShown.song.clips.map((c) => c.seed));
+    const onStart = vi.mocked(player.queue).mock.calls[0]![1] as () => void;
+    act(() => onStart());
     await settle();
-    expect(draws()).not.toEqual(first);
+    expect(renders()).toBe(before + 2);
+    expect(player.queue).toHaveBeenCalledTimes(2);
+    // Stop: nothing more follows.
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    const onNext = vi.mocked(player.queue).mock.calls[1]![1] as () => void;
+    act(() => onNext());
+    await settle();
+    expect(renders()).toBe(before + 2);
+    void store;
+  });
+
+  it('Play in Loops with Loop off plays the first block once: nothing is queued', async () => {
+    const p = split();
+    const { player } = await setup(p, { view: 'loops', loop: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    await settle();
+    expect(player.queue).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,7 @@ import type { Command, Project } from '../model';
 import { addClip, addSample, createProject, setBpm, setMatrixConfig, setPadConfig, setSlicing, setSongLoop, updateHit, updateSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { heardOf, sameHeard } from './heard';
-import { matrixSongLooped } from './preview';
+import { matrixBlock } from './preview';
 
 const ctx = sequentialIds();
 function run(project: Project, ...commands: Command[]): Project {
@@ -45,7 +45,7 @@ describe('what of a project is heard', () => {
   });
 
   it('a matrix played on its own hears its own changes, not another matrix\'s', () => {
-    const own = (q: Project) => heardOf(matrixSongLooped(q, mb.id));
+    const own = (q: Project) => heardOf(matrixBlock(q, mb.id, 0));
     expect(sameHeard(own(p), own(run(p, updateHit(hitOf(mb.pads[1]!), { volume: -3 }))))).toBe(false);
     expect(sameHeard(own(p), own(run(p, updateHit(hitOf(ma.pads[1]!), { volume: -3 }))))).toBe(true);
   });

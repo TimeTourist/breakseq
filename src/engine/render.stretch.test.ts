@@ -3,7 +3,7 @@ import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Hit, Project, StepEffect } from '../model';
 import { addSample, createLoop, createMod, createProject, hitSeconds, hitStretch, setBpm, setMatrixConfig, setSlicing, setSongCell, setStep, updateHit } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
 import { generateTriggers } from './generate';
 import { renderTriggers } from './render';
 
@@ -64,9 +64,9 @@ describe('stretch on a hit', () => {
 
   it('triggers carry the stretch; unstretched ones none', () => {
     const { project } = amen(150);
-    expect(generateTriggers(project, () => 0).every((t) => t.stretch === null)).toBe(true);
+    expect(generateTriggers(project, withRng(() => 0)).every((t) => t.stretch === null)).toBe(true);
     const fit = macro(project, { mode: 'fit' });
-    expect(generateTriggers(fit, () => 0)[0]!.stretch).toEqual({ factor: 0.8, grain: 30, from: 'sample' });
+    expect(generateTriggers(fit, withRng(() => 0))[0]!.stretch).toEqual({ factor: 0.8, grain: 30, from: 'sample' });
   });
 });
 
@@ -81,20 +81,20 @@ describe('the Stretch mod', () => {
   it('Multiply times the hit stretch, Replace instead of it; the mod grain applies', () => {
     const { project } = amen(150);
     const fit = macro(project, { mode: 'fit' });
-    expect(generateTriggers(withMod(fit, effect(2, 'multiply')), () => 0)[0]!.stretch).toEqual({ factor: 1.6, grain: 80, from: 'sample' });
-    expect(generateTriggers(withMod(fit, effect(2, 'replace')), () => 0)[0]!.stretch).toEqual({ factor: 2, grain: 80, from: 'sample' });
+    expect(generateTriggers(withMod(fit, effect(2, 'multiply')), withRng(() => 0))[0]!.stretch).toEqual({ factor: 1.6, grain: 80, from: 'sample' });
+    expect(generateTriggers(withMod(fit, effect(2, 'replace')), withRng(() => 0))[0]!.stretch).toEqual({ factor: 2, grain: 80, from: 'sample' });
   });
 
   it('B wins over A, and a factor of 1 is no stretch', () => {
     const { project } = amen(120);
     const both = withMod(withMod(project, effect(3, 'replace')), effect(1, 'replace'), 'modB');
-    expect(generateTriggers(both, () => 0)[0]!.stretch).toBeNull();
+    expect(generateTriggers(both, withRng(() => 0))[0]!.stretch).toBeNull();
   });
 
   it('a step that ignores mods keeps its own stretch', () => {
     const { project, m1 } = amen(120);
     const p = run(withMod(project, effect(2, 'replace')), setStep(m1.id, 0, { ignoreMods: true }));
-    const [first, second] = generateTriggers(p, () => 0);
+    const [first, second] = generateTriggers(p, withRng(() => 0));
     expect(first!.stretch).toBeNull();
     expect(second!.stretch?.factor).toBe(2);
   });
@@ -112,7 +112,7 @@ describe('rendering a stretch', () => {
     return run(project, setStep(loop.id, 0, { padId: pad.id }), setSongCell('main', 0, loop.id));
   }
   const heard = async (project: Project) => {
-    const data = (await renderTriggers(generateTriggers(project, () => 0), project, SAMPLE_RATE)).getChannelData(0);
+    const data = (await renderTriggers(generateTriggers(project, withRng(() => 0)), project, SAMPLE_RATE)).getChannelData(0);
     return { data, last: data.findLastIndex((v) => Math.abs(v) > 1e-4) / SAMPLE_RATE };
   };
 

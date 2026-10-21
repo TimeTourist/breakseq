@@ -40,7 +40,6 @@ interface SongViewProps {
   /** Seconds into the take while playing. */
   readonly playheadSeconds: number | null;
   readonly stepSeconds: number;
-  readonly onNewTake: () => void;
   /** A click in the ruler: playing jumps to that step. */
   readonly onSeek: (step: number) => void;
 }
@@ -48,7 +47,7 @@ interface SongViewProps {
 /** How far the pointer moves in the ruler before a click becomes a drag that marks the loop. */
 const DRAG_PX = 4;
 
-export function SongView({ playheadSeconds, stepSeconds, onNewTake, onSeek }: SongViewProps) {
+export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps) {
   const project = useProject();
   const { store } = useApp();
   const cursor = useSelect((s) => s.songCursor);
@@ -288,9 +287,6 @@ export function SongView({ playheadSeconds, stepSeconds, onNewTake, onSeek }: So
             onClick={() => setError(run(setSongLoopOn(!region.on)))}
           >
             Loop {loopText}
-          </button>
-          <button type="button" onClick={onNewTake}>
-            New take
           </button>
           <span className="readout mono" aria-live="off">
             {position(playheadStep === null ? cursor : Math.floor(playheadStep))} / {bars}

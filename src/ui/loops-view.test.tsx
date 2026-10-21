@@ -22,6 +22,7 @@ function services() {
     player: {
       play: vi.fn(),
       replace: vi.fn(),
+      queue: vi.fn(),
       seek: vi.fn(),
       setLoop: vi.fn(),
       stop: vi.fn(),

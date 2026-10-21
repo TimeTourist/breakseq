@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project, StepEffect } from '../model';
 import { addSample, copyHits, createLoop, createMatrix, createMod, createProject, setBpm, setMatrixConfig, setPadConfig, setSlicing, setSongCell, setStep, stepDuration, updateHit } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
 import { generateTake } from './generate';
 import type { Trigger } from './generate';
 import { FIRST_NOTE, MAX_PIECES, MIDI_PPQ, MidiExportError, encodeMidi, midiPlan, slotCount } from './midi';
@@ -32,7 +32,7 @@ function copyOfFirst(project: Project) {
   const first = Object.values(made.matrices).find((m) => m.name === 'amen 1')!.pads[0]!;
   return { project: run(made, copyHits(made.pads[first]!.members, matrix.pads[0]!)), padId: matrix.pads[0]!, matrixId: matrix.id };
 }
-const take = (project: Project) => generateTake(project, () => 0);
+const take = (project: Project) => generateTake(project, withRng(() => 0));
 const nameOf = (project: Project, t: Trigger) => project.hits[t.hitId]!.name;
 
 describe('MIDI plan', () => {

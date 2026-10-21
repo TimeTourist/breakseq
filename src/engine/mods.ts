@@ -11,7 +11,10 @@ import {
   distPlay,
   filterPlay,
   reverbPlay,
+  MOD_TARGETS,
 } from '../model';
+import type { Dice } from './random';
+import { CHOICE } from './random';
 
 /** What a step will play after mods. Handlers return a changed copy. */
 export interface StepState {
@@ -154,9 +157,11 @@ export const effectFor = (mod: Mod, target: StepTarget): StepEffect | undefined 
  * A value is worked out once per interval of a clip and held for every step and
  * trigger in it, so a random value is only rolled once. Intervals count from the
  * clip's content start, so trimming its start moves into the modulation. Steps
- * must be asked for in time order: Cycle counts the intervals used so far.
+ * must be asked for in time order: Cycle counts the intervals used so far. A
+ * random value comes from the mod's seed, the clip's seed, the target and the
+ * interval (see Slump och seeds).
  */
-export function modValues(rng: Rng): ModValues {
+export function modValues(dice: Dice): ModValues {
   const cache = new Map<string, number | null>();
   const cycles = new Map<string, number>();
   return (run, effect, t, discrete) => {
@@ -172,6 +177,7 @@ export function modValues(rng: Rng): ModValues {
         index = cycles.get(counter) ?? 0;
         cycles.set(counter, index + 1);
       }
+      const rng = dice(CHOICE.mod, run.mod.seed, clip.seed, MOD_TARGETS.indexOf(effect.target), interval);
       cache.set(key, shapeValue(effect.shape, index, intervals, discrete, rng));
     }
     return cache.get(key) ?? null;

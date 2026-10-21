@@ -1,5 +1,5 @@
 import type { AudioData, Project, Rng } from '../model';
-import type { HitRun } from '../engine';
+import type { HitRun, PickState } from '../engine';
 import type { RenderCache, RenderOptions } from '../engine';
 import { EXPORT_SAMPLE_RATE, createRenderCache, encodeWav, generateTake, midiExport, renderTakeWithTail, rexExport } from '../engine';
 import { stepDuration } from '../model';
@@ -17,8 +17,12 @@ export interface Services {
   /** Backups of the autosave; without it, Project shows none. */
   readonly backups?: BackupStorage;
   readonly player: Player;
-  /** Renders the song; parts already rendered are kept, and with `signal` it gives up once that aborts. */
-  readonly renderSong: (project: Project, rng: Rng, options?: RenderRequest) => Promise<Take>;
+  /**
+   * Renders the song, its randomness from its seeds; parts already rendered are
+   * kept, and with `signal` it gives up once that aborts. `from` is where the
+   * pads' choices stand at its start, for a pass of Play after the first.
+   */
+  readonly renderSong: (project: Project, options?: RenderRequest) => Promise<Take>;
   /** Renders what a view plays that is not a song: hits one after another, or a sample's audio as it is. */
   readonly renderPreview: (preview: Preview, options?: RenderRequest) => Promise<Take>;
   /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
@@ -29,7 +33,7 @@ export interface Services {
   readonly exportRex: (project: Project, take: Take) => Promise<number>;
   /** Hands the user a file to save. */
   readonly download: (name: string, bytes: Uint8Array, type: string) => void;
-  /** Fresh randomness for each take. */
+  /** Fresh randomness for what is not the project's sound: a click on a pad plays one pick of it. */
   readonly rng: () => Rng;
   /** Project folders on disk; without it, Project only explains what it would do. */
   readonly folders?: FolderService;
@@ -38,6 +42,8 @@ export interface Services {
 /** What a render may be told: when to give up because it is no longer wanted. */
 export interface RenderRequest {
   readonly signal?: AbortSignal;
+  /** Where the pads' choices stand when it starts (see blockStart); none by default. */
+  readonly from?: PickState;
 }
 
 /** Something Play plays that is not a song: hits one after another, or frames `from` to `to` of some audio. */
@@ -74,10 +80,10 @@ export function renderers(cache: RenderCache = createRenderCache()) {
     return take;
   };
 
-  const renderSong = async (project: Project, rng: Rng, request?: RenderRequest): Promise<Take> => {
-    const take = generateTake(project, rng);
+  const renderSong = async (project: Project, request?: RenderRequest): Promise<Take> => {
+    const take = generateTake(project, request?.from === undefined ? {} : { from: request.from });
     const rendered = await renderTakeWithTail(take, project, EXPORT_SAMPLE_RATE, undefined, 'all', options(request));
-    return { ...withTail(rendered), triggers: take.triggers, tapes: take.tapes, step: stepDuration(project.song.bpm) };
+    return { ...withTail(rendered), triggers: take.triggers, tapes: take.tapes, step: stepDuration(project.song.bpm), ...(take.end === undefined ? {} : { end: take.end }) };
   };
 
   return { renderSong, renderPreview };

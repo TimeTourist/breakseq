@@ -1,4 +1,4 @@
-import type { Tape, Trigger, Voice } from '../engine';
+import type { PickState, Tape, Trigger, Voice } from '../engine';
 import { CHOKE_FADE, hitPlay, scheduleHit } from '../engine';
 import type { AudioData, Id, Project } from '../model';
 
@@ -13,6 +13,8 @@ export interface Take {
   readonly tapes: readonly Tape[];
   /** Seconds per 1/16 step, the grid a new take takes over on; missing for audio without steps, as a sample. */
   readonly step?: number;
+  /** Where the pads' choices stood at its end: the next pass of Play starts from it. */
+  readonly end?: PickState;
 }
 
 /** Lead time so a scheduled start is never in the past. */
@@ -146,6 +148,14 @@ export interface Player {
    * or played once as before; starts nothing if stopped.
    */
   readonly replace: (take: Take) => void;
+  /**
+   * Queues the next block of passes (see Varv i loop): it takes over, from its
+   * start, when the take playing reaches its end, instead of that looping
+   * again; it then loops itself until another is queued. `onStart` runs once it
+   * plays. Null takes a queued take away. Play, Stop, a seek, a new loop and
+   * replace take it away too. Nothing is queued when stopped or played once.
+   */
+  readonly queue: (take: Take | null, onStart?: () => void) => void;
   /** Jumps to `seconds` into what is playing; nothing if stopped. */
   readonly seek: (seconds: number) => void;
   /** The part of each take that loops, in seconds, or null for the whole take. Takes effect at once. */
@@ -175,6 +185,8 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
   let context: AudioContext | null = null;
   let current: Segment | null = null;
   let pending: Segment | null = null;
+  /** The next block, and the segment it follows, which plays to its end rather than looping. */
+  let queued: { segment: Segment; after: Segment; onStart: (() => void) | undefined } | null = null;
   const auditionBuffers = new WeakMap<AudioData, AudioBuffer>();
   let auditioning: AudioBufferSourceNode | null = null;
   let hitVoice: Voice | null = null;
@@ -242,7 +254,22 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     segment.source.stop(at + SWAP_FADE);
   };
 
+  /** Takes the queued take away: what it would have followed loops again. */
+  const unqueue = () => {
+    settle();
+    if (queued === null) return;
+    const { segment, after } = queued;
+    queued = null;
+    try {
+      segment.source.stop();
+    } catch {
+      // Already stopped.
+    }
+    after.source.loop = true;
+  };
+
   const stopAll = () => {
+    unqueue();
     for (const segment of [current, pending]) {
       try {
         segment?.source.stop();
@@ -254,13 +281,19 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     pending = null;
   };
 
-  /** Promotes the pending take once its start time has come. */
-  const settle = () => {
+  /** Promotes the pending take once its start time has come, and then the queued one. */
+  function settle() {
     if (pending !== null && context !== null && context.currentTime >= pending.startTime) {
       current = pending;
       pending = null;
     }
-  };
+    if (queued !== null && pending === null && context !== null && context.currentTime >= queued.segment.startTime) {
+      const { segment, onStart } = queued;
+      current = segment;
+      queued = null;
+      onStart?.();
+    }
+  }
 
   const position = (): number | null => {
     settle();
@@ -282,7 +315,22 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       stopAll();
       current = start(take, ctx().currentTime + MIN_LEAD, from, once);
     },
+    queue: (take, onStart) => {
+      unqueue();
+      const after = pending ?? current;
+      // Only a take looped whole can play on to its end: a loop region within it would not.
+      if (take === null || after === null || context === null || after.once || after.loop.start > 1e-6 || after.loop.end < (after.source.buffer?.duration ?? 0) - 1e-6) return;
+      // The next time `after` reaches the end of its loop.
+      const length = after.loop.end - after.loop.start;
+      let at = after.startTime + (after.loop.end - after.offset);
+      if (length > 0 && at < context.currentTime + MIN_LEAD) at += Math.ceil((context.currentTime + MIN_LEAD - at) / length) * length;
+      after.source.loop = false;
+      queued = { segment: start(take, at, 0), after, onStart };
+      // Polling settles it too; this makes sure it is settled near the time.
+      setTimeout(settle, Math.max(0, (at - context.currentTime) * 1000) + 5);
+    },
     replace: (take) => {
+      unqueue();
       settle();
       if (current === null || context === null) return;
       const { once } = current;
@@ -313,6 +361,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       if (current !== null) restart(seconds);
     },
     setLoop: (next) => {
+      unqueue();
       range = next;
       const at = position();
       if (current === null || context === null || at === null || current.once) return;

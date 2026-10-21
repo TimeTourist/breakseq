@@ -18,9 +18,10 @@ import {
   setSongCell,
   setStep,
   stepDuration,
+  rerollMod,
   updateHit,
 } from '../model';
-import { constantAudio, seededRng, sequenceRng, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequenceRng, sequentialIds, withRng } from '../test/fixtures';
 import { generateTriggers } from './generate';
 
 const ctx = sequentialIds();
@@ -77,7 +78,7 @@ function row(row: 'main' | 'fill' | 'modA' | 'modB', notation: string, ids: Reco
 
 /** Each bar's first trigger, as the name of the hit it plays. */
 function firstHitPerBar(project: Project): (string | undefined)[] {
-  const triggers = generateTriggers(project, () => 0);
+  const triggers = generateTriggers(project, withRng(() => 0));
   return Array.from({ length: project.song.bars }, (_, bar) => {
     const first = triggers.find((t) => t.bar === bar);
     return first === undefined ? undefined : project.hits[first.hitId]?.name.replace(/ 1$/, '');
@@ -128,7 +129,7 @@ describe('layers', () => {
     const { project, ids } = loopsSetup([{ name: 'M1', kind: 'main', bars: 1 }]);
     const every = run(project, ...Array.from({ length: 16 }, (_, i) => setStep(ids.M1!, i, { padId: Object.values(project.pads)[0]!.id })));
     const song = run(every, setSongBars(1), addClip('main', ids.M1!, 0, 6), addClip('main', ids.M1!, 6, 10));
-    const triggers = generateTriggers(song, () => 0);
+    const triggers = generateTriggers(song, withRng(() => 0));
     expect(triggers.map((t) => t.step)).toEqual(Array.from({ length: 16 }, (_, i) => i));
   });
 
@@ -160,7 +161,7 @@ describe('timing', () => {
     [project, loop] = addLoop(project, 'M1', 'main', 1);
     project = run(project, setStep(loop, 5, { padId: pad.K! }), setSongBars(2), addClip('main', loop, 0, 32));
 
-    const triggers = generateTriggers(project, () => 0);
+    const triggers = generateTriggers(project, withRng(() => 0));
 
     expect(triggers.map((t) => [t.bar, t.step, t.time])).toEqual([
       [0, 5, 5 * stepDuration(120)],
@@ -187,10 +188,10 @@ describe('pad members', () => {
       setSongCell('main', 0, loop),
     );
 
-    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S1, second]);
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.hitId)).toEqual([hit.S1, second]);
 
     project = run(project, removePadMember(snares, second));
-    expect(generateTriggers(project, () => 0).map((t) => t.hitId)).toEqual([hit.S1, hit.S1]);
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.hitId)).toEqual([hit.S1, hit.S1]);
   });
 
   it('uses the hit settings', () => {
@@ -200,7 +201,7 @@ describe('pad members', () => {
     [project, loop] = addLoop(project, 'M1', 'main', 1);
     project = run(project, setStep(loop, 0, { padId: pad.K! }), setSongBars(1), setSongCell('main', 0, loop));
 
-    expect(generateTriggers(project, () => 0)).toEqual([
+    expect(generateTriggers(project, withRng(() => 0))).toEqual([
       {
         time: 0,
         bar: 0,
@@ -247,7 +248,7 @@ describe('mods', () => {
     });
     project = run(project, setSongCell('modA', 0, mod));
 
-    expect(generateTriggers(project, () => 0).map((t) => t.pitch)).toEqual([
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.pitch)).toEqual([
       3, 3, 3, 3, 5, 5, 5, 5, 7, 7, 7, 7, 9, 9, 9, 9,
     ]);
   });
@@ -260,7 +261,7 @@ describe('mods', () => {
     [project, b] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [5] } });
     project = run(project, setSongCell('modA', 0, a), setSongCell('modB', 0, b));
 
-    expect(new Set(generateTriggers(project, () => 0).map((t) => t.pitch))).toEqual(new Set([8]));
+    expect(new Set(generateTriggers(project, withRng(() => 0)).map((t) => t.pitch))).toEqual(new Set([8]));
   });
 
   it('ratchet 4 gives four evenly spaced triggers within the step, all with the mod pitch', () => {
@@ -275,7 +276,7 @@ describe('mods', () => {
     // The ratchet's clip covers step 1 only.
     project = run(project, addClip('modA', ratchet, 0, 1), setSongCell('modB', 0, pitch));
 
-    const first = generateTriggers(project, sequenceRng([0, 0.5])).filter((t) => t.step === 0);
+    const first = generateTriggers(project, withRng(sequenceRng([0, 0.5]))).filter((t) => t.step === 0);
 
     const step = stepDuration(120);
     expect(first.map((t) => t.time)).toEqual([0, step / 4, step / 2, (3 * step) / 4]);
@@ -289,7 +290,7 @@ describe('mods', () => {
     [project, pitch] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [3] } });
     project = run(project, setStep(loop, 1, { ignoreMods: true }), setSongCell('modA', 0, ratchet), setSongCell('modB', 0, pitch));
 
-    const triggers = generateTriggers(project, () => 0);
+    const triggers = generateTriggers(project, withRng(() => 0));
 
     expect(triggers.filter((t) => t.step === 1).map((t) => t.pitch)).toEqual([0]);
     expect(triggers.filter((t) => t.step === 0).map((t) => t.pitch)).toEqual([3, 3]);
@@ -303,7 +304,7 @@ describe('mods', () => {
 
     // Beat 1: chance roll 0.1 hits, value roll 0.99 → 8. Beat 2: chance roll 0.9 misses.
     // Beat 3: hits, 0 → 1. Beat 4: hits, 0.5 → 5.
-    const triggers = generateTriggers(project, sequenceRng([0.1, 0.99, 0.9, 0.2, 0, 0.3, 0.5]));
+    const triggers = generateTriggers(project, withRng(sequenceRng([0.1, 0.99, 0.9, 0.2, 0, 0.3, 0.5])));
     const perStep = Array.from({ length: 16 }, (_, s) => triggers.filter((t) => t.step === s).length);
     expect(perStep).toEqual([8, 8, 8, 8, 1, 1, 1, 1, 1, 1, 1, 1, 5, 5, 5, 5]);
   });
@@ -313,7 +314,7 @@ describe('mods', () => {
     let pitch: Id;
     [project, pitch] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [12] } });
     project = run(project, addClip('modA', pitch, 4, 4));
-    expect(generateTriggers(project, () => 0).map((t) => t.pitch)).toEqual([
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.pitch)).toEqual([
       0, 0, 0, 0, 12, 12, 12, 12, 0, 0, 0, 0, 0, 0, 0, 0,
     ]);
 
@@ -326,7 +327,7 @@ describe('mods', () => {
     [project, pitch] = addMod(project, { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1, 2, 3] } });
     project = run(project, addClip('modA', pitch, 0, 32), addClip('modA', pitch, 48, 16));
 
-    const perBar = (bar: number) => generateTriggers(project, () => 0).find((t) => t.bar === bar)?.pitch;
+    const perBar = (bar: number) => generateTriggers(project, withRng(() => 0)).find((t) => t.bar === bar)?.pitch;
     // Bars 1–2 are one clip (1, 2); bar 4 is a new clip (1).
     expect([0, 1, 2, 3].map(perBar)).toEqual([1, 2, 0, 1]);
   });
@@ -336,12 +337,12 @@ describe('mods', () => {
     let pitch: Id;
     [project, pitch] = addMod(project, { target: 'pitch', rate: 'step', shape: { kind: 'ramp', from: 1, to: 4 } });
     project = run(project, addClip('modA', pitch, 6, 4));
-    expect(generateTriggers(project, () => 0).map((t) => t.pitch)).toEqual([0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0]);
+    expect(generateTriggers(project, withRng(() => 0)).map((t) => t.pitch)).toEqual([0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0]);
   });
 });
 
 describe('randomness', () => {
-  it('the same rng gives the same triggers; different rngs can differ', () => {
+  it('the same seeds give the same triggers; new seeds can differ', () => {
     let { project, pad } = withPads(['K']);
     let loop: Id;
     [project, loop] = addLoop(project, 'M1', 'main', 4);
@@ -354,8 +355,8 @@ describe('randomness', () => {
     const mod = added(before, project, 'mods');
     project = run(project, setSongBars(4), setSongCell('main', 0, loop), ...row('modA', '1111', { '1': mod }));
 
-    expect(generateTriggers(project, seededRng(1))).toEqual(generateTriggers(project, seededRng(1)));
-    expect(generateTriggers(project, seededRng(1))).not.toEqual(generateTriggers(project, seededRng(2)));
+    expect(generateTriggers(project)).toEqual(generateTriggers(project));
+    expect(generateTriggers(project)).not.toEqual(generateTriggers(run(project, rerollMod(mod))));
   });
 });
 
@@ -380,7 +381,7 @@ describe('fill clips', () => {
 
   /** Which pad plays each step of a bar: 'M' or 'F'. */
   const layerOf = (project: Project, hit: Record<string, Id>, bar: number) =>
-    generateTriggers(project, () => 0)
+    generateTriggers(project, withRng(() => 0))
       .filter((t) => t.bar === bar)
       .map((t) => (t.hitId === hit.F ? 'F' : 'M'))
       .join('');
@@ -402,7 +403,7 @@ describe('fill clips', () => {
     const { project: base, f1, clip, hit } = mainAndFill(1);
     const project = run(base, resizeClip(clip.id, 'start', 16 + 12), setStep(f1, 13, { padId: null }));
     expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(3));
-    expect(generateTriggers(project, () => 0).some((t) => t.bar === 1 && t.step === 13)).toBe(false);
+    expect(generateTriggers(project, withRng(() => 0)).some((t) => t.bar === 1 && t.step === 13)).toBe(false);
   });
 
   it('a fill clip can span bars of a longer fill', () => {
@@ -420,15 +421,15 @@ describe('silent slots', () => {
     project = run(project, setSlicing(id, 1));
     const m1 = Object.values(project.loops)[0]!.id;
     project = run(project, setSongBars(1), setSongCell('main', 0, m1));
-    expect(generateTriggers(project, () => 0)).toHaveLength(16);
+    expect(generateTriggers(project, withRng(() => 0))).toHaveLength(16);
 
     // Four slices left: the loop follows the matrix and plays them on 1, 5, 9 and 13.
     const four = run(project, setMarkers(id, [0, 0.25, 0.5, 0.75]));
-    expect(generateTriggers(four, () => 0).map((t) => t.step)).toEqual([0, 4, 8, 12]);
+    expect(generateTriggers(four, withRng(() => 0)).map((t) => t.step)).toEqual([0, 4, 8, 12]);
 
     // Edited by hand, the loop keeps playing all 16 rows: 12 of them are silent now.
     const edited = run(project, setStep(m1, 0, { ignoreMods: true }), setMarkers(id, [0, 0.25, 0.5, 0.75]));
-    expect(generateTriggers(edited, () => 0).map((t) => t.step)).toEqual([0, 1, 2, 3]);
+    expect(generateTriggers(edited, withRng(() => 0)).map((t) => t.step)).toEqual([0, 1, 2, 3]);
   });
 });
 
@@ -442,7 +443,7 @@ describe('layers of pad and matrix', () => {
     [project, loop] = addLoop(project, 'M1', 'main', 1);
     project = run(project, setStep(loop, 0, { padId: pad.K! }), setSongBars(1), setSongCell('main', 0, loop));
 
-    const [t] = generateTriggers(project, () => 0);
+    const [t] = generateTriggers(project, withRng(() => 0));
     expect(t!.pitch).toBe(4);
     expect(t!.volume).toBe(-8);
   });

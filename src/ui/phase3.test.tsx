@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
 import { addSample, copyHits, createLoop, createMatrix, createMod, createProject, effectiveHit, resizeClip, setSongCell, setStep, sliceSample } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
 import { App } from './App';
 import type { Player, Take } from './playback';
 import type { Services } from './services';
@@ -19,6 +19,7 @@ function fakeServices(): Services & { rendered: Project[] } {
   const player: Player = {
     play: vi.fn(),
     replace: vi.fn(),
+    queue: vi.fn(),
     seek: vi.fn(),
     setLoop: vi.fn(),
     stop: vi.fn(),
@@ -103,7 +104,7 @@ describe('Klart när: four snares become a pad, placed in a loop and heard in So
     fireEvent.click(button(loop.name));
     clickLane('Main', 0);
 
-    const triggers = generateTriggers(present(store), () => 0);
+    const triggers = generateTriggers(present(store), withRng(() => 0));
     expect(triggers.length).toBeGreaterThan(0);
     // The pad turned Round robin as it got more than one hit: its hits take turns.
     expect(triggers.every((t) => pad.members.includes(t.hitId))).toBe(true);
@@ -265,7 +266,7 @@ describe('Pads: matrices, pads and their hits', () => {
     const loop = Object.values(withLoop.loops).find((l) => l.name === 'L')!;
     const mod = Object.values(withLoop.mods)[0]!;
     const playing = applyAll(withLoop, setStep(loop.id, 0, { padId: pad.id }), setSongCell('main', 0, loop.id), setSongCell('modA', 0, mod.id));
-    expect(generateTriggers(playing, () => 0).filter((t) => t.bar === 0 && t.step === 0).map((t) => t.hitId)).toEqual([copy.id]);
+    expect(generateTriggers(playing, withRng(() => 0)).filter((t) => t.bar === 0 && t.step === 0).map((t) => t.hitId)).toEqual([copy.id]);
   });
 });
 

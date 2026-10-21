@@ -75,8 +75,10 @@ export function SwapGraph({ effect, project, modId, loopId, seed }: { effect: Sw
   }
   const alone: Project = { ...project, mods: { ...project.mods, [modId]: { ...mod, effects: [effect] } } };
   const perStep = (p: Project) => {
+    // One example: every choice from one generator, not the mod's seeds.
+    const example = seeded(seed);
     const byStep = new Map<number, string>();
-    for (const t of generateTriggers(p, seeded(seed))) {
+    for (const t of generateTriggers(p, { dice: () => example })) {
       const at = t.bar * STEPS_PER_BAR + t.step;
       if (at < STEPS_PER_BAR && !byStep.has(at)) byStep.set(at, t.hitId);
     }

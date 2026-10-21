@@ -221,3 +221,71 @@ describe('the player swaps in a new take', () => {
     expect(player.isPlaying()).toBe(false);
   });
 });
+
+describe('the player queues the next block of passes (Varv i loop)', () => {
+  it('takes over when the take playing reaches its end, without looping it again', () => {
+    const { context, sources } = fakeContext();
+    const player = createPlayer(() => context as unknown as AudioContext);
+    const first = takeOf(4, 0.25);
+    const next = takeOf(4, 0.25);
+    player.play(first);
+    context.currentTime = 1;
+    let started = 0;
+    player.queue(next, () => started++);
+    const [playing, queued] = sources;
+    // The take playing plays to its end and stops there; the next starts then, from its start, and loops until another follows.
+    expect(playing!.loop).toBe(false);
+    expect(queued!.started![0]).toBeCloseTo(4.02);
+    expect(queued!.started![1]).toBe(0);
+    expect(queued!.loop).toBe(true);
+    context.currentTime = 4;
+    expect(player.currentPosition()).toBeCloseTo(3.98);
+    expect(started).toBe(0);
+    context.currentTime = 4.5;
+    expect(player.currentPosition()).toBeCloseTo(0.48);
+    expect(started).toBe(1);
+    expect(player.isPlaying()).toBe(true);
+  });
+
+  it('a block that has gone round already takes over at the end of its turn', () => {
+    const { context, sources } = fakeContext();
+    const player = createPlayer(() => context as unknown as AudioContext);
+    player.play(takeOf(4, 0.25));
+    context.currentTime = 9;
+    player.queue(takeOf(4, 0.25));
+    expect(sources[1]!.started![0]).toBeCloseTo(12.02);
+  });
+
+  it('null takes the queued block away, and the take playing loops again', () => {
+    const { context, sources } = fakeContext();
+    const player = createPlayer(() => context as unknown as AudioContext);
+    player.play(takeOf(4, 0.25));
+    context.currentTime = 1;
+    player.queue(takeOf(4, 0.25));
+    player.queue(null);
+    expect(sources[0]!.loop).toBe(true);
+    expect(sources[1]!.stopped).toBeDefined();
+  });
+
+  it('a change (replace), Stop or Play takes the queued block away', () => {
+    const { context, sources } = fakeContext();
+    const player = createPlayer(() => context as unknown as AudioContext);
+    player.play(takeOf(4, 0.25));
+    context.currentTime = 1;
+    let started = 0;
+    player.queue(takeOf(4, 0.25), () => started++);
+    player.replace(takeOf(4, 0.25));
+    expect(sources[1]!.stopped).toBeDefined();
+    context.currentTime = 5;
+    player.isPlaying();
+    expect(started).toBe(0);
+  });
+
+  it('played once (Loop off) nothing is queued', () => {
+    const { context, sources } = fakeContext();
+    const player = createPlayer(() => context as unknown as AudioContext);
+    player.play(takeOf(4, 0.25), 0, true);
+    player.queue(takeOf(4, 0.25));
+    expect(sources).toHaveLength(1);
+  });
+});

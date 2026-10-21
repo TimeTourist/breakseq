@@ -12,5 +12,6 @@ export { encodeRex, type RexLoop } from './rex';
 export * from './project-folder';
 export * from './preview';
 export * from './heard';
-export { padPicker } from './pad-choice';
+export { padPicker, NO_PICKS, type PickState, type PadPicker } from './pad-choice';
+export { placeRng, passSeed, type Dice } from './random';
 export * from './rex-read';

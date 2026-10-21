@@ -1,8 +1,11 @@
-import type { Clip, DelayPlay, Direction, DistPlay, FilterPlay, Id, Loop, Project, Region, ReverbPlay, Rng, StretchPlay } from '../model';
+import type { Clip, DelayPlay, Direction, DistPlay, FilterPlay, Id, Loop, Project, Region, ReverbPlay, StretchPlay } from '../model';
 import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitColour, hitSound, hitSpace, hitStretch, stepDuration } from '../model';
 import type { StepState } from './mods';
 import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
+import type { PickState } from './pad-choice';
 import { padPicker } from './pad-choice';
+import type { Dice } from './random';
+import { CHOICE, passSeed, placeRng } from './random';
 import { swapper } from './swap';
 import type { Tape } from './tape';
 import { tapeWindows, windowTape } from './tape';
@@ -33,10 +36,11 @@ export interface Trigger {
   readonly delay: DelayPlay | null;
 }
 
-/** The loop heard at a song step, and the index of the step in it. */
+/** The loop heard at a song step, the index of the step in it, and the clip it plays in. */
 export interface Layer {
   readonly loop: Loop;
   readonly index: number;
+  readonly clip: Clip;
 }
 
 /**
@@ -51,7 +55,7 @@ export function songLayers(project: Project): (Layer | null)[] {
     const clip = fill[t] ?? m;
     const loop = clip === null ? undefined : project.loops[clip.ref];
     if (clip === null || loop === undefined || loop.steps.length === 0) return null;
-    return { loop, index: (t - clip.start + clip.offset) % loop.steps.length };
+    return { loop, index: (t - clip.start + clip.offset) % loop.steps.length, clip };
   });
 }
 
@@ -59,40 +63,56 @@ export function songLayers(project: Project): (Layer | null)[] {
 export interface Take {
   readonly triggers: readonly Trigger[];
   readonly tapes: readonly Tape[];
+  /** Where the pads' choices stood at the end: the next pass of Play starts from it. Missing in takes not generated. */
+  readonly end?: PickState;
+}
+
+export interface GenerateOptions {
+  /** Where the pads' choices stand at the start: where the last pass ended. None by default. */
+  readonly from?: PickState;
+  /** Randomness for each choice from its seeds and place; placeRng unless a test injects its own. */
+  readonly dice?: Dice;
 }
 
 /**
- * Works out everything in the song. Pure: no DOM, no audio, randomness only
- * from `rng`. Under a Tape the song is not heard; the tape plays a recording of
- * what would have been heard in its segment.
+ * Works out everything in the song. Pure: no DOM, no audio, and every random
+ * choice comes from the seeds of what makes it and where in the song it is
+ * made (see Slump och seeds), so the same project gives the same take. Under
+ * a Tape the song is not heard; the tape plays a recording of what would have
+ * been heard in its segment.
  */
-export function generateTake(project: Project, rng: Rng): Take {
+export function generateTake(project: Project, options: GenerateOptions = {}): Take {
+  const dice = options.dice ?? placeRng;
   const runs = modRuns(project);
-  const heard = heardTriggers(project, runs, rng);
+  const { triggers: heard, end } = heardTriggers(project, runs, dice, options.from);
   const windows = tapeWindows(runs);
-  if (windows.length === 0) return { triggers: heard, tapes: [] };
+  if (windows.length === 0) return { triggers: heard, tapes: [], end };
   const stepTime = stepDuration(project.song.bpm);
   const covered = (time: number) => windows.some((w) => time >= w.start * stepTime - 1e-9 && time < w.end * stepTime - 1e-9);
   return {
     triggers: heard.filter((t) => !covered(t.time)),
-    tapes: windows.map((w) => windowTape(project, w, heard, rng)),
+    tapes: windows.map((w) => windowTape(project, w, heard, dice)),
+    end,
   };
 }
 
 /** The triggers in the song, where tapes are not heard. */
-export function generateTriggers(project: Project, rng: Rng): Trigger[] {
-  return [...generateTake(project, rng).triggers];
+export function generateTriggers(project: Project, options: GenerateOptions = {}): Trigger[] {
+  return [...generateTake(project, options).triggers];
 }
 
-/** Every trigger the song plays, as if no mod had Tape. */
-function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: Rng): Trigger[] {
+/** Every trigger the song plays, as if no mod had Tape, and where the pads' choices stand after them. */
+function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, dice: Dice, from: PickState | undefined): { triggers: Trigger[]; end: PickState } {
   const stepTime = stepDuration(project.song.bpm);
   const totalSteps = project.song.bars * STEPS_PER_BAR;
   const layers = songLayers(project);
   const tempo = tempoRuns(runs);
-  const values = modValues(rng);
-  const swap = swapper(project, runs, layers.map((l) => l?.loop.steps[l.index]), rng);
-  const pick = padPicker(rng);
+  const values = modValues(dice);
+  const swap = swapper(project, runs, layers.map((l) => l?.loop.steps[l.index]), dice);
+  const picker = padPicker(from);
+  // A pad's choice is laid over by its matrix: its seed goes in too.
+  const matrixSeed = new Map<Id, number>();
+  for (const matrix of Object.values(project.matrices)) for (const padId of matrix.pads) matrixSeed.set(padId, matrix.seed);
   const triggers: Trigger[] = [];
 
   /**
@@ -107,6 +127,10 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     const place = { index: layer.index, clock };
     const modded = applyMods(stepState(project, cell), { A: runs.A[clock] ?? null, B: runs.B[clock] ?? null }, place, project, values);
     // A step lock goes before a mod, and a mod before the pad: only an unpicked member is the pad's choice.
+    // A random pick comes from the matrix's, pad's and clip's seeds and the step in the clip: a copied clip picks the same.
+    const { clip } = layer;
+    const pick = (pad: NonNullable<typeof modded.pad>) =>
+      picker.pick(pad, dice(CHOICE.pad, matrixSeed.get(pad.id) ?? 0, pad.seed, clip.seed, content - clip.start + clip.offset));
     const picked = modded.cell.memberId === null && modded.pad !== undefined && modded.hit !== undefined ? pick(modded.pad) : undefined;
     const state = picked === undefined ? modded : { ...modded, hit: project.hits[picked] };
     if (state.hit === undefined) return;
@@ -167,7 +191,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, rng: 
     }
     clock = end;
   }
-  return triggers;
+  return { triggers, end: picker.state() };
 }
 
 /**
@@ -190,21 +214,30 @@ export function playedStretch(own: StretchPlay, mod: StepState['stretch']): Stre
 /**
  * The project with a song that only plays one loop, `passes` times (once by
  * default), from its start. The song is exactly as long as the passes, so a
- * loop of 6/16 gives 6/16 bars a pass.
+ * loop of 6/16 gives 6/16 bars a pass. Each pass is a clip of its own, whose
+ * seed comes from its number from `firstPass`: pass 1, 2, 3 … sound
+ * different, and the same passes the same (see Slump och seeds).
  */
-export function loopSong(project: Project, loopId: Id, passes = 1): Project {
+export function loopSong(project: Project, loopId: Id, passes = 1, firstPass = 0): Project {
   const loop = project.loops[loopId];
-  const length = loop === undefined ? 0 : loop.steps.length * Math.max(1, Math.floor(passes));
-  const bars = loop === undefined ? 1 : length / STEPS_PER_BAR;
-  const clips: Clip[] = loop === undefined ? [] : [{ id: 'preview-loop', row: 'main', ref: loopId, start: 0, length, offset: 0, seed: 0 }];
+  const count = Math.max(1, Math.floor(passes));
+  const steps = loop?.steps.length ?? 0;
+  const bars = loop === undefined ? 1 : (steps * count) / STEPS_PER_BAR;
+  const clips: Clip[] =
+    loop === undefined || steps === 0
+      ? []
+      : Array.from({ length: count }, (_, i) => ({ id: `preview-loop-${i}`, row: 'main', ref: loopId, start: i * steps, length: steps, offset: 0, seed: passSeed(firstPass + i) }));
   return { ...project, song: { bpm: project.song.bpm, bars, clips } };
 }
 
-/** One loop, once, with a mod in row A over all of it: to try a mod out. */
-export function modPreviewSong(project: Project, modId: Id, loopId: Id): Project {
-  const alone = loopSong(project, loopId);
+/**
+ * One loop with a mod in row A over all of it, to try a mod out: once, or
+ * `passes` times from pass `firstPass`, each pass with a clip of the mod of
+ * its own, seeded by its number like the loop's.
+ */
+export function modPreviewSong(project: Project, modId: Id, loopId: Id, passes = 1, firstPass = 0): Project {
+  const alone = loopSong(project, loopId, passes, firstPass);
   if (project.mods[modId] === undefined) return alone;
-  const length = alone.song.bars * STEPS_PER_BAR;
-  const mod: Clip = { id: 'preview-mod', row: 'modA', ref: modId, start: 0, length, offset: 0, seed: 0 };
-  return { ...alone, song: { ...alone.song, clips: [...alone.song.clips, mod] } };
+  const mods: Clip[] = alone.song.clips.map((c, i) => ({ ...c, id: `preview-mod-${i}`, row: 'modA', ref: modId }));
+  return { ...alone, song: { ...alone.song, clips: [...alone.song.clips, ...mods] } };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Id, ModEffect, Project, TapeCurve, TapeEffect } from '../model';
 import { addClip, addSample, createLoop, createMod, createProject, resizeClip, setBpm, setSongBars, setStep, stepDuration } from '../model';
-import { constantAudio, seededRng, sequentialIds } from '../test/fixtures';
+import { constantAudio, seededRng, sequentialIds, withRng } from '../test/fixtures';
 import { generateTake } from './generate';
 import type { Tape } from './tape';
 import { tapePasses, tapeSpeed, wobbles } from './tape';
@@ -149,7 +149,7 @@ describe('generateTake', () => {
     const { project: base, mod } = song([brake]);
     const project = run(base, addClip('modA', mod, 16, 16));
 
-    const take = generateTake(project, () => 0);
+    const take = generateTake(project, withRng(() => 0));
     const steps = take.triggers.map((t) => t.bar * 16 + t.step);
 
     expect(steps).toEqual([...Array.from({ length: 16 }, (_, i) => i), ...Array.from({ length: 32 }, (_, i) => 32 + i)]);
@@ -170,7 +170,7 @@ describe('generateTake', () => {
   it('records what is heard, with the step effects of the same mod', () => {
     const { project: base, mod } = song([{ target: 'pitch', rate: 'step', shape: { kind: 'list', values: [5] } }, brake]);
     const project = run(base, addClip('modA', mod, 0, 16));
-    expect(generateTake(project, () => 0).tapes[0]!.source.map((t) => t.pitch)).toEqual([5, 5]);
+    expect(generateTake(project, withRng(() => 0)).tapes[0]!.source.map((t) => t.pitch)).toEqual([5, 5]);
   });
 
   it('a Tape clip from step 3 records steps 3 and 4, whether dropped there or trimmed to there', () => {
@@ -179,7 +179,7 @@ describe('generateTake', () => {
     const placed = run(base, addClip('modA', mod, 0, 16));
     const trimmed = run(placed, resizeClip(placed.song.clips.find((c) => c.row === 'modA')!.id, 'start', 3));
     for (const project of [dropped, trimmed]) {
-      const [only] = generateTake(project, () => 0).tapes;
+      const [only] = generateTake(project, withRng(() => 0)).tapes;
       expect(only!.time).toBeCloseTo(3 * STEP, 9);
       expect(only!.source.map((t) => t.step)).toEqual([3, 4]);
       expect(only!.source[0]!.time).toBeCloseTo(0, 9);
@@ -194,7 +194,7 @@ describe('generateTake', () => {
     let project = run(base, createMod('U', [{ ...brake, direction: 'forward' }]));
     const other = Object.keys(project.mods).find((k) => k !== mod)!;
     project = run(project, addClip('modA', mod, 0, 32), addClip('modB', other, 16, 16));
-    const tapes = generateTake(project, () => 0).tapes;
+    const tapes = generateTake(project, withRng(() => 0)).tapes;
     expect(tapes.map((t) => [t.direction, Math.round(t.time / STEP), Math.round(t.end / STEP)])).toEqual([
       ['pingpong', 0, 16],
       ['forward', 16, 32],

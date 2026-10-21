@@ -3,7 +3,7 @@ import 'node-web-audio-api/polyfill.js';
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createLoop, createProject, setBpm, setHitSource, setSongCell, setStep } from '../model';
-import { constantAudio, sequentialIds } from '../test/fixtures';
+import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
 import { decodeAudioFile, readCues } from './codec';
 import { generateTake } from './generate';
 import { midiPlan } from './midi';
@@ -28,7 +28,7 @@ describe('MIDI export', () => {
     const [a, b] = Object.values(project.pads);
     const loop = Object.values(project.loops)[0]!;
     project = run(project, setStep(loop.id, 0, { padId: a!.id }), setStep(loop.id, 8, { padId: b!.id }), setSongCell('main', 0, loop.id));
-    const take = generateTake(project, () => 0);
+    const take = generateTake(project, withRng(() => 0));
     const buffer = await renderTake(take, project, SAMPLE_RATE);
     const { wav, midi, pieces } = await midiExport(project, { ...take, buffer }, SAMPLE_RATE);
 
@@ -54,7 +54,7 @@ describe('MIDI export', () => {
     const [a, b] = Object.values(project.pads);
     const loop = Object.values(project.loops)[0]!;
     project = run(project, setStep(loop.id, 0, { padId: a!.id }), setStep(loop.id, 8, { padId: b!.id }), setSongCell('main', 0, loop.id));
-    const take = generateTake(project, () => 0);
+    const take = generateTake(project, withRng(() => 0));
     const buffer = await renderTake(take, project, SAMPLE_RATE);
     const { rex, midi, pieces } = await rexExport(project, { ...take, buffer }, SAMPLE_RATE);
 
@@ -83,7 +83,7 @@ describe('a hit past the last slice', () => {
     project = run(project, setHitSource(bHit.id, bHit.sampleId, 5), setStep(loop.id, 0, { padId: a!.id }), setStep(loop.id, 8, { padId: b!.id }), setSongCell('main', 0, loop.id));
 
     // Generate: only a plays.
-    const take = generateTake(project, () => 0);
+    const take = generateTake(project, withRng(() => 0));
     expect(take.triggers.map((t) => t.step)).toEqual([0]);
     // Render: silence where b would be (step 8 is at 2 s).
     const buffer = await renderTake(take, project, SAMPLE_RATE);

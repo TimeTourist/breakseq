@@ -1,6 +1,8 @@
 import type { Project, Rng, ShufflePick, StackPick, Step, SwapEffect } from '../model';
 import { STEPS_PER_BAR, clipsByStep, swapOf } from '../model';
 import type { ModRun } from './mods';
+import type { Dice } from './random';
+import { CHOICE } from './random';
 
 const RATE_STEPS = { step: 1, beat: 4, bar: STEPS_PER_BAR } as const;
 
@@ -79,12 +81,14 @@ const swapRun = (runs: { readonly A: readonly (ModRun | null)[]; readonly B: rea
  * gives the step to play instead of `cell`, or `cell` itself. Steps without a
  * hit are never swapped, so the rhythm stays as it is. Shuffle deals each
  * clip's hits out once, up front; Stack picks as the steps come, in time order.
+ * Shuffle's order comes from the mod's and the clip's seeds, Stack's roll for
+ * an interval from them and the interval (see Slump och seeds).
  */
 export function swapper(
   project: Project,
   runs: { readonly A: readonly (ModRun | null)[]; readonly B: readonly (ModRun | null)[] },
   heardCells: readonly (Step | undefined)[],
-  rng: Rng,
+  rollFor: Dice,
 ): (content: number, clock: number, cell: Step) => Step {
   const stack = songStack(project);
   const hasHit = (cell: Step | undefined) => cell !== undefined && cell.padId !== null && project.pads[cell.padId] !== undefined;
@@ -104,7 +108,7 @@ export function swapper(
       const there = swapRun(runs, s);
       if (there?.row === run.row && there.clip.id === run.clip.id && hasHit(heardCells[s])) steps.push(s);
     }
-    const order = shuffleOrder(effect.mode.pick, steps.length, rng);
+    const order = shuffleOrder(effect.mode.pick, steps.length, rollFor(CHOICE.shuffle, run.mod.seed, run.clip.seed));
     steps.forEach((s, k) => dealt.set(s, heardCells[steps[order[k]!]!]!));
   });
 
@@ -114,15 +118,15 @@ export function swapper(
   const stackDice = (run: ModRun, effect: SwapEffect, t: number) => {
     const interval = Math.floor((t - run.clip.start + run.clip.offset) / RATE_STEPS[effect.rate]);
     const key = `${run.row}:${run.clip.id}:${interval}`;
-    let dice = intervals.get(key);
-    if (dice === undefined) {
+    let rolled = intervals.get(key);
+    if (rolled === undefined) {
       const clipKey = `${run.row}:${run.clip.id}`;
       const count = counts.get(clipKey) ?? 0;
       counts.set(clipKey, count + 1);
-      dice = { count, roll: rng() };
-      intervals.set(key, dice);
+      rolled = { count, roll: rollFor(CHOICE.stack, run.mod.seed, run.clip.seed, interval)() };
+      intervals.set(key, rolled);
     }
-    return dice;
+    return rolled;
   };
 
   return (content, clock, cell) => {

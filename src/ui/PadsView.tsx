@@ -161,8 +161,8 @@ export function usePlayPad(): (pad: Pad) => void {
   latest.current = project;
   return useCallback(
     (pad: Pad) => {
-      picker.current ??= padPicker(services.rng());
-      const hit = picker.current(pad);
+      picker.current ??= padPicker();
+      const hit = picker.current.pick(pad, services.rng());
       if (hit !== undefined) services.player.playHit(latest.current, hit);
     },
     [services],
