@@ -20,6 +20,7 @@ import {
   trimName,
   updateHit,
 } from '../model';
+import { padsOnlyUnderStretch } from '../engine';
 import { ConfigPanels, anyTempo, ownStretch } from './ConfigPanels';
 import type { Layer } from './ConfigPanels';
 import { useApp, useOpen, useProject, useRun, useSeal } from './context';
@@ -276,6 +277,7 @@ function HitControls({ hit, onError, ask }: { readonly hit: Hit; readonly onErro
     canFit: sample !== undefined && fitBpm(sample, project.song.bpm) !== null,
     pitchPlays: effectiveHit(project, hit).pitch,
     played: hitStretch(project, hit),
+    grainUnheard: hitPad !== undefined && padsOnlyUnderStretch(project).has(hitPad.id) ? 'Under a Stretch mod wherever it plays in the song: the mod’s grain is heard there' : null,
   };
   return (
     <section className="panel stack" aria-label="Hit controls">

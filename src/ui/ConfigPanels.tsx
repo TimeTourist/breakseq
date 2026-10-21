@@ -3,6 +3,7 @@ import { DEFAULT_GRAIN, MAX_CUTOFF, MAX_FEEDBACK, MAX_GRAIN, MIN_CUTOFF, MIN_GRA
 import { useSeal } from './context';
 import { DELAY_TIMES, DIST_MODES, FILTER_TYPES, sizeText } from './labels';
 import { Slider } from './Slider';
+import { Unheard } from './Unheard';
 
 /** A stretch factor as it reads: 2×, 0.5×, 1.33×. */
 export const formatFactor = (f: number) => `${Math.round(f * 100) / 100}×`;
@@ -24,6 +25,8 @@ export interface Layer {
   readonly pitchPlays: number | null;
   /** How it is stretched as it plays: a hit with every layer, a pad or matrix by its own. */
   readonly played: { readonly factor: number; readonly grain: number };
+  /** Why its Grain is not heard just now (a Stretch mod over it wherever it plays), or null. */
+  readonly grainUnheard?: string | null;
 }
 
 /** Whether any hit under these pads plays a sample with a fit tempo, so it can fit to the song's. */
@@ -175,16 +178,18 @@ export function ConfigPanels({ layer }: { readonly layer: Layer }) {
                   onCommit={seal}
                 />
               )}
-              <Slider
-                label="Grain"
-                value={stretch.grain ?? layer.played.grain}
-                min={MIN_GRAIN}
-                max={MAX_GRAIN}
-                step={1}
-                format={(v) => `${v} ms${stretch.grain === null ? ` (${grainFrom})` : ''}`}
-                onChange={(v) => set({ grain: v }, 'grain')}
-                onCommit={seal}
-              />
+              <Unheard why={layer.grainUnheard ?? ''} when={layer.grainUnheard != null}>
+                <Slider
+                  label="Grain"
+                  value={stretch.grain ?? layer.played.grain}
+                  min={MIN_GRAIN}
+                  max={MAX_GRAIN}
+                  step={1}
+                  format={(v) => `${v} ms${stretch.grain === null ? ` (${grainFrom})` : ''}`}
+                  onChange={(v) => set({ grain: v }, 'grain')}
+                  onCommit={seal}
+                />
+              </Unheard>
             </div>
             <div className="row">
               <span className="label">Grains from</span>

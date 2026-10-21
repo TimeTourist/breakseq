@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createMod, createProject, ownMatrix, setSlicing } from '../model';
+import { addSample, createLoop, createMod, createProject, ownMatrix, setSlicing, setSongCell, setStep, updateHit } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { focusOn } from '../test/focus';
 import { App } from './App';
@@ -106,4 +106,23 @@ describe('stretch in the GUI', () => {
     const effect = store.getState().history.present.mods[mod.id]!.effects[0]!;
     expect(effect.target === 'stretch' && 'stretch' in effect ? effect.stretch : undefined).toEqual({ grain: 30, combine: 'replace' });
   });
+
+  it('a hit’s Grain is greyed with why when a Stretch mod is over it wherever it plays in the song', async () => {
+    let project = apply(createProject(), addSample({ name: 'snare.wav', audio: constantAudio(0.1) }), createLoop('M1', 'main', 1));
+    const hit = Object.values(project.hits)[0]!;
+    const pad = Object.values(project.pads)[0]!;
+    const loop = Object.values(project.loops)[0]!;
+    project = apply(project, updateHit(hit.id, { stretch: { mode: 'factor', factor: 2, grain: 40, from: null } }), setStep(loop.id, 0, { padId: pad.id }), setSongCell('main', 0, loop.id));
+    await setup(project, 'pads', { hit: hit.id });
+    expect(screen.queryByText(/Under a Stretch mod wherever it plays/)).toBeNull();
+    cleanup();
+    const before = project;
+    project = apply(project, createMod('smear', [{ target: 'stretch', step: 'bar', lane: [{ v: 2 }] }]));
+    const mod = Object.keys(project.mods).find((k) => !(k in before.mods))!;
+    project = apply(project, setSongCell('modA', 0, mod));
+    await setup(project, 'pads', { hit: hit.id });
+    const why = screen.getByText('Under a Stretch mod wherever it plays in the song: the mod’s grain is heard there');
+    expect(why.closest('.unheard')!.querySelector('input[type="range"]')).not.toBeNull();
+  });
 });
+
