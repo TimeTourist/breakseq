@@ -1,11 +1,12 @@
 import type { DragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { Clip, Id, Mod, Project, SongRow } from '../model';
-import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, pasteClip, removeClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
+import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, pasteClip, removeClip, rerollClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
 import { isTyping, modalOpen } from './isTyping';
 import { HIT_COLOR, lengthText } from './labels';
+import { RerollButton } from './RerollButton';
 import { RegionHandle } from './RegionHandle';
 import { TARGET_LABELS } from './modText';
 
@@ -252,6 +253,17 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
           {clip.offset > 0 && loop !== undefined && <span className="clip-from"> from {position(clip.offset)}</span>}
           {mod !== undefined && <span className="clip-from"> {effectsText(mod)}</span>}
         </span>
+        {selected === clip.id && (
+          // On the selected clip: only it rolls anew. Not a drag handle.
+          <span className="clip-reroll" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+            <RerollButton
+              command={rerollClip(clip.id)}
+              label="Reroll this clip"
+              title={`Reroll this clip of ${name}: new random choices for only this clip; its copies keep theirs.`}
+              onError={setError}
+            />
+          </span>
+        )}
         <span className="clip-edge start" aria-hidden="true" {...edge(clip, 'start')} />
         <span className="clip-edge end" aria-hidden="true" {...edge(clip, 'end')} />
       </div>

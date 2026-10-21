@@ -62,6 +62,45 @@ function copyChange(before: Project, after: Project): string | null {
   return null;
 }
 
+/** Whether `b` is `a` with only a new seed. */
+const reseeded = (a: object | undefined, b: object | undefined): boolean => {
+  if (a === undefined || b === undefined || a === b) return false;
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(x), ...Object.keys(y)]);
+  return x.seed !== y.seed && [...keys].every((k) => k === 'seed' || x[k] === y[k]);
+};
+
+/** What a Reroll (🎲) did: "reroll everything", "reroll mod Wobble" …; null when it was something else. */
+function rerollChange(before: Project, after: Project): string | null {
+  if (before.audio !== after.audio || before.samples !== after.samples || before.hits !== after.hits || before.loops !== after.loops) return null;
+  const { clips: clipsBefore, ...songBefore } = before.song;
+  const { clips: clipsAfter, ...songAfter } = after.song;
+  if (Object.keys(songBefore).some((k) => songBefore[k as keyof typeof songBefore] !== songAfter[k as keyof typeof songAfter]) || clipsBefore.length !== clipsAfter.length) return null;
+  const changes = <T extends object>(a: Readonly<Record<Id, T>>, b: Readonly<Record<Id, T>>) => {
+    if (Object.keys(a).length !== Object.keys(b).length) return null;
+    const changed = Object.keys(b).filter((id) => a[id] !== b[id]);
+    return changed.every((id) => reseeded(a[id], b[id])) ? changed : null;
+  };
+  const mods = changes(before.mods, after.mods);
+  const matrices = changes(before.matrices, after.matrices);
+  const pads = changes(before.pads, after.pads);
+  const clips = clipsAfter.every((c, i) => c === clipsBefore[i] || reseeded(clipsBefore[i], c)) ? clipsAfter.filter((c, i) => c !== clipsBefore[i]) : null;
+  if (mods === null || matrices === null || pads === null || clips === null) return null;
+  const count = mods.length + matrices.length + pads.length + clips.length;
+  if (count === 0) return null;
+  const all = Object.keys(after.mods).length + Object.keys(after.matrices).length + Object.keys(after.pads).length + clipsAfter.length;
+  if (count === all && count > 1) return 'reroll everything';
+  if (mods.length === 1 && count === 1) return `reroll mod ${baseName(after.mods[mods[0]!]!.name)}`;
+  if (matrices.length === 1 && mods.length === 0 && clips.length === 0) return `reroll matrix ${baseName(after.matrices[matrices[0]!]!.name)}`;
+  if (pads.length === 1 && count === 1) return `reroll pad ${padLabel(after.pads[pads[0]!]!)}`;
+  if (clips.length === 1 && count === 1) {
+    const clip = clips[0]!;
+    return `reroll clip ${baseName((clip.row === 'main' || clip.row === 'fill' ? after.loops[clip.ref]?.name : after.mods[clip.ref]?.name) ?? '')}`.trimEnd();
+  }
+  return 'reroll';
+}
+
 /**
  * What changed from one project to the next, in a few words for an undo
  * button, saying what happened where it can tell: "slice amen 1", "move
@@ -72,6 +111,8 @@ export function describeChange(before: Project, after: Project): string {
   // A project file swaps in everything at once, each part new.
   if (before.audio !== after.audio && before.samples !== after.samples && before.mods !== after.mods && before.song !== after.song) return 'import project';
   // A removed matrix takes its pads and hits with it: it is the matrix that goes.
+  const rerolled = rerollChange(before, after);
+  if (rerolled !== null) return rerolled;
   const removed = Object.keys(before.matrices).filter((id) => !(id in after.matrices));
   if (removed.length === 1 && before.samples === after.samples) return `remove matrix ${baseName(before.matrices[removed[0]!]!.name)}`;
   const samples = samplesChange(before, after);

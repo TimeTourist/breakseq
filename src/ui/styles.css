@@ -3292,3 +3292,27 @@ button.danger:hover:not(:disabled) {
 .member-choice {
   flex-wrap: wrap;
 }
+
+/* 🎲 Reroll: a small die, the same everywhere. */
+.icon-button.reroll {
+  width: auto;
+  min-width: 32px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* On the selected clip in Song, at its right end, above its edges. */
+.clip-reroll {
+  position: absolute;
+  top: 2px;
+  right: 9px;
+  z-index: 2;
+}
+
+.clip-reroll .icon-button.reroll {
+  min-width: 24px;
+  height: 22px;
+  min-height: 0;
+  padding: 0 3px;
+  font-size: 13px;
+}
