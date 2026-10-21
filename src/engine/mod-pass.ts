@@ -30,7 +30,9 @@ export type PassRow =
   /** Tempo's speed on each step, or null where it has none. */
   | { readonly kind: 'tempo'; readonly target: 'tempo'; readonly cells: readonly (number | null)[] }
   /** Tape's speed on each step (its ramp, without wow and flutter). */
-  | { readonly kind: 'tape'; readonly target: 'tape'; readonly cells: readonly number[] };
+  | { readonly kind: 'tape'; readonly target: 'tape'; readonly cells: readonly number[] }
+  /** Halftime's speed, the same on every step: it has no lane. */
+  | { readonly kind: 'halftime'; readonly target: 'halftime'; readonly cells: readonly number[] };
 
 /** The first hit each step plays in a take of one pass, by its step from the start. */
 function hitsByStep(project: Project, steps: number): (Id | null)[] {
@@ -78,6 +80,7 @@ export function modPassRows(project: Project, modId: Id, loopId: Id, pass: numbe
       const values = tempoValues(placeRng);
       return { kind: 'tempo', target: 'tempo', cells: Array.from({ length: steps }, (_, i) => values(run, effect, i)) };
     }
+    if (effect.target === 'halftime') return { kind: 'halftime', target: 'halftime', cells: Array.from({ length: steps }, () => effect.speed) };
     return { kind: 'tape', target: 'tape', cells: Array.from({ length: steps }, (_, i) => rampedSpeed(effect, steps, i)) };
   });
 }

@@ -1,5 +1,6 @@
 import type { LaneStep, StepEffect, StepSize } from '../model';
-import { LANES, STEP_SIZES, isDice, norm } from '../model';
+import { LANES, STEP_SIZES, isAudioEffect, isDice, norm } from '../model';
+import { audioSentence } from './audioText';
 import { TARGET_LABELS } from './modLabels';
 
 /** How the lanes read (see Kortet): a value in short and in full, a step's title, and the card's sentence. */
@@ -18,6 +19,14 @@ export function shortValue({ target }: Target, x: number): string {
       return String(round(x, 2));
     case 'direction':
       return x >= 0.5 ? '◂' : '·';
+    case 'stutter':
+      return ['off', '1/16', '1/32', '1/64'][Math.max(0, Math.min(3, Math.round(x)))]!;
+    case 'freeze':
+      return x >= 0.5 ? '❄' : '·';
+    case 'reverse':
+      return x >= 0.5 ? '◂' : '▸';
+    case 'rewind':
+      return x >= 0.5 ? '⟲' : '·';
     case 'pitch':
       return signed(x, String(Math.abs(round(x, 1))));
     case 'volume':
@@ -34,6 +43,11 @@ export function fullValue(effect: Target, x: number): string {
   if (target === 'filter') return x >= 1000 ? `${round(x / 1000, 1)} kHz` : `${Math.round(x)} Hz`;
   if (target === 'direction') return x >= 0.5 ? 'reversed' : 'as it is';
   if (target === 'padMember') return `member ${Math.round(x)}`;
+  if (target === 'scramble') return `${Math.round(x)}% swap`;
+  if (target === 'stutter') return Math.round(x) <= 0 ? 'off' : `repeats ${shortValue(effect, x)}`;
+  if (target === 'freeze') return x >= 0.5 ? 'frozen' : 'passes through';
+  if (target === 'reverse') return x >= 0.5 ? 'reversed' : 'forward';
+  if (target === 'rewind') return x >= 0.5 ? 'fires' : 'does not fire';
   const unit = LANES[target].unit;
   return `${shortValue(effect, x)}${unit === '%' || unit === '×' ? '' : ' '}${unit}`;
 }
@@ -67,6 +81,7 @@ const diceCount = (lane: readonly LaneStep[]) => {
  */
 export function laneSentence(effect: StepEffect): string {
   const { target, lane } = effect;
+  if (isAudioEffect(effect)) return audioSentence(effect);
   const head = `${TARGET_LABELS[target]} · ${laneLength(effect)} · `;
   if (target === 'direction') {
     const on = lane.filter((s) => !isDice(s) && s.v >= 0.5).length;
@@ -91,7 +106,7 @@ export function laneSentence(effect: StepEffect): string {
 /** A step as its title reads: "Step 2: −6 dB", "Step 3: 🎲 −7 st to +5 st, 75% chance". */
 export function stepTitle(effect: Target, step: LaneStep, i: number): string {
   if (!isDice(step)) return `Step ${i + 1}: ${fullValue(effect, step.v)}`;
-  if (effect.target === 'direction') return `Step ${i + 1}: 🎲 reversed, ${step.chance}% chance`;
+  if (LANES[effect.target].onOff === true) return `Step ${i + 1}: 🎲 ${fullValue(effect, 1)}, ${step.chance}% chance`;
   return `Step ${i + 1}: 🎲 ${fullValue(effect, step.lo)} to ${fullValue(effect, step.hi)}, ${step.chance}% chance`;
 }
 

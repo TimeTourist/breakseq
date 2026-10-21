@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { blockPasses } from '../engine';
 import type { EffectTarget, Id, Mod, ModEffect, Project, SwapEffect, TempoEffect } from '../model';
 import {
+  DEFAULT_HALFTIME,
   addEffect,
   cloneMod,
   createMod,
@@ -17,7 +18,7 @@ import {
 import { Delete } from './DeleteButton';
 import { InSongMark, useHeard } from './InSong';
 import { LaneCard } from './LaneCard';
-import { SwapCard, TapeCard, TempoCard } from './ModCards';
+import { HalftimeCard, SwapCard, TapeCard, TempoCard } from './ModCards';
 import { ADD_ORDER, TARGET_LABELS } from './modLabels';
 import type { PassPlace } from './ModPreview';
 import { ModPreview } from './ModPreview';
@@ -45,7 +46,8 @@ const NEW_SWAP: SwapEffect = { target: 'swap', rate: 'step', mode: { kind: 'stac
 /** Slip at a third of the tempo over each bar. */
 const NEW_TEMPO: TempoEffect = { target: 'tempo', rate: 'bar', shape: { kind: 'list', values: [1 / 3] } };
 
-const newEffect = (target: EffectTarget): ModEffect => (target === 'tape' ? DEFAULT_TAPE : target === 'swap' ? NEW_SWAP : target === 'tempo' ? NEW_TEMPO : newStepEffect(target));
+const newEffect = (target: EffectTarget): ModEffect =>
+  target === 'tape' ? DEFAULT_TAPE : target === 'swap' ? NEW_SWAP : target === 'tempo' ? NEW_TEMPO : target === 'halftime' ? DEFAULT_HALFTIME : newStepEffect(target);
 
 /** A mod's effects in short: "Pitch · Ratchet". */
 export const effectsLabel = (mod: Mod) => (mod.effects.length === 0 ? 'no effects' : mod.effects.map((e) => TARGET_LABELS[e.target]).join(' · '));
@@ -195,6 +197,7 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
                 );
               if (effect.target === 'swap') return <SwapCard key={`${mod.id}:swap`} effect={effect} onChange={change('swap')} {...common} />;
               if (effect.target === 'tempo') return <TempoCard key={`${mod.id}:tempo`} effect={effect} onChange={change('tempo')} {...common} />;
+              if (effect.target === 'halftime') return <HalftimeCard key={`${mod.id}:halftime`} effect={effect} onChange={change('halftime')} {...common} />;
               return <TapeCard key={`${mod.id}:tape`} effect={effect} onChange={change('tape')} {...common} />;
             })}
             <div className="row">

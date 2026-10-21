@@ -86,6 +86,12 @@ export function ModPreview({ project, modId, loopId, playing, onLoop }: ModPrevi
           </span>
         ));
       }
+      case 'halftime':
+        return row.cells.map((speed, i) => (
+          <span key={i} className={cellClass(i)} title={`Step ${i + 1}: what is heard at ×${speed}`}>
+            ×{speed}
+          </span>
+        ));
     }
   };
 

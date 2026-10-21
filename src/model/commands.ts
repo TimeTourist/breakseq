@@ -9,8 +9,8 @@ import { baseName } from './sound';
 import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
-import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEffect, Pad, PadChoice, Project, Sample, Song, SongRow, Step } from './types';
-import { MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR, STEP_SIZES, isStepEffect } from './types';
+import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEffect, Pad, PadChoice, Project, Sample, Song, SongRow, Step, StepEffect } from './types';
+import { CELL_SIZES, HALFTIME_SPEEDS, MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR, STEP_SIZES, STUTTER_GRABS, isStepEffect } from './types';
 import { laneProblem } from './lanes';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
@@ -492,6 +492,27 @@ export const swapMatrix =
 
 // Mods (not `following`: mods never change a pad's first hit, so no layout changes)
 
+const oneOf = (value: unknown, options: readonly unknown[]) => options.includes(value);
+
+/** What is wrong with an audio mod's own settings, or null (see Mods som samplar det som hörs). */
+function audioSettingsProblem(effect: StepEffect): string | null {
+  const { scramble, stutter, freeze, reverse, rewind } = effect;
+  if (scramble !== undefined && !(oneOf(scramble.cell, CELL_SIZES) && oneOf(scramble.from, ['song', 'around', 'clip']) && oneOf(scramble.around, [1, 2, 4]) && oneOf(scramble.reverse, [0, 25, 50, 100]))) {
+    return 'Scramble’s cell, Take from, Around the clip or Reverse chance is not one of its choices';
+  }
+  if (stutter !== undefined && !(oneOf(stutter.grabs, STUTTER_GRABS) && oneOf(stutter.pitch, [-2, -1, 0, 1, 2]) && oneOf(stutter.gate, [100, 75, 50]))) {
+    return 'Stutter’s Grabs, Pitch per repeat or Gate is not one of its choices';
+  }
+  if (freeze !== undefined && !(oneOf(freeze.grain, [10, 30, 80]) && oneOf(freeze.spread, [0, 25, 50]) && oneOf(freeze.level, [-6, -3, 0]))) {
+    return 'Freeze’s Grain, Spread or Level is not one of its choices';
+  }
+  if (reverse !== undefined && !oneOf(reverse.cell, CELL_SIZES)) return 'Reverse’s cell is 1/32, 1/16, 1/8 or a beat';
+  if (rewind !== undefined && !(oneOf(rewind.pullBack, [4, 8, 16]) && oneOf(rewind.curve, ['fast', 'slowing', 'spinBack']))) {
+    return 'Rewind pulls back 1 beat, 2 beats or 1 bar, Fast, Slowing or Spin-back';
+  }
+  return null;
+}
+
 /** What is wrong with an effect, or null. */
 function effectProblem(effect: ModEffect): string | null {
   if (effect.target === 'swap') {
@@ -501,7 +522,8 @@ function effectProblem(effect: ModEffect): string | null {
     }
     return null;
   }
-  if (isStepEffect(effect)) return STEP_SIZES[effect.step] === undefined ? 'A step is 1/16, a beat or a bar' : laneProblem(effect);
+  if (isStepEffect(effect)) return STEP_SIZES[effect.step] === undefined ? 'A step is 1/16, a beat or a bar' : (laneProblem(effect) ?? audioSettingsProblem(effect));
+  if (effect.target === 'halftime') return (HALFTIME_SPEEDS as readonly number[]).includes(effect.speed) ? null : 'Halftime’s speed is ×0.5, ×0.75 or ×2';
   if (effect.target !== 'tape') return null;
   if (!Number.isInteger(effect.length) || effect.length < 1 || effect.length > MAX_TAPE_STEPS) return 'Repeat is 1/16 to 4 bars';
   const { from, to } = effect.speed;
