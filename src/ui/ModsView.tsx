@@ -8,6 +8,7 @@ import {
   createMod,
   hitStretch,
   isStepEffect,
+  newScratch,
   newStepEffect,
   removeEffect,
   renameMod,
@@ -25,6 +26,7 @@ import { ModPreview } from './ModPreview';
 import { DEFAULT_TAPE, MOD_PRESETS } from './modPresets';
 import { RenameInPlace } from './RenameInPlace';
 import { RerollButton } from './RerollButton';
+import { ScratchCard } from './ScratchCard';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import type { Selection } from './store';
 
@@ -47,7 +49,7 @@ const NEW_SWAP: SwapEffect = { target: 'swap', rate: 'step', mode: { kind: 'stac
 const NEW_TEMPO: TempoEffect = { target: 'tempo', rate: 'bar', shape: { kind: 'list', values: [1 / 3] } };
 
 const newEffect = (target: EffectTarget): ModEffect =>
-  target === 'tape' ? DEFAULT_TAPE : target === 'swap' ? NEW_SWAP : target === 'tempo' ? NEW_TEMPO : target === 'halftime' ? DEFAULT_HALFTIME : newStepEffect(target);
+  target === 'tape' ? DEFAULT_TAPE : target === 'swap' ? NEW_SWAP : target === 'tempo' ? NEW_TEMPO : target === 'halftime' ? DEFAULT_HALFTIME : target === 'scratch' ? newScratch() : newStepEffect(target);
 
 /** A mod's effects in short: "Pitch · Ratchet". */
 export const effectsLabel = (mod: Mod) => (mod.effects.length === 0 ? 'no effects' : mod.effects.map((e) => TARGET_LABELS[e.target]).join(' · '));
@@ -203,6 +205,7 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
               if (effect.target === 'swap') return <SwapCard key={`${mod.id}:swap`} effect={effect} onChange={change('swap')} {...common} />;
               if (effect.target === 'tempo') return <TempoCard key={`${mod.id}:tempo`} effect={effect} onChange={change('tempo')} {...common} />;
               if (effect.target === 'halftime') return <HalftimeCard key={`${mod.id}:halftime`} effect={effect} onChange={change('halftime')} {...common} />;
+              if (effect.target === 'scratch') return <ScratchCard key={`${mod.id}:scratch`} effect={effect} onChange={change('scratch')} rng={Math.random} {...common} />;
               return <TapeCard key={`${mod.id}:tape`} effect={effect} onChange={change('tape')} {...common} />;
             })}
             <div className="row">
