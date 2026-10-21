@@ -254,4 +254,28 @@ describe('a snapshot played from Project', () => {
     expect(player.play).toHaveBeenCalledTimes(1);
     expect(player.replace).not.toHaveBeenCalled();
   });
+
+  it('follows Loop in the header: off, it plays once; switched on while it plays, it starts again looped (Magnus beslut)', async () => {
+    const folder = memoryFolder('Amen');
+    const s = services([folder]);
+    let playing = false;
+    const player = { ...s.player, play: vi.fn(() => void (playing = true)), isPlaying: () => playing } satisfies Player;
+    const store = createStore({ ...initialState(build(createLoop('basic', 'main', 1))), view: 'project', loop: false });
+    render(<App store={store} services={{ ...s, player }} />);
+    await act(async () => {});
+    await click('New');
+    await answer('Keep the current work');
+
+    await click('Play Start');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(vi.mocked(player.play).mock.lastCall?.slice(1)).toEqual([0, true]);
+
+    await act(async () => {
+      store.dispatch({ type: 'loop', on: true });
+    });
+    expect(player.play).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(player.play).mock.lastCall?.slice(1)).toEqual([0, false]);
+  });
 });
