@@ -97,10 +97,15 @@ const hasTarget = (run: ModRun | null, target: AudioTarget): run is ModRun =>
 
 /** Where a target plays: for each song step, B's clip if its mod has the target, else A's. A stretch of steps with the same clip is one window. */
 function audioWindows(runs: { readonly A: readonly (ModRun | null)[]; readonly B: readonly (ModRun | null)[] }, target: AudioTarget): AudioWindow[] {
+  return windowsWhere(runs, (run) => hasTarget(run, target));
+}
+
+/** For each song step, B's clip if `has` its mod, else A's. A stretch of steps with the same clip is one window. */
+function windowsWhere(runs: { readonly A: readonly (ModRun | null)[]; readonly B: readonly (ModRun | null)[] }, has: (run: ModRun | null) => run is ModRun): AudioWindow[] {
   const windows: AudioWindow[] = [];
   runs.A.forEach((a, t) => {
     const b = runs.B[t] ?? null;
-    const run = hasTarget(b, target) ? b : hasTarget(a, target) ? a : null;
+    const run = has(b) ? b : has(a) ? a : null;
     if (run === null) return;
     const last = windows.at(-1);
     if (last !== undefined && last.run.clip.id === run.clip.id && last.run.row === run.row && last.end === t) windows[windows.length - 1] = { ...last, end: t + 1 };
@@ -374,4 +379,4 @@ export function audioSplices(project: Project, runs: { readonly A: readonly (Mod
   return out.filter((s) => s.length > EPSILON).sort((a, b) => a.time - b.time);
 }
 
-export { audioWindows, type AudioWindow };
+export { audioWindows, windowsWhere, contentStart, type AudioWindow };

@@ -278,7 +278,7 @@ export async function renderTakeWithTail(
   // More rooms and delays than a context has channels for: one long render, as before.
   if (chunks.some((c) => 2 + 2 * c.sends.length > MAX_CHANNELS)) return renderTakeWhole(take, project, sampleRate, seconds, mix);
 
-  const takeKey = [mix, sampleRate, length, total, project.song.bpm, JSON.stringify(take.tapes), JSON.stringify(take.splices ?? []), ...chunks.map((c) => `${c.origin}\n${c.key}`)].join('\n@');
+  const takeKey = [mix, sampleRate, length, total, project.song.bpm, JSON.stringify(take.tapes), JSON.stringify(take.scratches ?? []), JSON.stringify(take.splices ?? []), ...chunks.map((c) => `${c.origin}\n${c.key}`)].join('\n@');
   const kept = remember(cache.takes, takeKey);
   if (kept !== undefined) return kept;
 

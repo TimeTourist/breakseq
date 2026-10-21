@@ -8,6 +8,7 @@ import type { Dice } from './random';
 import { CHOICE, passSeed, placeRng } from './random';
 import type { Splice } from './audio-mods';
 import { audioSplices } from './audio-mods';
+import { scratchSplices } from './scratch';
 import { swapper } from './swap';
 import type { Tape } from './tape';
 import { tapeWindows, windowTape } from './tape';
@@ -71,7 +72,12 @@ export interface Take {
    * reverb and delay), and tapes and audio mods sample it. Missing: `triggers`.
    */
   readonly heard?: readonly Trigger[];
-  /** What the audio mods play, from what is heard with tape (see audioSplices). Missing: none. */
+  /**
+   * What Scratch plays (see scratchSplices): splices of what is heard without
+   * tape, heard instead of it and of tape under its clips. Missing: none.
+   */
+  readonly scratches?: readonly Splice[];
+  /** What the audio mods play, from what is heard with tape and Scratch (see audioSplices). Missing: none. */
   readonly splices?: readonly Splice[];
   /** Where the pads' choices stood at the end: the next pass of Play starts from it. Missing in takes not generated. */
   readonly end?: PickState;
@@ -96,14 +102,16 @@ export function generateTake(project: Project, options: GenerateOptions = {}): T
   const runs = modRuns(project);
   const { triggers: heard, end } = heardTriggers(project, runs, dice, options.from);
   const splices = audioSplices(project, runs, dice);
+  const scratches = scratchSplices(project, runs);
   const windows = tapeWindows(runs);
-  if (windows.length === 0) return { triggers: heard, tapes: [], heard, splices, end };
+  if (windows.length === 0) return { triggers: heard, tapes: [], heard, scratches, splices, end };
   const stepTime = stepDuration(project.song.bpm);
   const covered = (time: number) => windows.some((w) => time >= w.start * stepTime - 1e-9 && time < w.end * stepTime - 1e-9);
   return {
     triggers: heard.filter((t) => !covered(t.time)),
     tapes: windows.map((w) => windowTape(project, w, dice)),
     heard,
+    scratches,
     splices,
     end,
   };

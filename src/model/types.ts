@@ -262,6 +262,8 @@ export const MOD_TARGETS = [
   'reverse',
   'rewind',
   'halftime',
+  // Scratch after them, for the same reason.
+  'scratch',
 ] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
@@ -511,7 +513,31 @@ export interface TapeEffect {
   readonly flutter: number;
 }
 
-export type ModEffect = StepEffect | TempoEffect | SwapEffect | TapeEffect | HalftimeEffect;
+/** What Scratch can record from the clip's start, in 1/16 steps: 1 beat, 2 beats, 1 bar, 2 bars. */
+export const SCRATCH_RECORDS = [4, 8, 16, 32] as const;
+export type ScratchRecord = (typeof SCRATCH_RECORDS)[number];
+/** A crossfader cell: the whole step, or its two halves; open (true) or closed (silent). */
+export type FaderCell = readonly [boolean] | readonly [boolean, boolean];
+export const MIN_SCRATCH_STEPS = 2;
+
+/**
+ * Like a hand on a record (see Scratch): records the first `record` steps
+ * heard from the clip's start, and plays them by a drawn needle movement and a
+ * crossfader. One point per step: where the needle is in the recording (0 its
+ * start, 1 its end) where the step starts, smoothed between. Loops on its own
+ * length; at the loop the needle is lifted and jumps back to the first point.
+ */
+export interface ScratchEffect {
+  readonly target: 'scratch';
+  readonly record: ScratchRecord;
+  readonly step: StepSize;
+  /** MIN_SCRATCH_STEPS to MAX_LANE_STEPS points, each 0–1 in steps of 1/(2·record). */
+  readonly points: readonly number[];
+  /** One cell per point. */
+  readonly fader: readonly FaderCell[];
+}
+
+export type ModEffect = StepEffect | TempoEffect | SwapEffect | TapeEffect | HalftimeEffect | ScratchEffect;
 export type EffectTarget = ModEffect['target'];
 
 /** A mod does things through its effects: at most one per target. A new mod has none, and does nothing until it gets one. */
@@ -530,6 +556,7 @@ export const tapeOf = (mod: Mod | undefined): TapeEffect | undefined =>
   mod?.effects.find((e): e is TapeEffect => e.target === 'tape');
 export const isAudioEffect = (effect: ModEffect): boolean => (AUDIO_TARGETS as readonly string[]).includes(effect.target);
 export const halftimeOf = (mod: Mod | undefined): HalftimeEffect | undefined => mod?.effects.find((e): e is HalftimeEffect => e.target === 'halftime');
+export const scratchOf = (mod: Mod | undefined): ScratchEffect | undefined => mod?.effects.find((e): e is ScratchEffect => e.target === 'scratch');
 
 export type SongRow = 'main' | 'fill' | 'modA' | 'modB';
 
