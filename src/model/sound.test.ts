@@ -33,6 +33,7 @@ const pad = (id: string, members: readonly string[], config: Partial<Config> = {
   members,
   choice: 'top',
   config: { ...NO_CONFIG, ...config },
+  seed: 0,
 });
 const matrix = (id: string, pads: readonly string[], config: Partial<Config> = {}, sampleId: string | null = null): Matrix => ({
   id,
@@ -41,6 +42,7 @@ const matrix = (id: string, pads: readonly string[], config: Partial<Config> = {
   config: { ...NO_CONFIG, ...config },
   sampleId,
   loop: null,
+  seed: 0,
 });
 const byId = <T extends { id: string }>(items: readonly T[]): Record<string, T> => Object.fromEntries(items.map((x) => [x.id, x]));
 

@@ -1,4 +1,5 @@
-import type { LoopKind, Project, Song, Step } from './types';
+import { isSeed, seedOf } from './seed';
+import type { Id, LoopKind, Project, Song, Step } from './types';
 import { STEPS_PER_BAR } from './types';
 
 // A new song starts at 170 BPM and 8 bars.
@@ -31,12 +32,31 @@ export function nextLoopName(project: Project, kind: LoopKind): string {
 /** Why a project from before Matrix is not opened. */
 export const OLD_PROJECT_MESSAGE = 'This project was made before Matrix (phase 22). Open it in the tag fas-21-fore-matrix.';
 
-/** A saved project as it is, or null when it was made before Matrix (it has no `matrices`). */
+/** What may lack a seed in a project saved before seeds (phase 24a). */
+type Unseeded<T> = Omit<T, 'seed'> & { readonly seed?: number };
+
+/** `x` with a seed: its own, or one made from its id. */
+const seeded = <T extends { readonly id: Id; readonly seed: number }>(x: Unseeded<T>): T => (isSeed(x.seed) ? (x as T) : ({ ...x, seed: seedOf(x.id) } as T));
+const seededAll = <T extends { readonly id: Id; readonly seed: number }>(record: Readonly<Record<Id, Unseeded<T>>>): Record<Id, T> =>
+  Object.fromEntries(Object.entries(record).map(([id, x]) => [id, seeded<T>(x)]));
+
+/**
+ * A saved project as it is, or null when it was made before Matrix (it has no
+ * `matrices`). A mod, matrix, pad or clip saved before seeds gets one made
+ * from its id, so it sounds the same every time it is loaded. (Claudes val.)
+ */
 export function upgradeProject(saved: unknown): Project | null {
   if (typeof saved !== 'object' || saved === null) return null;
   const matrices = (saved as { matrices?: unknown }).matrices;
   if (typeof matrices !== 'object' || matrices === null) return null;
-  return saved as Project;
+  const project = saved as Project;
+  return {
+    ...project,
+    mods: seededAll(project.mods),
+    matrices: seededAll(project.matrices),
+    pads: seededAll(project.pads),
+    song: { ...project.song, clips: project.song.clips.map((c) => seeded(c)) },
+  };
 }
 
 /** Seconds per step (a 1/16 note). */

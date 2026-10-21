@@ -55,7 +55,7 @@ export const addVariant =
 const setPad = (project: Project, pad: Pad): Project => ({ ...project, pads: { ...project.pads, [pad.id]: pad } });
 const setMatrix = (project: Project, matrix: Matrix): Project => ({ ...project, matrices: { ...project.matrices, [matrix.id]: matrix } });
 
-const emptyPad = (id: Id, name: string): Pad => ({ id, name, members: [], choice: 'top', config: NO_CONFIG });
+const emptyPad = (ctx: CommandContext, name: string): Pad => ({ id: ctx.newId(), name, members: [], choice: 'top', config: NO_CONFIG, seed: ctx.newSeed() });
 
 export const renamePad =
   (id: Id, name: string): Command =>
@@ -115,8 +115,8 @@ export const createMatrix =
   (name: string): Command =>
   (project, ctx) => {
     if (name.trim() === '') return invalid('A matrix needs a name');
-    const pad = emptyPad(ctx.newId(), rowName(name, 0));
-    const matrix: Matrix = { id: ctx.newId(), name, pads: [pad.id], config: NO_CONFIG, sampleId: null, loop: null };
+    const pad = emptyPad(ctx, rowName(name, 0));
+    const matrix: Matrix = { id: ctx.newId(), name, pads: [pad.id], config: NO_CONFIG, sampleId: null, loop: null, seed: ctx.newSeed() };
     return ok(setMatrix(setPad(project, pad), matrix));
   };
 
@@ -125,7 +125,7 @@ export const addPad = (matrixId: Id): Command =>
   following((project, ctx) => {
     const matrix = project.matrices[matrixId];
     if (matrix === undefined) return notFound(matrixId);
-    const pad = emptyPad(ctx.newId(), rowName(matrix.name, matrix.pads.length));
+    const pad = emptyPad(ctx, rowName(matrix.name, matrix.pads.length));
     return ok(setMatrix(setPad(project, pad), { ...matrix, pads: [...matrix.pads, pad.id] }));
   });
 
@@ -173,7 +173,7 @@ function copiesOf(project: Project, hitIds: readonly Id[], hits: Record<Id, Hit>
 /** A new pad named `name` as a copy of `pad`: its choice and config, with copies of its hits. Added to `pads` and `hits`. */
 function padCopy(project: Project, pad: Pad, name: string, pads: Record<Id, Pad>, hits: Record<Id, Hit>, ctx: CommandContext, rename?: (name: string) => string): Id {
   const members = copiesOf(project, pad.members, hits, ctx, rename);
-  const copy: Pad = { ...pad, id: ctx.newId(), name, members };
+  const copy: Pad = { ...pad, id: ctx.newId(), name, members, seed: ctx.newSeed() };
   pads[copy.id] = copy;
   return copy.id;
 }
@@ -207,7 +207,7 @@ export const addPadWith = (matrixId: Id, hitIds: readonly Id[]): Command =>
   following((project, ctx) => {
     const matrix = project.matrices[matrixId];
     if (matrix === undefined) return notFound(matrixId);
-    const pad = emptyPad(ctx.newId(), rowName(matrix.name, matrix.pads.length));
+    const pad = emptyPad(ctx, rowName(matrix.name, matrix.pads.length));
     const added = setMatrix(setPad(project, pad), { ...matrix, pads: [...matrix.pads, pad.id] });
     const filled = copyHitsTo(hitIds, pad.id)(added, ctx);
     if (!filled.ok) return filled;
@@ -263,7 +263,7 @@ export const cloneMatrix =
     const pads = { ...project.pads };
     const hits = { ...project.hits };
     const copies = matrix.pads.flatMap((p) => (project.pads[p] === undefined ? [] : [padCopy(project, project.pads[p]!, rename(project.pads[p]!.name), pads, hits, ctx, rename)]));
-    return ok(setMatrix({ ...project, pads, hits }, { id: ctx.newId(), name, pads: copies, config: matrix.config, sampleId: null, loop: null }));
+    return ok(setMatrix({ ...project, pads, hits }, { id: ctx.newId(), name, pads: copies, config: matrix.config, sampleId: null, loop: null, seed: ctx.newSeed() }));
   };
 
 /**
@@ -301,8 +301,8 @@ export const createMatrixFrom =
     if (missing !== undefined) return notFound(missing);
     const hits = { ...project.hits };
     const members = copiesOf(project, hitIds, hits, ctx);
-    const pad: Pad = { ...emptyPad(ctx.newId(), rowName(name, 0)), members, choice: members.length > 1 ? 'roundRobin' : 'top' };
-    const matrix: Matrix = { id: ctx.newId(), name, pads: [pad.id], config: NO_CONFIG, sampleId: null, loop: null };
+    const pad: Pad = { ...emptyPad(ctx, rowName(name, 0)), members, choice: members.length > 1 ? 'roundRobin' : 'top' };
+    const matrix: Matrix = { id: ctx.newId(), name, pads: [pad.id], config: NO_CONFIG, sampleId: null, loop: null, seed: ctx.newSeed() };
     return ok(setMatrix(setPad({ ...project, hits }, pad), matrix));
   };
 
@@ -524,7 +524,7 @@ const setMod = (project: Project, mod: Mod): CommandResult => {
 export const createMod =
   (name: string, effects: readonly ModEffect[]): Command =>
   (project, ctx) =>
-    setMod(project, { id: ctx.newId(), name, effects });
+    setMod(project, { id: ctx.newId(), name, effects, seed: ctx.newSeed() });
 
 export const renameMod =
   (id: Id, name: string): Command =>

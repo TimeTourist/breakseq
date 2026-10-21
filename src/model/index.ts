@@ -11,3 +11,5 @@ export * from './names';
 export * from './commands';
 export * from './clips';
 export * from './lengths';
+export * from './seed';
+export * from './reroll';

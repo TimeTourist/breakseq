@@ -3,8 +3,8 @@ import type { Matrix, Pad, Project, Sample } from './types';
 import { NO_CONFIG } from './types';
 import { matrixKind, matrixOfPad, padOfHit, sampleBpm } from './owners';
 
-const pad = (id: string, members: readonly string[]): Pad => ({ id, name: id, members, choice: 'top', config: NO_CONFIG });
-const matrix = (id: string, pads: readonly string[]): Matrix => ({ id, name: id, pads, config: NO_CONFIG, sampleId: null, loop: null });
+const pad = (id: string, members: readonly string[]): Pad => ({ id, name: id, members, choice: 'top', config: NO_CONFIG, seed: 0 });
+const matrix = (id: string, pads: readonly string[]): Matrix => ({ id, name: id, pads, config: NO_CONFIG, sampleId: null, loop: null, seed: 0 });
 const byId = <T extends { id: string }>(items: readonly T[]): Record<string, T> => Object.fromEntries(items.map((x) => [x.id, x]));
 
 /** A project built by hand from its pads and matrices. */

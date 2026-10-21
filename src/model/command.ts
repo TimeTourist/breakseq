@@ -1,3 +1,4 @@
+import { freshSeed } from './seed';
 import type { Id, Project } from './types';
 
 export type UsageKind = 'sample' | 'matrix' | 'hit' | 'pad' | 'loop' | 'mod' | 'song';
@@ -21,6 +22,8 @@ export type CommandResult =
 
 export interface CommandContext {
   readonly newId: () => Id;
+  /** A seed for a new mod, matrix, pad or clip, or for Reroll: a whole number 0 ≤ seed < 2³². */
+  readonly newSeed: () => number;
 }
 
 /** A change to the project. Pure: returns a new project and never mutates the old one. */
@@ -28,6 +31,7 @@ export type Command = (project: Project, ctx: CommandContext) => CommandResult;
 
 export const defaultContext: CommandContext = {
   newId: () => crypto.randomUUID(),
+  newSeed: freshSeed,
 };
 
 export const ok = (project: Project): CommandResult => ({ ok: true, project });
