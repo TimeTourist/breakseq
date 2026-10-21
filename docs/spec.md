@@ -253,7 +253,7 @@ Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in
 - **Crossfader:** en egen rad med på och av per steg, som klipper ljudet (chirp, transformer).
 - TODO(spec): resten (stegraden, färdiga rörelser, hur kurvan jämnas ut) bestäms efter skissen.
 
-**En röst.** Ett nytt ljud klipper alltid det som klingar, också en stretchad hit; det finns inget poly-läge där slag klingar över varandra. En stretchad hit hörs alltså i sin fulla längd bara när stegen efter den är tomma. *(Magnus beslut; ändras inte utan att fråga.)*
+**En röst.** Ett nytt ljud klipper alltid det som klingar, också en stretchad hit, men aldrig reverb och delay, som klingar ut bredvid; det finns inget poly-läge där slag klingar över varandra. En stretchad hit hörs alltså i sin fulla längd bara när stegen efter den är tomma. *(Magnus beslut; ändras inte utan att fråga.)*
 
 **Reglage som inte hörs** gråas ut, med en kort förklaring av varför de inte gör något just nu (till exempel Multiply/Replace när hitten saknar egen stretch, eller hittens bitlängd under en stretch-mod). *(Magnus beslut; ändras inte utan att fråga.)*
 
