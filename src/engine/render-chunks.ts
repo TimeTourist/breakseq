@@ -217,7 +217,10 @@ async function renderChunk(chunk: Chunk, project: Project, sampleRate: number, s
   scheduleVoices(context, project, chunk.voices, route, chunk.origin);
   chunk.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!, dry));
   const rendered = await context.startRendering();
-  const pair = (first: number) => [rendered.getChannelData(first), rendered.getChannelData(first + 1)];
+  // Copies, not views: the part is added up later, after other parts have rendered, and in Node
+  // (node-web-audio-api) a view does not keep its AudioBuffer alive: once the buffer is collected,
+  // a view reads freed memory, and now and then a few frames came out wrong.
+  const pair = (first: number) => [rendered.getChannelData(first).slice(), rendered.getChannelData(first + 1).slice()];
   return { dry: pair(0), sends: new Map(chunk.sends.map((key, i) => [key, pair(2 + 2 * i)])), size: channels * chunk.frames };
 }
 
