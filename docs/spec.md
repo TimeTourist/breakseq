@@ -251,7 +251,9 @@ Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in
 - **Nålens läge** ritas över tiden: läget i den inspelade biten mot tiden. Lutningen är hastigheten; nedåt spelar baklänges, platt står skivan still och är tyst.
 - **Inspelning:** som Tape: det som hörs, med stegeffekterna, reverb och delay, men utan Tape och Scratch. *(Magnus beslut; ändras inte utan att fråga.)*
 - **Crossfader:** en egen rad med på och av per steg, som klipper ljudet (chirp, transformer).
-- TODO(spec): resten (stegraden, färdiga rörelser, hur kurvan jämnas ut) bestäms efter skissen.
+- **Clear** spelar normalt: en rak linje framåt genom inspelningen i 1×, med fadern öppen. *(Magnus beslut; ändras inte utan att fråga.)*
+- **Färdiga rörelser** som en scratchande DJ, var och en med sin egen fader: Baby (fram och tillbaka, fadern öppen), Chirp (fadern stängs just när skivan vänder), Transformer (lugn rörelse fram och tillbaka medan fadern hackar jämnt i 1/32) och Tear (bakåtdraget i två ryck). *(Magnus beslut att de ska likna en DJ; rörelserna i detalj är Claudes val.)*
+- TODO(spec): resten (stegraden, hur kurvan jämnas ut) bestäms efter skissen.
 
 **En röst.** Ett nytt ljud klipper alltid det som klingar, också en stretchad hit, men aldrig reverb och delay, som klingar ut bredvid; det finns inget poly-läge där slag klingar över varandra. En stretchad hit hörs alltså i sin fulla längd bara när stegen efter den är tomma. *(Magnus beslut; ändras inte utan att fråga.)*
 
