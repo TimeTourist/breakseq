@@ -235,7 +235,7 @@ Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 Tape spelar in en bit av det som hörs och spelar upp den som ett band, så länge mod-klippet ligger i Song.
 
 - **Segment:** de första Repeat-stegen (1/16 till 4 takter) från där klippet börjar på tidslinjen, även när början är trimmad. Det man ser är det som spelas in. Ett klipp med Tape är minst så långt som segmentet.
-- **Inspelning:** det som hörs i segmentet, alltså Main eller Fill med stegeffekterna från A och B, men utan Tape.
+- **Inspelning:** det som hörs i segmentet, alltså Main eller Fill med stegeffekterna från A och B och med reverb och delay, men utan Tape och Scratch. *(Magnus beslut om reverb och delay; ändras inte utan att fråga.)*
 - **Riktning:** Framåt, Baklänges eller Pendel (framåt, baklänges, framåt, …). Pendel är förvald.
 - **Hastighet:** går linjärt från ett värde till ett annat (0×–4×) över klippets längd, förvalt 1× → 0,25×. Hastigheten ändrar tonhöjd och längd som ett band, och varje varv tar så lång tid som hastigheten ger. Under 1× blir ljudet också tystare i takt med hastigheten, som ett band som bromsas, så 0× är tyst. Låtens tempo ändras aldrig.
 - **Ramp over:** hur lång rampen är, från klippets start (förvalt hela klippet). Därefter ligger hastigheten kvar på slutvärdet. Kurvan är Linear, Soft start, Soft end, Hard start (det mesta av ändringen direkt) eller Hard end (håller emot och ändras sist).
@@ -243,6 +243,31 @@ Tape spelar in en bit av det som hörs och spelar upp den som ett band, så län
 - **Under klippet** hörs bara tapen. Vid 0× är det tyst. Tapen klipper rösten före sig.
 - **Efter klippet** fortsätter det som syns där, på huvudklockan, som efter slip.
 - **A och B:** har båda raderna Tape samtidigt vinner B. Tape går före slip-tempo i sitt spann.
+
+## Scratch
+
+Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in en bit av det som hörs, som Tape, och spelar upp den efter en ritad rörelse. *(Magnus beslut; ändras inte utan att fråga.)*
+
+- **Nålens läge** ritas över tiden: läget i den inspelade biten mot tiden. Lutningen är hastigheten; nedåt spelar baklänges, platt står skivan still och är tyst.
+- **Inspelning:** som Tape: det som hörs, med stegeffekterna, reverb och delay, men utan Tape och Scratch. *(Magnus beslut; ändras inte utan att fråga.)*
+- **Crossfader:** en egen rad med på och av per steg, som klipper ljudet (chirp, transformer).
+- TODO(spec): resten (stegraden, färdiga rörelser, hur kurvan jämnas ut) bestäms efter skissen.
+
+**En röst.** Ett nytt ljud klipper alltid det som klingar, också en stretchad hit; det finns inget poly-läge där slag klingar över varandra. En stretchad hit hörs alltså i sin fulla längd bara när stegen efter den är tomma. *(Magnus beslut; ändras inte utan att fråga.)*
+
+**Reglage som inte hörs** gråas ut, med en kort förklaring av varför de inte gör något just nu (till exempel Multiply/Replace när hitten saknar egen stretch, eller hittens bitlängd under en stretch-mod). *(Magnus beslut; ändras inte utan att fråga.)*
+
+## Mods som samplar det som hörs
+
+Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stutter, Freeze, Reverse, Rewind och Halftime. *(Magnus beslut; ändras inte utan att fråga.)* Källan är det som hörs, med stegeffekter, reverb och delay, men aldrig de här moddarna själva, Tape eller Scratch. *(Claudes val.)*
+
+- **Scramble** delar låten i rutor (förvalt 1/16) och ger under klippet varje ruta en slumpvald ruta ur källan. Var rutorna hämtas väljs i moden: hela låten, ett antal takter runt klippet eller inom klippet. *(Magnus beslut; ändras inte utan att fråga.)* Förvalt är hela låten. *(Claudes val.)*
+- **Stutter** upprepar det som hörs på ett steg (1/16, 1/32, 1/64), till exempel som en roll.
+- **Freeze** håller ett litet korn av det som hörs som en ton.
+- **Reverse** spelar det som hörs baklänges, ruta för ruta på sin plats.
+- **Rewind** drar tillbaka det senaste slaget eller takten som ett band som spolas tillbaka.
+- **Halftime** spelar det som hörs i halv fart under klippet, med tonhöjden ner som en skiva.
+- TODO(spec): reglagen bestäms efter skissen.
 
 ## Slip-tempo
 
