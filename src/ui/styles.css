@@ -3290,6 +3290,104 @@ button.danger:hover:not(:disabled) {
   padding: 4px 14px 12px;
 }
 
+.scramble-picture {
+  padding: 0 14px 14px;
+}
+
+.scramble-picture-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.scramble-picture-head .small-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.scramble-cells {
+  position: relative;
+  height: 172px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0c0d0f;
+  overflow: hidden;
+}
+
+.scramble-cells svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scramble-arrow {
+  fill: none;
+  stroke: #ece9e2;
+  stroke-opacity: 0.75;
+  stroke-width: 1.5;
+}
+
+.scramble-arrow.back {
+  stroke: #7fb3d5;
+  stroke-opacity: 1;
+}
+
+.scramble-cell {
+  position: absolute;
+  height: 34px;
+  border-radius: 2px;
+  color: #ece9e2;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.scramble-cell.reversed {
+  box-shadow: inset 0 -3px 0 #7fb3d5;
+}
+
+.scramble-bar,
+.scramble-clip-label {
+  position: absolute;
+  top: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
+.scramble-clip-label {
+  top: 156px;
+  color: #c39bd3;
+}
+
+.scramble-range {
+  position: absolute;
+  top: 15px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.scramble-clip {
+  position: absolute;
+  top: 117px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid #c39bd3;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 .mod-card-source {
   margin: 2px 14px 0;
   font-size: 12px;
