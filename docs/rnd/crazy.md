@@ -17,7 +17,7 @@ Mottot "Gör kaos lätt" taget till sin spets: slica ett break och få en låt d
 - Crazy bygger allt som om användaren gjort det själv. Inget följer med markörerna i efterhand, och allt går att ändra som vanligt.
 - Läget styr bara vad som byggs automatiskt; inga reglage döljs.
 - **🎲 (Reroll)** fungerar som idag: bara nya seeds, rör aldrig det som är byggt eller ändrat.
-- **En egen knapp för Crazy** (namn ej bestämt) bygger om allt Crazy har skapat med ett nytt recept. Ändringar man gjort i det Crazy skapade försvinner, men Undo tar tillbaka dem. Det man skapat själv rörs inte.
+- **En egen knapp för Crazy** (namn ej bestämt) nukar allt i sin väg och bygger om med ett nytt recept: matriser, loopar och Song byggs om, och förvalen återställs. Bara samples och egna mods (custom) blir kvar. Undo tar tillbaka allt.
 
 ## Recept
 
@@ -43,10 +43,11 @@ Exempel på regler (varianterna är exempel, inte bestämda):
 
 - Förvalen ligger fasta på en hylla i Song och kan alltid läggas ut, utan att man först skapar dem i Mods.
 - Förvalen skapas som vanliga mods i varje nytt projekt, med en flagga (`isPreset`). Alla andra mods är egna (custom), utan flagga. På hyllan syns det vilka som är förval och vilka som är egna. Eftersom förvalen sparas i projektet låter ett gammalt projekt likadant även om appens förval ändras senare.
-- Ändrar man ett förval i Mods blir det en egen mod, och klippen som spelade förvalet spelar ändringen. Förvalet på hyllan är oförändrat. Vill man ha en kopia klonar man först och ändrar sedan.
+- Ett förval ändras aldrig. Ändrar man i ett förval i Mods skapas en ny egen mod som utgår från det, med ändringen, och klippen som spelade förvalet spelar den nya moden. Förvalet ligger kvar oförändrat på hyllan. Man kan också öppna ett förval och klona det, som Clone fungerar idag.
+- Förvalen syns i listan i Mods, i en egen grupp sist med förvalsmarkeringen.
+- Gamla projekt utan förval får dem när de laddas. Inget spelar dem än, så låten låter likadant.
 
 ## Öppet
 
 - TODO(spec): knappens namn för att bygga om med nytt recept, och var den sitter.
 - TODO(spec): den fasta listan med regler och varianter.
-- TODO(spec): hur förvalen visas i Mods (listan, låsta, hur man öppnar ett).
