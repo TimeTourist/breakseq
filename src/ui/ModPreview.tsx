@@ -3,6 +3,7 @@ import type { PassRow } from '../engine';
 import { modPassRows } from '../engine';
 import type { Id, Project } from '../model';
 import { LANES, norm } from '../model';
+import { scratchSpeedText } from './audioText';
 import { fullValue } from './laneText';
 import { TARGET_LABELS } from './modLabels';
 import { formatTempo } from './ModSentence';
@@ -86,6 +87,27 @@ export function ModPreview({ project, modId, loopId, playing, onLoop }: ModPrevi
           </span>
         ));
       }
+      case 'scratch':
+        return row.cells.map((c, i) => {
+          const closed = c.fader.every((open) => !open);
+          const cut = !closed && c.fader.some((open) => !open);
+          const fader: CSSProperties | undefined =
+            c.fader.length === 2 && cut
+              ? { background: `linear-gradient(90deg, ${c.fader[0] ? 'var(--raised)' : 'var(--selected)'} 50%, ${c.fader[1] ? 'var(--raised)' : 'var(--selected)'} 50%)` }
+              : closed
+                ? { background: 'repeating-linear-gradient(135deg, var(--selected) 0 3px, var(--sunken) 3px 6px)' }
+                : undefined;
+          return (
+            <span
+              key={i}
+              className={cellClass(i, ` scratch ${c.motion}${c.restart ? ' restart' : ''}`)}
+              style={fader}
+              title={`Step ${i + 1}: Scratch step ${c.scratchStep + 1}, ${scratchSpeedText(c.speed)}${closed ? ', fader closed' : cut ? ', fader cuts half' : ''}`}
+            >
+              {c.motion === 'held' ? '–' : c.motion === 'forward' ? '▸' : '◂'}
+            </span>
+          );
+        });
       case 'halftime':
         return row.cells.map((speed, i) => (
           <span key={i} className={cellClass(i)} title={`Step ${i + 1}: what is heard at ×${speed}`}>

@@ -1,5 +1,5 @@
-import type { CellSize, HalftimeEffect, ModRewind, ModStutter, StepEffect } from '../model';
-import { DEFAULT_MOD_FREEZE, DEFAULT_MOD_REVERSE, DEFAULT_MOD_REWIND, DEFAULT_MOD_SCRAMBLE, DEFAULT_MOD_STUTTER, isDice } from '../model';
+import type { CellSize, HalftimeEffect, ModRewind, ModStutter, ScratchEffect, ScratchRecord, StepEffect } from '../model';
+import { DEFAULT_MOD_FREEZE, DEFAULT_MOD_REVERSE, DEFAULT_MOD_REWIND, DEFAULT_MOD_SCRAMBLE, DEFAULT_MOD_STUTTER, isDice, scratchMotion, scratchSpeeds } from '../model';
 import { laneLength } from './laneText';
 
 /** How the audio mods read (see Mods som samplar det som hörs and the sketch): their values, settings and sentences. */
@@ -74,3 +74,41 @@ export function halftimeSentence(effect: HalftimeEffect): string {
   const pitch = effect.keepPitch ? 'pitch kept (stretch)' : effect.speed === 2 ? 'double time, pitch up like a record' : 'pitch drops like a record';
   return `Halftime · ${speedText(effect.speed)} under the whole clip, no ramp · ${pitch}`;
 }
+
+/** What Scratch records, as on its card. */
+export const RECORD_TEXT: Record<ScratchRecord, string> = { 4: '1 beat', 8: '2 beats', 16: '1 bar', 32: '2 bars' };
+const STEP_WORDS: Record<ScratchEffect['step'], string> = { '1/16': '1/16', beat: '1 beat', bar: '1 bar' };
+
+/** Runs of `pred` round a loop: 1 when all are, else how many start after one that is not. */
+function runsRound<T>(items: readonly T[], pred: (x: T) => boolean): number {
+  const n = items.length;
+  if (n === 0 || !items.some(pred)) return 0;
+  if (items.every(pred)) return 1;
+  return items.filter((x, i) => pred(x) && !pred(items[(i - 1 + n) % n]!)).length;
+}
+
+/**
+ * "Scratch · 1 bar recorded · 8 steps of 1/16, loops · 3 backward strokes · fader cuts 4", as the sketch.
+ * A held step inside a stroke (a tear) does not split it; the jump back at the loop does.
+ */
+export function scratchSentence(effect: ScratchEffect): string {
+  const n = effect.points.length;
+  const moving = scratchSpeeds(effect)
+    .map(scratchMotion)
+    .filter((m) => m !== 'held');
+  const back = moving.filter((m, i) => m === 'backward' && (i === 0 || moving[i - 1] !== 'backward')).length;
+  const cuts = runsRound(effect.fader.flat(), (open) => !open);
+  return `Scratch · ${RECORD_TEXT[effect.record]} recorded · ${n} ${n === 1 ? 'step' : 'steps'} of ${STEP_WORDS[effect.step]}, loops · ${back} ${back === 1 ? 'backward stroke' : 'backward strokes'} · ${cuts > 0 ? `fader cuts ${cuts}` : 'fader open'}`;
+}
+
+/** A step's speed under the needle lane: ▸2.4, ◂2.4 or – (held). */
+export const scratchSpeedLabel = (speed: number): string => {
+  const motion = scratchMotion(speed);
+  return motion === 'held' ? '–' : `${motion === 'forward' ? '▸' : '◂'}${Math.abs(speed).toFixed(1)}`;
+};
+
+/** A step's speed in words: "+2.4× forward", "−2.4× backwards", "held still (silent)". */
+export const scratchSpeedText = (speed: number): string => {
+  const motion = scratchMotion(speed);
+  return motion === 'held' ? 'held still (silent)' : `${speed > 0 ? '+' : '−'}${Math.abs(speed).toFixed(1)}× ${motion === 'forward' ? 'forward' : 'backwards'}`;
+};

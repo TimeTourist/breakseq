@@ -16,6 +16,7 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   delay: 'Delay',
   tempo: 'Tempo (slip)',
   tape: 'Tape',
+  scratch: 'Scratch',
   scramble: 'Scramble',
   stutter: 'Stutter',
   freeze: 'Freeze',
@@ -24,7 +25,7 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   halftime: 'Halftime',
 };
 
-/** The order of + Add effect and of a new mod's cards (see Sidan). Scratch comes in a later phase (24d). */
+/** The order of + Add effect and of a new mod's cards (see Sidan). */
 export const ADD_ORDER: readonly EffectTarget[] = [
   'swap',
   'padMember',
@@ -40,6 +41,7 @@ export const ADD_ORDER: readonly EffectTarget[] = [
   'delay',
   'tempo',
   'tape',
+  'scratch',
   'scramble',
   'stutter',
   'freeze',

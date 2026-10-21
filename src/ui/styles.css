@@ -3830,6 +3830,254 @@ button.danger:hover:not(:disabled) {
   outline-offset: -1px;
 }
 
+/* Scratch (see Scratch and the sketch): the needle lane, the speed under each step and the crossfader. */
+.scratch-record {
+  min-height: 30px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.scratch-tools {
+  padding-top: 0;
+}
+
+.scratch-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.scratch-key .forward,
+.scratch-speeds .forward {
+  color: var(--accent);
+}
+
+.scratch-key .backward,
+.scratch-speeds .backward {
+  color: #7fb3d5;
+}
+
+.scratch-key .held,
+.scratch-speeds .held {
+  color: var(--faint);
+}
+
+.scratch-grid {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 3px 8px;
+  align-items: stretch;
+}
+
+.scratch-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  text-align: right;
+}
+
+.scratch-axis.fader {
+  justify-content: center;
+}
+
+.lane.scratch-needle {
+  height: 150px;
+  background-image: linear-gradient(90deg, #4a4f56 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px), linear-gradient(90deg, #1b1e22 1px, transparent 1px),
+    linear-gradient(0deg, #1b1e22 1px, transparent 1px);
+}
+
+.scratch-needle svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scratch-needle path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.scratch-ghost {
+  stroke: var(--faint);
+  stroke-opacity: 0.35;
+  stroke-width: 2;
+}
+
+.scratch-jump {
+  stroke: var(--text);
+  stroke-opacity: 0.6;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+}
+
+.scratch-held {
+  stroke: var(--faint);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.scratch-forward,
+.scratch-backward {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.scratch-forward {
+  stroke: var(--accent);
+}
+
+.scratch-backward {
+  stroke: #7fb3d5;
+}
+
+.scratch-mute {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(135deg, rgb(12 13 15 / 0.75) 0 3px, rgb(12 13 15 / 0.35) 3px 6px);
+  pointer-events: none;
+}
+
+.scratch-mute.ghost {
+  opacity: 0.5;
+}
+
+.scratch-point {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 2px solid var(--sunken);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.scratch-point.forward {
+  background: var(--accent);
+}
+
+.scratch-point.backward {
+  background: #7fb3d5;
+}
+
+.scratch-point.held {
+  background: var(--faint);
+}
+
+.scratch-point.editing {
+  background: var(--text);
+}
+
+.scratch-bubble {
+  position: absolute;
+  padding: 2px 7px;
+  border-radius: 10px;
+  color: #101113;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.scratch-bubble.forward {
+  background: var(--accent);
+}
+
+.scratch-bubble.backward {
+  background: #7fb3d5;
+}
+
+.scratch-bubble.held {
+  background: var(--faint);
+}
+
+.scratch-speeds {
+  position: relative;
+  height: 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.scratch-speeds span {
+  position: absolute;
+  top: 0;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.scratch-fader {
+  position: relative;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.scratch-cell {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  padding: 0;
+  min-height: 0;
+  border: none;
+  border-radius: 3px;
+  background: repeating-linear-gradient(135deg, var(--selected) 0 3px, var(--sunken) 3px 6px);
+  cursor: pointer;
+}
+
+.scratch-cell.open {
+  background: #d8d2c4;
+}
+
+.scratch-cell.ghost {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.scratch-fader button.scratch-cell:hover:not(:disabled) {
+  border: none;
+  background: repeating-linear-gradient(135deg, var(--selected) 0 3px, var(--sunken) 3px 6px);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.scratch-fader button.scratch-cell.open:hover:not(:disabled) {
+  background: #d8d2c4;
+}
+
+.pass-cell.scratch {
+  font-family: var(--mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pass-cell.scratch.forward {
+  color: var(--accent);
+}
+
+.pass-cell.scratch.backward {
+  color: #7fb3d5;
+}
+
+.pass-cell.scratch.held {
+  color: var(--faint);
+}
+
 @media (max-width: 640px) {
   .mod-card-head,
   .mod-card-controls,

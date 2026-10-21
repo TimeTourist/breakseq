@@ -78,12 +78,12 @@ const choose = (inCard: HTMLElement, group: string, option: string) =>
 const SOURCE = 'Source: what’s heard (step mods, reverb/delay, tape), never itself or another audio mod. Every roll is seeded.';
 
 describe('audio mods in Mods', () => {
-  it('+ Add effect has them after Tape, in the spec’s order (Scratch comes later)', async () => {
+  it('+ Add effect has them after Tape and Scratch, in the spec’s order', async () => {
     await setup();
     const options = within(screen.getByRole('combobox', { name: 'Add effect' }))
       .getAllByRole('option')
       .map((o) => o.textContent);
-    expect(options.slice(-7)).toEqual(['Tape', 'Scramble', 'Stutter', 'Freeze', 'Reverse', 'Rewind', 'Halftime']);
+    expect(options.slice(-8)).toEqual(['Tape', 'Scratch', 'Scramble', 'Stutter', 'Freeze', 'Reverse', 'Rewind', 'Halftime']);
   });
 
   it('Scramble: its sentence, the Source line, Around the clip greyed until Take from is ± bars, and the picture with 🎲 Reroll', async () => {
