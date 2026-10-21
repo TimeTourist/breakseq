@@ -17,7 +17,7 @@ Mottot "Gör kaos lätt" taget till sin spets: slica ett break och få en låt d
 - Crazy bygger allt som om användaren gjort det själv. Inget följer med markörerna i efterhand, och allt går att ändra som vanligt.
 - Läget styr bara vad som byggs automatiskt; inga reglage döljs.
 - **🎲 (Reroll)** fungerar som idag: bara nya seeds, rör aldrig det som är byggt eller ändrat.
-- **En egen knapp för Crazy** (namn ej bestämt) nukar allt i sin väg och bygger om med ett nytt recept: matriser, loopar och Song byggs om, och förvalen återställs. Bara samples och egna mods (custom) blir kvar. Undo tar tillbaka allt.
+- **En egen knapp för Crazy** (namn ej bestämt) nukar allt i sin väg och bygger om med ett nytt recept: matriser, loopar och Song byggs om, och förvalen återställs. Bara samples och egna mods (custom) blir kvar. Undo tar tillbaka allt. Också det man gjort i Matrices försvinner: crazy är crazy. Den som vill behålla något gör New snapshot innan den börjar labba.
 
 ## Recept
 
