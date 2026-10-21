@@ -94,6 +94,7 @@ function isPlain(project: Project, t: Trigger): boolean {
  * then tape segments, each segment a piece of its own. A note lasts as long as
  * its sound is heard: until it ends, or the next sound cuts it.
  */
+// TODO(spec): the audio mods (take.splices) are not in the export: under them the notes are the triggers as heard without them.
 export function midiPlan(project: Project, take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[] }): MidiPlan {
   const triggers = [...take.triggers].sort((a, b) => a.time - b.time);
   const cuts = [...triggers.map((t) => t.time), ...take.tapes.map((t) => t.time)].sort((a, b) => a - b);
