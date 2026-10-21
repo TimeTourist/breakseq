@@ -261,7 +261,7 @@ describe('Pads: matrices, pads and their hits', () => {
     const withLoop = applyAll(
       present(store),
       createLoop('L', 'main', 1),
-      createMod('Second', [{ target: 'padMember', rate: 'step', shape: { kind: 'list', values: [2] } }]),
+      createMod('Second', [{ target: 'padMember', step: '1/16', lane: [{ v: 2 }] }]),
     );
     const loop = Object.values(withLoop.loops).find((l) => l.name === 'L')!;
     const mod = Object.values(withLoop.mods)[0]!;

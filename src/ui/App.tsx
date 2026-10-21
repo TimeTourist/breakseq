@@ -396,7 +396,15 @@ function Shell() {
         />
       )}
       {view === 'loops' && <LoopsView playhead={playhead.trigger} />}
-      {view === 'mods' && <ModsView />}
+      {view === 'mods' && (
+        <ModsView
+          playback={
+            playing && playingKey !== null && playingKey !== 'snapshot' && playhead.seconds !== null && shown?.key === playingKey
+              ? { seconds: playhead.seconds, block: inBlocks.current ? varv.current!.block() : 0 }
+              : null
+          }
+        />
+      )}
       {view === 'project' && (
         <ProjectView
           canExport={songTake !== null}

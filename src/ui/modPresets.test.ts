@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createMod, createProject } from '../model';
+import { createMod, createProject, isStepEffect, laneProblem } from '../model';
 import { sequentialIds } from '../test/fixtures';
 import { MOD_PRESETS } from './modPresets';
-import { parseValues } from './modText';
 
 describe('mod presets', () => {
   it('each makes a mod, with a name of its own and at most one effect per target', () => {
@@ -15,14 +14,11 @@ describe('mod presets', () => {
     }
   });
 
-  it('every value is one the target takes', () => {
+  it('every step effect is a lane within its range, as a new mod would draw it', () => {
     for (const preset of MOD_PRESETS) {
       for (const effect of preset.effects(createProject())) {
-        if (effect.target === 'tape' || effect.target === 'swap') continue;
-        const shape = effect.shape;
-        const values = shape.kind === 'ramp' ? [shape.from, shape.to] : shape.kind === 'random' ? [shape.min, shape.max] : shape.values;
-        if (effect.target === 'direction') continue;
-        expect(parseValues(effect.target, values.join(' ')), `${preset.name}: ${effect.target}`).toMatchObject({ ok: true });
+        if (!isStepEffect(effect)) continue;
+        expect(laneProblem(effect), `${preset.name}: ${effect.target}`).toBeNull();
       }
     }
   });

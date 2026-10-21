@@ -1929,108 +1929,6 @@ input[type='search'] {
   flex: 1 1 220px;
 }
 
-.mod-graph {
-  width: 100%;
-  max-width: 900px;
-  height: auto;
-  background: var(--sunken);
-  border-radius: 6px;
-}
-
-.mod-graph .grid {
-  stroke: #23262b;
-  stroke-width: 1;
-}
-
-.mod-graph .grid.beat {
-  stroke: #33373d;
-}
-
-.mod-graph .grid.zero {
-  stroke: #4a4f57;
-  stroke-dasharray: 3 3;
-}
-
-.mod-graph .step-value rect {
-  fill: #e5689a;
-  opacity: 0.85;
-}
-
-.mod-graph text {
-  fill: #f2a3c3;
-  font-size: 11px;
-  font-family: var(--mono);
-}
-
-.mod-graph .axis {
-  fill: var(--muted);
-}
-
-.mod-graph .pass rect {
-  fill: #e5689a;
-  opacity: 0.07;
-  stroke: #e5689a;
-  stroke-opacity: 0.35;
-  stroke-width: 0.5;
-}
-
-.mod-graph .pass.reverse rect {
-  opacity: 0.16;
-}
-
-.mod-graph .speed {
-  fill: none;
-  stroke: #f2a3c3;
-  stroke-width: 2;
-}
-
-.effect-tab {
-  display: inline-flex;
-  align-items: center;
-}
-
-.effect-remove {
-  min-height: 0;
-  padding: 0 6px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 16px;
-}
-
-.effect-remove:hover {
-  color: var(--text);
-}
-
-/* Borrow: the step's own loop is dim, a borrowed one lights up. */
-.mod-graph.swap .layer rect {
-  fill: #1c1f23;
-  stroke: #2c3036;
-}
-
-.mod-graph.swap .layer text {
-  fill: var(--muted);
-}
-
-.mod-graph.swap .layer.borrowed rect {
-  fill: var(--fill-bg);
-  stroke: var(--fill);
-}
-
-.mod-graph.swap .layer.borrowed text {
-  fill: var(--fill);
-  font-weight: 600;
-}
-
-.mod-graph.swap .layer.borrowed.n1 rect {
-  fill: #381a27;
-  stroke: #e5689a;
-}
-
-.mod-graph.swap .layer.borrowed.n1 text {
-  fill: #e5689a;
-}
-
 /* A pad whose slice is past its sample's last marker: it plays nothing. */
 .chip.silent,
 .step.silent {
@@ -2092,11 +1990,6 @@ input[type='search'] {
 
 .add-hits[open] summary {
   margin-bottom: 8px;
-}
-
-.mod-graph.swap .layer.empty rect {
-  fill: transparent;
-  stroke: #23262b;
 }
 
 /* Project: snapshots, newest first, the active one on top. */
@@ -3315,4 +3208,532 @@ button.danger:hover:not(:disabled) {
   min-height: 0;
   padding: 0 3px;
   font-size: 13px;
+}
+
+/* Mods: the mod's cards, each lane to draw in, and the preview's grid (see Stegrader och fliken Mods). */
+
+.mod-box {
+  border-color: var(--accent);
+  padding: 0;
+}
+
+.mod-box > .box-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mod-title {
+  font-size: 17px;
+  font-weight: 600;
+  padding: 0 4px;
+  max-width: 100%;
+}
+
+.mod-cards {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mod-empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.mod-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #121416;
+  min-width: 0;
+}
+
+.mod-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px 0;
+}
+
+.mod-card-head h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.mod-card-head .icon-button {
+  align-self: center;
+}
+
+.mod-unit {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 0 6px;
+}
+
+.mod-card-sentence {
+  margin: 2px 14px 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.mod-card-body {
+  padding: 4px 14px 12px;
+}
+
+.mod-card-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 14px 8px;
+}
+
+.mod-card-controls .segmented button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-family: var(--mono);
+}
+
+.mod-card-controls .small-button {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.mod-card-controls .small-button.dashed {
+  border-style: dashed;
+  border-color: var(--faint);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mod-card-controls .small-button.preset {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.mod-card-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.lane-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lane-extra-label {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.lane-length {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.lane-length button {
+  min-height: 36px;
+  width: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+}
+
+.lane-length .mono {
+  min-width: 64px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.lane-slider {
+  flex: 0 1 220px;
+  min-width: 160px;
+}
+
+.lane-slider .panel {
+  padding: 8px 10px;
+}
+
+.lane-wrap {
+  padding: 0 14px 12px;
+}
+
+.lane-ruler,
+.lane-values {
+  position: relative;
+  height: 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
+.lane-values {
+  height: 18px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.lane-mark {
+  position: absolute;
+  top: 2px;
+  color: #5a5c60;
+}
+
+.lane-mark.bar {
+  color: var(--muted);
+}
+
+.lane-mark.after {
+  opacity: 0.6;
+}
+
+.lane-values span {
+  position: absolute;
+  top: 0;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.lane-values span.editing {
+  color: var(--accent);
+}
+
+.lane {
+  position: relative;
+  height: 130px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: ns-resize;
+  background-color: var(--sunken);
+  background-image: linear-gradient(90deg, #4a4f56 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px), linear-gradient(90deg, #1b1e22 1px, transparent 1px);
+}
+
+.lane-zero {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #5a5c60;
+  pointer-events: none;
+}
+
+.lane-step,
+.lane-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.lane-step {
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.025);
+}
+
+.lane-step:hover {
+  background: rgb(232 176 74 / 0.07);
+}
+
+.lane-step.editing {
+  background: rgb(232 176 74 / 0.1);
+}
+
+.lane-ghost {
+  pointer-events: none;
+}
+
+.lane-ghost.restart {
+  border-left: 1px dashed rgb(232 176 74 / 0.35);
+}
+
+.lane-shape {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.lane-shape.value {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.lane-shape.band {
+  background: repeating-linear-gradient(135deg, rgb(232 176 74 / 0.5) 0 3px, rgb(232 176 74 / 0.12) 3px 7px);
+  outline: 1px dashed rgb(232 176 74 / 0.9);
+  outline-offset: -1px;
+}
+
+.lane-shape.off {
+  bottom: 4px !important;
+  height: 2px;
+  background: var(--border-strong);
+}
+
+.lane-shape.ghost.value {
+  opacity: 0.2;
+}
+
+.lane-shape.ghost.band {
+  opacity: 0.25;
+}
+
+.lane-after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 6px, rgb(16 17 19 / 0.25) 6px 8px);
+  pointer-events: none;
+}
+
+.lane-end {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+  padding-left: 4px;
+  white-space: nowrap;
+  cursor: help;
+  z-index: 2;
+}
+
+.lane button.lane-dice {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 17px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--raised);
+  font-size: 10px;
+  line-height: 1;
+  z-index: 3;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.lane-step:hover .lane-dice,
+.lane-dice:focus-visible,
+.lane-step.dice .lane-dice {
+  opacity: 1;
+}
+
+.lane-step.dice .lane-dice {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* Without hover (a phone), the 🎲 shows faintly on every step. */
+@media (hover: none) {
+  .lane button.lane-dice {
+    opacity: 0.5;
+  }
+}
+
+.lane button.lane-chance {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  min-height: 0;
+  padding: 0 3px;
+  border: none;
+  border-radius: 3px;
+  background: var(--sunken);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 14px;
+  z-index: 3;
+  cursor: pointer;
+}
+
+.lane-bubble {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.add-effect {
+  min-height: 36px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* A control that does nothing just now: greyed, with its reason beside it (see Reglage som inte hörs). */
+.unheard {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.unheard > :first-child {
+  opacity: 0.45;
+}
+
+.unheard-why {
+  font-size: 12px;
+  color: var(--faint);
+  font-style: italic;
+}
+
+.mod-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.pass-scroll {
+  overflow-x: auto;
+}
+
+.pass-grid {
+  display: grid;
+  gap: 3px;
+  align-items: stretch;
+  min-width: min-content;
+}
+
+.pass-label {
+  align-self: center;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pass-label.loop {
+  font-family: var(--mono);
+  color: var(--accent);
+}
+
+.pass-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  border-radius: 3px;
+  background: var(--sunken);
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow: hidden;
+  color: var(--muted);
+}
+
+.pass-cell.hit {
+  height: 34px;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.pass-cell.hit.beat {
+  border-color: var(--border-strong);
+}
+
+.pass-cell.hit.empty {
+  background: var(--sunken);
+  color: #5a5c60;
+}
+
+.pass-cell.empty:not(.hit) {
+  opacity: 0.35;
+}
+
+.pass-cell.restart {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.pass-cell.now {
+  outline: 1px solid var(--text);
+  outline-offset: -1px;
+}
+
+.pass-cell.swapped {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.pass-bar {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.pass-bar.rolled {
+  background: #f3c873;
+}
+
+.pass-band {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  background: rgb(232 176 74 / 0.18);
+  outline: 1px dashed rgb(232 176 74 / 0.6);
+  outline-offset: -1px;
+}
+
+@media (max-width: 640px) {
+  .mod-card-head,
+  .mod-card-controls,
+  .lane-wrap {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .mod-cards {
+    padding: 8px;
+  }
 }

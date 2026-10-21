@@ -97,7 +97,7 @@ describe('stretch in the GUI', () => {
   });
 
   it('a Stretch mod chooses Multiply or Replace', async () => {
-    const project = apply(createProject(), createMod('m', [{ target: 'stretch', rate: 'beat', shape: { kind: 'list', values: [2] } }]));
+    const project = apply(createProject(), createMod('m', [{ target: 'stretch', step: 'beat', lane: [{ v: 2 }] }]));
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(project, 'mods', { mod: mod.id });
     const group = screen.getByRole('group', { name: "With the hit's own stretch" });
