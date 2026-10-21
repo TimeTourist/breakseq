@@ -88,7 +88,7 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
   const newMod = (name: string | null, effects: readonly ModEffect[]) => runAndOpen(createMod(name ?? `Mod ${Object.keys(project.mods).length + 1}`, effects));
 
   const sidebar = (
-    <aside className="sidebar narrow" aria-label="Mods">
+    <aside className="sidebar narrow mods-sidebar" aria-label="Mods">
       <section className="stack-tight">
         <h2 className="label">Mods</h2>
         <button type="button" className="dashed" title="An empty mod, selected: it does nothing until you add an effect" onClick={() => newMod(null, [])}>
