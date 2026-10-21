@@ -33,7 +33,7 @@ export function randomSong(ctx: CommandContext = sequentialIds()) {
   const loop = added(project, withLoop, 'loops');
   project = run(withLoop, ...Array.from({ length: 16 }, (_, i) => setStep(loop, i, { padId: i % 2 === 0 ? padA : padB })));
   const effects: ModEffect[] = [
-    { target: 'pitch', rate: 'step', shape: { kind: 'random', min: -12, max: 12, chance: 100, whole: false } },
+    { target: 'pitch', step: '1/16', lane: [{ lo: -12, hi: 12, chance: 100 }], pitch: { values: 'free' } },
     { target: 'swap', rate: 'step', mode: { kind: 'stack', pick: 'random' } },
   ];
   const withMod = run(project, createMod('Chaos', effects));

@@ -10,7 +10,8 @@ import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEffect, Pad, PadChoice, Project, Sample, Song, SongRow, Step } from './types';
-import { MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR } from './types';
+import { MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR, STEP_SIZES, isStepEffect } from './types';
+import { laneProblem } from './lanes';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
 
@@ -500,6 +501,7 @@ function effectProblem(effect: ModEffect): string | null {
     }
     return null;
   }
+  if (isStepEffect(effect)) return STEP_SIZES[effect.step] === undefined ? 'A step is 1/16, a beat or a bar' : laneProblem(effect);
   if (effect.target !== 'tape') return null;
   if (!Number.isInteger(effect.length) || effect.length < 1 || effect.length > MAX_TAPE_STEPS) return 'Repeat is 1/16 to 4 bars';
   const { from, to } = effect.speed;
@@ -525,6 +527,14 @@ export const createMod =
   (name: string, effects: readonly ModEffect[]): Command =>
   (project, ctx) =>
     setMod(project, { id: ctx.newId(), name, effects, seed: ctx.newSeed() });
+
+/** A copy of a mod, named "<name> copy", with an id and a seed of its own. */
+export const cloneMod =
+  (id: Id): Command =>
+  (project, ctx) => {
+    const mod = project.mods[id];
+    return mod === undefined ? notFound(id) : setMod(project, { ...mod, id: ctx.newId(), name: `${mod.name} copy`, seed: ctx.newSeed() });
+  };
 
 export const renameMod =
   (id: Id, name: string): Command =>

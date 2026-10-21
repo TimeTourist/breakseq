@@ -1,5 +1,6 @@
 import { isSeed, seedOf } from './seed';
-import type { Id, LoopKind, Project, Song, Step } from './types';
+import { upgradeMod } from './upgrade-mods';
+import type { Id, LoopKind, Mod, Project, Song, Step } from './types';
 import { STEPS_PER_BAR } from './types';
 
 // A new song starts at 170 BPM and 8 bars.
@@ -43,7 +44,8 @@ const seededAll = <T extends { readonly id: Id; readonly seed: number }>(record:
 /**
  * A saved project as it is, or null when it was made before Matrix (it has no
  * `matrices`). A mod, matrix, pad or clip saved before seeds gets one made
- * from its id, so it sounds the same every time it is loaded. (Claudes val.)
+ * from its id, so it sounds the same every time it is loaded. Mods with the
+ * forms List, Cycle, Ramp and Random get step lanes (see Gamla projekt). (Claudes val.)
  */
 export function upgradeProject(saved: unknown): Project | null {
   if (typeof saved !== 'object' || saved === null) return null;
@@ -52,7 +54,7 @@ export function upgradeProject(saved: unknown): Project | null {
   const project = saved as Project;
   return {
     ...project,
-    mods: seededAll(project.mods),
+    mods: Object.fromEntries(Object.entries(seededAll<Mod>(project.mods)).map(([id, m]) => [id, upgradeMod(m, project)])),
     matrices: seededAll(project.matrices),
     pads: seededAll(project.pads),
     song: { ...project.song, clips: project.song.clips.map((c) => seeded(c)) },

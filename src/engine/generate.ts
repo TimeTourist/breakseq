@@ -1,7 +1,7 @@
 import type { Clip, DelayPlay, Direction, DistPlay, FilterPlay, Id, Loop, Project, Region, ReverbPlay, StretchPlay } from '../model';
 import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitColour, hitSound, hitSpace, hitStretch, stepDuration } from '../model';
 import type { StepState } from './mods';
-import { applyMods, effectFor, modRuns, modValues, stepState, tempoRuns } from './mods';
+import { applyMods, modRuns, modValues, stepState, tempoEffect, tempoRuns, tempoValues } from './mods';
 import type { PickState } from './pad-choice';
 import { padPicker } from './pad-choice';
 import type { Dice } from './random';
@@ -108,6 +108,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, dice:
   const layers = songLayers(project);
   const tempo = tempoRuns(runs);
   const values = modValues(dice);
+  const tempos = tempoValues(dice);
   const swap = swapper(project, runs, layers.map((l) => l?.loop.steps[l.index]), dice);
   const picker = padPicker(from);
   // A pad's choice is laid over by its matrix: its seed goes in too.
@@ -183,7 +184,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, dice:
     let time = clock * stepTime;
     while (time < endTime - 1e-9 && content < totalSteps) {
       const at = Math.min(end - 1, Math.floor(time / stepTime + 1e-9));
-      const factor = values(run, effectFor(run.mod, 'tempo')!, at, false);
+      const factor = tempos(run, tempoEffect(run.mod)!, at);
       const length = stepTime / (factor !== null && factor > 0 ? factor : 1);
       play(content, at, time, Math.min(length, endTime - time));
       content++;

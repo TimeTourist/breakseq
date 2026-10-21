@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Command, Id, Project, StepEffect } from '../model';
+import type { Command, Id, Project, StepEffect, TempoEffect } from '../model';
 import {
   addClip,
   copyHits,
@@ -8,6 +8,7 @@ import {
   createMod,
   createMatrix,
   createProject,
+  inTurn,
   effectiveHit,
   placeMatrix,
   setBpm,
@@ -69,7 +70,7 @@ function withLoop(project: Project, steps: Record<number, Id>, bars = 1, songBar
   return [next, loop];
 }
 
-function withMod(project: Project, fields: Omit<StepEffect, 'sources'> & { sources?: Id[] }, row: 'modA' | 'modB', bars: number[] = [0]): Project {
+function withMod(project: Project, fields: StepEffect | TempoEffect, row: 'modA' | 'modB', bars: number[] = [0]): Project {
   const before = project;
   const next = run(project, createMod('mod', [fields]));
   const mod = newest(before.mods, next.mods);
@@ -86,8 +87,8 @@ describe('fas 7: a mod with several effects', () => {
     project = run(
       project,
       createMod('both', [
-        { target: 'pitch', rate: 'step', shape: { kind: 'list', values: [7] } },
-        { target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [4] } },
+        { target: 'pitch', step: '1/16', lane: [{ v: 7 }] },
+        { target: 'ratchet', step: '1/16', lane: [{ v: 4 }] },
       ]),
     );
     project = run(project, setSongCell('modA', 0, newest(before.mods, project.mods)));
@@ -101,18 +102,18 @@ describe('fas 7: a mod with several effects', () => {
   it('effects in A and B on the same target still combine: pitch adds', () => {
     const { project: base, pad } = kit();
     let [project] = withLoop(base, { 0: pad.K! });
-    project = withMod(project, { target: 'pitch', rate: 'step', shape: { kind: 'list', values: [3] } }, 'modA');
-    project = withMod(project, { target: 'pitch', rate: 'step', shape: { kind: 'list', values: [4] } }, 'modB');
+    project = withMod(project, { target: 'pitch', step: '1/16', lane: [{ v: 3 }] }, 'modA');
+    project = withMod(project, { target: 'pitch', step: '1/16', lane: [{ v: 4 }] }, 'modB');
     expect(at(generateTriggers(project, withRng(() => 0)), 0).map((t) => t.pitch)).toEqual([7]);
   });
 });
 
-describe('random pitch', () => {
-  it('rolls whole semitones, or any pitch when set to freely', () => {
+describe('a dice step on pitch', () => {
+  it('rolls whole semitones, or any pitch when its values are Free', () => {
     const { project: base, pad } = kit();
     const [loop] = withLoop(base, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.K!])));
     const pitches = (whole: boolean) => {
-      const project = withMod(loop, { target: 'pitch', rate: 'step', shape: { kind: 'random', min: 1, max: 4, chance: 100, whole } }, 'modA');
+      const project = withMod(loop, { target: 'pitch', step: '1/16', lane: [{ lo: 1, hi: 4, chance: 100 }], pitch: { values: whole ? 'semitones' : 'free' } }, 'modA');
       let seed = 0;
       return generateTriggers(project, withRng(() => ((seed = (seed + 0.137) % 1), seed))).map((t) => t.pitch);
     };
@@ -126,7 +127,7 @@ describe('fas 4: mods', () => {
   it('stutter: Ratchet 4 in a clip over the snares gives four even triggers per step there, and only there', () => {
     const { project: base, pad } = kit();
     let [project] = withLoop(base, { 0: pad.K!, 4: pad.S1!, 8: pad.K!, 12: pad.S2! });
-    project = withMod(project, { target: 'ratchet', rate: 'step', shape: { kind: 'list', values: [4] } }, 'modA', []);
+    project = withMod(project, { target: 'ratchet', step: '1/16', lane: [{ v: 4 }] }, 'modA', []);
     const roll = Object.keys(project.mods).at(-1)!;
     // Clips over steps 5 and 13, where the snares are.
     project = run(project, addClip('modA', roll, 4, 1), addClip('modA', roll, 12, 1));
@@ -138,10 +139,10 @@ describe('fas 4: mods', () => {
     expect(at(triggers, 12)).toHaveLength(4);
   });
 
-  it('pitch stairs: Ramp 0 → 12 per beat over a bar gives 0, 4, 8, 12, held within each beat', () => {
+  it('pitch stairs: a lane of 0, 4, 8, 12 per beat holds each within its beat', () => {
     const { project: base, pad } = kit();
     let [project] = withLoop(base, Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, pad.S1!])));
-    project = withMod(project, { target: 'pitch', rate: 'beat', shape: { kind: 'ramp', from: 0, to: 12 } }, 'modA');
+    project = withMod(project, { target: 'pitch', step: 'beat', lane: [{ v: 0 }, { v: 4 }, { v: 8 }, { v: 12 }] }, 'modA');
 
     expect(generateTriggers(project, withRng(() => 0)).map((t) => t.pitch)).toEqual([0, 4, 8, 12].flatMap((p) => [p, p, p, p]));
   });
@@ -186,37 +187,37 @@ describe('fas 4: mods', () => {
     expect(steps).toEqual([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 6], [6, 8], [7, 10], [12, 12], [13, 13], [14, 14], [15, 15]]);
   });
 
-  it('Pad member List 2 plays member 2, and numbers past the pad wrap round', () => {
+  it('Pad member 2 plays member 2, and a member the pad does not have plays member 1', () => {
     const { project: base, pad, snare } = kit();
     let [project] = withLoop(base, { 0: pad.Snares!, 4: pad.Snares! });
-    const two = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [2] } }, 'modA');
+    const two = withMod(project, { target: 'padMember', step: '1/16', lane: [{ v: 2 }] }, 'modA');
     expect(generateTriggers(two, withRng(() => 0)).map((t) => t.hitId)).toEqual([snare[1], snare[1]]);
 
-    project = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [5] } }, 'modA');
+    project = withMod(project, { target: 'padMember', step: '1/16', lane: [{ v: 5 }] }, 'modA');
     expect(generateTriggers(project, withRng(() => 0)).map((t) => t.hitId)).toEqual([snare[0], snare[0]]);
   });
 
-  it('Cycle with no values, per step, goes round the members where it hits a step: 1, 2, 3, 4, 1', () => {
+  it('In turn, per 1/16, goes round the members step by step: 1, 2, 3, 4, 1', () => {
     const { project: base, pad, hit, snare } = kit();
-    let [project] = withLoop(base, { 2: pad.Snares!, 6: pad.Snares!, 10: pad.Snares!, 14: pad.Snares!, 18: pad.Snares! }, 2);
-    project = withMod(project, { target: 'padMember', rate: 'step', shape: { kind: 'cycle', values: [] } }, 'modA', [0, 1]);
+    let [project] = withLoop(base, { 0: pad.Snares!, 1: pad.Snares!, 2: pad.Snares!, 3: pad.Snares!, 4: pad.Snares! }, 2);
+    project = withMod(project, { target: 'padMember', step: '1/16', lane: inTurn(4) }, 'modA', [0, 1]);
 
     const snares = generateTriggers(project, withRng(() => 0)).filter((t) => t.hitId !== hit.K);
 
     expect(snares.map((t) => t.hitId)).toEqual([snare[0], snare[1], snare[2], snare[3], snare[0]]);
   });
 
-  it('volume from A and B adds, on top of the hit; for direction B wins', () => {
+  it('volume from A and B adds, on top of the hit; for direction B wins, and off leaves the hit as it is', () => {
     const { project: base, pad, hit } = kit();
     let [project] = withLoop(run(base, updateHit(hit.S1!, { volume: -2 })), { 0: pad.S1! });
-    project = withMod(project, { target: 'volume', rate: 'bar', shape: { kind: 'list', values: [-6] } }, 'modA');
-    project = withMod(project, { target: 'volume', rate: 'bar', shape: { kind: 'list', values: [3] } }, 'modB');
+    project = withMod(project, { target: 'volume', step: 'bar', lane: [{ v: -6 }] }, 'modA');
+    project = withMod(project, { target: 'volume', step: 'bar', lane: [{ v: 3 }] }, 'modB');
     expect(generateTriggers(project, withRng(() => 0)).map((t) => t.volume)).toEqual([-5]);
 
     let [dir] = withLoop(base, { 0: pad.S1! });
-    dir = withMod(dir, { target: 'direction', rate: 'bar', shape: { kind: 'list', values: [1] } }, 'modA');
+    dir = withMod(dir, { target: 'direction', step: 'bar', lane: [{ v: 1 }] }, 'modA');
     expect(generateTriggers(dir, withRng(() => 0)).map((t) => t.direction)).toEqual(['reverse']);
-    dir = withMod(dir, { target: 'direction', rate: 'bar', shape: { kind: 'list', values: [0] } }, 'modB');
+    dir = withMod(dir, { target: 'direction', step: 'bar', lane: [{ v: 0 }] }, 'modB');
     expect(generateTriggers(dir, withRng(() => 0)).map((t) => t.direction)).toEqual(['forward']);
   });
 

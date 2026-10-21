@@ -73,18 +73,18 @@ describe('Dist and Filter mods', () => {
     return run(next, setSongCell('modA', 0, Object.keys(next.mods).find((k) => !(k in project.mods))!));
   };
 
-  it('a Ramp crushes more and more, in place of the hit dist, and each step is its own sound in a MIDI export', () => {
+  it('a lane crushes more and more, in place of the hit dist, and each step is its own sound in a MIDI export', () => {
     const { project, loop } = shot(220, { dist: { mode: 'drive', amount: 0.5 } });
     const p = run(project, ...[4, 8, 12].map((s) => setStep(loop.id, s, { padId: Object.values(project.pads)[0]!.id })));
-    const ramp = withMod(p, { target: 'dist', rate: 'beat', shape: { kind: 'ramp', from: 0, to: 1 }, dist: { mode: 'crush' } });
+    const ramp = withMod(p, { target: 'dist', step: 'beat', lane: [{ v: 0 }, { v: 33 }, { v: 67 }, { v: 100 }], dist: { mode: 'crush' } });
     const triggers = generateTriggers(ramp, withRng(() => 0));
-    expect(triggers.map((t) => t.dist)).toEqual([0, 1 / 3, 2 / 3, 1].map((amount) => ({ mode: 'crush', amount })));
+    expect(triggers.map((t) => t.dist)).toEqual([0, 0.33, 0.67, 1].map((amount) => ({ mode: 'crush', amount })));
     expect(midiPlan(ramp, { triggers, tapes: [] }).pieces).toHaveLength(4);
   });
 
   it('a Filter mod sweeps the cutoff with its type and resonance', () => {
     const { project } = shot(220);
-    const sweep = withMod(project, { target: 'filter', rate: 'step', shape: { kind: 'list', values: [300] }, filter: { type: 'highpass', resonance: 0.5 } });
+    const sweep = withMod(project, { target: 'filter', step: '1/16', lane: [{ v: 300 }], filter: { type: 'highpass', resonance: 0.5 } });
     expect(generateTriggers(sweep, withRng(() => 0))[0]!.filter).toEqual({ type: 'highpass', cutoff: 300, resonance: 0.5 });
   });
 });

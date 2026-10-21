@@ -364,7 +364,7 @@ describe('clips', () => {
   /** A song of 4 bars with a one-bar loop L and a mod D. */
   function song() {
     const ctx = sequentialIds();
-    const project = run(createProject(), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod('D', [{ target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1] } }]));
+    const project = run(createProject(), ctx, setSongBars(4), createLoop('L', 'main', 1), createMod('D', [{ target: 'pitch', step: 'bar', lane: [{ v: 1 }] }]));
     return { ctx, project, loop: only(project.loops).id, mod: only(project.mods).id };
   }
   const spans = (project: Project, row = 'main') =>
@@ -427,7 +427,7 @@ describe('clips', () => {
 });
 
 describe('mods with effects', () => {
-  const pitch: StepEffect = { target: 'pitch', rate: 'bar', shape: { kind: 'list', values: [1] } };
+  const pitch: StepEffect = { target: 'pitch', step: 'bar', lane: [{ v: 1 }] };
   const tape: TapeEffect = { target: 'tape', length: 6, direction: 'pingpong', speed: { from: 1, to: 0 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
 
   it('a mod has at most one effect per target, and may have none', () => {
@@ -435,7 +435,7 @@ describe('mods with effects', () => {
     const project = run(createProject(), ctx, createMod('M', [pitch]));
     const id = only(project.mods).id;
     expect(createMod('X', [])(project, ctx).ok).toBe(true);
-    expect(addEffect(id, { ...pitch, rate: 'step' })(project, ctx).ok).toBe(false);
+    expect(addEffect(id, { ...pitch, step: '1/16' })(project, ctx).ok).toBe(false);
     const both = run(project, ctx, addEffect(id, tape));
     expect(only(both.mods).effects.map((e) => e.target)).toEqual(['pitch', 'tape']);
     expect(only(run(both, ctx, removeEffect(id, 'tape'), removeEffect(id, 'pitch')).mods).effects).toEqual([]);

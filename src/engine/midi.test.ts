@@ -49,7 +49,7 @@ describe('MIDI plan', () => {
   it('the same sound twice is one piece; a mod that changes it makes a variant, after the plain slices', () => {
     const { project, m1 } = song();
     // Step 3 plays slice 1 again; a pitch mod on beat 2 changes steps 5–8.
-    const pitch: StepEffect = { target: 'pitch', rate: 'beat', shape: { kind: 'list', values: [0, 5] } };
+    const pitch: StepEffect = { target: 'pitch', step: 'beat', lane: [{ v: 0 }, { v: 5 }] };
     let p = run(project, setStep(m1.id, 2, { padId: Object.values(project.matrices).find((m) => m.name === 'amen 1')!.pads[0]! }));
     const withMod = run(p, createMod('up', [pitch]));
     const mod = Object.keys(withMod.mods)[0]!;
