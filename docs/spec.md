@@ -309,6 +309,16 @@ Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in
 - **Fadern:** en ruta per steg, öppen eller stängd (tyst); Alt-klick delar rutan i två halvor eller slår ihop dem.
 - **Förvalen** har 8 steg av 1/16: Baby (punkter .1 .25 .1 .25 …, fadern öppen), Chirp (.1 .18 .26 .18 .1 .18 .26 .18, varannan ruta öppen och varannan delad öppen–stängd), Transformer (.1 .13 .16 .19 .22 .19 .16 .13, alla rutor delade öppen–stängd) och Tear (.1 .2 .3 .25 .2 .2 .15 .1, fadern öppen). En ny Scratch är Baby på 1 bar.
 - **Meningen:** Scratch · 1 bar recorded · 8 steps of 1/16, loops · 3 backward strokes · fader cuts 4 (eller fader open).
+- **Hur Scratch verkar** *(Claudes val, fas 24d)*:
+  - Renderingen: Scratch ligger bredvid Tape, efter det som hörs och före ljudmoddarna. Den läser det som hörs utan Tape och Scratch, och det den spelar ersätter det som hörs under klippet (med 3 ms övertoning i kanterna), så ljudmoddarna hör Scratch som de hör Tape men aldrig tvärtom. Specens krav går ihop med fas 24c utan ändring.
+  - Där Tape och Scratch verkar samtidigt hörs Scratch: tapen tonas över till den på 3 ms där den börjar. Har A och B båda Scratch vinner B.
+  - Inspelningen börjar där klippet börjar på tidslinjen, som Tape (det man ser är det som spelas in). Nålraden räknas som stegraderna, från klippets innehåll, och loopar på sin längd.
+  - Kurvans ändar: före första punkten och efter där sista steget slutar fortsätter kurvan rakt, så en rak linje är rak ända ut i ändarna. Skissen upprepar ändpunkten, vilket ger halv fart i första och sista steget. Kortet ritar samma kurva som ljudet spelar.
+  - Kurvan kan slå över lite förbi 0 eller 1 vid en vändning. Där läser nålen det som hörs strax utanför inspelningen.
+  - Övertoningarna: varje steg (och varje faderhalva) är en egen skarv, och skarvar bredvid varandra tonas över på 3 ms. Så klickar varken faderns kanter eller hoppet vid loopen.
+  - Clear behåller Length, som skissen (ett varv över raden). Den låter alltså precis som utan Scratch när raden är lika lång som inspelningen och klippet. Med kortare rad börjar inspelningen om vid ↻.
+  - Meningen räknar en paus mitt i ett bakåtdrag (Tear) som samma drag. Hoppet vid loopen delar drag.
+  - Spelhuvudet följer huvudklockan under Scratch, som under ljudmoddarna. Kortet har ingen Source-rad, som skissen; Records the first har förklaringen i sin title.
 
 **En röst.** Ett nytt ljud klipper alltid det som klingar, också en stretchad hit, men aldrig reverb och delay, som klingar ut bredvid; det finns inget poly-läge där slag klingar över varandra. En stretchad hit hörs alltså i sin fulla längd bara när stegen efter den är tomma. *(Magnus beslut; ändras inte utan att fråga.)*
 
@@ -343,7 +353,7 @@ Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stu
 - **Rewind:** på ett steg där den slår till spolas Pulls back tillbaka under stegets längd, från stegets början. Fast: jämn fart bakåt. Slowing: snabbt först, stannar vid slutet. Spin-back: skivan går som den hörs, bromsar, vänder och snurrar bakåt allt fortare, och slutar Pulls back tillbaka. Tonhöjden följer farten.
 - **Halftime:** spelar det som hörs från där klippet börjar på tidslinjen (det man ser är det som hörs), i sin fart, under hela klippet; ×2 läser framåt i låten. Keep pitch spelar det som korn på 30 ms (som Stretch) så att tonhöjden står kvar.
 - **Where each cell comes from** visar rutorna som Play i Mods renderar i varvet som visas: låten är blocket av varv som Play renderar (se Varv i loop), så Whole song är blocket, och på en loop av en takt är det just varvet. 🎲 Reroll gör Reroll this mod.
-- **Spelhuvudet** följer huvudklockan under ljudmoddarna. TODO(spec): MIDI-, bit- och REX-exporten känner inte till ljudmoddarna; under dem spelar MIDI-filen slagen som de hörs utan moddarna. Ska ett klipp med ljudmoddar bli en egen bit, som en tape?
+- **Spelhuvudet** följer huvudklockan under ljudmoddarna. TODO(spec): MIDI-, bit- och REX-exporten känner inte till ljudmoddarna eller Scratch; under dem spelar MIDI-filen slagen som de hörs utan dem. Ska ett klipp med ljudmoddar eller Scratch bli en egen bit, som en tape?
 
 ## Slip-tempo
 
