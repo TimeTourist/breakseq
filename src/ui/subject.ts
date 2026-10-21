@@ -1,6 +1,6 @@
 import type { Project } from '../model';
 import { sampleAudio } from '../model';
-import { heardOf, loopBlock, matrixBlock, modBlock } from '../engine';
+import { heardOf, loopBlock, loopSong, matrixBlock, matrixSong, modBlock, modPreviewSong } from '../engine';
 import { currentLoopId } from './LoopsView';
 import { currentModId, previewLoopId } from './ModsView';
 import { selectedTrim } from './SamplesView';
@@ -15,9 +15,11 @@ import { matrixInView } from './store';
  * of the project can be heard in it: a change that leaves it the same (see
  * sameHeard) is not rendered again.
  *
- * Matrices, Loops and Mods play in blocks of passes (see Varv i loop):
- * `blocks(n)` is the song of block n, and `project` is block 0. The song
- * itself sounds the same each time round and has no blocks.
+ * Matrices, Loops and Mods play in blocks of passes (see Varv i loop) with
+ * Loop on: `blocks(n)` is the song of block n, and `project` is block 0. With
+ * Loop off they play exactly one pass, pass 1, once (Claudes val): no blocks,
+ * and a key of its own. The song itself sounds the same each time round and
+ * has no blocks.
  */
 export type Subject = { readonly key: string; readonly once: boolean; readonly sound: unknown } & (
   | { readonly kind: 'song'; readonly project: Project; readonly blocks?: (block: number) => Project }
@@ -27,10 +29,12 @@ export type Subject = { readonly key: string; readonly once: boolean; readonly s
 /** The key of the song itself: only it has a cursor and a loop. */
 export const SONG_KEY = 'song';
 
-export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'selection' | 'sliceTarget' | 'focus'>): Subject | null {
+export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'selection' | 'sliceTarget' | 'focus'> & Partial<Pick<AppState, 'loop'>>): Subject | null {
   const { view, selection } = state;
+  const looped = state.loop ?? true;
   const song = (key: string, p: Project, once = false): Subject => ({ key, once, sound: heardOf(p), kind: 'song', project: p });
-  const passes = (key: string, blocks: (block: number) => Project): Subject => {
+  const passes = (key: string, blocks: (block: number) => Project, once: () => Project): Subject => {
+    if (!looped) return song(`${key}:once`, once());
     const first = blocks(0);
     return { key, once: false, sound: heardOf(first), kind: 'song', project: first, blocks };
   };
@@ -55,18 +59,18 @@ export function subjectOf(project: Project, state: Pick<AppState, 'view' | 'sele
       // Always the matrix shown, in a loop, whatever is selected (Magnus beslut): a click plays a pad or a hit.
       const matrixId = matrixInView(state.focus);
       if (matrixId === null || project.matrices[matrixId] === undefined) return null;
-      return passes(`matrix:${matrixId}`, (block) => matrixBlock(project, matrixId, block));
+      return passes(`matrix:${matrixId}`, (block) => matrixBlock(project, matrixId, block), () => matrixSong(project, matrixId));
     }
     case 'loops': {
       const loopId = currentLoopId(project, selection);
-      return loopId === null ? song(SONG_KEY, project) : passes(`loop:${loopId}`, (block) => loopBlock(project, loopId, block));
+      return loopId === null ? song(SONG_KEY, project) : passes(`loop:${loopId}`, (block) => loopBlock(project, loopId, block), () => loopSong(project, loopId));
     }
     case 'mods': {
       // The mod on its loop; with no mod there is nothing to play (spec, Uppspelning), so Play stops.
       const modId = currentModId(project, selection);
       if (modId === null) return null;
       const loopId = previewLoopId(project, selection);
-      return loopId === null ? song(SONG_KEY, project) : passes(`mod:${modId}:${loopId}`, (block) => modBlock(project, modId, loopId, block));
+      return loopId === null ? song(SONG_KEY, project) : passes(`mod:${modId}:${loopId}`, (block) => modBlock(project, modId, loopId, block), () => modPreviewSong(project, modId, loopId));
     }
     case 'song':
     case 'project':
