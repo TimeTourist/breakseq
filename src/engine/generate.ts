@@ -196,7 +196,7 @@ export function loopSong(project: Project, loopId: Id, passes = 1): Project {
   const loop = project.loops[loopId];
   const length = loop === undefined ? 0 : loop.steps.length * Math.max(1, Math.floor(passes));
   const bars = loop === undefined ? 1 : length / STEPS_PER_BAR;
-  const clips: Clip[] = loop === undefined ? [] : [{ id: 'preview-loop', row: 'main', ref: loopId, start: 0, length, offset: 0 }];
+  const clips: Clip[] = loop === undefined ? [] : [{ id: 'preview-loop', row: 'main', ref: loopId, start: 0, length, offset: 0, seed: 0 }];
   return { ...project, song: { bpm: project.song.bpm, bars, clips } };
 }
 
@@ -205,6 +205,6 @@ export function modPreviewSong(project: Project, modId: Id, loopId: Id): Project
   const alone = loopSong(project, loopId);
   if (project.mods[modId] === undefined) return alone;
   const length = alone.song.bars * STEPS_PER_BAR;
-  const mod: Clip = { id: 'preview-mod', row: 'modA', ref: modId, start: 0, length, offset: 0 };
+  const mod: Clip = { id: 'preview-mod', row: 'modA', ref: modId, start: 0, length, offset: 0, seed: 0 };
   return { ...alone, song: { ...alone.song, clips: [...alone.song.clips, mod] } };
 }

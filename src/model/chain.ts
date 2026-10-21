@@ -45,8 +45,8 @@ function wholeSample(id: Id, name: string, audioId: Id, audio: AudioData, cues: 
 
 /** A sample's own matrix as a one-shot: one pad with one hit playing slice 0, named after the trim ("amen 2"). */
 function addOwnMatrix(project: Project, sample: Sample, ctx: CommandContext): Project {
-  const matrix: Matrix = { id: ctx.newId(), name: defaultMatrixName(sample), pads: [], config: NO_CONFIG, sampleId: sample.id, loop: null };
-  return ensureRows(setMatrixIn(project, matrix), matrix.id, 0, 1, ctx.newId);
+  const matrix: Matrix = { id: ctx.newId(), name: defaultMatrixName(sample), pads: [], config: NO_CONFIG, sampleId: sample.id, loop: null, seed: ctx.newSeed() };
+  return ensureRows(setMatrixIn(project, matrix), matrix.id, 0, 1, ctx);
 }
 
 /**
@@ -270,7 +270,7 @@ function padSlice(project: Project, padId: Id, sampleId: Id): number | null {
  * A new pad is named after its row ("amen 1 17"), its hit after its slice; a
  * one-shot's pad has the matrix's plain name.
  */
-function ensureRows(project: Project, matrixId: Id, from: number, count: number, newId: () => Id): Project {
+function ensureRows(project: Project, matrixId: Id, from: number, count: number, ctx: CommandContext): Project {
   const matrix = project.matrices[matrixId];
   const sample = matrix?.sampleId == null ? undefined : project.samples[matrix.sampleId];
   if (matrix === undefined || sample === undefined) return project;
@@ -281,8 +281,8 @@ function ensureRows(project: Project, matrixId: Id, from: number, count: number,
   const pads = { ...project.pads };
   const added: Id[] = [];
   for (const slice of missing) {
-    const hit = slotHit(newId(), slotName(matrix.name, sample, slice), sample.id, slice);
-    const pad: Pad = { id: newId(), name: sample.bars === null ? hit.name : rowName(matrix.name, matrix.pads.length + added.length), members: [hit.id], choice: 'top', config: NO_CONFIG };
+    const hit = slotHit(ctx.newId(), slotName(matrix.name, sample, slice), sample.id, slice);
+    const pad: Pad = { id: ctx.newId(), name: sample.bars === null ? hit.name : rowName(matrix.name, matrix.pads.length + added.length), members: [hit.id], choice: 'top', config: NO_CONFIG, seed: ctx.newSeed() };
     hits[hit.id] = hit;
     pads[pad.id] = pad;
     added.push(pad.id);
@@ -374,7 +374,7 @@ export const setSlicing =
     if (own === undefined) return ok(followMatrices(project, setSampleIn(project, sliced)));
     // A one-shot's pad and hit become row 01's.
     let next = sample.bars === null ? renameRow(project, own, sliced, 0) : project;
-    next = ensureRows(setSampleIn(next, sliced), own.id, sample.markers.length, nextMarkers.length, ctx.newId);
+    next = ensureRows(setSampleIn(next, sliced), own.id, sample.markers.length, nextMarkers.length, ctx);
     if (own.loop === null) {
       const matrix = next.matrices[own.id]!;
       const loop: Loop = { id: ctx.newId(), name: baseName(matrix.name), kind: 'main', steps: laidOut(next, matrix) };
@@ -741,7 +741,7 @@ function changeOwnRows(before: Project, sample: Sample, changed: Project, ctx: C
   if (own === undefined) return followMatrices(before, changed);
   const now = changed.matrices[own.id]?.sampleId;
   const count = now == null ? 0 : (changed.samples[now]?.markers.length ?? 0);
-  return followMatrices(before, ensureRows(changed, own.id, sample.markers.length, count, ctx.newId));
+  return followMatrices(before, ensureRows(changed, own.id, sample.markers.length, count, ctx));
 }
 
 /**

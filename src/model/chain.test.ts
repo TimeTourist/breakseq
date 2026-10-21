@@ -67,8 +67,8 @@ const by = <T,>(record: Readonly<Record<Id, T>>, test: (x: T) => boolean): T => 
 /** A matrix "Snares" built by hand, with one pad per [sampleId, slice] given, each a copy (decision 8). */
 function withSnares(project: Project, ...plays: (readonly [Id, number])[]): { project: Project; matrixId: Id; hits: Id[]; pads: Id[] } {
   const hits: Hit[] = plays.map(([sampleId, slice], i) => newHit(`snare-hit-${i}`, `snare ${i}`, sampleId, slice));
-  const pads: Pad[] = hits.map((h, i) => ({ id: `snare-pad-${i}`, name: `Snares 0${i + 1}`, members: [h.id], choice: 'top', config: NO_CONFIG }));
-  const matrix: Matrix = { id: 'snares', name: 'Snares', pads: pads.map((p) => p.id), config: NO_CONFIG, sampleId: null, loop: null };
+  const pads: Pad[] = hits.map((h, i) => ({ id: `snare-pad-${i}`, name: `Snares 0${i + 1}`, members: [h.id], choice: 'top', config: NO_CONFIG, seed: 0 }));
+  const matrix: Matrix = { id: 'snares', name: 'Snares', pads: pads.map((p) => p.id), config: NO_CONFIG, sampleId: null, loop: null, seed: 0 };
   return {
     project: {
       ...project,
@@ -287,7 +287,7 @@ describe('the automatic chain', () => {
 /** Adds a pad by hand, last in a matrix, with one hit playing `[sampleId, slice]`. */
 function handPad(project: Project, matrixId: Id, sampleId: Id, slice: number | null, id = 'hand'): Project {
   const hit = newHit(`${id}-hit`, id, sampleId, slice);
-  const pad: Pad = { id, name: id, members: [hit.id], choice: 'top', config: NO_CONFIG };
+  const pad: Pad = { id, name: id, members: [hit.id], choice: 'top', config: NO_CONFIG, seed: 0 };
   const matrix = project.matrices[matrixId]!;
   return {
     ...project,

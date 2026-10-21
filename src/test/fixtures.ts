@@ -1,10 +1,11 @@
 import type { Folder } from '../engine/project-folder';
 import type { AudioData, CommandContext } from '../model';
 
-/** Ids id-1, id-2, … so tests are deterministic. */
+/** Ids id-1, id-2, … and seeds 1, 2, … so tests are deterministic. */
 export function sequentialIds(): CommandContext {
   let n = 0;
-  return { newId: () => `id-${++n}` };
+  let seed = 0;
+  return { newId: () => `id-${++n}`, newSeed: () => ++seed };
 }
 
 /** Synthetic audio: every sample has the given value in each channel. */

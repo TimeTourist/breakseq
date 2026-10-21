@@ -43,6 +43,7 @@ function placeClip(project: Project, clip: Clip, ctx: CommandContext): Clip[] {
       out.push(c);
     } else if (c.start < clip.start && cEnd > end) {
       out.push({ ...c, length: clip.start - c.start });
+      // The other half of the same clip: it keeps its seed, so it sounds as it did.
       out.push({ ...c, id: ctx.newId(), start: end, length: cEnd - end, offset: wrapOffset(project, c, c.offset + (end - c.start)) });
     } else if (c.start < clip.start) {
       out.push({ ...c, length: clip.start - c.start });
@@ -72,7 +73,7 @@ export const addClip =
     const min = minLength(project, row, ref);
     const span = Math.min(total - from, Math.max(min, length ?? defaultLength(project, row, ref)));
     if (span < min) return tooShort(min);
-    const clip: Clip = { id: ctx.newId(), row, ref, start: from, length: span, offset: 0 };
+    const clip: Clip = { id: ctx.newId(), row, ref, start: from, length: span, offset: 0, seed: ctx.newSeed() };
     return ok(withClips(project, placeClip(project, clip, ctx)));
   };
 

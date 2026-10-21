@@ -194,6 +194,8 @@ export interface Pad {
   /** How the pad picks a member when neither a step lock nor a mod has. */
   readonly choice: PadChoice;
   readonly config: Config;
+  /** Its randomness: every random choice is worked out from it and where it plays (see Slump och seeds). 0 ≤ seed < 2³². */
+  readonly seed: number;
 }
 
 /**
@@ -210,6 +212,8 @@ export interface Matrix {
   readonly sampleId: Id | null;
   /** The loop the slicing made, or null. */
   readonly loop: Id | null;
+  /** Its randomness: every random choice is worked out from it and where it plays (see Slump och seeds). 0 ≤ seed < 2³². */
+  readonly seed: number;
 }
 
 /** Top plays member 1; Round robin the next member each time the pad plays in the song; Random any; No repeat any but the last. */
@@ -372,6 +376,8 @@ export interface Mod {
   readonly id: Id;
   readonly name: string;
   readonly effects: readonly ModEffect[];
+  /** Its randomness: every random choice is worked out from it and where it plays (see Slump och seeds). 0 ≤ seed < 2³². */
+  readonly seed: number;
 }
 
 export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape' && effect.target !== 'swap';
@@ -395,6 +401,8 @@ export interface Clip {
   readonly length: number;
   /** Where in its content the clip starts: trimming its start moves it. A loop wraps round. */
   readonly offset: number;
+  /** Its own randomness, so two clips of the same loop or mod vary between them; a copy keeps it. 0 ≤ seed < 2³². */
+  readonly seed: number;
 }
 
 /** A part of the song that plays over and over, in steps from the start; `on` false keeps it but plays the whole song. */

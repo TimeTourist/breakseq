@@ -13,8 +13,8 @@ const byId = <T extends { id: string }>(items: readonly T[]): Record<string, T> 
 /** One pad per hit, all in one matrix 'm'; hits are given as [sampleId, slice]. */
 function laidOut(samples: Sample[], hits: readonly (readonly [string, number | null])[], bpm = 120): Project {
   const theHits: Hit[] = hits.map(([sampleId, slice], i) => slotHit(`h${i}`, `h${i}`, sampleId, slice));
-  const pads: Pad[] = theHits.map((h) => ({ id: `p${h.id}`, name: h.id, members: [h.id], choice: 'top', config: NO_CONFIG }));
-  const m: Matrix = { id: 'm', name: 'm', pads: pads.map((p) => p.id), config: NO_CONFIG, sampleId: null, loop: null };
+  const pads: Pad[] = theHits.map((h) => ({ id: `p${h.id}`, name: h.id, members: [h.id], choice: 'top', config: NO_CONFIG, seed: 0 }));
+  const m: Matrix = { id: 'm', name: 'm', pads: pads.map((p) => p.id), config: NO_CONFIG, sampleId: null, loop: null, seed: 0 };
   return {
     audio: {},
     samples: byId(samples),
@@ -117,7 +117,7 @@ describe('hit lengths', () => {
 
   it('an empty pad and an empty matrix take no steps', () => {
     const project = laidOut([], []);
-    const empty: Pad = { id: 'e', name: 'e', members: [], choice: 'top', config: NO_CONFIG };
+    const empty: Pad = { id: 'e', name: 'e', members: [], choice: 'top', config: NO_CONFIG, seed: 0 };
     expect(padSteps(project, empty)).toBe(0);
     expect(matrixSequence(project, 'm')).toEqual([]);
     expect(matrixSteps(project, 'm')).toBe(0);

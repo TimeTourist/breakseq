@@ -28,7 +28,7 @@ describe('indexedDbStorage', () => {
 
 describe('indexedDbBackups', () => {
   const withSample = (name: string, value: number, project = createProject()) => {
-    const ctx = { newId: () => `${name}-${Math.random()}` };
+    const ctx = { newId: () => `${name}-${Math.random()}`, newSeed: () => 1 };
     const result = addSample({ name, audio: constantAudio(0.01, [value, value]) })(project, ctx);
     if (!result.ok) throw new Error('addSample failed');
     return result.project;
