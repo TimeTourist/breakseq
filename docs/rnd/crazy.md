@@ -42,6 +42,7 @@ Exempel på regler (varianterna är exempel, inte bestämda):
 ## Mod-förval
 
 - Förvalen ligger fasta på en hylla i Song och kan alltid läggas ut, utan att man först skapar dem i Mods.
+- Förvalen skapas som vanliga mods i varje nytt projekt, med en flagga (`isPreset`). Alla andra mods är egna (custom), utan flagga. På hyllan syns det vilka som är förval och vilka som är egna. Eftersom förvalen sparas i projektet låter ett gammalt projekt likadant även om appens förval ändras senare.
 - Ändrar man ett förval i Mods blir det en egen mod, och klippen som spelade förvalet spelar ändringen. Förvalet på hyllan är oförändrat. Vill man ha en kopia klonar man först och ändrar sedan.
 
 ## Öppet
