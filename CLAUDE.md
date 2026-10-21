@@ -45,4 +45,4 @@ npm run lint
 - Projektet byggs i faser (se `docs/spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** 24b – Stegrader och fliken Mods (`docs/tasks/fas-24b.md`), klar
+**Aktuell fas:** 24c – Mods som samplar det som hörs (`docs/tasks/fas-24c.md`), klar. Nästa: 24d (Scratch).

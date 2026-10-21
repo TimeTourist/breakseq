@@ -246,7 +246,7 @@ Fliken Mods byggs som skissen `docs/sketches/mods.html` (Mods – audio, godkän
 - **Ramp ↗/↘** ritar en rak linje över stegen, från radens lägsta värde till dess högsta (↗) eller tvärtom (↘), och stegen blir fasta. Är alla värden lika går linjen över hela omfånget. Varje tryck byter riktning, och knappen visar vad nästa tryck gör. Med färre än 2 steg gör den ingenting.
 - **Clear** sätter alla steg till målets nollvärde, fasta.
 - En ny effekt har 4 steg av beat med nollvärdet, utom Reverb (100), Delay (80) och Scramble (50).
-- Ett reglage som inte gör något gråas ut med en förklaring (se Reglage som inte hörs), till exempel Ramp på en på/av-rad (An on/off lane has no slope) och Around the clip när Take from inte är ± bars.
+- Ett reglage som inte gör något gråas ut med en förklaring (se Reglage som inte hörs), till exempel Ramp på en på/av-rad (An on/off lane has no slope) och Around the clip när Take from inte är ± bars. Stutters rad har en ordning (off, 1/16, 1/32, 1/64), så Ramp ritar en linje genom valen och är inte gråad där, fast skissen döljer den; 🎲 på ett Stutter-steg ger ett val åt varje håll, som skissen. Around the clip går att ändra fast den är gråad. *(Claudes val.)*
 
 **Raderna per mål.** Omfånget gäller när man ritar i en mod; hitten behåller sitt. *(Magnus beslut.)*
 
@@ -290,6 +290,7 @@ Tape spelar in en bit av det som hörs och spelar upp den som ett band, så län
 - **Ramp over:** hur lång rampen är, från klippets start (förvalt hela klippet). Därefter ligger hastigheten kvar på slutvärdet. Kurvan är Linear, Soft start, Soft end, Hard start (det mesta av ändringen direkt) eller Hard end (håller emot och ändras sist).
 - **Wow och flutter:** två reglage, 0–100 %. Wow är långsam, lite oregelbunden svajning i hastigheten (upp till ±25 %), och flutter är snabbt, oregelbundet fladder (upp till ±6 %). Båda ligger ovanpå rampen och slumpas ur seeds (se Slump och seeds).
 - **Under klippet** hörs bara tapen. Vid 0× är det tyst. Tapen klipper rösten före sig.
+- **Det som hörs som källa** *(Claudes val)*: tapen spelar in det som hörs i segmentet som ljud, också det som klingar in i det från före klippet (ett slag, reverb och delay), och klipps där segmentet slutar. Under klippet ersätter tapen det som hörs (med 3 ms övertoning), också reverb och delay som klingade före. Efter klippet hörs det som hörs på huvudklockan igen, som efter en glitch-effekt på utgången: också det som klingar vidare av slagen under klippet (svansar av reverb och delay, ett långt slag som började under klippet). Exporten: reverb/delay-WAV:en är tyst under en tape, eftersom tapen är en egen bit i MIDI-filen, klippt ur låten med det den spelade in.
 - **Efter klippet** fortsätter det som syns där, på huvudklockan, som efter slip.
 - **A och B:** har båda raderna Tape samtidigt vinner B. Tape går före slip-tempo i sitt spann.
 
@@ -315,7 +316,7 @@ Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in
 
 ## Mods som samplar det som hörs
 
-Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stutter, Freeze, Reverse, Rewind och Halftime. *(Magnus beslut; ändras inte utan att fråga.)* Källan är det som hörs, med stegeffekter, reverb och delay, men aldrig de här moddarna själva, Tape eller Scratch. *(Claudes val.)*
+Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stutter, Freeze, Reverse, Rewind och Halftime. *(Magnus beslut; ändras inte utan att fråga.)* Källan är det som hörs, med stegeffekter, reverb och delay och med tape, men aldrig de här moddarna själva eller varandra (Magnus beslut via skissen och fas 24c; här stod tidigare att Tape inte räknas in, det var Claudes val och gäller inte längre). Scratch (fas 24d) räknas in som Tape.
 
 - **Scramble** delar låten i rutor (förvalt 1/16) och ger under klippet varje ruta en slumpvald ruta ur källan. Var rutorna hämtas väljs i moden: hela låten, ett antal takter runt klippet eller inom klippet. *(Magnus beslut; ändras inte utan att fråga.)* Förvalt är hela låten. *(Claudes val.)*
 - **Stutter** upprepar det som hörs på ett steg (1/16, 1/32, 1/64), till exempel som en roll.
@@ -330,6 +331,19 @@ Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stu
 - **Reverse:** på/av per steg; rutorna spelas baklänges på sin plats. Cell (1/32, 1/16, 1/8, beat).
 - **Rewind:** på/av per steg (där den slår till). Pulls back (1 beat, 2 beats, 1 bar), Curve (Fast, Slowing, Spin-back).
 - **Halftime:** ingen stegrad; gäller hela klippet. Speed (×0,5, ×0,75, ×2), Keep pitch (Off förvalt: tonhöjden följer farten som en skiva; On: stretch).
+
+**Hur ljudmoddarna verkar.** *(Claudes val.)*
+- Det som hörs är ett ljud på låtens tidslinje (slagen med stegeffekter, reverb och delay, sedan tape). En ljudmodd spelar bitar av det ljudet i stället för det som hörs där den verkar, med 3 ms övertoningar i kanterna; där den inte gör något (ett steg som är off, en ruta som inte byts) hörs det som hörs. Den läser alltid det som hörs, aldrig en annan ljudmodd. Efter klippet hörs det som hörs på huvudklockan, också det som klingar vidare av det som spelade under klippet (som för Tape).
+- **Ordning:** har A och B samma ljudmodd vinner B. Verkar olika ljudmoddar på samma ställe hörs en av dem, i ordningen Rewind, Stutter, Freeze, Reverse, Scramble, Halftime (gester på ett steg före rutor, rutor före hela klippet). Halftime hörs alltså där de andra inte gör något.
+- **Rutor** (Scramble, Reverse) ligger på låtens rutnät från låtens början; en ruta som klippets kant skär av spelar sin del. Stegraden läses där rutan börjar, och ett 🎲-steg slår en gång per steg som andra stegrader.
+- **Scramble:** varje ruta under klippet slår för sig, ur modens och klippets seeds och rutans plats i klippet, om den byts (radens chans), vilken ruta den tar (jämnt bland rutorna i Take from, den egna inräknad) och om den spelas baklänges (Reverse chance). ± bars räknas från klippets kanter och begränsas till låten.
+- **Reverse:** rutan spelas baklänges på sin plats.
+- **Stutter:** Grabs är fönster på låtens rutnät (1/16, 1/8, beat). På ett steg med 1/16, 1/32 eller 1/64 spelas början av det Grabs-fönster steget ligger i om och om igen, varje upprepning så lång som stegets val och i takt med fönstret. Upprepning n i ett fönster (från 0) ligger n · Pitch per repeat halvtoner från det som hörs (som en skiva: tonhöjden och farten följs åt), och hörs Gate % av sin längd; resten av upprepningen är tyst. Med Grabs 1/16 och 1/16 är steget alltså som det hörs. Förvalet Roll är 4 steg av 1/16: 1/16, 1/32, 1/64, 1/64.
+- **Freeze:** på-steg i följd är en frysning. Den håller kornet där den börjar: korn av Grain-längd läses där om och om igen, ett halvt korn isär med mjuka kanter, så det blir en ton. Spread flyttar varje korns start slumpvis upp till Spread av ett korn åt något håll (ur seeds). Level är frysningens nivå.
+- **Rewind:** på ett steg där den slår till spolas Pulls back tillbaka under stegets längd, från stegets början. Fast: jämn fart bakåt. Slowing: snabbt först, stannar vid slutet. Spin-back: skivan går som den hörs, bromsar, vänder och snurrar bakåt allt fortare, och slutar Pulls back tillbaka. Tonhöjden följer farten.
+- **Halftime:** spelar det som hörs från där klippet börjar på tidslinjen (det man ser är det som hörs), i sin fart, under hela klippet; ×2 läser framåt i låten. Keep pitch spelar det som korn på 30 ms (som Stretch) så att tonhöjden står kvar.
+- **Where each cell comes from** visar rutorna som Play i Mods renderar i varvet som visas: låten är blocket av varv som Play renderar (se Varv i loop), så Whole song är blocket, och på en loop av en takt är det just varvet. 🎲 Reroll gör Reroll this mod.
+- **Spelhuvudet** följer huvudklockan under ljudmoddarna. TODO(spec): MIDI-, bit- och REX-exporten känner inte till ljudmoddarna; under dem spelar MIDI-filen slagen som de hörs utan moddarna. Ska ett klipp med ljudmoddar bli en egen bit, som en tape?
 
 ## Slip-tempo
 
