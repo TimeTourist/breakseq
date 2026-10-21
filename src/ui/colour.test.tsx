@@ -71,18 +71,17 @@ describe('dist and filter in the GUI', () => {
     expect(store.getState().history.present.hits[hit.id]).toMatchObject({ dist: { mode: 'crush' }, filter: { type: 'lowpass', cutoff: 500 } });
   });
 
-  it('a Dist mod chooses its mode, and a Filter mod its type', async () => {
+  it('a Dist card chooses its mode, and a Filter card its type', async () => {
     const project = apply(
       createProject(),
       createMod('m', [
-        { target: 'dist', rate: 'step', shape: { kind: 'list', values: [0.5] } },
-        { target: 'filter', rate: 'step', shape: { kind: 'list', values: [800] } },
+        { target: 'dist', step: '1/16', lane: [{ v: 50 }] },
+        { target: 'filter', step: '1/16', lane: [{ v: 800 }] },
       ]),
     );
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(project, 'mods', { mod: mod.id });
     fireEvent.click(within(screen.getByRole('group', { name: 'Dist mode' })).getByRole('button', { name: 'Decimate' }));
-    fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Filter' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Filter type' })).getByRole('button', { name: 'High-pass' }));
     const effects = store.getState().history.present.mods[mod.id]!.effects;
     expect(effects.find((e) => e.target === 'dist')).toMatchObject({ dist: { mode: 'decimate' } });
@@ -109,14 +108,13 @@ describe('reverb and delay in the GUI', () => {
     const project = apply(
       createProject(),
       createMod('m', [
-        { target: 'reverb', rate: 'step', shape: { kind: 'list', values: [80] } },
-        { target: 'delay', rate: 'step', shape: { kind: 'list', values: [50] } },
+        { target: 'reverb', step: '1/16', lane: [{ v: 80 }] },
+        { target: 'delay', step: '1/16', lane: [{ v: 50 }] },
       ]),
     );
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(project, 'mods', { mod: mod.id });
     fireEvent.change(screen.getByRole('slider', { name: /^Size/ }), { target: { value: '0.2' } });
-    fireEvent.click(within(screen.getByRole('group', { name: 'Effects' })).getByRole('button', { name: 'Delay' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Delay time' })).getByRole('button', { name: '1/16' }));
     const effects = store.getState().history.present.mods[mod.id]!.effects;
     expect(effects.find((e) => e.target === 'reverb')).toMatchObject({ reverb: { size: 0.2 } });
@@ -128,7 +126,7 @@ describe('reverb and delay in the GUI', () => {
     const mod = Object.values(project.mods)[0]!;
     const store = await setup(project, 'mods', { mod: mod.id });
     fireEvent.change(screen.getByRole('combobox', { name: 'Add effect' }), { target: { value: 'reverb' } });
-    expect(store.getState().history.present.mods[mod.id]!.effects[0]).toMatchObject({ target: 'reverb', shape: { kind: 'list', values: [100] } });
+    expect(store.getState().history.present.mods[mod.id]!.effects[0]).toMatchObject({ target: 'reverb', step: 'beat', lane: [{ v: 100 }, { v: 100 }, { v: 100 }, { v: 100 }] });
   });
 });
 

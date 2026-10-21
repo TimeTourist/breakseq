@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { EffectTarget, ModRate, ModShape, ShufflePick, StackPick, StepEffect, StepTarget, SwapEffect, TapeCurve, TapeEffect } from '../model';
-import { MAX_TAPE_SPEED, MAX_TAPE_STEPS, MOD_TARGETS } from '../model';
+import type { ModRate, ShufflePick, StackPick, SwapEffect, TapeCurve, TapeEffect, TempoEffect, TempoShape } from '../model';
+import { MAX_TAPE_SPEED, MAX_TAPE_STEPS } from '../model';
 import { musicalLength } from './labels';
-import { TARGET_LABELS, VALUE_HINTS, formatValues, parseValues } from './modText';
 import { Slider } from './Slider';
 
-/** Targets that pick one thing out of two: no ramp, and Random picks between them. */
-const PICKS = new Set<StepTarget>(['direction']);
+/**
+ * Swap, Tempo (slip) and Tape keep their controls, on a card (Magnus beslut):
+ * each reads as a sentence whose words are its controls.
+ */
 
 const RATES: readonly { value: ModRate; label: string }[] = [
   { value: 'step', label: '1/16' },
@@ -14,8 +15,8 @@ const RATES: readonly { value: ModRate; label: string }[] = [
   { value: 'bar', label: 'bar' },
 ];
 
-/** How each shape reads in the sentence: "Pitch goes through 0 3 5 7". */
-const SHAPE_WORDS: Record<ModShape['kind'], string> = {
+/** How each of Tempo's forms reads in its sentence: "Tempo goes through 1/3 in turn". */
+const SHAPE_WORDS: Record<TempoShape['kind'], string> = {
   list: 'goes through',
   cycle: 'steps through',
   ramp: 'ramps',
@@ -84,31 +85,47 @@ function Amount({ label, value, onChange, onCommit, min, max, step = 'any', suff
   );
 }
 
-/** Every target an effect can switch to: its own, and those the mod does not have yet. Tape last. */
-const targetOptions = (own: EffectTarget, taken: readonly EffectTarget[]) =>
-  [...MOD_TARGETS, 'tape' as const].filter((t) => t === own || !taken.includes(t)).map((t) => ({ value: t, label: TARGET_LABELS[t] }));
+const fractions: [number, string][] = [
+  [1 / 4, '1/4'],
+  [1 / 3, '1/3'],
+  [1 / 2, '1/2'],
+  [2 / 3, '2/3'],
+  [3 / 4, '3/4'],
+  [3 / 2, '3/2'],
+];
 
-interface StepSentenceProps {
-  readonly effect: StepEffect;
-  /** Targets other effects of the mod have: this one cannot take them. */
-  readonly taken: readonly EffectTarget[];
-  readonly onChange: (effect: StepEffect, key?: string) => void;
-  /** Swaps the effect for a new one on another target, Tape too. */
-  readonly onTarget: (target: EffectTarget) => void;
+/** Tempo values as they are typed: 1/3 1/2 2. */
+export const formatTempo = (values: readonly number[]) =>
+  values.map((v) => fractions.find(([f]) => Math.abs(f - v) < 1e-6)?.[1] ?? String(Math.round(v * 1000) / 1000)).join(' ');
+
+/** Reads typed tempo values: speeds above 0, as numbers or fractions. */
+export function parseTempo(text: string): { readonly ok: true; readonly values: number[] } | { readonly ok: false; readonly error: string } {
+  const values: number[] = [];
+  for (const word of text.split(/[\s,]+/).filter((w) => w !== '')) {
+    const fraction = /^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/.exec(word);
+    const value = fraction !== null ? Number(fraction[1]) / Number(fraction[2]) : Number(word);
+    if (!Number.isFinite(value)) return { ok: false, error: `${word} is not a number` };
+    if (!(value > 0)) return { ok: false, error: 'Tempo is a speed above 0, e.g. 1/3' };
+    values.push(value);
+  }
+  return { ok: true, values };
+}
+
+interface TempoSentenceProps {
+  readonly effect: TempoEffect;
+  readonly onChange: (effect: TempoEffect, key?: string) => void;
   readonly onCommit: () => void;
 }
 
-/** "Every beat: Pitch goes through 0 3 5 7 in turn." Every part is its control. */
-export function StepSentence({ effect, taken, onChange, onTarget, onCommit }: StepSentenceProps) {
-  const { shape, target } = effect;
-  const picks = PICKS.has(target);
-  const change = (patch: Partial<StepEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
-  const setShape = (next: ModShape, key?: string) => change({ shape: next }, key);
-
-  const shownValues = shape.kind === 'list' || shape.kind === 'cycle' ? formatValues(effect, shape.values) : '';
+/** "Every bar: Tempo goes through 1/3 in turn." Every part is its control. */
+export function TempoSentence({ effect, onChange, onCommit }: TempoSentenceProps) {
+  const { shape } = effect;
+  const change = (patch: Partial<TempoEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
+  const setShape = (next: TempoShape, key?: string) => change({ shape: next }, key);
+  const shownValues = shape.kind === 'list' || shape.kind === 'cycle' ? formatTempo(shape.values) : '';
   const [text, setText] = useState(shownValues);
   const [problem, setProblem] = useState<string | null>(null);
-  // Follow the effect when it changes from elsewhere (undo, another effect).
+  // Follow the effect when it changes from elsewhere (undo).
   useEffect(() => {
     setText(shownValues);
     setProblem(null);
@@ -116,96 +133,43 @@ export function StepSentence({ effect, taken, onChange, onTarget, onCommit }: St
 
   const typeValues = (value: string) => {
     setText(value);
-    const parsed = parseValues(target, value);
+    const parsed = parseTempo(value);
     if (!parsed.ok) {
       setProblem(parsed.error);
       return;
     }
     setProblem(null);
-    if (shape.kind === 'list' || shape.kind === 'cycle') {
-      change({ shape: { kind: shape.kind, values: parsed.values } }, 'values');
-    }
+    if (shape.kind === 'list' || shape.kind === 'cycle') change({ shape: { kind: shape.kind, values: parsed.values } }, 'values');
   };
-
-  const setKind = (kind: ModShape['kind']) => {
-    const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [];
-    const range = target === 'direction' || target === 'dist' ? { min: 0, max: 1 } : target === 'filter' ? { min: 200, max: 8000 } : target === 'pan' ? { min: -100, max: 100 } : { min: 1, max: 4 };
-    // Pitch rolls whole semitones unless you choose otherwise.
-    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? (target === 'stretch' ? { kind, from: 1, to: 4 } : target === 'dist' ? { kind, from: 0, to: 1 } : target === 'filter' ? { kind, from: 200, to: 8000 } : target === 'pan' ? { kind, from: -100, to: 100 } : { kind, from: 0, to: 12 }) : { kind, ...range, chance: 50, whole: target === 'pitch' });
+  const setKind = (kind: TempoShape['kind']) => {
+    const values = shape.kind === 'list' || shape.kind === 'cycle' ? shape.values : [1 / 3];
+    setShape(kind === 'list' || kind === 'cycle' ? { kind, values } : kind === 'ramp' ? { kind, from: 1 / 3, to: 1 } : { kind, min: 1 / 3, max: 1, chance: 50, whole: false });
   };
-
-
   const valuesInput = (
-    <input
-      className="word values mono"
-      aria-label="Values"
-      placeholder={VALUE_HINTS[target]}
-      value={text}
-      size={Math.max(8, text.length + 1)}
-      onChange={(e) => typeValues(e.target.value)}
-      onBlur={onCommit}
-    />
+    <input className="word values mono" aria-label="Values" placeholder="speed, e.g. 1/3 1/2 2" value={text} size={Math.max(8, text.length + 1)} onChange={(e) => typeValues(e.target.value)} onBlur={onCommit} />
   );
-
   return (
     <div className="stack-tight">
       <p className="sentence">
-        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />:{' '}
-        <Choice<EffectTarget>
-          label="Target"
-          value={target}
-          options={targetOptions(target, taken)}
-          onChange={onTarget}
-        />{' '}
-        <Choice
-          label="Shape"
-          value={shape.kind}
-          options={(Object.keys(SHAPE_WORDS) as ModShape['kind'][]).filter((k) => !(k === 'ramp' && picks)).map((k) => ({ value: k, label: SHAPE_WORDS[k] }))}
-          onChange={setKind}
-        />{' '}
+        Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />: Tempo{' '}
+        <Choice label="Shape" value={shape.kind} options={(Object.keys(SHAPE_WORDS) as TempoShape['kind'][]).map((k) => ({ value: k, label: SHAPE_WORDS[k] }))} onChange={setKind} />{' '}
         {shape.kind === 'list' && <>{valuesInput} in turn.</>}
-        {shape.kind === 'cycle' && (
-          <>
-            {valuesInput} {shape.values.length === 0 && target === 'padMember' ? 'the pad’s members' : ''}, one further each time it hits.
-          </>
-        )}
+        {shape.kind === 'cycle' && <>{valuesInput}, one further each time it plays a step.</>}
         {shape.kind === 'ramp' && (
           <>
-            from <Amount label="From" value={shape.from} onChange={(v) => setShape({ ...shape, from: v }, 'from')} onCommit={onCommit} /> to{' '}
-            <Amount label="To" value={shape.to} onChange={(v) => setShape({ ...shape, to: v }, 'to')} onCommit={onCommit} /> over the clip.
+            from <Amount label="From" value={shape.from} min={0.01} onChange={(v) => setShape({ ...shape, from: v }, 'from')} onCommit={onCommit} /> to{' '}
+            <Amount label="To" value={shape.to} min={0.01} onChange={(v) => setShape({ ...shape, to: v }, 'to')} onCommit={onCommit} /> over the clip.
           </>
         )}
         {shape.kind === 'random' && (
           <>
-            <Amount label="Chance" value={shape.chance} min={0} max={100} step={1} suffix="%" onChange={(v) => setShape({ ...shape, chance: v }, 'chance')} onCommit={onCommit} /> of the
-            time{' '}
-            {picks ? (
-              <>to forward or backwards, at random.</>
-            ) : (
-              <>
-                to anything from <Amount label="Min" value={shape.min} onChange={(v) => setShape({ ...shape, min: v }, 'min')} onCommit={onCommit} /> to{' '}
-                <Amount label="Max" value={shape.max} onChange={(v) => setShape({ ...shape, max: v }, 'max')} onCommit={onCommit} />
-                {target === 'pitch' && (
-                  <>
-                    {' '}
-                    <Choice
-                      label="Pitch steps"
-                      value={shape.whole ? 'whole' : 'free'}
-                      options={[
-                        { value: 'whole', label: 'in semitones' },
-                        { value: 'free', label: 'freely' },
-                      ]}
-                      onChange={(v) => setShape({ ...shape, whole: v === 'whole' })}
-                    />
-                  </>
-                )}
-                .
-              </>
-            )}
+            <Amount label="Chance" value={shape.chance} min={0} max={100} step={1} suffix="%" onChange={(v) => setShape({ ...shape, chance: v }, 'chance')} onCommit={onCommit} /> of the time
+            to anything from <Amount label="Min" value={shape.min} min={0.01} onChange={(v) => setShape({ ...shape, min: v }, 'min')} onCommit={onCommit} /> to{' '}
+            <Amount label="Max" value={shape.max} min={0.01} onChange={(v) => setShape({ ...shape, max: v }, 'max')} onCommit={onCommit} />.
           </>
         )}
       </p>
-      {(shape.kind === 'list' || shape.kind === 'cycle') && <p className="muted small">Values: {VALUE_HINTS[target]}.</p>}
+      <p className="muted small">The layer plays at this speed while the main clock goes on; after the clip everything is back where it would have been. Pitch does not change.</p>
       {problem !== null && (
         <p className="error" role="alert">
           {problem}
@@ -231,9 +195,7 @@ const SHUFFLE_PICKS: readonly { value: ShufflePick['kind']; label: string }[] = 
 
 interface SwapSentenceProps {
   readonly effect: SwapEffect;
-  readonly taken: readonly EffectTarget[];
   readonly onChange: (effect: SwapEffect, key?: string) => void;
-  readonly onTarget: (target: EffectTarget) => void;
   readonly onCommit: () => void;
 }
 
@@ -241,7 +203,7 @@ interface SwapSentenceProps {
  * "Every 1/16: Swap from the stack — at random." or "Swap by shuffling the
  * clip — like a deck." Every part is its control.
  */
-export function SwapSentence({ effect, taken, onChange, onTarget, onCommit }: SwapSentenceProps) {
+export function SwapSentence({ effect, onChange, onCommit }: SwapSentenceProps) {
   const { mode } = effect;
   const change = (patch: Partial<SwapEffect>, key?: string) => onChange({ ...effect, ...patch }, key);
   const setMode = (kind: SwapEffect['mode']['kind']) =>
@@ -255,7 +217,7 @@ export function SwapSentence({ effect, taken, onChange, onTarget, onCommit }: Sw
             Every <Choice label="Rate" value={effect.rate} options={RATES} onChange={(rate) => change({ rate })} />:{' '}
           </>
         )}
-        <Choice<EffectTarget> label="Target" value="swap" options={targetOptions('swap', taken)} onChange={onTarget} />{' '}
+        Swap{' '}
         <Choice
           label="Swap mode"
           value={mode.kind}
@@ -322,16 +284,12 @@ const lengths = (max: number) =>
 
 interface TapeSentenceProps {
   readonly tape: TapeEffect;
-  /** Targets other effects of the mod have. */
-  readonly taken: readonly EffectTarget[];
   readonly onChange: (tape: TapeEffect, key?: string) => void;
-  /** Swaps Tape for a new effect on another target. */
-  readonly onTarget: (target: EffectTarget) => void;
   readonly onCommit: () => void;
 }
 
 /** "Record the first 2/16 of the clip and play it back and forth. Speed goes from 1× to 0.25× over the whole clip, evenly." */
-export function TapeSentence({ tape, taken, onChange, onTarget, onCommit }: TapeSentenceProps) {
+export function TapeSentence({ tape, onChange, onCommit }: TapeSentenceProps) {
   const change = (patch: Partial<TapeEffect>, key?: string) => onChange({ ...tape, ...patch }, key);
   const repeatOptions = lengths(MAX_TAPE_STEPS);
   const rampOptions = [{ value: 'clip', label: 'the whole clip' }, ...lengths(128)];
@@ -341,7 +299,7 @@ export function TapeSentence({ tape, taken, onChange, onTarget, onCommit }: Tape
   return (
     <div className="stack-tight">
       <p className="sentence">
-        <Choice<EffectTarget> label="Target" value="tape" options={targetOptions('tape', taken)} onChange={onTarget} />: record the first{' '}
+        Record the first{' '}
         <Choice label="Repeat" value={String(tape.length)} options={withOwn(repeatOptions, tape.length)} onChange={(v) => change({ length: Number(v) })} /> of the clip and
         play it <Choice label="Tape direction" value={tape.direction} options={DIRECTIONS} onChange={(direction) => change({ direction })} />. Speed goes from{' '}
         <Amount label="From" value={tape.speed.from} min={0} max={MAX_TAPE_SPEED} step={0.05} suffix="×" onChange={(v) => change({ speed: { ...tape.speed, from: v } }, 'from')} onCommit={onCommit} />{' '}

@@ -8,7 +8,7 @@ import { isTyping, modalOpen } from './isTyping';
 import { HIT_COLOR, lengthText } from './labels';
 import { RerollButton } from './RerollButton';
 import { RegionHandle } from './RegionHandle';
-import { TARGET_LABELS } from './modText';
+import { TARGET_LABELS } from './modLabels';
 
 export const LOOP_MIME = 'application/x-breakseq-loop';
 export const MOD_MIME = 'application/x-breakseq-mod';
