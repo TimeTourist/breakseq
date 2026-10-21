@@ -20,7 +20,7 @@
   - Matrices, Loops och Mods spelar i block av varv. Varje varv är ett eget klipp med seed ur varvets nummer (`passSeed`).
   - Medan ett block spelar renderas nästa. Det köas och tar vid exakt när blocket når sitt slut, och då renderas blocket efter. Round robin räknar vidare över blocken (`blockStart`).
   - En ändring under block b renderar om block b och tar vid som förut, och köar om b+1.
-  - Med Loop av spelas första blocket en gång. Song har inga block och låter likadant varje varv.
+  - Block finns bara med Loop på. Med Loop av spelar Play exakt ett varv (varv 1) en gång, hur kort det än är (rättat efter granskning). Slås Loop om medan det spelar börjar det om med det nya. Song har inga block och låter likadant varje varv.
 - **New take** är borta, och med den `replayable` i App. En ändring slår inte om slumpen, eftersom valen kommer ur seeds.
 - **🎲-knapparna** (`RerollButton.tsx`) sitter på dessa ställen:
   - I headern mellan Redo och Load (Reroll everything).
@@ -50,7 +50,7 @@
 
 ## Claudes val (inskrivna i specen)
 
-- Hur varven renderas löpande: block, köning vid blockets slut, minst en takt per block, och omrendering av blocket som spelar vid en ändring.
+- Hur varven renderas löpande med Loop på: block, köning vid blockets slut, minst en takt per block, och omrendering av blocket som spelar vid en ändring. Med Loop av ett varv.
 - Hur slumpen räknas ur seeds och plats (listan ovan). Matrisens seed räknas in i padens val.
 - No repeat minns sin senaste hit över hela låten, som förut. En kopierad klipps första val kan därför skilja sig från originalets.
 - Kloner och kopior av matrix och pad får nya seeds. Ett delat klipp behåller sin seed. Reroll på en matrix byter också matrisens egen seed.
@@ -66,7 +66,7 @@ Inga nya.
 - **Matrices och Loops med en Random-pad.** Lyssna på att varven verkligen slår om, och på att övergången mellan block är sömlös.
   - Bufferten som loopar har svansen från sitt eget slut i början, så reverb och delay över blockgränsen kommer från det nya blocket, inte från det som just spelade. Det borde inte höras.
   - Är maskinen långsam och nästa block inte klart, loopar blocket som spelar en gång till.
-- **Mods** spelar nu minst en takt per block. En loop på 1/16 ger alltså 16 varv per block, och med Loop av hörs en takt i stället för ett varv.
+- **Mods, Loops och Matrices** spelar minst en takt per block med Loop på; en loop på 1/16 ger alltså 16 varv per block. Med Loop av hörs exakt ett varv.
 - **New example och graferna i Mods** finns kvar (fas 24b tar bort dem). De visar fortfarande ett exempel, inte modens seed.
 - **🎲 på klippet i Song** sitter i klippets högra hörn. Det är litet på korta klipp.
 - **`blockStart`** genererar alla tidigare block igen när något ändras under ett sent block. Det är billigt (bara triggers) men växer med hur länge man spelat.

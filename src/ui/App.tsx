@@ -322,7 +322,8 @@ function Shell() {
     const { playing: now, playingKey: key } = following.current;
     // A snapshot starts again from its start, looped or once.
     if (now && key === 'snapshot' && snapshotPlays.current !== null) services.player.play(snapshotPlays.current, 0, !loopOn);
-    if (now && key !== null && key !== 'snapshot' && shown?.key === key) start(shown);
+    // In Matrices, Loops and Mods Loop changes what plays (blocks or one pass): its new render starts it instead.
+    if (now && key !== null && key !== 'snapshot' && shown?.key === key && playsKey === key) start(shown);
     // Only Loop decides this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loopOn]);

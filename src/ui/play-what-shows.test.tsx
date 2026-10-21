@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
-import { addClip, addSample, addTrim, createProject, setBpm, setHitSource, setSlicing, updateSample } from '../model';
+import { addClip, addSample, addTrim, createMod, createProject, setBpm, setHitSource, setLoopLength, setSlicing, updateSample } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { focusOn } from '../test/focus';
 import type { Trigger } from '../engine';
@@ -60,6 +60,39 @@ describe('what Play plays', () => {
   it('is in Mods nothing while there is no mod: Play stops (U18)', () => {
     expect(Object.keys(p.mods)).toHaveLength(0);
     expect(subjectOf(p, state(p, { view: 'mods' }))).toBeNull();
+  });
+
+  it('with Loop off is exactly one pass (pass 1) in Matrices, Loops and Mods, however short; blocks of a bar or more only with Loop on', () => {
+    const ctx = sequentialIds();
+    const run = (q: Project, c: Command) => {
+      const r = c(q, ctx);
+      if (!r.ok) throw new Error(JSON.stringify(r.error));
+      return r.project;
+    };
+    let q = run(p, setLoopLength(Object.keys(p.loops)[0]!, 2));
+    q = run(q, createMod('Wobble', []));
+    q = run(q, addSample({ name: 'kick.wav', audio: constantAudio(0.05) }));
+    const loopId = Object.keys(q.loops)[0]!;
+    const modId = Object.keys(q.mods)[0]!;
+    const kick = Object.values(q.matrices).find((m) => m.name.startsWith('kick'))!;
+    const sel = { ...initialState(q).selection, loop: loopId, mod: modId, previewLoop: loopId };
+    const views: Partial<AppState>[] = [
+      { view: 'loops', selection: sel },
+      { view: 'mods', selection: sel },
+      { view: 'pads', selection: sel, focus: { matrix: kick.id, loopPins: [] } },
+    ];
+    for (const patch of views) {
+      const on = subjectOf(q, state(q, { ...patch, loop: true }))!;
+      const off = subjectOf(q, state(q, { ...patch, loop: false }))!;
+      expect(on.kind === 'song' && on.blocks !== undefined).toBe(true);
+      expect(on.kind === 'song' && on.project.song.bars * 16).toBeGreaterThanOrEqual(16);
+      // Off: one pass, as long as the loop or matrix is, and nothing after it.
+      expect(off.kind === 'song' && off.blocks).toBeUndefined();
+      const steps = off.kind === 'song' ? off.project.song.bars * 16 : 0;
+      expect(steps).toBe(patch.view === 'pads' ? 1 : 2);
+      expect(off.kind === 'song' && off.project.song.clips.filter((c) => c.row === 'main')).toHaveLength(1);
+      expect(off.key).not.toBe(on.key);
+    }
   });
 
   it('is the song in Song and Project', () => {
@@ -426,11 +459,27 @@ describe('rendering what Play plays', () => {
     void store;
   });
 
-  it('Play in Loops with Loop off plays the first block once: nothing is queued', async () => {
+  it('Loop switched off while Loops plays: it starts again with one pass, once', async () => {
+    const p = split(setLoopLength(Object.keys(split().loops)[0]!, 2));
+    const { store, services, player } = await setup(p, { view: 'loops' });
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    await settle();
+    act(() => void store.dispatch({ type: 'loop', on: false }));
+    await settle();
+    expect((vi.mocked(player.play).mock.lastCall as unknown[] | undefined)?.[2]).toBe(true);
+    const [played] = vi.mocked(services.renderSong).mock.lastCall!;
+    expect(played.song.clips).toHaveLength(1);
+    expect(played.song.bars * 16).toBe(2);
+  });
+
+  it('Play in Loops with Loop off plays one pass once: nothing is queued', async () => {
     const p = split();
-    const { player } = await setup(p, { view: 'loops', loop: false });
+    const { player, services } = await setup(p, { view: 'loops', loop: false });
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     await settle();
     expect(player.queue).not.toHaveBeenCalled();
+    expect((vi.mocked(player.play).mock.lastCall as unknown[] | undefined)?.[2]).toBe(true);
+    const [played] = vi.mocked(services.renderSong).mock.lastCall!;
+    expect(played.song.clips).toHaveLength(1);
   });
 });
