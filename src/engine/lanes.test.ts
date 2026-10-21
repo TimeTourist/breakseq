@@ -7,6 +7,7 @@ import golden from './fixtures/old-shapes-triggers.json';
 import type { Trigger } from './generate';
 import { generateTriggers } from './generate';
 import { modPreviewSong } from './generate';
+import { modPassRows, padsOnlyUnderStretch } from './mod-pass';
 
 const ctx = sequentialIds();
 function run(project: Project, ...commands: Command[]): Project {
@@ -182,5 +183,36 @@ describe('old projects (Gamla projekt)', () => {
     const effects = out.mods.x!.effects as StepEffect[];
     expect(effects[0]!.lane).toEqual(fixed(0, -24));
     expect(effects[1]!.lane).toEqual(fixed(50));
+  });
+});
+
+describe('the preview grid (modPassRows)', () => {
+  it('shows what each step does in a pass: the same values as the triggers of that pass', () => {
+    const effects: StepEffect[] = [
+      { target: 'pitch', step: '1/16', lane: [{ lo: -12, hi: 12, chance: 75 }, { v: 3 }], pitch: { values: 'semitones' } },
+      { target: 'volume', step: 'beat', lane: fixed(0, -6, -12) },
+    ];
+    const { project, mod, loop } = song(effects);
+    for (const pass of [0, 1, 5]) {
+      const rows = modPassRows(project, mod, loop, pass);
+      const triggers = generateTriggers(modPreviewSong(project, mod, loop, 1, pass));
+      const pitch = rows.find((r) => r.target === 'pitch')!;
+      const volume = rows.find((r) => r.target === 'volume')!;
+      if (pitch.kind !== 'lane' || volume.kind !== 'lane') throw new Error();
+      expect(pitch.cells.map((c) => c.value ?? 0)).toEqual(perStep(triggers, 'pitch'));
+      expect(volume.cells.map((c) => c.value)).toEqual(perStep(triggers, 'volume'));
+      expect(volume.cells.filter((c) => c.restart).map((c) => volume.cells.indexOf(c))).toEqual([0, 12]);
+      expect(pitch.cells[0]!.band).toEqual({ lo: -12, hi: 12 });
+    }
+  });
+});
+
+describe('pads only under a Stretch mod', () => {
+  it('are those whose every step in the song has a Stretch mod over it', () => {
+    const { project, pad, mod } = song([{ target: 'stretch', step: 'bar', lane: fixed(2) }]);
+    expect(padsOnlyUnderStretch(project).has(pad)).toBe(true);
+    // Half the song without the mod: the hit's own grain is heard there.
+    const clips = project.song.clips.map((c) => (c.ref === mod ? { ...c, length: 8 } : c));
+    expect(padsOnlyUnderStretch({ ...project, song: { ...project.song, clips } }).has(pad)).toBe(false);
   });
 });

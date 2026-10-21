@@ -1,7 +1,7 @@
 import type { Clip, Id, Project, StepEffect } from '../model';
 import { STEP_SIZES, isDice, isStepEffect } from '../model';
-import { generateTake, modPreviewSong } from './generate';
-import { laneDice, laneValueAt, tempoValues } from './mods';
+import { generateTake, modPreviewSong, songLayers } from './generate';
+import { effectFor, laneDice, laneValueAt, modRuns, tempoValues } from './mods';
 import { passSeed, placeRng } from './random';
 import { rampedSpeed } from './tape';
 
@@ -82,3 +82,24 @@ export function modPassRows(project: Project, modId: Id, loopId: Id, pass: numbe
   });
 }
 
+
+/**
+ * Pads heard in the song only under a Stretch mod: wherever a step plays them
+ * (not ignoring mods), row A or B has a Stretch there. A Stretch mod plays its
+ * own grain length, so their hits' own Grain is not heard in the song (see
+ * Reglage som inte hörs).
+ */
+export function padsOnlyUnderStretch(project: Project): Set<Id> {
+  const layers = songLayers(project);
+  const runs = modRuns(project);
+  const under = new Set<Id>();
+  const free = new Set<Id>();
+  layers.forEach((layer, t) => {
+    const step = layer?.loop.steps[layer.index];
+    if (step?.padId == null) return;
+    const stretched = !step.ignoreMods && [runs.A[t], runs.B[t]].some((run) => run != null && effectFor(run.mod, 'stretch') !== undefined);
+    (stretched ? under : free).add(step.padId);
+  });
+  for (const pad of free) under.delete(pad);
+  return under;
+}
