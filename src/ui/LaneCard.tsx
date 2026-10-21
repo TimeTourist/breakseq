@@ -1,10 +1,18 @@
-import type { LaneStep, ModDelay, ModFilter, ModStretch, StepEffect, StepSize } from '../model';
+import type { ScramblePicture as Picture } from '../engine';
+import type { LaneStep, ModDelay, ModFilter, ModFreeze, ModRewind, ModScramble, ModStretch, ModStutter, StepEffect, StepSize } from '../model';
 import {
+  CELL_SIZES,
   DEFAULT_MOD_DELAY,
   DEFAULT_MOD_DIST,
   DEFAULT_MOD_FILTER,
+  DEFAULT_MOD_FREEZE,
   DEFAULT_MOD_REVERB,
+  DEFAULT_MOD_REVERSE,
+  DEFAULT_MOD_REWIND,
+  DEFAULT_MOD_SCRAMBLE,
   DEFAULT_MOD_STRETCH,
+  DEFAULT_MOD_STUTTER,
+  STUTTER_GRABS,
   LANES,
   MAX_FEEDBACK,
   MAX_GRAIN,
@@ -13,6 +21,7 @@ import {
   canRamp,
   clearLane,
   inTurn,
+  isAudioEffect,
   isDice,
   rampLane,
   rampsUp,
@@ -20,11 +29,14 @@ import {
   setLaneLength,
   zeroOf,
 } from '../model';
+import { CELL_TEXT, CURVE_TEXT, GRAB_TEXT, PULL_TEXT, levelText, pitchStep } from './audioText';
 import { TrashIcon } from './icons';
 import { DELAY_TIMES, DIST_MODES, sizeText } from './labels';
 import { LaneEditor } from './LaneEditor';
 import { fullValue, laneSentence } from './laneText';
+import { Choices, SourceNote } from './ModCards';
 import { TARGET_LABELS } from './modLabels';
+import { ScramblePicture } from './ScramblePicture';
 import { Slider } from './Slider';
 import { Unheard } from './Unheard';
 
@@ -53,7 +65,16 @@ export interface LaneCardProps {
   readonly members: { readonly count: number; readonly loop: string | null };
   /** For Stretch: why Multiply and Replace sound the same just now, or null. */
   readonly stretchUnheard: string | null;
+  /** For Scramble: where each cell comes from in the pass shown, and 🎲 Reroll for the mod. */
+  readonly scramble?: { readonly picture: Picture | null; readonly onReroll: () => void };
 }
+
+const percent = (v: number) => `${v}%`;
+const CELLS = CELL_SIZES.map((c) => [c, CELL_TEXT[c]] as const);
+const CELL_TITLES = { '0.5': 'Cells of 1/32', '1': 'Cells of 1/16', '2': 'Cells of 1/8', '4': 'Cells of a beat' };
+
+/** Stutter's preset: 1/16 → 1/32 → 1/64 over a beat (see the sketch). */
+const ROLL: readonly LaneStep[] = [{ v: 1 }, { v: 2 }, { v: 3 }, { v: 3 }];
 
 /** "Free" pitch rounded to semitones, when Values goes back to Semitones. */
 const toSemitones = (lane: readonly LaneStep[]): LaneStep[] =>
@@ -64,7 +85,7 @@ const toSemitones = (lane: readonly LaneStep[]): LaneStep[] =>
  * a sentence saying what it does; Step, Length, Randomize, Ramp, Clear, its
  * presets and its own settings; and the lane with a ruler.
  */
-export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, stretchUnheard }: LaneCardProps) {
+export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, stretchUnheard, scramble }: LaneCardProps) {
   const name = TARGET_LABELS[effect.target];
   const range = LANES[effect.target];
   const n = effect.lane.length;
@@ -163,6 +184,80 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
           </>
         );
       }
+      case 'scramble': {
+        const x = effect.scramble ?? DEFAULT_MOD_SCRAMBLE;
+        const set = (patch: Partial<ModScramble>) => onChange({ ...effect, scramble: { ...x, ...patch } });
+        return (
+          <>
+            <Choices label="Cell" options={CELLS} value={x.cell} onPick={(cell) => set({ cell })} titles={CELL_TITLES} />
+            <Choices
+              label="Take from"
+              options={
+                [
+                  ['song', 'Whole song'],
+                  ['around', '± bars'],
+                  ['clip', 'Inside the clip'],
+                ] as const
+              }
+              value={x.from}
+              onPick={(from) => set({ from })}
+              titles={{ song: 'A swapped cell can come from anywhere in the song', around: 'From a number of bars either side of the clip', clip: 'From inside the clip: its own cells shuffled' }}
+            />
+            <Unheard why="Only with Take from ± bars" when={x.from !== 'around'}>
+              <Choices label="Around the clip" options={([1, 2, 4] as const).map((n) => [n, `± ${n}`] as const)} value={x.around} onPick={(around) => set({ around })} />
+            </Unheard>
+            <Choices label="Reverse chance" options={([0, 25, 50, 100] as const).map((r) => [r, percent(r)] as const)} value={x.reverse} onPick={(reverse) => set({ reverse })} titles={{ '0': 'Swapped cells play forward', '100': 'Every swapped cell plays backwards' }} />
+          </>
+        );
+      }
+      case 'stutter': {
+        const x = effect.stutter ?? DEFAULT_MOD_STUTTER;
+        const set = (patch: Partial<ModStutter>) => onChange({ ...effect, stutter: { ...x, ...patch } });
+        return (
+          <>
+            <Choices
+              label="Grabs"
+              options={STUTTER_GRABS.map((g) => [g, GRAB_TEXT[g]] as const)}
+              value={x.grabs}
+              onPick={(grabs) => set({ grabs })}
+              titles={{ '1': 'Each 1/16 repeats its own start', '2': 'Repeats the start of each 1/8', '4': 'Repeats the start of each beat: a roll on its first hit' }}
+            />
+            <Choices label="Pitch per repeat" options={([-2, -1, 0, 1, 2] as const).map((p) => [p, pitchStep(p)] as const)} value={x.pitch} onPick={(pitch) => set({ pitch })} />
+            <Choices label="Gate" options={([100, 75, 50] as const).map((g) => [g, percent(g)] as const)} value={x.gate} onPick={(gate) => set({ gate })} titles={{ '100': 'Each repeat is heard whole', '50': 'Half of each repeat is heard, the rest is silent' }} />
+          </>
+        );
+      }
+      case 'freeze': {
+        const x = effect.freeze ?? DEFAULT_MOD_FREEZE;
+        const set = (patch: Partial<ModFreeze>) => onChange({ ...effect, freeze: { ...x, ...patch } });
+        return (
+          <>
+            <Choices label="Grain" options={([10, 30, 80] as const).map((g) => [g, `${g} ms`] as const)} value={x.grain} onPick={(grain) => set({ grain })} titles={{ '10': 'A short grain: a high tone', '80': 'A long grain: a low, rough tone' }} />
+            <Choices label="Spread" options={([0, 25, 50] as const).map((v) => [v, percent(v)] as const)} value={x.spread} onPick={(spread) => set({ spread })} titles={{ '0': 'Every grain the same: a clean tone', '50': 'Grains start up to half a grain either way: noisier' }} />
+            <Choices label="Level" options={([-6, -3, 0] as const).map((v) => [v, levelText(v)] as const)} value={x.level} onPick={(level) => set({ level })} />
+          </>
+        );
+      }
+      case 'reverse': {
+        const x = effect.reverse ?? DEFAULT_MOD_REVERSE;
+        return <Choices label="Cell" options={CELLS} value={x.cell} onPick={(cell) => onChange({ ...effect, reverse: { cell } })} titles={CELL_TITLES} />;
+      }
+      case 'rewind': {
+        const x = effect.rewind ?? DEFAULT_MOD_REWIND;
+        const set = (patch: Partial<ModRewind>) => onChange({ ...effect, rewind: { ...x, ...patch } });
+        return (
+          <>
+            <Choices label="Pulls back" options={([4, 8, 16] as const).map((p) => [p, PULL_TEXT[p]] as const)} value={x.pullBack} onPick={(pullBack) => set({ pullBack })} />
+            <Choices
+              label="Curve"
+              options={(['fast', 'slowing', 'spinBack'] as const).map((c) => [c, CURVE_TEXT[c]] as const)}
+              value={x.curve}
+              onPick={(curve) => set({ curve })}
+              titles={{ fast: 'At an even speed', slowing: 'Fast at first, coming to a stop', spinBack: 'Brakes from playing, turns and spins back faster and faster' }}
+            />
+          </>
+        );
+      }
       default:
         return null;
     }
@@ -180,6 +275,7 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
       <p className="mod-card-sentence" aria-live="polite">
         {laneSentence(effect)}
       </p>
+      {isAudioEffect(effect) && <SourceNote />}
       <div className="mod-card-controls">
         <span className="lane-extra-label">Step</span>
         <div className="segmented" role="group" aria-label="Step size">
@@ -240,9 +336,15 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
             In turn
           </button>
         )}
+        {effect.target === 'stutter' && (
+          <button type="button" className="small-button preset" title="1/16 → 1/32 → 1/64 over a beat" onClick={() => onChange({ ...effect, step: '1/16', lane: ROLL })}>
+            Roll
+          </button>
+        )}
         {extras()}
       </div>
       <LaneEditor effect={effect} onChange={(lane, done) => (done ? (setLane(lane, 'draw'), onCommit()) : setLane(lane, 'draw'))} />
+      {effect.target === 'scramble' && scramble !== undefined && <ScramblePicture picture={scramble.picture} onReroll={scramble.onReroll} />}
     </article>
   );
 }

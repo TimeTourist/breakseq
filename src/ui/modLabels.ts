@@ -24,5 +24,26 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   halftime: 'Halftime',
 };
 
-/** The order of + Add effect and of a new mod's cards (see Sidan). Scratch and the audio mods come in later phases. */
-export const ADD_ORDER: readonly EffectTarget[] = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'tempo', 'tape'];
+/** The order of + Add effect and of a new mod's cards (see Sidan). Scratch comes in a later phase (24d). */
+export const ADD_ORDER: readonly EffectTarget[] = [
+  'swap',
+  'padMember',
+  'ratchet',
+  'pitch',
+  'volume',
+  'pan',
+  'direction',
+  'stretch',
+  'dist',
+  'filter',
+  'reverb',
+  'delay',
+  'tempo',
+  'tape',
+  'scramble',
+  'stutter',
+  'freeze',
+  'reverse',
+  'rewind',
+  'halftime',
+];

@@ -1,7 +1,10 @@
-import type { Clip, Id, Project, StepEffect } from '../model';
-import { STEP_SIZES, isDice, isStepEffect } from '../model';
+import type { CellSize, Clip, Id, Project, StepEffect } from '../model';
+import { DEFAULT_MOD_SCRAMBLE, STEPS_PER_BAR, STEP_SIZES, isDice, isStepEffect } from '../model';
+import type { ScrambleCell } from './audio-mods';
+import { audioWindows, scrambleCells, scrambleRange } from './audio-mods';
 import { generateTake, modPreviewSong, songLayers } from './generate';
 import { effectFor, laneDice, laneValueAt, modRuns, tempoValues } from './mods';
+import { blockPasses } from './preview';
 import { passSeed, placeRng } from './random';
 import { rampedSpeed } from './tape';
 
@@ -105,4 +108,46 @@ export function padsOnlyUnderStretch(project: Project): Set<Id> {
   });
   for (const pad of free) under.delete(pad);
   return under;
+}
+
+/** The picture Where each cell comes from (Scramble): the song Play renders a pass in, cut in cells, and what each cell of the pass's clip plays. */
+export interface ScramblePicture {
+  readonly cell: CellSize;
+  /** The song Play renders the pass in (its block of passes), in cells. */
+  readonly songCells: number;
+  /** The pass's clip of the mod, in cells. */
+  readonly clip: { readonly start: number; readonly end: number };
+  /** Take from, in cells. */
+  readonly range: { readonly start: number; readonly end: number };
+  /** Bars of the song, for the ruler. */
+  readonly bars: number;
+  readonly cells: readonly ScrambleCell[];
+}
+
+/**
+ * Where each cell of the mod's Scramble comes from in pass `pass` of Play in
+ * Mods: the same block of passes and seeds as Play renders (see Varv i loop),
+ * so Whole song is the block. Null when the mod has no Scramble.
+ */
+export function scramblePicture(project: Project, modId: Id, loopId: Id, pass: number): ScramblePicture | null {
+  const mod = project.mods[modId];
+  const effect = mod === undefined ? undefined : effectFor(mod, 'scramble');
+  const steps = project.loops[loopId]?.steps.length ?? 0;
+  if (effect === undefined || steps === 0) return null;
+  const perBlock = blockPasses(steps);
+  const song = modPreviewSong(project, modId, loopId, perBlock, Math.floor(pass / perBlock) * perBlock);
+  const songSteps = song.song.bars * STEPS_PER_BAR;
+  const window = audioWindows(modRuns(song), 'scramble').find((w) => w.run.clip.id === `preview-mod-${pass % perBlock}`);
+  if (window === undefined) return null;
+  const settings = effect.scramble ?? DEFAULT_MOD_SCRAMBLE;
+  const size = settings.cell;
+  const { clip } = window.run;
+  return {
+    cell: size,
+    songCells: Math.ceil(songSteps / size - 1e-9),
+    clip: { start: Math.floor(clip.start / size + 1e-9), end: Math.ceil((clip.start + clip.length) / size - 1e-9) },
+    range: scrambleRange(clip, settings, songSteps),
+    bars: song.song.bars,
+    cells: scrambleCells(window, effect, songSteps, placeRng),
+  };
 }

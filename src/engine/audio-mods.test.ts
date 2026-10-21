@@ -5,6 +5,8 @@ import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Splice } from './audio-mods';
 import { sourceAt } from './audio-mods';
 import { generateTake } from './generate';
+import { scramblePicture } from './mod-pass';
+import { modBlock } from './preview';
 
 const ctx = sequentialIds();
 const STEP = stepDuration(120);
@@ -229,5 +231,22 @@ describe('what is heard', () => {
     const take = generateTake(project);
     expect(take.triggers).toHaveLength(48);
     expect(take.heard).toHaveLength(64);
+  });
+});
+
+describe('Where each cell comes from', () => {
+  it('shows what Play in Mods renders in the pass: the same cells from the same block', () => {
+    const base = song();
+    const loop = Object.values(base.loops)[0]!.id;
+    const made = run(base, createMod('S', [effect('scramble', '1/16', [100, 50])]));
+    const mod = Object.keys(made.mods)[0]!;
+    for (const pass of [0, 1, 2]) {
+      const picture = scramblePicture(made, mod, loop, pass)!;
+      // A one-bar loop: a block is one pass, so Whole song is the pass.
+      expect(picture).toMatchObject({ cell: 1, songCells: 16, clip: { start: 0, end: 16 }, range: { start: 0, end: 16 }, bars: 1 });
+      const played = (generateTake(modBlock(made, mod, loop, pass)).splices ?? []).map((s) => [Math.round(s.time / STEP), Math.round(sourceAt(s, 0) / STEP)]);
+      expect(picture.cells.filter((c) => c.from !== null).map((c) => [c.start, c.from])).toEqual(played);
+    }
+    expect(scramblePicture(made, mod, loop, 0)!.cells).not.toEqual(scramblePicture(made, mod, loop, 1)!.cells);
   });
 });

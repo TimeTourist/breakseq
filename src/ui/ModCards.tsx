@@ -118,10 +118,12 @@ export function HalftimeCard({ effect, onChange, onRemove }: CardProps<HalftimeE
         />
         <Choices
           label="Keep pitch (stretch, off by default)"
-          options={[
-            [false, 'Off'],
-            [true, 'On'],
-          ]}
+          options={
+            [
+              [false, 'Off'],
+              [true, 'On'],
+            ] as const
+          }
           value={effect.keepPitch}
           onPick={(keepPitch) => onChange({ ...effect, keepPitch })}
           titles={{ false: 'The pitch follows the speed, like a record', true: 'The pitch stays: stretched in short grains' }}

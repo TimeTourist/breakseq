@@ -1,4 +1,4 @@
-import type { AudioTarget, Clip, HalftimeEffect, Project, StepEffect } from '../model';
+import type { AudioTarget, Clip, HalftimeEffect, ModScramble, Project, StepEffect } from '../model';
 import {
   DEFAULT_GRAIN,
   DEFAULT_MOD_FREEZE,
@@ -159,6 +159,20 @@ function cellsOf(window: AudioWindow, size: number): { readonly cell: number; re
   return cells;
 }
 
+/** The cells Scramble takes from, by number on the song's grid: Take from, within the song. */
+export function scrambleRange(clip: Pick<Clip, 'start' | 'length'>, settings: ModScramble, songSteps: number): { readonly start: number; readonly end: number } {
+  const size = settings.cell;
+  const songCells = Math.ceil(songSteps / size - EPSILON);
+  const [from, to] =
+    settings.from === 'song'
+      ? [0, songCells]
+      : settings.from === 'clip'
+        ? [Math.floor(clip.start / size + EPSILON), Math.ceil((clip.start + clip.length) / size - EPSILON)]
+        : [Math.floor((clip.start - settings.around * STEPS_PER_BAR) / size + EPSILON), Math.ceil((clip.start + clip.length + settings.around * STEPS_PER_BAR) / size - EPSILON)];
+  const start = Math.max(0, from);
+  return { start, end: Math.max(start + 1, Math.min(songCells, to)) };
+}
+
 /**
  * Scramble: under the clip each cell of the song's grid is swapped, with the
  * lane's chance, for a cell picked from Take from: the whole song, ± bars
@@ -169,15 +183,7 @@ export function scrambleCells(window: AudioWindow, effect: StepEffect, songSteps
   const settings = effect.scramble ?? DEFAULT_MOD_SCRAMBLE;
   const size = settings.cell;
   const { clip } = window.run;
-  const songCells = Math.ceil(songSteps / size - EPSILON);
-  const [from, to] =
-    settings.from === 'song'
-      ? [0, songCells]
-      : settings.from === 'clip'
-        ? [Math.floor(clip.start / size + EPSILON), Math.ceil((clip.start + clip.length) / size - EPSILON)]
-        : [Math.floor((clip.start - settings.around * STEPS_PER_BAR) / size + EPSILON), Math.ceil((clip.start + clip.length + settings.around * STEPS_PER_BAR) / size - EPSILON)];
-  const lo = Math.max(0, from);
-  const hi = Math.max(lo + 1, Math.min(songCells, to));
+  const { start: lo, end: hi } = scrambleRange(clip, settings, songSteps);
   const first = Math.floor(contentStart(clip) / size + EPSILON);
   return cellsOf(window, size).map(({ cell, start, end }) => {
     const rng = audioRng(dice, window, 'scramble', cell - first);

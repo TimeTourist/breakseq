@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { blockPasses } from '../engine';
+import { blockPasses, scramblePicture } from '../engine';
 import type { EffectTarget, Id, Mod, ModEffect, Project, SwapEffect, TempoEffect } from '../model';
 import {
   DEFAULT_HALFTIME,
@@ -156,6 +156,10 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
           const step = Math.max(0, Math.floor((playback.seconds - within * passSeconds) / stepDuration(project.song.bpm) + 1e-9));
           return { pass: playback.block * perBlock + within, step };
         })();
+  const scramble = {
+    picture: previewId === null ? null : scramblePicture(project, mod.id, previewId, playing?.pass ?? 0),
+    onReroll: () => setError(run(rerollMod(mod.id))),
+  };
 
   return (
     <div className="split">
@@ -192,6 +196,7 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
                     rng={Math.random}
                     members={members}
                     stretchUnheard={stretchUnheard}
+                    scramble={scramble}
                     {...common}
                   />
                 );
