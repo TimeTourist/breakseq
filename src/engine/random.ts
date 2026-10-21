@@ -44,7 +44,7 @@ function mulberry(seed: number): Rng {
 export const placeRng: Dice = (...place) => mulberry(mix(place));
 
 /** What a choice is, mixed in first, so two kinds of choice at the same place differ. */
-export const CHOICE = { pad: 1, mod: 2, stack: 3, shuffle: 4, tape: 5, pass: 6 } as const;
+export const CHOICE = { pad: 1, mod: 2, stack: 3, shuffle: 4, tape: 5, pass: 6, audio: 7 } as const;
 
 /** The seed of pass number `pass` in Play's passes (varv) of a matrix, loop or mod. */
 export const passSeed = (pass: number): number => mix([CHOICE.pass, pass]);

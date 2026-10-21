@@ -7,6 +7,7 @@ import { playedStretch } from './generate';
 import { grainCurve, grainPlan } from './stretch';
 import type { Tape } from './tape';
 import { speedCurve, tapePasses } from './tape';
+import { finishHeard } from './render-heard';
 
 /** Seconds a choked voice takes to fade out when the next trigger starts. */
 export const CHOKE_FADE = 0.003;
@@ -354,15 +355,6 @@ export function scheduleVoices(context: BaseAudioContext, project: Project, voic
   for (const v of voices) scheduleHit(context, project, v.trigger, v.frame / sampleRate, v.chokeFrame / sampleRate, route, origin);
 }
 
-/** Renders triggers alone into a buffer of `duration` seconds. */
-export async function renderPart(triggers: readonly Trigger[], project: Project, duration: number, sampleRate: number, cutAt: number): Promise<AudioBuffer> {
-  const length = Math.max(1, Math.round(duration * sampleRate));
-  const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
-  // The recording ends at the segment's end: what still rings is cut there.
-  scheduleVoices(context, project, placeVoices(triggers, [cutAt], sampleRate), { dry: context.destination, space: null });
-  return context.startRendering();
-}
-
 const reversed = (buffer: AudioBuffer): AudioBuffer => {
   const copy = new AudioBuffer({ numberOfChannels: buffer.numberOfChannels, length: buffer.length, sampleRate: buffer.sampleRate });
   for (let i = 0; i < buffer.numberOfChannels; i++) copy.copyToChannel(buffer.getChannelData(i).slice().reverse(), i);
@@ -410,10 +402,11 @@ export interface Rendered {
 }
 
 /**
- * Renders a take to audio offline, all of it on one context. One voice: a new
- * trigger or tape cuts the sound before it with a short fade. Beside it the
- * reverb and delay ring out. Tapes record the hits alone. renderTakeWithTail
- * renders the same in parts, which is faster for anything long; this is what it is checked against.
+ * Renders a take to audio offline, what is heard all of it on one context: one
+ * voice, a new trigger cutting the sound before it with a short fade, and
+ * beside it the reverb and delay ringing out. Then tapes and audio mods play
+ * over what is heard (finishHeard). renderTakeWithTail renders the same in
+ * parts, which is faster for anything long; this is what it is checked against.
  */
 export async function renderTakeWhole(
   take: Take,
@@ -422,14 +415,16 @@ export async function renderTakeWhole(
   seconds = songDuration(project.song),
   mix: Mix = 'all',
 ): Promise<Rendered> {
-  const recordings = await Promise.all(take.tapes.map((tape) => renderPart(tape.source, project, tape.length, sampleRate, tape.length)));
-  const ring = mix === 'dry' ? 0 : spaceRing(take.triggers, project.song.bpm);
+  const heard = take.heard ?? take.triggers;
+  const ring = mix === 'dry' ? 0 : spaceRing(heard, project.song.bpm);
   const length = Math.max(1, Math.round(seconds * sampleRate));
   const context = new OfflineAudioContext({ numberOfChannels: 2, length: length + Math.round(ring * sampleRate), sampleRate });
   const route: Route = { dry: mix === 'space' ? null : context.destination, space: mix === 'dry' ? null : createSpace(context, context.destination, project.song.bpm) };
-  scheduleVoices(context, project, placeVoices(take.triggers, take.tapes.map((t) => t.time), sampleRate), route);
-  if (mix !== 'space') take.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!));
-  const full = await context.startRendering();
+  scheduleVoices(context, project, placeVoices(heard, [], sampleRate), route);
+  const rendered = await context.startRendering();
+  const channels = await finishHeard([rendered.getChannelData(0).slice(), rendered.getChannelData(1).slice()], take, sampleRate, mix);
+  const full = new AudioBuffer({ numberOfChannels: 2, length: rendered.length, sampleRate });
+  channels.forEach((data, c) => full.copyToChannel(data as Float32Array<ArrayBuffer>, c));
   return { full, buffer: full.length === length ? full : folded(full, length) };
 }
 

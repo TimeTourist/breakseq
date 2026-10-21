@@ -119,7 +119,7 @@ describe('MIDI plan', () => {
   it('a tape segment is a piece of its own, after the hits', () => {
     const { project } = song();
     const t = take(project);
-    const tape = { time: 1.5, end: 2, start: 1.5, source: [], length: 0.5 } as unknown as Tape;
+    const tape = { time: 1.5, end: 2, start: 1.5, length: 0.5 } as unknown as Tape;
     const plan = midiPlan(project, { triggers: t.triggers.filter((x) => x.time < 1.5), tapes: [tape] });
     expect(plan.pieces.at(-1)).toMatchObject({ kind: 'tape', seconds: 0.5 });
     expect(plan.notes.at(-1)).toMatchObject({ time: 1.5, length: 0.5, piece: plan.pieces.length - 1 });

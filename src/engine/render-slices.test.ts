@@ -1,5 +1,5 @@
-// Web Audio in Node: node-web-audio-api puts OfflineAudioContext and friends on globalThis.
-import 'node-web-audio-api/polyfill.js';
+// Web Audio in Node, with views that keep their buffers alive.
+import '../test/web-audio';
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createLoop, createProject, setBpm, setHitSource, setSongCell, setStep } from '../model';
