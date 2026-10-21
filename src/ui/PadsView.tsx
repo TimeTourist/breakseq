@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Id, Matrix, Pad, Project } from '../model';
 import { padPicker } from '../engine';
-import { addPad, cloneMatrix, matrixKind, padSteps, renameMatrix } from '../model';
+import { addPad, cloneMatrix, matrixKind, padSteps, renameMatrix, rerollMatrix } from '../model';
 import { useApp, useOpen, useProject, useRun, useSelect } from './context';
 import type { PadsPlay } from './ControlsPanel';
 import { ControlsPanel, useRunAdding } from './ControlsPanel';
@@ -13,6 +13,7 @@ import { MatrixList } from './MatrixList';
 import type { DropTarget, Dragged, PadsOpen, Placing, Zoom } from './pads';
 import { ZOOMS, autoscrollStep, dropCommand, padsOpen, stepSelection } from './pads';
 import { RenameInPlace } from './RenameInPlace';
+import { RerollButton } from './RerollButton';
 import { matrixInView } from './store';
 
 const ZOOM_LABEL: Record<Zoom, string> = { fit: 'Fit', '1 bar': '1 bar' };
@@ -280,6 +281,7 @@ function MatrixBox({ matrix, open, zoom, onZoom, playedSeconds, placing, onPlayP
         >
           Clone
         </button>
+        <RerollButton command={rerollMatrix(matrix.id)} label="Reroll this matrix" title={`Reroll ${matrix.name}: new random choices for all its pads.`} onError={onError} />
         <DeleteMatrix matrix={matrix} onError={onError} ask={ask} icon onDeleted={() => select({ matrix: null, pad: null, hit: null }, 'pads')} />
         <span className="muted small mono push">
           {matrix.pads.length} pad{matrix.pads.length === 1 ? '' : 's'} · {steps} step{steps === 1 ? '' : 's'}

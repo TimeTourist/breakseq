@@ -10,6 +10,7 @@ import {
   movePad,
   padOfHit,
   renamePad,
+  rerollPad,
   sampleAudio,
   setHitSource,
   setMatrixConfig,
@@ -27,6 +28,7 @@ import { CHOICE_LABEL } from './labels';
 import type { PadsOpen } from './pads';
 import { rowNumber } from './pads';
 import { RenameInPlace } from './RenameInPlace';
+import { RerollButton } from './RerollButton';
 import { RegionHandle } from './RegionHandle';
 import { Waveform } from './Waveform';
 
@@ -135,6 +137,7 @@ function PadControls({ pad, matrix, onError, ask }: { readonly pad: Pad; readonl
       <div className="box-head">
         <span className="label">Pad</span>
         <RenameInPlace key={pad.id} name={pad.name} what="pad" onRename={(name) => run(renamePad(pad.id, name))} onError={onError} />
+        <RerollButton command={rerollPad(pad.id)} label="Reroll this pad" title={`Reroll ${pad.name}: new random choices for this pad.`} onError={onError} />
         <button type="button" className="icon-button small" aria-label={`Move ${pad.name} left`} title="One place earlier in the matrix" disabled={row === 0} onClick={() => onError(run(movePad(matrix.id, pad.id, row - 1)))}>
           ←
         </button>

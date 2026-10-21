@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { EffectTarget, Id, Mod, ModDelay, ModEffect, ModFilter, ModRate, ModShape, ModStretch, Project, StepEffect, StepTarget, SwapEffect } from '../model';
-import { DEFAULT_MOD_DELAY, DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_REVERB, DEFAULT_MOD_STRETCH, MAX_FEEDBACK, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, removeEffect, renameMod, replaceEffect, stepDuration } from '../model';
+import { DEFAULT_MOD_DELAY, DEFAULT_MOD_DIST, DEFAULT_MOD_FILTER, DEFAULT_MOD_REVERB, DEFAULT_MOD_STRETCH, MAX_FEEDBACK, MAX_GRAIN, MIN_GRAIN, MOD_TARGETS, STEPS_PER_BAR, addEffect, createMod, removeEffect, renameMod, replaceEffect, rerollMod, stepDuration } from '../model';
 import { Delete } from './DeleteButton';
 import { InSongMark, useHeard } from './InSong';
+import { RerollButton } from './RerollButton';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { StepGraph, SwapGraph, TapeGraph } from './ModGraph';
 import { MOD_PRESETS, DEFAULT_TAPE } from './modPresets';
@@ -248,13 +249,16 @@ export function ModsView() {
             Mod name
           </label>
           <div className="stack-tight grow">
-            <input
-              id="mod-name"
-              className="title-input mono mod-name"
-              value={mod.name}
-              onChange={(e) => setError(run(renameMod(mod.id, e.target.value), `mod:${mod.id}:name`))}
-              onBlur={seal}
-            />
+            <div className="row">
+              <input
+                id="mod-name"
+                className="title-input mono mod-name"
+                value={mod.name}
+                onChange={(e) => setError(run(renameMod(mod.id, e.target.value), `mod:${mod.id}:name`))}
+                onBlur={seal}
+              />
+              <RerollButton command={rerollMod(mod.id)} label="Reroll this mod" title={`Reroll ${mod.name}: new random choices for this mod, wherever it plays.`} onError={setError} />
+            </div>
             <p className="muted row">
               {effectsLabel(mod)} · Play tries it on {previewId === null ? 'a loop (make one first)' : project.loops[previewId]?.name}, over the whole loop.
             </p>

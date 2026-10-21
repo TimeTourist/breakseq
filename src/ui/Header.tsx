@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { setBpm } from '../model';
+import { rerollAll, setBpm } from '../model';
 import { useApp, useProject, useRun, useSelect } from './context';
 import { ConfirmLoad } from './ConfirmLoad';
+import { RerollButton } from './RerollButton';
 import { useSnapshots } from './snapshots';
 import { useCommitAfterPause } from './usePause';
 import { describeChange } from './describeChange';
@@ -144,6 +145,7 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
             <path d="M11 4l3 3-3 3M13.5 7H6a3.5 3.5 0 0 0 0 7h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
+        <RerollButton command={rerollAll()} label="Reroll everything" title="Reroll everything: new random choices for every pad, matrix, mod and clip in the project." />
         <SnapshotButtons />
       </div>
       <Crumbs />
