@@ -265,9 +265,19 @@ Fliken Mods byggs som skissen `docs/sketches/mods.html` (Mods – audio, godkän
 | Delay | värde | 0–100 % (0) | tid och feedback som idag |
 | Scramble, Stutter, Freeze, Reverse, Rewind | se Mods som samplar det som hörs | | |
 
-Swap, Tempo (slip) och Tape har ingen stegrad: de behåller sina reglage, på ett kort. *(Magnus beslut.)*
+Swap, Tempo (slip) och Tape har ingen stegrad: de behåller sina reglage, på ett kort. *(Magnus beslut.)* Tempo behåller alltså sina former (List, Cycle, Ramp och Random, med rate) och sin mening. *(Claudes val.)*
 
-**Gamla projekt** räknas om när de laddas: List och Cycle blir stegrader med samma värden (en Cycle utan värden på Pad member blir In turn), Ramp blir en ritad linje med 16 steg av ratens storlek, och Random blir lika många 🎲-steg med samma intervall och närmaste chans av 100, 75, 50 och 25 %. Värden utanför radens omfång begränsas till det. *(Claudes val.)*
+**Detaljer i stegraderna.** *(Claudes val.)*
+- Ett 🎲-steg vars chans inte slår in gör ingenting (som Random förut), så under B hörs A:s värde.
+- Ett 🎲-steg slår hela tal på Ratchet, Pad member och Pitch i halvtoner, och fritt (linjärt i intervallet) på resten. Det slår en gång varje gång steget spelas och håller värdet över steget. Ritade värden avrundas till radens steg; Pitch på Free ritas i tiondels halvtoner.
+- Direction: på spelar baklänges, av lämnar hittens egen riktning. Clear gör alltså ingenting med riktningen.
+- Ramp-knappen räknas ut ur raden: är raden redan en fast linje uppåt visar den ↘, annars ↗. Så byter varje tryck riktning, också efter Undo.
+- Pad members enhet är member och Directions on/off. In turn ritar upp till de flesta medlemmar en pad i loopen under Plays on har.
+- Förvalen under Start from är desamma, ritade som stegrader över en takt. Där de låg utanför omfånget eller mellan valen har de flyttats in: Gate −24 dB, Thin out från 60 Hz, och filterförvalens resonans 30 eller 60 %.
+- Förhandsvisningens rutnät har en rad per effekt: stegraderna med varvets värden (🎲-stegens intervall streckat, slaget värde ljusare), Swap med hitten där Swap bytte, Tempo med hastigheten och Tape med rampens hastighet. Medan Play spelar moden visar rutnätet varvet som spelas och steget spelhuvudet är på; annars varv 1.
+- På smal skärm står listan med Start from över moden och rullar bort med sidan.
+
+**Gamla projekt** räknas om när de laddas: List och Cycle blir stegrader med samma värden (en Cycle utan värden på Pad member blir In turn upp till de flesta medlemmar en pad i projektet har), Ramp blir en ritad linje med lika många steg av ratens storlek som modens längsta klipp i Song har (16 när den inte ligger i Song), och Random blir lika många 🎲-steg med samma intervall och närmaste chans av 100, 75, 50 och 25 % (på Direction chansen att det blev baklänges, alltså halva den gamla, eftersom Random slog fram eller bak). Ett 🎲-steg slår på samma plats som Random gjorde, så Random med en av de fyra chanserna låter exakt som förut, och Ramp gör det när klippen är lika långa. Cycle räknade bara intervall med en hit, så den blir exakt där varje intervall har en hit; ett medlemsnummer paden saknar spelar nu medlem 1 i stället för att räknas runt paden. Dists värden blir procent. Värden utanför radens omfång begränsas till det. *(Claudes val.)*
 
 ## Tape
 
@@ -301,7 +311,7 @@ Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in
 
 **En röst.** Ett nytt ljud klipper alltid det som klingar, också en stretchad hit, men aldrig reverb och delay, som klingar ut bredvid; det finns inget poly-läge där slag klingar över varandra. En stretchad hit hörs alltså i sin fulla längd bara när stegen efter den är tomma. *(Magnus beslut; ändras inte utan att fråga.)*
 
-**Reglage som inte hörs** gråas ut, med en kort förklaring av varför de inte gör något just nu (till exempel Multiply/Replace när hitten saknar egen stretch, eller hittens bitlängd under en stretch-mod). *(Magnus beslut; ändras inte utan att fråga.)*
+**Reglage som inte hörs** gråas ut, med en kort förklaring av varför de inte gör något just nu (till exempel Multiply/Replace när hitten saknar egen stretch, eller hittens bitlängd under en stretch-mod). *(Magnus beslut; ändras inte utan att fråga.)* Ramp på en på/av-rad gör aldrig något och går inte att trycka på. Multiply/Replace gråas när ingen hit i loopen under Plays on har egen stretch, och hittens Grain i Matrices när paden bara spelas under Stretch-mods i Song (modens bitlängd gäller där); de två går fortfarande att ändra, eftersom de hörs på andra ställen (en annan loop, Play i Matrices). *(Claudes val.)*
 
 ## Mods som samplar det som hörs
 
