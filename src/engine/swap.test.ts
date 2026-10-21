@@ -115,7 +115,7 @@ describe('Swap from the stack', () => {
     let project = loop(base, 'main', Array(16).fill(pad.Alt!));
     project = loop(project, 'fill', Array(16).fill(pad.M!));
     // Bottom up takes Main's Alt on step 1; member 2 of Alt is A.
-    project = mod(project, [stack('bottomUp'), { target: 'padMember', rate: 'step', shape: { kind: 'list', values: [2] } }]);
+    project = mod(project, [stack('bottomUp'), { target: 'padMember', step: '1/16', lane: [{ v: 2 }] }]);
     expect(heard(project, nameOf, 2)).toEqual(['A', 'M']);
   });
 });

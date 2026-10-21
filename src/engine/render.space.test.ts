@@ -110,7 +110,7 @@ describe('reverb and delay on a hit', () => {
 });
 
 describe('reverb and delay as mods', () => {
-  const reverb = (values: number[], size: number): StepEffect => ({ target: 'reverb', rate: 'step', shape: { kind: 'list', values }, reverb: { size } });
+  const reverb = (values: number[], size: number): StepEffect => ({ target: 'reverb', step: '1/16', lane: values.map((v) => ({ v })), reverb: { size } });
 
   it('a Reverb mod sends the hits under it, in place of the hit\'s own; 0 sends none', () => {
     const { project } = song({ seconds: 0.1, steps: [0, 1, 2], change: { reverb: { amount: 0.2, size: 0.1 } } });
@@ -129,7 +129,7 @@ describe('reverb and delay as mods', () => {
 
   it('a Delay mod at random sends some hits and not others', () => {
     const { project } = song({ seconds: 0.1, steps: [0, 1, 2, 3] });
-    const delay: StepEffect = { target: 'delay', rate: 'step', shape: { kind: 'random', min: 50, max: 50, chance: 50, whole: true }, delay: { steps: 3, feedback: 0.4 } };
+    const delay: StepEffect = { target: 'delay', step: '1/16', lane: [{ lo: 50, hi: 50, chance: 50 }], delay: { steps: 3, feedback: 0.4 } };
     // The rng gives a chance roll, then a value, for each step: below 0.5 sends.
     const rolls = [0.1, 0, 0.9, 0.1, 0, 0.9];
     let i = 0;

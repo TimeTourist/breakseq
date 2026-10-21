@@ -244,34 +244,74 @@ export interface Loop {
 export const MOD_TARGETS = ['swap', 'padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'tempo'] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
+/** How often Swap's Stack and Tempo pick: every 1/16, beat or bar. */
 export type ModRate = 'step' | 'beat' | 'bar';
 
-export type ModShape =
+/**
+ * Tempo (slip) keeps its forms (Magnus beslut: Swap, Tempo and Tape keep their
+ * controls): values in turn, one further each interval with a step, a ramp
+ * over the clip, or now and then a value at random.
+ */
+export type TempoShape =
   /** Values in turn, one per interval, then from the start again. */
   | { readonly kind: 'list'; readonly values: readonly number[] }
-  /** One value further for each interval the mod hits a step in; with no values, a pad's members in turn. */
+  /** One value further for each interval it plays a step in. */
   | { readonly kind: 'cycle'; readonly values: readonly number[] }
-  /** From the first interval of the run to its last. */
+  /** From the first interval of the clip to its last. */
   | { readonly kind: 'ramp'; readonly from: number; readonly to: number }
-  /**
-   * Chance in percent (0–100) that an interval gets a value at all. `whole`
-   * rolls whole numbers only, e.g. pitch in semitones; targets that take whole
-   * numbers always do.
-   */
+  /** Chance in percent (0–100) that an interval gets a value at all. */
   | { readonly kind: 'random'; readonly min: number; readonly max: number; readonly chance: number; readonly whole: boolean };
 
-/** Targets that set a value on a step through a shape: all but Swap. */
-export type StepTarget = Exclude<ModTarget, 'swap'>;
-export const STEP_TARGETS = MOD_TARGETS.filter((t): t is StepTarget => t !== 'swap');
-
-/** An effect that changes steps as they play, by a value from its shape. */
-export interface StepEffect {
-  readonly target: StepTarget;
+/** Plays the layer in another tempo while the main clock goes on (see Slip-tempo). */
+export interface TempoEffect {
+  readonly target: 'tempo';
   readonly rate: ModRate;
-  readonly shape: ModShape;
+  readonly shape: TempoShape;
+}
+
+/** The size of a step in a lane, in 1/16 steps. */
+export type StepSize = '1/16' | 'beat' | 'bar';
+export const STEP_SIZES: Readonly<Record<StepSize, number>> = { '1/16': 1, beat: 4, bar: STEPS_PER_BAR };
+export const MAX_LANE_STEPS = 16;
+
+/** The chances a dice step can have, in percent: a click on it goes down this list and round. */
+export const CHANCES = [100, 75, 50, 25] as const;
+export type Chance = (typeof CHANCES)[number];
+
+/**
+ * A step in a lane: a fixed value, or a dice step that rolls a value in its
+ * band each time it plays, if its chance comes up; otherwise it does nothing.
+ * On an on/off lane the band is 0–1 and the chance is how likely it is on.
+ */
+export type LaneStep = { readonly v: number } | { readonly lo: number; readonly hi: number; readonly chance: Chance };
+export const isDice = (step: LaneStep): step is Extract<LaneStep, { lo: number }> => 'lo' in step;
+
+/** Targets with a lane: every target that sets a value on a step, all but Swap and Tempo. */
+export const LANE_TARGETS = ['padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay'] as const;
+export type LaneTarget = (typeof LANE_TARGETS)[number];
+
+/** Targets that set something on a step as it plays: the lanes and Tempo. */
+export type StepTarget = LaneTarget | 'tempo';
+
+/** Pitch values in whole semitones (the default) or free. */
+export interface ModPitch {
+  readonly values: 'semitones' | 'free';
+}
+
+/**
+ * An effect that changes steps as they play: its lane of 1–16 steps of the
+ * same size starts where the clip starts and loops on its own length, and
+ * each step's value holds over the step for every trigger in it.
+ */
+export interface StepEffect {
+  readonly target: LaneTarget;
+  readonly step: StepSize;
+  readonly lane: readonly LaneStep[];
+  /** For Pitch only: whole semitones or free. Missing means semitones. */
+  readonly pitch?: ModPitch;
   /** For Stretch only: its grain length and how it meets the hit's own stretch. Missing means DEFAULT_MOD_STRETCH. */
   readonly stretch?: ModStretch;
-  /** For Dist only: its mode; the value is the amount. Missing means DEFAULT_MOD_DIST. */
+  /** For Dist only: its mode; the value is the amount in percent. Missing means DEFAULT_MOD_DIST. */
   readonly dist?: ModDist;
   /** For Filter only: its type and resonance; the value is the cutoff. Missing means DEFAULT_MOD_FILTER. */
   readonly filter?: ModFilter;
@@ -368,7 +408,7 @@ export interface TapeEffect {
   readonly flutter: number;
 }
 
-export type ModEffect = StepEffect | SwapEffect | TapeEffect;
+export type ModEffect = StepEffect | TempoEffect | SwapEffect | TapeEffect;
 export type EffectTarget = ModEffect['target'];
 
 /** A mod does things through its effects: at most one per target. A new mod has none, and does nothing until it gets one. */
@@ -380,7 +420,8 @@ export interface Mod {
   readonly seed: number;
 }
 
-export const isStepEffect = (effect: ModEffect): effect is StepEffect => effect.target !== 'tape' && effect.target !== 'swap';
+export const isStepEffect = (effect: ModEffect): effect is StepEffect => (LANE_TARGETS as readonly string[]).includes(effect.target);
+export const tempoOf = (mod: Mod | undefined): TempoEffect | undefined => mod?.effects.find((e): e is TempoEffect => e.target === 'tempo');
 export const swapOf = (mod: Mod | undefined): SwapEffect | undefined => mod?.effects.find((e): e is SwapEffect => e.target === 'swap');
 export const tapeOf = (mod: Mod | undefined): TapeEffect | undefined =>
   mod?.effects.find((e): e is TapeEffect => e.target === 'tape');

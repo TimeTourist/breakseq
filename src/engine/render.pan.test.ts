@@ -87,7 +87,7 @@ describe('pan', () => {
 
     const m1 = Object.values(project.loops)[0]!;
     project = run(project, setSongCell('main', 0, m1.id));
-    const pan = (values: number[]): StepEffect => ({ target: 'pan', rate: 'step', shape: { kind: 'list', values } });
+    const pan = (values: number[]): StepEffect => ({ target: 'pan', step: '1/16', lane: values.map((v) => ({ v })) });
     const a = run(project, createMod('a', [pan([50])]));
     const b = run(a, createMod('b', [pan([100])]));
     const [modA, modB] = Object.keys(b.mods);

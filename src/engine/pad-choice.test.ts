@@ -87,7 +87,7 @@ describe("the pad's choice", () => {
 
   it('a Pad member mod goes before the pad, also under Ignore mods the pad still picks', () => {
     let { project, loop } = hats('roundRobin', 1);
-    const next = run(project, createMod('m', [{ target: 'padMember', rate: 'step', shape: { kind: 'list', values: [4] } }]));
+    const next = run(project, createMod('m', [{ target: 'padMember', step: '1/16', lane: [{ v: 4 }] }]));
     const mod = newest(project, next, 'mods');
     project = run(next, setSongCell('modA', 0, mod), setStep(loop, 8, { ignoreMods: true }));
     expect(names(project)).toEqual(['h4', 'h4', 'h1', 'h4']);

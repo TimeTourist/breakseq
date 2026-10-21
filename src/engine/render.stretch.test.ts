@@ -76,7 +76,7 @@ describe('the Stretch mod', () => {
     const mod = Object.keys(next.mods).find((k) => !(k in project.mods))!;
     return run(next, setSongCell(row, 0, mod));
   };
-  const effect = (value: number, combine: 'multiply' | 'replace', grain = 80): StepEffect => ({ target: 'stretch', rate: 'step', shape: { kind: 'list', values: [value] }, stretch: { grain, combine } });
+  const effect = (value: number, combine: 'multiply' | 'replace', grain = 80): StepEffect => ({ target: 'stretch', step: '1/16', lane: [{ v: value }], stretch: { grain, combine } });
 
   it('Multiply times the hit stretch, Replace instead of it; the mod grain applies', () => {
     const { project } = amen(150);

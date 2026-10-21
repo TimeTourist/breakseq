@@ -68,6 +68,13 @@ const CURVES: Record<TapeCurve, (u: number) => number> = {
 
 const shaped = (curve: TapeCurve, u: number) => CURVES[curve](u);
 
+/** A Tape effect's speed `step` steps into a clip of `clipSteps`, without wow and flutter: what its ramp is there. */
+export function rampedSpeed(tape: Pick<TapeEffect, 'speed' | 'rampOver' | 'curve'>, clipSteps: number, step: number): number {
+  const ramp = tape.rampOver ?? clipSteps;
+  const u = ramp <= 0 ? 1 : Math.max(0, Math.min(1, step / ramp));
+  return Math.max(0, tape.speed.from + (tape.speed.to - tape.speed.from) * shaped(tape.curve, u));
+}
+
 /** The tape's speed at song time `t`: the ramp, times the wobble, never below 0. */
 export function tapeSpeed(tape: Tape, t: number): number {
   const { from, to, ramp, curve } = tape.speed;
