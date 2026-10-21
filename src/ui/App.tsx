@@ -302,6 +302,8 @@ function Shell() {
   // (Magnus beslut); something else, as after a change of view, starts straight away.
   // A snapshot played from Project goes on until the view changes: a change to the project is not it.
   const snapshotView = useRef<View | null>(null);
+  // The snapshot playing, to start it again when Loop is switched.
+  const snapshotPlays = useRef<Take | null>(null);
   const following = useRef({ playing, playingKey, view });
   following.current = { playing, playingKey, view };
   useEffect(() => {
@@ -330,6 +332,8 @@ function Shell() {
   // Loop switched while something plays: it starts again, looped or once (the song from its start point).
   useEffect(() => {
     const { playing: now, playingKey: key } = following.current;
+    // A snapshot starts again from its start, looped or once.
+    if (now && key === 'snapshot' && snapshotPlays.current !== null) services.player.play(snapshotPlays.current, 0, !loopOn);
     if (now && key !== null && key !== 'snapshot' && shown?.key === key) start(shown);
     // Only Loop decides this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -416,10 +420,11 @@ function Shell() {
           onRestore={restore}
           onPlayTake={(snapshotTake) => {
             // A snapshot plays whole: the song's loop region is the loaded song's, not the snapshot's. (Claudes val)
-            // TODO(spec): whether Loop in the header applies to a snapshot's ▶; it loops it, as before.
+            // Loop in the header applies here too: off, the snapshot plays once. (Magnus beslut)
             services.player.stopAudition();
             services.player.setLoop(null);
-            services.player.play(snapshotTake);
+            services.player.play(snapshotTake, 0, !loopOn);
+            snapshotPlays.current = snapshotTake;
             snapshotView.current = view;
             setPlayingKey('snapshot');
             setPlaying(true);
