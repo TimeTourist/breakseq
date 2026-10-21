@@ -3737,3 +3737,11 @@ button.danger:hover:not(:disabled) {
     padding: 8px;
   }
 }
+
+/* On a phone the Mods list, with Start from, is taller than the screen: it scrolls away above the mod instead of staying over it. */
+@media (max-width: 640px) {
+  .sidebar.mods-sidebar {
+    position: static;
+    max-height: none;
+  }
+}
