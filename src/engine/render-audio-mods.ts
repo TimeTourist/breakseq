@@ -24,14 +24,17 @@ const hann = (x: number) => 0.5 - 0.5 * Math.cos(2 * Math.PI * x);
  * What is heard with the splices played over it. Each splice fades in over
  * SPLICE_FADE from its start and out over SPLICE_FADE after its end; where
  * splices are, what is heard is faded out by as much as they cover, so a
- * splice next to another, or to what is heard, cross-fades with it.
+ * splice next to another, or to what is heard, cross-fades with it. The
+ * splices read `source`, what is heard unless given (Scratch reads what is
+ * heard before tape, and plays over it with tape).
  */
-export function applySplices(heard: readonly Float32Array[], splices: readonly Splice[], sampleRate: number): Float32Array[] {
+export function applySplices(heard: readonly Float32Array[], splices: readonly Splice[], sampleRate: number, source: readonly Float32Array[] = heard): Float32Array[] {
   if (splices.length === 0) return heard.map((c) => c.slice());
   const total = heard[0]?.length ?? 0;
   const fade = SPLICE_FADE * sampleRate;
   const cover = new Float32Array(total);
   const played = heard.map(() => new Float32Array(total));
+  if (source.length !== heard.length) throw new Error('A source has as many channels as what is heard');
 
   for (const splice of splices) {
     const first = Math.max(0, Math.round(splice.time * sampleRate));
@@ -47,7 +50,7 @@ export function applySplices(heard: readonly Float32Array[], splices: readonly S
         const g = gate(f) * splice.gain;
         if (g === 0) continue;
         const frame = sourceAt(splice, at(f)) * sampleRate;
-        heard.forEach((data, c) => (played[c]![f]! += g * read(data, frame)));
+        source.forEach((data, c) => (played[c]![f]! += g * read(data, frame)));
       }
       continue;
     }
@@ -61,7 +64,7 @@ export function applySplices(heard: readonly Float32Array[], splices: readonly S
         const t = f / sampleRate - start;
         const g = gate(f) * splice.gain * hann(t / length);
         if (g === 0) continue;
-        heard.forEach((data, c) => (played[c]![f]! += g * read(data, from + t * sampleRate)));
+        source.forEach((data, c) => (played[c]![f]! += g * read(data, from + t * sampleRate)));
       }
     });
   }

@@ -1,5 +1,5 @@
-import type { CellSize, Clip, Id, Project, StepEffect } from '../model';
-import { DEFAULT_MOD_SCRAMBLE, STEPS_PER_BAR, STEP_SIZES, isDice, isStepEffect } from '../model';
+import type { CellSize, Clip, Id, Project, ScratchEffect, ScratchMotion, StepEffect } from '../model';
+import { DEFAULT_MOD_SCRAMBLE, STEPS_PER_BAR, STEP_SIZES, isDice, isStepEffect, scratchMotion, scratchSpeeds } from '../model';
 import type { ScrambleCell } from './audio-mods';
 import { audioWindows, scrambleCells, scrambleRange } from './audio-mods';
 import { generateTake, modPreviewSong, songLayers } from './generate';
@@ -35,7 +35,36 @@ export type PassRow =
   /** Tape's speed on each step (its ramp, without wow and flutter). */
   | { readonly kind: 'tape'; readonly target: 'tape'; readonly cells: readonly number[] }
   /** Halftime's speed, the same on every step: it has no lane. */
-  | { readonly kind: 'halftime'; readonly target: 'halftime'; readonly cells: readonly number[] };
+  | { readonly kind: 'halftime'; readonly target: 'halftime'; readonly cells: readonly number[] }
+  /** Scratch on each step: the needle's step there, its speed and the fader in the step. */
+  | { readonly kind: 'scratch'; readonly target: 'scratch'; readonly cells: readonly ScratchCell[] };
+
+/** One step of the loop under Scratch. */
+export interface ScratchCell {
+  /** Which step of the movement it is, from 0. */
+  readonly scratchStep: number;
+  readonly speed: number;
+  readonly motion: ScratchMotion;
+  /** The fader over the step, open or closed: two halves where a split cell falls on one step of 1/16, else one. */
+  readonly fader: readonly boolean[];
+  /** Where the movement starts again. */
+  readonly restart: boolean;
+}
+
+/** Scratch over `steps` steps of the loop: the movement starts with the loop and loops on its own length. */
+export function scratchCells(effect: ScratchEffect, steps: number): ScratchCell[] {
+  const size = STEP_SIZES[effect.step];
+  const length = size * effect.points.length;
+  const speeds = scratchSpeeds(effect);
+  return Array.from({ length: steps }, (_, i) => {
+    const pos = i % length;
+    const k = Math.floor(pos / size);
+    const cell = effect.fader[k] ?? [true];
+    const within = (pos - k * size) / size;
+    const fader = cell.length === 1 ? [cell[0]] : size === 1 ? [...cell] : [cell[within < 0.5 ? 0 : 1]!];
+    return { scratchStep: k, speed: speeds[k]!, motion: scratchMotion(speeds[k]!), fader, restart: pos === 0 };
+  });
+}
 
 /** The first hit each step plays in a take of one pass, by its step from the start. */
 function hitsByStep(project: Project, steps: number): (Id | null)[] {
@@ -84,6 +113,7 @@ export function modPassRows(project: Project, modId: Id, loopId: Id, pass: numbe
       return { kind: 'tempo', target: 'tempo', cells: Array.from({ length: steps }, (_, i) => values(run, effect, i)) };
     }
     if (effect.target === 'halftime') return { kind: 'halftime', target: 'halftime', cells: Array.from({ length: steps }, () => effect.speed) };
+    if (effect.target === 'scratch') return { kind: 'scratch', target: 'scratch', cells: scratchCells(effect, steps) };
     return { kind: 'tape', target: 'tape', cells: Array.from({ length: steps }, (_, i) => rampedSpeed(effect, steps, i)) };
   });
 }

@@ -12,6 +12,7 @@ import { findUsages } from './references';
 import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEffect, Pad, PadChoice, Project, Sample, Song, SongRow, Step, StepEffect } from './types';
 import { CELL_SIZES, HALFTIME_SPEEDS, MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR, STEP_SIZES, STUTTER_GRABS, isStepEffect } from './types';
 import { laneProblem } from './lanes';
+import { scratchProblem } from './scratch';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
 
@@ -523,6 +524,7 @@ function effectProblem(effect: ModEffect): string | null {
     return null;
   }
   if (isStepEffect(effect)) return STEP_SIZES[effect.step] === undefined ? 'A step is 1/16, a beat or a bar' : (laneProblem(effect) ?? audioSettingsProblem(effect));
+  if (effect.target === 'scratch') return scratchProblem(effect);
   if (effect.target === 'halftime') return (HALFTIME_SPEEDS as readonly number[]).includes(effect.speed) ? null : 'Halftime’s speed is ×0.5, ×0.75 or ×2';
   if (effect.target !== 'tape') return null;
   if (!Number.isInteger(effect.length) || effect.length < 1 || effect.length > MAX_TAPE_STEPS) return 'Repeat is 1/16 to 4 bars';

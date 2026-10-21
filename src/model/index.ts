@@ -14,4 +14,5 @@ export * from './lengths';
 export * from './seed';
 export * from './reroll';
 export * from './lanes';
+export * from './scratch';
 export * from './upgrade-mods';

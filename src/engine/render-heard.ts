@@ -8,10 +8,10 @@ import type { Tape } from './tape';
 
 /**
  * What is heard, finished: what the triggers play with reverb and delay goes
- * in, then tapes play over it, then the audio mods (see Mods som samplar det
- * som hörs). A tape records what is heard in its segment, reverb and delay
- * too; the audio mods sample what is heard with the tapes. Neither ever hears
- * itself or an audio mod.
+ * in, then tapes and Scratch play over it, then the audio mods (see Mods som
+ * samplar det som hörs). Tape and Scratch record what is heard in their
+ * segment, reverb and delay too, but not each other; the audio mods sample
+ * what is heard with tapes and Scratch. None ever hears itself or an audio mod.
  */
 
 /** A hash of audio: tapes are kept by what they recorded. */
@@ -63,19 +63,19 @@ function tapeMask(tape: Tape, f: number, sampleRate: number): number {
 }
 
 /**
- * Plays the take's tapes and splices over `heard` (the triggers' sound with
+ * Plays the take's tapes, Scratch and splices over `heard` (the triggers' sound with
  * reverb and delay, for the mix asked for). In the mix of only reverb and
  * delay a tape leaves silence: a MIDI export has the tape as a piece of its
  * own, cut from the song.
  */
 export async function finishHeard(
   heard: readonly Float32Array[],
-  take: Pick<Take, 'tapes' | 'splices'>,
+  take: Pick<Take, 'tapes' | 'splices' | 'scratches'>,
   sampleRate: number,
   mix: Mix,
   cache?: RenderCache,
 ): Promise<Float32Array[]> {
-  let out = heard.map((c) => c.slice());
+  let out: Float32Array[] = heard.map((c) => c.slice());
   const total = out[0]?.length ?? 0;
   for (const tape of take.tapes) {
     const played = mix === 'space' ? null : await playTape(tape, heard, sampleRate, total, cache);
@@ -86,5 +86,7 @@ export async function finishHeard(
       return data;
     });
   }
+  // Scratch records what is heard without tape, and is heard instead of it and of tape (Claudes val: where both play, Scratch).
+  if (take.scratches !== undefined && take.scratches.length > 0) out = applySplices(out, take.scratches, sampleRate, heard);
   return take.splices === undefined || take.splices.length === 0 ? out : applySplices(out, take.splices, sampleRate);
 }
