@@ -1,5 +1,5 @@
-// Web Audio in Node: node-web-audio-api puts OfflineAudioContext and friends on globalThis.
-import 'node-web-audio-api/polyfill.js';
+// Web Audio in Node, with views that keep their buffers alive.
+import '../test/web-audio';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Id, Project } from '../model';
 import { addSample, createProject, hitSound, setBpm, setSongBars, updateHit } from '../model';
@@ -144,14 +144,14 @@ describe('rendering in parts', () => {
       time: 1.1,
       end: 2.9,
       start: 1.1,
-      source: [trigger(project, hits[0]!, 0)],
       length: 0.25,
       direction: 'pingpong',
       speed: { from: 1, to: 0.5, ramp: 1.5, curve: 'softEnd' },
       wobble: [],
     };
-    // A long voice is cut by the tape; another starts after it.
-    const take: Take = { triggers: [trigger(project, hits[1]!, 0.3), trigger(project, hits[0]!, 3.2)], tapes: [tape] };
+    // A long voice is cut by the tape, and heard in what it records with another voice; one more starts after it.
+    const triggers = [trigger(project, hits[1]!, 0.3), trigger(project, hits[0]!, 3.2)];
+    const take: Take = { triggers, heard: [...triggers, trigger(project, hits[0]!, 1.2, { reverb: { amount: 0.5, size: 0.3 } })], tapes: [tape] };
     const whole = await renderTakeWhole(take, project, SAMPLE_RATE);
     const parts = await renderTakeWithTail(take, project, SAMPLE_RATE, undefined, 'all', SMALL);
     expect(difference(parts, whole)).toBeLessThan(1e-4);

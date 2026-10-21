@@ -6,6 +6,8 @@ import type { PickState } from './pad-choice';
 import { padPicker } from './pad-choice';
 import type { Dice } from './random';
 import { CHOICE, passSeed, placeRng } from './random';
+import type { Splice } from './audio-mods';
+import { audioSplices } from './audio-mods';
 import { swapper } from './swap';
 import type { Tape } from './tape';
 import { tapeWindows, windowTape } from './tape';
@@ -59,10 +61,18 @@ export function songLayers(project: Project): (Layer | null)[] {
   });
 }
 
-/** What a take plays: triggers, and tapes where a mod's Tape plays instead. */
+/** What a take plays: triggers, tapes where a mod's Tape plays instead, and splices where the audio mods play. */
 export interface Take {
+  /** The triggers heard as they are: not those under a tape. */
   readonly triggers: readonly Trigger[];
   readonly tapes: readonly Tape[];
+  /**
+   * Every trigger heard, also under tapes: what is heard is made of them (with
+   * reverb and delay), and tapes and audio mods sample it. Missing: `triggers`.
+   */
+  readonly heard?: readonly Trigger[];
+  /** What the audio mods play, from what is heard with tape (see audioSplices). Missing: none. */
+  readonly splices?: readonly Splice[];
   /** Where the pads' choices stood at the end: the next pass of Play starts from it. Missing in takes not generated. */
   readonly end?: PickState;
 }
@@ -79,19 +89,22 @@ export interface GenerateOptions {
  * choice comes from the seeds of what makes it and where in the song it is
  * made (see Slump och seeds), so the same project gives the same take. Under
  * a Tape the song is not heard; the tape plays a recording of what would have
- * been heard in its segment.
+ * been heard in its segment. The audio mods play splices of what is heard.
  */
 export function generateTake(project: Project, options: GenerateOptions = {}): Take {
   const dice = options.dice ?? placeRng;
   const runs = modRuns(project);
   const { triggers: heard, end } = heardTriggers(project, runs, dice, options.from);
+  const splices = audioSplices(project, runs, dice);
   const windows = tapeWindows(runs);
-  if (windows.length === 0) return { triggers: heard, tapes: [], end };
+  if (windows.length === 0) return { triggers: heard, tapes: [], heard, splices, end };
   const stepTime = stepDuration(project.song.bpm);
   const covered = (time: number) => windows.some((w) => time >= w.start * stepTime - 1e-9 && time < w.end * stepTime - 1e-9);
   return {
     triggers: heard.filter((t) => !covered(t.time)),
-    tapes: windows.map((w) => windowTape(project, w, heard, dice)),
+    tapes: windows.map((w) => windowTape(project, w, dice)),
+    heard,
+    splices,
     end,
   };
 }

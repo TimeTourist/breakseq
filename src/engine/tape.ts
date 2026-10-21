@@ -2,7 +2,6 @@ import type { Clip, Mod, Project, Rng, TapeCurve, TapeDirection, TapeEffect } fr
 import type { Dice } from './random';
 import { CHOICE } from './random';
 import { stepDuration, tapeOf } from '../model';
-import type { Trigger } from './generate';
 import type { ModRun } from './mods';
 
 /** One sine in the wobble on a tape's speed: depth is a fraction of the speed. */
@@ -21,11 +20,12 @@ export interface Tape {
   /** Seconds from the start of the song where it is heard. */
   readonly time: number;
   readonly end: number;
-  /** Where its clip starts: the speed and the tape's position count from here. At or before `time`. */
+  /**
+   * Where its clip starts: the speed and the tape's position count from here,
+   * and the segment it records starts here. At or before `time`.
+   */
   readonly start: number;
-  /** What the segment played, with times from the segment's start. */
-  readonly source: readonly Trigger[];
-  /** The segment's length in seconds. */
+  /** The segment's length in seconds: it records what is heard from `start` for this long. */
   readonly length: number;
   readonly direction: TapeDirection;
   readonly speed: {
@@ -202,12 +202,13 @@ export function wobbles(tape: Pick<TapeEffect, 'wow' | 'flutter'>, rng: Rng): Wo
 }
 
 /**
- * Turns a window into a tape over what was heard. What you see is what you
+ * Turns a window into a tape over what is heard. What you see is what you
  * hear: the segment starts where the clip starts on the timeline, even when its
- * start was trimmed, and the speed ramps from there. Wow and flutter come from
- * the mod's and the clip's seeds and where in the clip the window starts.
+ * start was trimmed, and the speed ramps from there. It records what is heard
+ * there, with step mods, reverb and delay (render does that). Wow and flutter
+ * come from the mod's and the clip's seeds and where in the clip the window starts.
  */
-export function windowTape(project: Project, window: TapeWindow, heard: readonly Trigger[], dice: Dice): Tape {
+export function windowTape(project: Project, window: TapeWindow, dice: Dice): Tape {
   const stepTime = stepDuration(project.song.bpm);
   const { clip, tape } = window;
   const start = clip.start * stepTime;
@@ -216,9 +217,6 @@ export function windowTape(project: Project, window: TapeWindow, heard: readonly
     time: window.start * stepTime,
     end: window.end * stepTime,
     start,
-    source: heard
-      .filter((trigger) => trigger.time >= start - EPSILON && trigger.time < start + length - EPSILON)
-      .map((trigger) => ({ ...trigger, time: trigger.time - start })),
     length,
     direction: tape.direction,
     speed: { from: tape.speed.from, to: tape.speed.to, ramp: (tape.rampOver ?? clip.length) * stepTime, curve: tape.curve },

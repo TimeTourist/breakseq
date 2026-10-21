@@ -24,7 +24,6 @@ const tape = (fields: Partial<Tape>, from = 1, to = 1): Tape => ({
   time: 0,
   end: BAR,
   start: 0,
-  source: [],
   length: 2 * STEP,
   direction: 'forward',
   speed: { from, to, ramp: BAR, curve: 'linear' },
@@ -158,10 +157,9 @@ describe('generateTake', () => {
     expect(only!.time).toBeCloseTo(16 * STEP, 9);
     expect(only!.end).toBeCloseTo(32 * STEP, 9);
     expect(only!.length).toBeCloseTo(2 * STEP, 9);
-    expect(only!.source.map((t) => [t.step, +(t.time / STEP).toFixed(6)])).toEqual([
-      [0, 0],
-      [1, 1],
-    ]);
+    // It records what is heard there: the song's steps 16 and 17, which are not heard as they are.
+    const inSegment = take.heard!.filter((t) => t.time >= only!.start - 1e-9 && t.time < only!.start + only!.length - 1e-9);
+    expect(inSegment.map((t) => t.bar * 16 + t.step)).toEqual([16, 17]);
     expect(only!.speed).toEqual({ from: 1, to: 0, ramp: 16 * STEP, curve: 'linear' });
     expect(only!.start).toBeCloseTo(16 * STEP, 9);
     expect(only!.direction).toBe('pingpong');
@@ -170,7 +168,9 @@ describe('generateTake', () => {
   it('records what is heard, with the step effects of the same mod', () => {
     const { project: base, mod } = song([{ target: 'pitch', step: '1/16', lane: [{ v: 5 }] }, brake]);
     const project = run(base, addClip('modA', mod, 0, 16));
-    expect(generateTake(project, withRng(() => 0)).tapes[0]!.source.map((t) => t.pitch)).toEqual([5, 5]);
+    const take = generateTake(project, withRng(() => 0));
+    const tape = take.tapes[0]!;
+    expect(take.heard!.filter((t) => t.time < tape.start + tape.length - 1e-9).map((t) => t.pitch)).toEqual([5, 5]);
   });
 
   it('a Tape clip from step 3 records steps 3 and 4, whether dropped there or trimmed to there', () => {
@@ -179,10 +179,11 @@ describe('generateTake', () => {
     const placed = run(base, addClip('modA', mod, 0, 16));
     const trimmed = run(placed, resizeClip(placed.song.clips.find((c) => c.row === 'modA')!.id, 'start', 3));
     for (const project of [dropped, trimmed]) {
-      const [only] = generateTake(project, withRng(() => 0)).tapes;
+      const take = generateTake(project, withRng(() => 0));
+      const [only] = take.tapes;
       expect(only!.time).toBeCloseTo(3 * STEP, 9);
-      expect(only!.source.map((t) => t.step)).toEqual([3, 4]);
-      expect(only!.source[0]!.time).toBeCloseTo(0, 9);
+      const inSegment = take.heard!.filter((t) => t.time >= only!.start - 1e-9 && t.time < only!.start + only!.length - 1e-9);
+      expect(inSegment.map((t) => t.step)).toEqual([3, 4]);
       // The ramp runs over the clip as it stands, from where it starts.
       expect(only!.start).toBeCloseTo(3 * STEP, 9);
       expect(only!.speed.ramp).toBeCloseTo(13 * STEP, 9);

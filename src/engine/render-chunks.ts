@@ -2,8 +2,8 @@ import type { DelayPlay, Id, Project } from '../model';
 import { STEPS_PER_BAR, effectiveHit, hitSound, songDuration, stepDuration } from '../model';
 import type { Take, Trigger } from './generate';
 import type { Mix, PlacedVoice, Rendered, Route } from './render';
-import { audioKey, createSpace, delayKey, folded, placeVoices, renderPart, renderTakeWhole, reverbKey, scheduleTape, scheduleVoices, spaceRing, voiceEnd } from './render';
-import type { Tape } from './tape';
+import { audioKey, createSpace, delayKey, folded, placeVoices, renderTakeWhole, reverbKey, scheduleVoices, spaceRing, voiceEnd } from './render';
+import { finishHeard } from './render-heard';
 
 /**
  * Rendering in parts. Everything a take sounds is a sum of voices, each
@@ -32,7 +32,7 @@ const PARALLEL = 4;
 const MAX_CHANNELS = 32;
 
 /** One part as rendered: its dry sound and its sends, from the frame it starts on. */
-interface ChunkAudio {
+export interface ChunkAudio {
   readonly dry: readonly Float32Array[];
   readonly sends: ReadonlyMap<string, readonly Float32Array[]>;
   /** Floats it holds, for the cache's limit. */
@@ -56,7 +56,7 @@ export function createRenderCache(limit = 32 * 1024 * 1024): RenderCache {
   return { chunks: new Map(), takes: new Map(), limit, size: 0 };
 }
 
-const remember = <T>(map: Map<string, T>, key: string): T | undefined => {
+export const remember = <T>(map: Map<string, T>, key: string): T | undefined => {
   const value = map.get(key);
   if (value !== undefined) {
     // Most recently used last.
@@ -66,7 +66,7 @@ const remember = <T>(map: Map<string, T>, key: string): T | undefined => {
   return value;
 };
 
-function keepChunk(cache: RenderCache, key: string, chunk: ChunkAudio): void {
+export function keepChunk(cache: RenderCache, key: string, chunk: ChunkAudio): void {
   if (cache.chunks.has(key)) return;
   cache.chunks.set(key, chunk);
   cache.size += chunk.size;
@@ -147,26 +147,26 @@ interface Chunk {
   /** Its length in frames: as long as anything in it sounds, at least to the next part. */
   readonly frames: number;
   readonly voices: readonly PlacedVoice[];
-  readonly tapes: readonly Tape[];
   readonly sends: readonly string[];
   readonly key: string;
 }
 
+/** The triggers what is heard is made of: all of them, also those under tapes. */
+const heardOf = (take: Take): readonly Trigger[] => take.heard ?? take.triggers;
+
 /**
- * The take split into parts of `chunkFrames`, each with the voices that start
- * in it and a key for what it holds. A tape is a part of its own from the
- * song's start: its speed is automation sampled once per render quantum, which
- * a part starting elsewhere would sample at other times, so it renders as in
- * one long render. It has few nodes, so its silent start costs little.
+ * What is heard split into parts of `chunkFrames`, each with the voices that
+ * start in it and a key for what it holds. Tapes and audio mods are played
+ * over the parts once they are added up (finishHeard).
  */
 function chunksOf(take: Take, project: Project, sampleRate: number, length: number, total: number, chunkFrames: number): Chunk[] {
   const count = Math.max(1, Math.ceil(length / chunkFrames));
   const voices: PlacedVoice[][] = Array.from({ length: count }, () => []);
   const index = (frame: number) => Math.max(0, Math.min(count - 1, Math.floor(frame / chunkFrames)));
-  for (const v of placeVoices(take.triggers, take.tapes.map((t) => t.time), sampleRate)) voices[index(v.frame)]!.push(v);
+  for (const v of placeVoices(heardOf(take), [], sampleRate)) voices[index(v.frame)]!.push(v);
   const sound = soundKeys(project);
 
-  const parts = voices.map((inChunk, i): Chunk => {
+  return voices.map((inChunk, i): Chunk => {
     const origin = i * chunkFrames;
     let end = Math.min(total, (i + 1) * chunkFrames);
     for (const v of inChunk) {
@@ -177,22 +177,14 @@ function chunksOf(take: Take, project: Project, sampleRate: number, length: numb
     const sends = [...new Set(inChunk.flatMap((v) => sendKeys(v.trigger)))].sort();
     // Voices by their frames in the song: a sound that falls between frames, as a grain, is placed from where it is in the song.
     const voiceKeys = inChunk.map((v) => `${v.frame},${v.chokeFrame === Infinity ? '-' : v.chokeFrame},${triggerKey(v.trigger, sound)}`);
-    return { origin, frames, voices: inChunk, tapes: [], sends, key: [sampleRate, origin, frames, ...voiceKeys].join('\n') };
+    return { origin, frames, voices: inChunk, sends, key: [sampleRate, origin, frames, ...voiceKeys].join('\n') };
   });
-  const tapes = take.tapes.map((tape): Chunk => {
-    const frames = Math.max(1, Math.min(total, Math.ceil(tape.end * sampleRate) + 1));
-    // A tape by where it is, with what it recorded.
-    const key = `tape|${sampleRate}|${frames}|${JSON.stringify({ ...tape, source: tape.source.map((t) => `${t.time}:${triggerKey(t, sound)}`) })}`;
-    return { origin: 0, frames, voices: [], tapes: [tape], sends: [], key };
-  });
-  return [...parts, ...tapes];
 }
 
 /** Renders one part: its dry sound in channels 0–1 and each send in a pair after it. */
 async function renderChunk(chunk: Chunk, project: Project, sampleRate: number, signal: AbortSignal | undefined): Promise<ChunkAudio> {
   // Nothing starts in it: silence, without a context.
-  if (chunk.voices.length === 0 && chunk.tapes.length === 0) return { dry: [], sends: new Map(), size: 0 };
-  const recordings = await Promise.all(chunk.tapes.map((tape) => renderPart(tape.source, project, tape.length, sampleRate, tape.length)));
+  if (chunk.voices.length === 0) return { dry: [], sends: new Map(), size: 0 };
   checkSignal(signal);
   const channels = 2 + 2 * chunk.sends.length;
   const context = new OfflineAudioContext({ numberOfChannels: channels, length: chunk.frames, sampleRate });
@@ -215,7 +207,6 @@ async function renderChunk(chunk: Chunk, project: Project, sampleRate: number, s
   const sendTo = (key: string): AudioNode => sends.get(key)!;
   const route: Route = { dry, space: { reverb: (size) => sendTo(`r${reverbKey(size)}`), delay: (delay) => sendTo(`d${delayKey(delay)}`) } };
   scheduleVoices(context, project, chunk.voices, route, chunk.origin);
-  chunk.tapes.forEach((tape, i) => scheduleTape(context, tape, recordings[i]!, dry));
   const rendered = await context.startRendering();
   // Copies, not views: the part is added up later, after other parts have rendered, and in Node
   // (node-web-audio-api) a view does not keep its AudioBuffer alive: once the buffer is collected,
@@ -243,8 +234,8 @@ async function inParallel(jobs: readonly (() => Promise<void>)[], width: number)
 async function renderSpace(sends: ReadonlyMap<string, readonly Float32Array[]>, take: Take, project: Project, sampleRate: number, total: number): Promise<AudioBuffer> {
   const context = new OfflineAudioContext({ numberOfChannels: 2, length: total, sampleRate });
   const space = createSpace(context, context.destination, project.song.bpm);
-  const reverbs = new Map<string, number>(take.triggers.flatMap((t) => (t.reverb === null ? [] : [[`r${reverbKey(t.reverb.size)}`, t.reverb.size] as const])));
-  const delays = new Map<string, DelayPlay>(take.triggers.flatMap((t) => (t.delay === null ? [] : [[`d${delayKey(t.delay)}`, t.delay] as const])));
+  const reverbs = new Map<string, number>(heardOf(take).flatMap((t) => (t.reverb === null ? [] : [[`r${reverbKey(t.reverb.size)}`, t.reverb.size] as const])));
+  const delays = new Map<string, DelayPlay>(heardOf(take).flatMap((t) => (t.delay === null ? [] : [[`d${delayKey(t.delay)}`, t.delay] as const])));
   for (const [key, pair] of sends) {
     const source = context.createBufferSource();
     const buffer = new AudioBuffer({ numberOfChannels: 2, length: total, sampleRate });
@@ -278,7 +269,7 @@ export async function renderTakeWithTail(
   const cache = options.cache ?? createRenderCache();
   checkSignal(signal);
   const length = Math.max(1, Math.round(seconds * sampleRate));
-  const ring = mix === 'dry' ? 0 : spaceRing(take.triggers, project.song.bpm);
+  const ring = mix === 'dry' ? 0 : spaceRing(heardOf(take), project.song.bpm);
   const total = length + Math.round(ring * sampleRate);
   const chunkSeconds = options.chunkSeconds ?? CHUNK_BARS * STEPS_PER_BAR * stepDuration(project.song.bpm);
   // Parts start on whole render quanta, so k-rate automation such as a tape's speed is sampled where it is in one long render.
@@ -287,7 +278,7 @@ export async function renderTakeWithTail(
   // More rooms and delays than a context has channels for: one long render, as before.
   if (chunks.some((c) => 2 + 2 * c.sends.length > MAX_CHANNELS)) return renderTakeWhole(take, project, sampleRate, seconds, mix);
 
-  const takeKey = [mix, sampleRate, length, total, project.song.bpm, ...chunks.map((c) => `${c.origin}\n${c.key}`)].join('\n@');
+  const takeKey = [mix, sampleRate, length, total, project.song.bpm, JSON.stringify(take.tapes), JSON.stringify(take.splices ?? []), ...chunks.map((c) => `${c.origin}\n${c.key}`)].join('\n@');
   const kept = remember(cache.takes, takeKey);
   if (kept !== undefined) return kept;
 
@@ -329,8 +320,10 @@ export async function renderTakeWithTail(
     checkSignal(signal);
     out.forEach((data, c) => addAt(data, space.getChannelData(c), 0));
   }
+  const finished = await finishHeard(out, take, sampleRate, mix, cache);
+  checkSignal(signal);
   const full = new AudioBuffer({ numberOfChannels: 2, length: total, sampleRate });
-  out.forEach((data, c) => full.copyToChannel(data, c));
+  finished.forEach((data, c) => full.copyToChannel(data as Float32Array<ArrayBuffer>, c));
   const rendered = { full, buffer: total === length ? full : folded(full, length) };
   keepTake(cache, takeKey, rendered);
   return rendered;

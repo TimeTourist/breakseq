@@ -1,5 +1,5 @@
-// Web Audio in Node: node-web-audio-api puts OfflineAudioContext and friends on globalThis.
-import 'node-web-audio-api/polyfill.js';
+// Web Audio in Node, with views that keep their buffers alive.
+import '../test/web-audio';
 import { describe, expect, it } from 'vitest';
 import type { AudioData, Command, Id, Project } from '../model';
 import { addSample, createProject, hitSound, setBpm, setSongBars, songDuration, updateHit } from '../model';
@@ -140,14 +140,14 @@ describe('tapes', () => {
       time: 0,
       end: 2,
       start: 0,
-      source: [trigger(project, hits[0]!, 0)],
       length: SEGMENT,
       direction: 'forward',
       speed: { from: 1, to: 1, ramp: 2, curve: 'linear' },
       wobble: [],
       ...fields,
     };
-    return { project, take: { triggers: [], tapes: [tape] } };
+    // What is heard is the rising sample from 0; the tape records it.
+    return { project, take: { triggers: [], heard: [trigger(project, hits[0]!, 0)], tapes: [tape] } };
   }
 
   it('at 1× forward it plays the recorded segment round and round', async () => {
@@ -176,11 +176,16 @@ describe('tapes', () => {
     expect(peak(1.01, 4)).toBe(0);
   });
 
-  it('a tape cuts the trigger before it', async () => {
+  it('under a tape only the tape is heard: it cuts what is heard before it, which goes on on the main clock after it', async () => {
     const { project, hits } = setup([constantAudio(3)]);
-    const { take } = tapeTake({ time: 1, start: 1, end: 2, source: [] });
-    const data = (await renderTake({ ...take, triggers: [trigger(project, hits[0]!, 0)] }, project, SAMPLE_RATE)).getChannelData(0);
-    expect(lastSound(data)).toBeLessThanOrEqual(Math.round((1 + CHOKE_FADE) * SAMPLE_RATE) + 1);
+    const voice = trigger(project, hits[0]!, 0);
+    // Stopped at 0×: the tape is silent.
+    const tape: Tape = { time: 1, start: 1, end: 2, length: SEGMENT, direction: 'forward', speed: { from: 0, to: 0, ramp: 1, curve: 'linear' }, wobble: [] };
+    const data = (await renderTake({ triggers: [voice], heard: [voice], tapes: [tape] }, project, SAMPLE_RATE)).getChannelData(0);
+    const at = (t: number) => data[Math.round(t * SAMPLE_RATE)]!;
+    expect(at(0.5)).toBeCloseTo(0.5, 3);
+    expect(data.slice(Math.round((1 + CHOKE_FADE) * SAMPLE_RATE) + 1, Math.round((2 - CHOKE_FADE) * SAMPLE_RATE) - 1).every((v) => v === 0)).toBe(true);
+    expect(at(2.5)).toBeCloseTo(0.5, 3);
   });
 
   it('flutter changes the sound but not where the passes turn', async () => {
