@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Breakseq Mods audio</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&amp;family=IBM+Plex+Sans:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:#101113}
+a{color:#e8b04a;text-decoration:none}a:hover{color:#f3c873}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select{font:inherit;color:inherit}
+.slim{appearance:none;-webkit-appearance:none;min-height:30px;padding:0 28px 0 10px;border:1px solid #3a3f45;border-radius:6px;background:#1f2226;color:#e8b04a;font-family:'IBM Plex Mono',monospace;font-size:13px;cursor:pointer}
+.slim:hover{border-color:#8c8a84;background:#2a2e33}
+.slim:focus-visible{outline:2px solid #e8b04a;outline-offset:1px}
+.slim option{background:#1f2226;color:#ece9e2}
+.stp:hover{background:rgb(232 176 74 / 0.07) !important}
+.stp:hover .dt{opacity:1 !important}
+.dt:hover{background:#2a2e33 !important}
+@keyframes ph{from{left:0}to{left:100%}}
+</style>
+</helmet>
+<div style="position: relative; min-height: 900px; background: #101113; color: #ece9e2; font-family: 'IBM Plex Sans', 'Helvetica Neue', sans-serif; font-size: 14px;">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 12px 20px; border-bottom: 1px solid #2c3036; background: #15171a;">
+    <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 15px; letter-spacing: 0.18em;">BREAKSEQ</span>
+    <nav aria-label="Pipeline" style="display: flex; flex-wrap: wrap; gap: 2px; background: #0c0d0f; padding: 4px; border-radius: 8px;">
+<button type="button" style="min-height: 36px; padding: 0 12px; border: none; border-radius: 6px; background: transparent; color: #a3a098; display: flex; gap: 6px; align-items: center;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8c8a84;">1</span>Samples</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: none; border-radius: 6px; background: transparent; color: #a3a098; display: flex; gap: 6px; align-items: center;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8c8a84;">2</span>Matrices</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: none; border-radius: 6px; background: transparent; color: #a3a098; display: flex; gap: 6px; align-items: center;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8c8a84;">3</span>Loops</button>
+<button type="button" aria-current="page" style="min-height: 36px; padding: 0 12px; border: none; border-radius: 6px; background: #2a2e33; font-weight: 600; display: flex; gap: 6px; align-items: center;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #e8b04a;">4</span>Mods</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: none; border-radius: 6px; background: transparent; color: #a3a098; display: flex; gap: 6px; align-items: center;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8c8a84;">5</span>Song</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: none; border-radius: 6px; background: transparent; color: #a3a098; display: flex; gap: 6px; align-items: center;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8c8a84;">6</span>Project</button>
+    </nav>
+    <div style="margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+      <label style="display: flex; align-items: baseline; gap: 6px; min-height: 40px; padding: 0 12px; border: 1px solid #2c3036; border-radius: 6px; background: #0c0d0f; font-family: 'IBM Plex Mono', monospace;">
+        <input aria-label="Tempo in BPM" value="170" style="width: 40px; border: none; background: transparent; text-align: right; font-size: 15px; line-height: 40px;">
+        <span style="font-size: 13px; color: #8c8a84;">BPM</span>
+      </label>
+      <button type="button" onClick="{{togglePlay}}" aria-label="{{playLabel}}" title="Plays the mod on the loop under Plays on, in a loop (Space)" style="width: 44px; height: 40px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; color: #ece9e2; display: grid; place-items: center;">
+        <sc-if value="{{playing}}" hint-placeholder-val="{{ false }}"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" fill="currentColor"></rect></svg></sc-if>
+        <sc-if value="{{stopped}}" hint-placeholder-val="{{ true }}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 2.5l9 5.5-9 5.5z"></path></svg></sc-if>
+      </button>
+      <button type="button" onClick="{{toggleLoop}}" aria-pressed="{{loop}}" style="{{loopStyle}}">Loop</button>
+      <button type="button" onClick="{{undo}}" aria-label="{{undoLabel}}" title="{{undoLabel}}" style="{{undoStyle}}">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3L2 6l3 3M2 6h7.5a4 4 0 010 8H7"></path></svg>
+      </button>
+      <button type="button" aria-label="Nothing to redo" disabled style="width: 44px; height: 40px; border: 1px solid #2c3036; border-radius: 6px; background: transparent; color: #5a5c60; display: grid; place-items: center;">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l3 3-3 3M14 6H6.5a4 4 0 000 8H9"></path></svg>
+      </button>
+      <button type="button" onClick="{{rerollAll}}" aria-label="Reroll everything" title="Reroll everything: new random for the whole project (undo brings it back)" style="width: 44px; height: 40px; margin-left: 8px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 18px; display: grid; place-items: center;">🎲</button>
+      <button type="button" style="min-height: 40px; padding: 0 14px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226;">Load</button>
+      <button type="button" disabled style="min-height: 40px; padding: 0 14px; border: 1px solid #2c3036; border-radius: 6px; background: transparent; color: #6f6c66;">Save</button>
+    </div>
+    <div style="flex: 1 0 100%; min-width: 0; min-height: 40px; display: flex; align-items: center; gap: 10px; overflow-x: auto; white-space: nowrap; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">
+      <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 17px; font-weight: 600; color: #ece9e2;">{{current}}</span>
+      <span style="font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: #a3a098;">{{currentDetail}}</span>
+      <sc-if value="{{heard}}" hint-placeholder-val="{{ true }}">
+        <span aria-hidden="true" style="color: #8c8a84; font-size: 15px;">›</span>
+        <a href="#song" title="Heard in the song: open Song">♪ Song →</a>
+      </sc-if>
+      <span role="status" style="margin-left: auto; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: #e8b04a;">{{status}}</span>
+    </div>
+  </header>
+
+  <main style="max-width: 1400px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-left, 0px)) 40px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+      <section aria-label="List" style="flex: 0 0 300px; max-width: 100%; border: 1px solid #2c3036; border-radius: 10px; background: #15171a; padding: 8px; display: flex; flex-direction: column; gap: 2px;">
+        <div style="display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 4px 0 8px 4px; margin-bottom: 4px; border-bottom: 1px solid #2c3036; white-space: nowrap;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #8c8a84; padding-left: 4px;">Mods</span>
+          <button type="button" onClick="{{newMod}}" title="An empty mod, selected: it does nothing until you add an effect" style="min-height: 30px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226;">+ New mod</button>
+        </div>
+        <sc-for list="{{list}}" as="m" hint-placeholder-count="4">
+          <button type="button" onClick="{{m.pick}}" aria-pressed="{{m.on}}" style="{{m.style}}">
+            <span style="flex: 1; font-family: 'IBM Plex Mono', monospace; color: #c39bd3;">{{m.name}}</span>
+            <span style="font-size: 12px; color: #8c8a84;">{{m.effects}}</span>
+            <span style="font-size: 12px; color: #e8b04a; width: 10px;">{{m.heard}}</span>
+          </button>
+        </sc-for>
+        <p style="margin: 8px 6px 4px; font-size: 12px; color: #8c8a84;">Click a mod to edit it and hear it on the loop under Plays on.</p>
+      </section>
+
+      <div style="flex: 1 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+        <section aria-label="Mod" style="border: 1px solid #e8b04a; border-radius: 10px; background: #15171a;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #2c3036;">
+            <sc-if value="{{rn.off}}" hint-placeholder-val="{{ true }}">
+              <span style="font-size: 17px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; color: #c39bd3; padding: 0 4px;">{{current}}</span>
+              <button type="button" onClick="{{rn.start}}" title="Rename the mod" style="min-height: 36px; padding: 0 12px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226;">Rename</button>
+            </sc-if>
+            <sc-if value="{{rn.on}}" hint-placeholder-val="{{ false }}">
+              <input aria-label="Mod name" value="{{rn.draft}}" onInput="{{rn.type}}" onKeyDown="{{rn.key}}" autofocus style="min-height: 34px; width: 220px; padding: 0 8px; border: 1px solid #e8b04a; border-radius: 6px; background: #0c0d0f; font-size: 14px;">
+              <span style="font-size: 12px; color: #8c8a84;">Enter saves · Esc cancels</span>
+            </sc-if>
+            <button type="button" onClick="{{clone}}" title="A copy of the mod, selected" style="min-height: 36px; padding: 0 12px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226;">Clone</button>
+            <button type="button" onClick="{{remove}}" aria-label="Delete mod" title="Delete the mod" style="width: 36px; height: 36px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; color: #a3a098; display: grid; place-items: center;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"></path></svg></button>
+            <button type="button" onClick="{{rerollMod}}" aria-label="Reroll this mod" title="Reroll this mod: its dice steps roll new values everywhere it plays (undo brings it back)" style="width: 36px; height: 36px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 16px; display: grid; place-items: center;">🎲</button>
+            <span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3a098;">{{effectCount}}</span>
+          </div>
+
+          <div style="padding: 12px; display: flex; flex-direction: column; gap: 12px;">
+            <sc-if value="{{noEffects}}" hint-placeholder-val="{{ false }}">
+              <p style="margin: 0; padding: 18px; border: 1px dashed #3a3f45; border-radius: 8px; color: #a3a098; text-align: center;">No effects yet: the mod does nothing. Add one below.</p>
+            </sc-if>
+            <sc-for list="{{effects}}" as="f" hint-placeholder-count="3">
+              <article aria-label="{{f.name}}" style="border: 1px solid #2c3036; border-radius: 8px; background: #121416;">
+                <sc-if value="{{f.lane}}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; align-items: baseline; gap: 10px; padding: 12px 14px 0;">
+                    <h3 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.01em;">{{f.name}}</h3>
+                    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8c8a84; border: 1px solid #3a3f45; border-radius: 4px; padding: 0 6px;">{{f.unit}}</span>
+                    <button type="button" onClick="{{f.remove}}" aria-label="{{f.removeLabel}}" title="{{f.removeLabel}}" style="margin-left: auto; align-self: center; width: 32px; height: 32px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; color: #a3a098; display: grid; place-items: center;"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"></path></svg></button>
+                  </div>
+                  <p aria-live="polite" style="margin: 2px 14px 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #a3a098;">{{f.sentence}}</p>
+                  <sc-if value="{{f.hasNote}}" hint-placeholder-val="{{ false }}">
+                    <p title="Audio mods sample what is heard under their clip: Main or Fill with every step mod, reverb and delay, and tape. Never themselves, and never another audio mod (Tape, Scratch, Scramble, Stutter, Freeze, Reverse, Rewind, Halftime)." style="margin: 2px 14px 0; font-size: 12px; color: #8c8a84;">Source: what’s heard (step mods, reverb/delay, tape), never itself or another audio mod. Every roll is seeded.</p>
+                  </sc-if>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 14px 8px;">
+                    <sc-if value="{{f.hasLane}}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size: 12px; color: #8c8a84;">Step</span>
+                    <div role="group" aria-label="Step size" style="display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: #0c0d0f;">
+                      <sc-for list="{{f.sizes}}" as="z" hint-placeholder-count="3">
+                        <button type="button" onClick="{{z.pick}}" aria-pressed="{{z.on}}" title="{{z.title}}" style="{{z.style}}">{{z.label}}</button>
+                      </sc-for>
+                    </div>
+                    <span style="font-size: 12px; color: #8c8a84; margin-left: 6px;">Length</span>
+                    <div role="group" aria-label="Length" style="display: flex; align-items: center; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226;">
+                      <button type="button" onClick="{{f.less}}" aria-label="One step fewer" title="One step fewer" style="width: 30px; height: 30px; border: none; background: transparent; font-size: 16px;">−</button>
+                      <span style="min-width: 64px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">{{f.count}}</span>
+                      <button type="button" onClick="{{f.more}}" aria-label="One step more" title="One step more: a copy of the last" style="width: 30px; height: 30px; border: none; background: transparent; font-size: 16px;">+</button>
+                    </div>
+                    <span aria-hidden="true" style="width: 1px; height: 22px; background: #2c3036; margin: 0 4px;"></span>
+                    <button type="button" onClick="{{f.randomize}}" title="Fill the steps with random fixed values, as if drawn. Shift-click: dice steps" style="min-height: 32px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">Randomize</button>
+                    <button type="button" onClick="{{f.diceAll}}" title="Shift+Randomize: fill the steps with dice steps, each rolling a new value every pass" style="min-height: 32px; padding: 0 10px; border: 1px dashed #8c8a84; border-radius: 6px; background: transparent; color: #a3a098; font-size: 12px;">Shift: dice</button>
+                    <sc-if value="{{f.canRamp}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{f.ramp}}" title="{{f.rampTitle}}" style="min-height: 32px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">{{f.rampLabel}}</button></sc-if>
+                    <button type="button" onClick="{{f.clear}}" title="{{f.clearTitle}}" style="min-height: 32px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">Clear</button>
+                    <sc-for list="{{f.presets}}" as="o" hint-placeholder-count="0">
+                      <button type="button" onClick="{{o.pick}}" title="{{o.title}}" style="min-height: 32px; padding: 0 10px; border: 1px solid #e8b04a; border-radius: 6px; background: #2e2715; color: #e8b04a; font-size: 13px;">{{o.label}}</button>
+                    </sc-for>
+                    </sc-if>
+                    <sc-for list="{{f.extras}}" as="x" hint-placeholder-count="0">
+                      <span style="font-size: 12px; color: #8c8a84; margin-left: 6px;">{{x.label}}</span>
+                      <div role="group" aria-label="{{x.label}}" style="display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: #0c0d0f;">
+                        <sc-for list="{{x.opts}}" as="o" hint-placeholder-count="2">
+                          <button type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="{{o.style}}">{{o.label}}</button>
+                        </sc-for>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <sc-if value="{{f.hasLane}}" hint-placeholder-val="{{ true }}">
+                  <div style="padding: 0 14px 12px;">
+                    <div aria-hidden="true" style="position: relative; height: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #8c8a84;">
+                      <sc-for list="{{f.marks}}" as="k" hint-placeholder-count="8"><span style="{{k.style}}">{{k.label}}</span></sc-for>
+                    </div>
+                    <div role="group" aria-label="{{f.laneLabel}}" onPointerDown="{{f.down}}" onPointerMove="{{f.move}}" onPointerUp="{{f.up}}" onPointerCancel="{{f.up}}" style="{{f.laneStyle}}">
+                      <sc-if value="{{f.bipolar}}" hint-placeholder-val="{{ false }}"><span style="{{f.zeroStyle}}"></span></sc-if>
+                      <sc-for list="{{f.ghosts}}" as="g" hint-placeholder-count="4">
+                        <div style="{{g.style}}"><span style="{{g.shape}}"></span></div>
+                      </sc-for>
+                      <span style="{{f.ghostShade}}"></span>
+                      <span title="The lane ends here and starts again: in Song it loops over the whole clip" style="{{f.endStyle}}">↻</span>
+                      <sc-for list="{{f.steps}}" as="p" hint-placeholder-count="4">
+                        <div class="stp" title="{{p.title}}" style="{{p.style}}">
+                          <span style="{{p.shape}}"></span>
+                          <sc-if value="{{p.dice}}" hint-placeholder-val="{{ false }}">
+                            <button type="button" onPointerDown="{{stop}}" onClick="{{p.chanceCycle}}" title="Chance it changes anything on a pass: click for 100 / 75 / 50 / 25 %" style="position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); padding: 0 3px; border: none; border-radius: 3px; background: #0c0d0f; color: #e8b04a; font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 14px;">{{p.chance}}</button>
+                          </sc-if>
+                          <button type="button" class="dt" onPointerDown="{{stop}}" onClick="{{p.toggle}}" aria-label="{{p.toggleLabel}}" title="{{p.toggleLabel}}" style="{{p.dtStyle}}">🎲</button>
+                          <sc-if value="{{p.bubble}}" hint-placeholder-val="{{ false }}">
+                            <span style="{{p.bubbleStyle}}">{{p.bubbleText}}</span>
+                          </sc-if>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div aria-hidden="true" style="position: relative; height: 18px; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #a3a098;">
+                      <sc-for list="{{f.steps}}" as="p" hint-placeholder-count="4"><span style="{{p.valStyle}}">{{p.short}}</span></sc-for>
+                    </div>
+                  </div>
+                  </sc-if>
+                  <sc-if value="{{f.hasViz}}" hint-placeholder-val="{{ false }}">
+                    <div style="padding: 0 14px 14px;">
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 6px;">
+                        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #8c8a84;">Where each cell comes from</span>
+                        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3a098;">{{f.viz.note}}</span>
+                        <button type="button" onClick="{{rerollMod}}" title="Reroll: every cell picks again (undo brings the previous roll back)" style="margin-left: auto; min-height: 30px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">🎲 Reroll</button>
+                      </div>
+                      <div style="position: relative; height: 172px; border: 1px solid #2c3036; border-radius: 6px; background: #0c0d0f; overflow: hidden;">
+                        <sc-for list="{{f.viz.bars}}" as="b" hint-placeholder-count="5"><span style="{{b.style}}">{{b.label}}</span></sc-for>
+                        <span title="Take from: the cells a swapped cell can come from" style="{{f.viz.rangeStyle}}"></span>
+                        <span title="The clip" style="{{f.viz.clipStyle}}"></span>
+                        <sc-for list="{{f.viz.src}}" as="c" hint-placeholder-count="16"><span title="{{c.title}}" style="{{c.style}}"></span></sc-for>
+                        <svg aria-hidden="true" viewBox="0 0 1000 172" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+                          <path d="{{f.viz.arrows}}" fill="none" stroke="#ece9e2" stroke-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+                          <path d="{{f.viz.revArrows}}" fill="none" stroke="#7fb3d5" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+                        </svg>
+                        <sc-for list="{{f.viz.dst}}" as="c" hint-placeholder-count="16"><span title="{{c.title}}" style="{{c.style}}">{{c.label}}</span></sc-for>
+                      </div>
+                      <p style="margin: 6px 0 0; font-size: 12px; color: #8c8a84;">Top: the song cut in cells; the dashed box is Take from. Bottom: the clip’s cells; each swapped cell plays the one its arrow comes from, ◂ and a blue arrow reversed. Faint cells play as heard. The lane above sets each step’s chance to swap.</p>
+                    </div>
+                  </sc-if>
+                </sc-if>
+                <sc-if value="{{f.collapsed}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; align-items: baseline; gap: 10px; padding: 12px 14px;">
+                    <span aria-hidden="true" style="color: #8c8a84;">▸</span>
+                    <h3 style="margin: 0; font-size: 20px; font-weight: 600;">{{f.name}}</h3>
+                    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #a3a098;">— keeps its own settings (not sketched)</span>
+                    <button type="button" onClick="{{f.remove}}" aria-label="{{f.removeLabel}}" title="{{f.removeLabel}}" style="margin-left: auto; align-self: center; width: 32px; height: 32px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; color: #a3a098; display: grid; place-items: center;"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"></path></svg></button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{f.scratch}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; align-items: baseline; gap: 10px; padding: 12px 14px 0;">
+                    <h3 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.01em;">{{f.name}}</h3>
+                    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8c8a84; border: 1px solid #3a3f45; border-radius: 4px; padding: 0 6px;">needle + fader</span>
+                    <button type="button" onClick="{{f.remove}}" aria-label="{{f.removeLabel}}" title="{{f.removeLabel}}" style="margin-left: auto; align-self: center; width: 32px; height: 32px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; color: #a3a098; display: grid; place-items: center;"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"></path></svg></button>
+                  </div>
+                  <p aria-live="polite" style="margin: 2px 14px 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #a3a098;">{{f.sentence}}</p>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 14px 0;">
+                    <span style="font-size: 13px; color: #a3a098;">Records the first</span>
+                    <span style="position: relative; display: inline-flex;">
+                      <select class="slim" aria-label="Recorded length" value="{{f.rec}}" onChange="{{f.pickRec}}" title="Like Tape: what is heard under the start of the clip is recorded, then played by the hand">
+                        <sc-for list="{{f.recs}}" as="o" hint-placeholder-count="4"><option value="{{o}}">{{o}}</option></sc-for>
+                      </select>
+                      <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" style="position: absolute; right: 9px; top: 50%; margin-top: -5px; pointer-events: none; color: #e8b04a;"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    </span>
+                    <span style="font-size: 13px; color: #a3a098;">under the clip</span>
+                    <span aria-hidden="true" style="width: 1px; height: 22px; background: #2c3036; margin: 0 4px;"></span>
+                    <span style="font-size: 12px; color: #8c8a84;">Step</span>
+                    <div role="group" aria-label="Step size" style="display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: #0c0d0f;">
+                      <sc-for list="{{f.sizes}}" as="z" hint-placeholder-count="3">
+                        <button type="button" onClick="{{z.pick}}" aria-pressed="{{z.on}}" title="{{z.title}}" style="{{z.style}}">{{z.label}}</button>
+                      </sc-for>
+                    </div>
+                    <span style="font-size: 12px; color: #8c8a84; margin-left: 6px;">Length</span>
+                    <div role="group" aria-label="Length" style="display: flex; align-items: center; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226;">
+                      <button type="button" onClick="{{f.less}}" aria-label="One step fewer" title="One step fewer" style="width: 30px; height: 30px; border: none; background: transparent; font-size: 16px;">−</button>
+                      <span style="min-width: 64px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">{{f.count}}</span>
+                      <button type="button" onClick="{{f.more}}" aria-label="One step more" title="One step more: a copy of the last" style="width: 30px; height: 30px; border: none; background: transparent; font-size: 16px;">+</button>
+                    </div>
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 14px 8px;">
+                    <span style="font-size: 12px; color: #8c8a84;">Start from</span>
+                    <sc-for list="{{f.presets}}" as="o" hint-placeholder-count="4">
+                      <button type="button" onClick="{{o.pick}}" title="{{o.title}}" style="min-height: 32px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">{{o.label}}</button>
+                    </sc-for>
+                    <span aria-hidden="true" style="width: 1px; height: 22px; background: #2c3036; margin: 0 4px;"></span>
+                    <button type="button" onClick="{{f.randomize}}" title="A random hand movement and fader, as if drawn" style="min-height: 32px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">🎲 Randomize</button>
+                    <button type="button" onClick="{{f.ramp}}" title="{{f.rampTitle}}" style="min-height: 32px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">{{f.rampLabel}}</button>
+                    <button type="button" onClick="{{f.clear}}" title="Play normally: forward through the recording at 1×, the fader open" style="min-height: 32px; padding: 0 10px; border: 1px solid #3a3f45; border-radius: 6px; background: #1f2226; font-size: 13px;">Clear</button>
+                    <span style="margin-left: auto; display: flex; gap: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">
+                      <span style="color: #e8b04a;">▸ forward</span><span style="color: #7fb3d5;">◂ backwards</span><span style="color: #8c8a84;">– held (silent)</span>
+                    </span>
+                  </div>
+                  <div style="padding: 0 14px 12px;">
+                    <div aria-hidden="true" style="position: relative; height: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #8c8a84;">
+                      <sc-for list="{{f.marks}}" as="k" hint-placeholder-count="8"><span style="{{k.style}}">{{k.label}}</span></sc-for>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 3px 8px; align-items: stretch;">
+                      <span style="display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #8c8a84; text-align: right;"><span>end</span><span>Needle</span><span>start</span></span>
+                      <div role="group" aria-label="Needle position" onPointerDown="{{f.down}}" onPointerMove="{{f.move}}" onPointerUp="{{f.up}}" onPointerCancel="{{f.up}}" style="{{f.laneStyle}}">
+                        <sc-for list="{{f.mutes}}" as="m" hint-placeholder-count="2"><span style="{{m}}"></span></sc-for>
+                        <svg aria-hidden="true" viewBox="0 0 1000 150" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;">
+                          <path d="{{f.ghostD}}" fill="none" stroke="#8c8a84" stroke-opacity="0.35" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+                          <path d="{{f.jumpD}}" fill="none" stroke="#ece9e2" stroke-opacity="0.6" stroke-width="1.5" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"></path>
+                          <path d="{{f.heldD}}" fill="none" stroke="#8c8a84" stroke-width="2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"></path>
+                          <path d="{{f.fwdD}}" fill="none" stroke="#e8b04a" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                          <path d="{{f.backD}}" fill="none" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                        </svg>
+                        <span style="{{f.ghostShade}}"></span>
+                        <span title="The movement ends here and starts again: in Song it loops over the whole clip" style="{{f.endStyle}}">↻</span>
+                        <sc-for list="{{f.pts}}" as="p" hint-placeholder-count="8">
+                          <span title="{{p.title}}" style="{{p.dot}}"></span>
+                          <sc-if value="{{p.bubble}}" hint-placeholder-val="{{ false }}"><span style="{{p.bubbleStyle}}">{{p.bubbleText}}</span></sc-if>
+                        </sc-for>
+                      </div>
+                      <span></span>
+                      <div aria-hidden="true" style="position: relative; height: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 10px;">
+                        <sc-for list="{{f.speeds}}" as="p" hint-placeholder-count="8"><span title="{{p.title}}" style="{{p.style}}">{{p.label}}</span></sc-for>
+                      </div>
+                      <span style="align-self: center; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #8c8a84; text-align: right;">Fader</span>
+                      <div role="group" aria-label="Crossfader" style="position: relative; height: 28px; border: 1px solid #2c3036; border-radius: 6px; background: #0c0d0f; overflow: hidden;">
+                        <sc-for list="{{f.ghostParts}}" as="g" hint-placeholder-count="4"><span style="{{g}}"></span></sc-for>
+                        <sc-for list="{{f.parts}}" as="c" hint-placeholder-count="8">
+                          <button type="button" onClick="{{c.toggle}}" aria-pressed="{{c.on}}" aria-label="{{c.title}}" title="{{c.title}}" style="{{c.style}}"></button>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <p style="margin: 8px 0 0; font-size: 12px; color: #8c8a84;">Needle: where the hand holds the record, from the start of the recording (bottom) to its end (top), one point per step, smoothed between. Steeper is faster; going down is backwards; flat is the record held still, silent. At ↻ the needle is lifted and jumps back to the first point (dashed): no stroke. Drag a point up or down, or across to paint. Fader: click a cell to open or close it (closed is muted); Alt-click splits it in two halves, or joins them.</p>
+                  </div>
+                </sc-if>
+              </article>
+            </sc-for>
+
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+              <span style="position: relative; display: inline-flex;">
+                <select class="slim" aria-label="Add effect" value="{{addVal}}" onChange="{{add}}" title="One effect per target">
+                  <option value="">+ Add effect</option>
+                  <sc-for list="{{targets}}" as="t" hint-placeholder-count="8"><option value="{{t.key}}">{{t.label}}</option></sc-for>
+                </select>
+                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" style="position: absolute; right: 9px; top: 50%; margin-top: -5px; pointer-events: none; color: #e8b04a;"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </span>
+              <span style="font-size: 12px; color: #8c8a84;">One effect per target.</span>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: #8c8a84;">Drag up or down on a step to set it; drag across steps to paint them. Hover a step and click 🎲 to make it a dice step (click 🎲 again to fix it): it rolls a new value in its band every pass, with the chance under it. On a dice step a drag moves the nearer edge of its band. After ↻ the lane loops on, faint, as it does over a clip in Song.</p>
+          </div>
+        </section>
+
+        <section aria-label="Preview" style="border: 1px solid #2c3036; border-radius: 10px; background: #15171a;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-bottom: 1px solid #2c3036;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #8c8a84;">Preview</span>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #a3a098;">Plays on
+              <span style="position: relative; display: inline-flex;">
+                <select class="slim" aria-label="Plays on" value="{{plays}}" onChange="{{pickPlays}}">
+                  <sc-for list="{{loops}}" as="o" hint-placeholder-count="3"><option value="{{o.key}}">{{o.label}}</option></sc-for>
+                </select>
+                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" style="position: absolute; right: 9px; top: 50%; margin-top: -5px; pointer-events: none; color: #e8b04a;"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </span>
+            </label>
+            <span style="margin-left: auto; font-size: 12px; color: #8c8a84;">{{passLabel}}</span>
+          </div>
+          <div style="position: relative; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px;">
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: 110px repeat(16, minmax(0, 1fr)); gap: 3px; align-items: stretch;">
+                <span style="{{r.labelStyle}}">{{r.label}}</span>
+                <sc-for list="{{r.cells}}" as="c" hint-placeholder-count="16">
+                  <span title="{{c.title}}" style="{{c.style}}">{{c.label}}<span style="{{c.band}}"></span><span style="{{c.bar}}"></span></span>
+                </sc-for>
+              </div>
+            </sc-for>
+            <sc-if value="{{playing}}" hint-placeholder-val="{{ false }}">
+              <div aria-hidden="true" style="position: absolute; top: 10px; bottom: 12px; left: calc(12px + 113px); right: 12px; pointer-events: none;">
+                <span onAnimationIteration="{{nextPass}}" style="{{playheadStyle}}"></span>
+              </div>
+            </sc-if>
+          </div>
+          <p style="margin: 0; padding: 0 12px 12px; font-size: 12px; color: #8c8a84;">What you draw is what plays: each lane runs from the loop’s start and loops on its own length, so 3 steps of 1/16 fall differently on every beat. A value holds over its step and changes every hit in it; faint cells have no hit. Each pass rolls the dice steps again; in Song a clip keeps its roll until you reroll it.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const fx = (id, t, size, steps, extra) => ({ id, t, size, steps, extra: extra || {} });
+    const v = (x) => ({ v: x });
+    const d = (lo, hi, chance) => ({ v: Math.round((lo + hi) / 2), dice: true, lo, hi, chance });
+    const cut = Array.from({ length: 8 }, (_, k) => { const x = 12000 * Math.pow(300 / 12000, k / 7); return v(x < 1000 ? Math.round(x / 10) * 10 : Math.round(x / 100) * 100); });
+    this._drag = null;
+    this.state = {
+      playing: false, loop: true, pick: 'glitch', draft: null, drag: null, hist: [], status: '', pass: 0, seed: 1, plays: 'amen1', next: 1,
+      order: ['wobble', 'stutter', 'dive', 'gate', 'dj', 'glitch'],
+      mods: {
+        glitch: { name: 'Glitch box', heard: false, effects: [
+          fx('a1', 'scramble', 'beat', [v(100), v(25), v(75), d(0, 100, 75)], { cell: '1/16', from: 'Whole song', n: 2, rev: 25 }),
+          fx('a2', 'stutter', '1/16', [0, 0, 0, 0, 1, 2, 3, 3].map((x) => v(x)), { grab: '1/16', drift: -1, gate: 75 }),
+          fx('a3', 'freeze', '1/16', [0, 0, 1, 1, 0, 0, 0, 1].map((x) => v(x)), { grain: 30, spread: 25, level: -3 }),
+          fx('a4', 'reverse', 'beat', [v(0), v(1), v(0), { v: 0, dice: true, lo: 0, hi: 1, chance: 50 }], { cell: '1/16' }),
+          fx('a5', 'rewind', 'beat', [0, 0, 0, 1].map((x) => v(x)), { len: '1 bar', curve: 'Spin-back' }),
+          fx('a6', 'halftime', 'beat', [v(0)], { speed: '×0.5', keep: 'Off' })
+        ] },
+        dj: { name: 'DJ hands', heard: false, effects: [
+          { id: 'k1', t: 'scratch', size: '1/16', rec: '1 bar', pts: [0.1, 0.3, 0.2, 0.2, 0.1, 0.25, 0.1, 0.25], fader: [[true], [true], [true], [true], [true], [true, false], [true], [true, false]] },
+          { id: 'k2', t: 'tape', collapsed: true }
+        ] },
+        wobble: { name: 'Break wobble', heard: true, effects: [
+          fx('e1', 'volume', 'beat', [v(0), v(-6), v(-3), v(-12)]),
+          fx('e2', 'pitch', '1/16', [v(0), d(-7, 5, 75), v(-5)], { semis: true }),
+          fx('e3', 'filter', 'beat', cut, { type: 'lp', res: 30 }),
+          { id: 'e4', t: 'swap', collapsed: true }
+        ] },
+        stutter: { name: 'Stutter end', heard: true, effects: [fx('s1', 'ratchet', 'beat', [v(1), v(1), v(2), v(4)]), fx('s2', 'pitch', 'beat', [v(0), v(0), v(0), v(7)], { semis: true })] },
+        dive: { name: 'Pitch dive', heard: true, effects: [fx('d1', 'pitch', 'beat', [v(0), v(-3), v(-7), v(-12)], { semis: true })] },
+        gate: { name: 'Gate 8ths', heard: false, effects: [fx('g1', 'volume', '1/16', [v(0), v(-24)])] }
+      }
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const set = (o) => this.setState(o);
+    const toggle = (on) => 'min-height: 36px; padding: 0 12px; border-radius: 6px; font-size: 13px; border: 1px solid ' + (on ? '#e8b04a' : '#3a3f45') + '; background: ' + (on ? '#2e2715' : 'transparent') + '; color: ' + (on ? '#e8b04a' : '#a3a098') + ';';
+    const seg = (on) => 'min-height: 28px; padding: 0 10px; border: none; border-radius: 6px; font-size: 13px; font-family: "IBM Plex Mono", monospace; background: ' + (on ? '#2a2e33' : 'transparent') + '; color: ' + (on ? '#ece9e2' : '#a3a098') + '; font-weight: ' + (on ? 600 : 400) + ';';
+    const row = (on) => 'display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: none; border-radius: 6px; font-size: 13px; text-align: left; background: ' + (on ? '#2a2e33' : 'transparent') + '; color: ' + (on ? '#ece9e2' : '#a3a098') + '; box-shadow: ' + (on ? 'inset 2px 0 0 #e8b04a' : 'none') + ';';
+    const pct = (x) => (x * 100).toFixed(4) + '%';
+    const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+    // Targets: unit, range, and whether bars grow from a zero line (bipolar) or from the bottom.
+    const T = {
+      volume: { name: 'Volume', unit: 'dB', min: -24, max: 6, zero: 0, step: 1, signed: true },
+      pitch: { name: 'Pitch', unit: 'st', min: -12, max: 12, zero: 0, step: 1, signed: true, bipolar: true },
+      filter: { name: 'Filter cutoff', unit: 'Hz', min: 60, max: 18000, zero: 18000, log: true },
+      pan: { name: 'Pan', unit: '%', min: -100, max: 100, zero: 0, step: 5, signed: true, bipolar: true },
+      ratchet: { name: 'Ratchet', unit: '×', min: 1, max: 8, zero: 1, step: 1 },
+      dist: { name: 'Dist', unit: '%', min: 0, max: 100, zero: 0, step: 5 },
+      reverb: { name: 'Reverb', unit: '%', min: 0, max: 100, zero: 0, step: 5 },
+      delay: { name: 'Delay', unit: '%', min: 0, max: 100, zero: 0, step: 5 },
+      stretch: { name: 'Stretch', unit: '×', min: 0.25, max: 4, zero: 1, log: true },
+      // Audio mods: they sample what is heard under the clip.
+      scramble: { name: 'Scramble', unit: '% swap', min: 0, max: 100, zero: 0, step: 5, audio: true },
+      stutter: { name: 'Stutter', unit: 'repeat', min: 0, max: 3, zero: 0, step: 1, audio: true, labels: ['off', '1/16', '1/32', '1/64'] },
+      freeze: { name: 'Freeze', unit: 'on/off', min: 0, max: 1, zero: 0, step: 1, audio: true, toggle: true, labels: ['·', '❄'], words: ['passes through', 'frozen'] },
+      reverse: { name: 'Reverse', unit: 'on/off', min: 0, max: 1, zero: 0, step: 1, audio: true, toggle: true, labels: ['▸', '◂'], words: ['forward', 'reversed'] },
+      rewind: { name: 'Rewind', unit: 'fires', min: 0, max: 1, zero: 0, step: 1, audio: true, toggle: true, labels: ['·', '⟲'], words: ['does not fire', 'fires'] },
+      halftime: { name: 'Halftime', unit: 'speed', min: 0, max: 1, zero: 0, step: 1, audio: true, noLane: true }
+    };
+    const OTHER = { swap: 'Swap', member: 'Pad member', direction: 'Direction', tempo: 'Tempo (slip)', tape: 'Tape', scratch: 'Scratch' };
+    const SL = { '1/16': 1, beat: 4, bar: 16 };
+    const q = (t, x) => {
+      const D = T[t]; x = clamp(x, D.min, D.max);
+      if (t === 'stretch') return Math.round(x * 100) / 100;
+      if (D.log) { const p = x < 1000 ? 10 : 100; return Math.round(x / p) * p; }
+      return Math.round(x / D.step) * D.step;
+    };
+    const norm = (t, x) => { const D = T[t]; return D.log ? Math.log(x / D.min) / Math.log(D.max / D.min) : (x - D.min) / (D.max - D.min); };
+    const denorm = (t, n) => { const D = T[t]; n = clamp(n, 0, 1); return q(t, D.log ? D.min * Math.pow(D.max / D.min, n) : D.min + n * (D.max - D.min)); };
+    const baseN = (t) => (T[t].bipolar ? norm(t, 0) : 0);
+    const num = (t, x) => {
+      const D = T[t];
+      if (D.labels) return D.labels[Math.round(x)];
+      if (t === 'filter') return x >= 1000 ? String(Math.round(x / 100) / 10) + 'k' : String(Math.round(x));
+      if (t === 'stretch') return String(Math.round(x * 100) / 100);
+      const a = Math.round(x);
+      return D.signed ? (a > 0 ? '+' : a < 0 ? '−' : '') + Math.abs(a) : String(a);
+    };
+    const full = (t, x) => {
+      if (T[t].words) return T[t].words[Math.round(x)];
+      if (T[t].labels) return x > 0 ? 'repeats ' + T[t].labels[Math.round(x)] : 'off';
+      if (t === 'filter') return x >= 1000 ? (Math.round(x / 100) / 10) + ' kHz' : Math.round(x) + ' Hz';
+      const u = T[t].unit;
+      return num(t, x) + (u === '%' || u === '×' ? '' : ' ') + u;
+    };
+    const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h >>> 0) % 100000) / 100000; };
+
+    const mod = s.mods[s.pick];
+    const snap = () => ({ mods: s.mods, order: s.order, pick: s.pick, seed: s.seed });
+    const commit = (o, status) => set({ hist: [...s.hist, snap()], status: status || '', ...o });
+    const setMod = (m, status) => commit({ mods: { ...s.mods, [s.pick]: m } }, status);
+    const setEff = (id, fn, status) => setMod({ ...mod, effects: mod.effects.map((e) => (e.id === id ? fn(e) : e)) }, status);
+    const geo = (f) => { const sl = SL[f.size]; const len = f.steps.length * sl; return { sl, len, total: Math.max(32, Math.ceil((len + 1) / 16) * 16) }; };
+
+    // One look for a step, fixed or dice, in the lane and as a ghost after its end.
+    const shape = (t, st, ghost, size) => {
+      if (T[t].toggle) {
+        if (st.dice) return 'position: absolute; left: 3px; right: 3px; top: 24px; bottom: 4px; background: repeating-linear-gradient(135deg, rgb(232 176 74 / 0.5) 0 3px, rgb(232 176 74 / 0.12) 3px 7px); outline: 1px dashed rgb(232 176 74 / 0.9); outline-offset: -1px; border-radius: 3px; opacity: ' + (ghost ? 0.25 : 1) + '; pointer-events: none;';
+        return st.v ? 'position: absolute; left: 3px; right: 3px; top: 24px; bottom: 4px; background: #e8b04a; opacity: ' + (ghost ? 0.2 : 0.85) + '; border-radius: 3px; pointer-events: none;' : 'position: absolute; left: 3px; right: 3px; bottom: 4px; height: 2px; background: #3a3f45; pointer-events: none;';
+      }
+      if (t === 'stutter' && !st.dice) {
+        if (!st.v) return 'position: absolute; left: 3px; right: 3px; bottom: 4px; height: 2px; background: #3a3f45; pointer-events: none;';
+        // Drawn as the repeats themselves: one block per repeat inside the step.
+        const parts = SL[size || '1/16'] * Math.pow(2, st.v - 1);
+        return 'position: absolute; left: 3px; right: 3px; bottom: 0; height: ' + (35 + st.v * 20) + '%; background: linear-gradient(90deg, #e8b04a calc(100% - 2px), transparent 0); background-size: calc(100% / ' + parts + ') 100%; opacity: ' + (ghost ? 0.2 : 0.9) + '; pointer-events: none;';
+      }
+      if (!st.dice) {
+        const n = norm(t, st.v), b = baseN(t);
+        const lo = Math.min(n, b), hi = Math.max(n, b);
+        return 'position: absolute; left: 3px; right: 3px; bottom: ' + pct(lo) + '; height: max(2px, ' + pct(hi - lo) + '); background: #e8b04a; opacity: ' + (ghost ? 0.2 : 0.9) + '; border-radius: 2px; pointer-events: none;';
+      }
+      const lo = norm(t, st.lo), hi = norm(t, st.hi);
+      return 'position: absolute; left: 3px; right: 3px; bottom: ' + pct(lo) + '; height: max(4px, ' + pct(hi - lo) + '); background: repeating-linear-gradient(135deg, rgb(232 176 74 / 0.5) 0 3px, rgb(232 176 74 / 0.12) 3px 7px); outline: 1px dashed rgb(232 176 74 / 0.9); outline-offset: -1px; border-radius: 2px; opacity: ' + (ghost ? 0.25 : 1) + '; pointer-events: none;';
+    };
+
+    // Drawing: a working copy lives on the instance so fast moves never read stale state.
+    const valAt = (t, r, y) => denorm(t, 1 - (y - r.top) / r.height);
+    const paintAt = (i, val) => {
+      const D = this._drag;
+      if (D.mode === 'paint' || D.mode === 'toggle') {
+        if (D.mode === 'toggle') val = D.val;
+        const a = Math.min(D.last, i), b = Math.max(D.last, i);
+        for (let k = a; k <= b; k++) if (!D.steps[k].dice) D.steps[k] = { v: val };
+        D.last = i;
+      } else {
+        const st = D.steps[D.last];
+        const lo = D.mode === 'lo' ? Math.min(val, st.hi) : st.lo;
+        const hi = D.mode === 'hi' ? Math.max(val, st.lo) : st.hi;
+        D.steps[D.last] = { ...st, lo, hi, v: q(D.t, (lo + hi) / 2) };
+        i = D.last;
+      }
+      const m = D.base[D.modId];
+      this.setState({ hist: D.hist, status: '', drag: { e: D.effId, i, val, mode: D.mode }, mods: { ...D.base, [D.modId]: { ...m, effects: m.effects.map((x) => (x.id === D.effId ? { ...x, steps: D.steps.map((y) => ({ ...y })) } : x)) } } });
+    };
+    const laneHandlers = (f) => ({
+      down: (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        const el = e.currentTarget, r = el.getBoundingClientRect(), G = geo(f);
+        const i = Math.floor(((e.clientX - r.left) / r.width) * G.total / G.sl);
+        if (i < 0 || i >= f.steps.length) return;
+        e.preventDefault();
+        try { el.setPointerCapture(e.pointerId); } catch (_) { /* not every browser */ }
+        const val = valAt(f.t, r, e.clientY), st = f.steps[i];
+        const mode = T[f.t].toggle ? (st.dice ? null : 'toggle') : !st.dice ? 'paint' : Math.abs(norm(f.t, val) - norm(f.t, st.lo)) <= Math.abs(norm(f.t, val) - norm(f.t, st.hi)) ? 'lo' : 'hi';
+        if (!mode) return;
+        this._drag = { modId: s.pick, effId: f.id, base: s.mods, hist: [...s.hist, snap()], steps: f.steps.map((x) => ({ ...x })), last: i, mode, t: f.t, G, val: st.v ? 0 : 1 };
+        paintAt(i, val);
+      },
+      move: (e) => {
+        const D = this._drag;
+        if (!D || D.effId !== f.id) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        const i = clamp(Math.floor(((e.clientX - r.left) / r.width) * D.G.total / D.G.sl), 0, D.steps.length - 1);
+        paintAt(i, valAt(f.t, r, e.clientY));
+      },
+      up: () => { if (this._drag) { this._drag = null; set({ drag: null }); } }
+    });
+
+    const sizeWord = { '1/16': '1/16', beat: '1 beat', bar: '1 bar' };
+    const lengthNote = (f) => {
+      const n = f.steps.length;
+      if (f.size === 'bar') return n === 1 ? '' : '';
+      const six = n * SL[f.size];
+      if (six % 16 === 0) return ' (' + six / 16 + (six === 16 ? ' bar)' : ' bars)');
+      if (f.size === '1/16') return six % 4 === 0 ? ' (' + six / 4 + (six === 4 ? ' beat)' : ' beats)') : ' (' + six + '/16)';
+      return '';
+    };
+    const sentence = (f) => {
+      const D = T[f.t], n = f.steps.length;
+      if (D.audio) return audioSentence(f);
+      const vals = [];
+      f.steps.forEach((st) => { if (st.dice) vals.push(st.lo, st.hi); else vals.push(st.v); });
+      const lo = Math.min(...vals), hi = Math.max(...vals);
+      const [a, b] = Math.abs(norm(f.t, lo) - norm(f.t, D.zero)) < Math.abs(norm(f.t, hi) - norm(f.t, D.zero)) ? [lo, hi] : [hi, lo];
+      const range = lo === hi ? 'at ' + full(f.t, lo) : f.t === 'filter' ? full(f.t, a) + ' to ' + full(f.t, b) : num(f.t, a) + ' to ' + full(f.t, b);
+      const dice = f.steps.filter((x) => x.dice).length;
+      return D.name + ' · ' + n + (n === 1 ? ' step' : ' steps') + ' of ' + sizeWord[f.size] + lengthNote(f) + ', loops · ' + range + (dice ? ', ' + dice + (dice === 1 ? ' dice step' : ' dice steps') : '');
+    };
+    const audioSentence = (f) => {
+      const D = T[f.t], n = f.steps.length, x = f.extra;
+      const lane = n + (n === 1 ? ' step' : ' steps') + ' of ' + sizeWord[f.size] + lengthNote(f) + ', loops';
+      const dice = f.steps.filter((y) => y.dice).length;
+      const diceT = dice ? ', ' + dice + (dice === 1 ? ' dice step' : ' dice steps') : '';
+      const on = f.steps.filter((y) => !y.dice && y.v > 0).length;
+      const vals = f.steps.flatMap((y) => (y.dice ? [y.lo, y.hi] : [y.v]));
+      const lo = Math.min(...vals), hi = Math.max(...vals);
+      if (f.t === 'scramble') return 'Scramble · cells of ' + x.cell + ' from ' + (x.from === 'Whole song' ? 'the whole song' : x.from === 'Inside the clip' ? 'inside the clip' : '± ' + x.n + (x.n === 1 ? ' bar' : ' bars') + ' around the clip') + ' · ' + lane + ' · ' + (lo === hi ? lo + '%' : lo + ' to ' + hi + '%') + ' swap' + diceT + ' · ' + x.rev + '% reversed';
+      if (f.t === 'stutter') return 'Stutter · grabs ' + x.grab + ' · ' + lane + ' · ' + (hi === 0 ? 'off' : 'repeats ' + D.labels[Math.max(1, lo)] + (hi > Math.max(1, lo) ? ' → ' + D.labels[hi] : '')) + diceT + ' · ' + (x.drift ? (x.drift > 0 ? '+' : '−') + Math.abs(x.drift) + ' st per repeat' : 'no pitch drift') + ', gate ' + x.gate + '%';
+      if (f.t === 'freeze') return 'Freeze · ' + lane + ' · frozen on ' + on + ' of ' + n + diceT + ' · grain ' + x.grain + ' ms, spread ' + x.spread + '%, ' + (x.level ? '−' + Math.abs(x.level) : '0') + ' dB';
+      if (f.t === 'reverse') return 'Reverse · cells of ' + x.cell + ' · ' + lane + ' · reversed on ' + on + ' of ' + n + diceT;
+      if (f.t === 'rewind') { const at = f.steps.map((y, i) => (y.dice || y.v ? i + 1 : 0)).filter(Boolean); return 'Rewind · pulls back ' + x.len + ', ' + x.curve + ' · ' + lane + ' · ' + (at.length ? 'fires on step ' + at.join(', ') : 'never fires') + diceT; }
+      return 'Halftime · ' + x.speed + ' under the whole clip, no ramp · ' + (x.keep === 'On' ? 'pitch kept (stretch)' : x.speed === '×2' ? 'double time, pitch up like a record' : 'pitch drops like a record');
+    };
+    const pctF = (o) => o + '%';
+    const EX = {
+      scramble: [['Cell', 'cell', ['1/32', '1/16', '1/8', 'beat']], ['Take from', 'from', ['Whole song', '± bars', 'Inside the clip']], ['Around the clip', 'n', [1, 2, 4], (o) => '± ' + o, (x) => x.from === '± bars'], ['Reverse chance', 'rev', [0, 25, 50, 100], pctF]],
+      stutter: [['Grabs', 'grab', ['1/16', '1/8', 'beat']], ['Pitch per repeat', 'drift', [-2, -1, 0, 1, 2], (o) => (o > 0 ? '+' : o < 0 ? '−' : '') + Math.abs(o) + ' st'], ['Gate', 'gate', [100, 75, 50], pctF]],
+      freeze: [['Grain', 'grain', [10, 30, 80], (o) => o + ' ms'], ['Spread', 'spread', [0, 25, 50], pctF], ['Level', 'level', [-6, -3, 0], (o) => (o ? '−' + Math.abs(o) : '0') + ' dB']],
+      reverse: [['Cell', 'cell', ['1/32', '1/16', '1/8', 'beat']]],
+      rewind: [['Pulls back', 'len', ['1 beat', '2 beats', '1 bar']], ['Curve', 'curve', ['Fast', 'Slowing', 'Spin-back']]],
+      halftime: [['Speed', 'speed', ['×0.5', '×0.75', '×2']], ['Keep pitch (stretch, off by default)', 'keep', ['Off', 'On']]]
+    };
+    const EXDEF = { scramble: { cell: '1/16', from: 'Whole song', n: 2, rev: 0 }, stutter: { grab: '1/16', drift: 0, gate: 100 }, freeze: { grain: 30, spread: 0, level: 0 }, reverse: { cell: '1/16' }, rewind: { len: '1 beat', curve: 'Fast' }, halftime: { speed: '×0.5', keep: 'Off' } };
+    // Scramble: the song (4 bars shown, the clip on bar 3) cut in cells; each clip cell may take a cell from Take from. Seeded by the mod's seed.
+    const CELL = { '1/32': 0.5, '1/16': 1, '1/8': 2, beat: 4 };
+    const scrambleViz = (f) => {
+      const x = f.extra, cs = CELL[x.cell], N = Math.round(64 / cs), cpb = Math.round(16 / cs);
+      const clipA = 2 * cpb, clipB = 3 * cpb;
+      const [ra, rb] = x.from === 'Inside the clip' ? [clipA, clipB] : x.from === 'Whole song' ? [0, N] : [Math.max(0, clipA - x.n * cpb), Math.min(N, clipB + x.n * cpb)];
+      const cx = (i) => (((i + 0.5) / N) * 1000).toFixed(1);
+      const colour = (i) => 'hsl(' + Math.round(hash('c' + (i * cs)) * 360) + ' 30% ' + Math.round(32 + hash('l' + (i * cs)) * 16) + '%)';
+      const sl = SL[f.size], len = f.steps.length * sl, key = f.id + ':' + s.seed + ':' + x.cell;
+      let arrows = '', rev = '', swaps = 0;
+      const dst = [];
+      for (let j = 0; j < clipB - clipA; j++) {
+        const st = f.steps[Math.floor(((j * cs) % len) / sl)];
+        const chance = st.dice ? (hash(key + ':c' + j) * 100 < st.chance ? st.lo + hash(key + ':v' + j) * (st.hi - st.lo) : 0) : st.v;
+        const swap = hash(key + ':s' + j) * 100 < chance;
+        const from = swap ? ra + Math.floor(hash(key + ':p' + j) * (rb - ra)) : clipA + j;
+        const back = swap && hash(key + ':r' + j) * 100 < x.rev;
+        const to = clipA + j;
+        if (swap) {
+          swaps++;
+          const a = cx(from), b = cx(to);
+          const path = 'M' + a + ' 56C' + a + ' 100 ' + b + ' 76 ' + b + ' 118M' + (b - 5) + ' 110L' + b + ' 118L' + (+b + 5) + ' 110';
+          if (back) rev += path; else arrows += path;
+        }
+        dst.push({ label: back ? '◂' : '', title: 'Clip cell ' + (j + 1) + ': ' + (swap ? 'plays song cell ' + (from + 1) + (back ? ', reversed' : '') : 'as heard'), style: 'position: absolute; top: 120px; height: 34px; left: calc(' + pct(to / N) + ' + 1px); width: calc(' + pct(1 / N) + ' - 2px); border-radius: 2px; background: ' + colour(from) + '; opacity: ' + (swap ? 1 : 0.3) + '; color: #ece9e2; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; overflow: hidden;' + (back ? ' box-shadow: inset 0 -3px 0 #7fb3d5;' : '') });
+      }
+      const tag = ((Math.imul(s.seed + 7, 2654435761) >>> 0) % 4096).toString(16).padStart(3, '0');
+      return {
+        note: swaps + ' of ' + dst.length + ' cells swapped · roll ◆ ' + tag,
+        bars: [1, 2, 3, 4].map((b) => ({ label: 'bar ' + b, style: 'position: absolute; top: 2px; left: calc(' + pct((b - 1) / 4) + ' + 4px); font-family: "IBM Plex Mono", monospace; font-size: 10px; color: #8c8a84;' })).concat([{ label: 'clip', style: 'position: absolute; top: 156px; left: calc(50% + 4px); font-family: "IBM Plex Mono", monospace; font-size: 10px; color: #c39bd3;' }]),
+        rangeStyle: 'position: absolute; top: 15px; height: 40px; left: ' + pct(ra / N) + '; width: ' + pct((rb - ra) / N) + '; box-sizing: border-box; border: 1px dashed #e8b04a; border-radius: 4px; pointer-events: none;',
+        clipStyle: 'position: absolute; top: 117px; height: 40px; left: 50%; width: 25%; box-sizing: border-box; border: 1px solid #c39bd3; border-radius: 4px; pointer-events: none;',
+        src: Array.from({ length: N }, (_, i) => ({ title: 'Song cell ' + (i + 1) + (i >= ra && i < rb ? ', in Take from' : ', outside Take from'), style: 'position: absolute; top: 18px; height: 34px; left: calc(' + pct(i / N) + ' + 1px); width: calc(' + pct(1 / N) + ' - 2px); border-radius: 2px; background: ' + colour(i) + '; opacity: ' + (i >= ra && i < rb ? 1 : 0.3) + ';' })),
+        dst, arrows: arrows || 'M0 0', revArrows: rev || 'M0 0'
+      };
+    };
+    const noViz = { note: '', bars: [], rangeStyle: '', clipStyle: '', src: [], dst: [], arrows: 'M0 0', revArrows: 'M0 0' };
+    const randomFixed = (t) => denorm(t, Math.random());
+    const randomDice = (t) => {
+      if (T[t].toggle) return { v: 0, dice: true, lo: 0, hi: 1, chance: [75, 50, 25][Math.floor(Math.random() * 3)] };
+      const c = Math.random(), w = 0.15 + Math.random() * 0.25;
+      const lo = denorm(t, c - w / 2), hi = denorm(t, c + w / 2);
+      return { v: q(t, (lo + hi) / 2), dice: true, lo, hi, chance: [100, 75, 50][Math.floor(Math.random() * 3)] };
+    };
+
+    // Scratch: a recorded segment played by a hand. pts = needle position (0 = start of the recording, 1 = its end) at the start of each step; fader = per step, one or two parts, open or closed.
+    const REC = [['1 beat', 4], ['2 beats', 8], ['1 bar', 16], ['2 bars', 32]];
+    const recOf = (f) => (REC.find((r) => r[0] === f.rec) || REC[2])[1];
+    const sgeo = (f) => { const sl = SL[f.size]; const len = f.pts.length * sl; return { sl, len, total: Math.max(32, Math.ceil((len + 1) / 16) * 16) }; };
+    // The last step carries on at the speed it arrived with; then the needle jumps back to the first point (lifted, no stroke).
+    const endOf = (f) => { const n = f.pts.length; return n < 2 ? f.pts[0] : clamp(2 * f.pts[n - 1] - f.pts[n - 2], 0, 1); };
+    const speedsOf = (f) => { const n = f.pts.length, R = recOf(f), sl = SL[f.size], Q = [...f.pts, endOf(f)]; return f.pts.map((p, i) => ((Q[i + 1] - p) * R) / sl); };
+    const dirOf = (sp) => (Math.abs(sp) < 0.05 ? 'held' : sp > 0 ? 'fwd' : 'back');
+    const DIRC = { fwd: '#e8b04a', back: '#7fb3d5', held: '#8c8a84' };
+    const speedText = (sp) => (dirOf(sp) === 'held' ? 'held still (silent)' : (sp > 0 ? '+' : '−') + Math.abs(sp).toFixed(1) + '× ' + (sp > 0 ? 'forward' : 'backwards'));
+    const runsOf = (arr, pred) => { const n = arr.length; if (!n || !arr.some(pred)) return 0; if (arr.every(pred)) return 1; let c = 0; for (let i = 0; i < n; i++) if (pred(arr[i]) && !pred(arr[(i - 1 + n) % n])) c++; return c; };
+    const snapP = (f, p) => { const k = recOf(f) * 2; return Math.round(clamp(p, 0, 1) * k) / k; };
+    const LH = 150, PAD = 8;
+    const Yp = (p) => PAD + (1 - p) * (LH - 2 * PAD);
+    const pAt = (r, y) => 1 - (((y - r.top) / r.height) * LH - PAD) / (LH - 2 * PAD);
+    const PRESETS = {
+      // Like a scratch DJ: each has its own hand movement and its own fader.
+      Baby: { title: 'Back and forth, the fader always open', pts: [0.1, 0.25, 0.1, 0.25, 0.1, 0.25, 0.1, 0.25], fader: Array.from({ length: 8 }, () => [true]) },
+      Chirp: { title: 'A forward push and pull back; the fader opens at the start of each stroke and closes right as the record turns, so each stroke is a short chirp', pts: [0.1, 0.18, 0.26, 0.18, 0.1, 0.18, 0.26, 0.18], fader: Array.from({ length: 8 }, (_, k) => (k % 2 === 0 ? [true] : [true, false])) },
+      Transformer: { title: 'A slow, steady push forward and back while the fader taps open and closed evenly in 1/32s', pts: [0.1, 0.13, 0.16, 0.19, 0.22, 0.19, 0.16, 0.13], fader: Array.from({ length: 8 }, () => [true, false]) },
+      Tear: { title: 'Forward, then the backward stroke in two jerks with a small pause, the fader open', pts: [0.1, 0.2, 0.3, 0.25, 0.2, 0.2, 0.15, 0.1], fader: Array.from({ length: 8 }, () => [true]) }
+    };
+    const scratchSentence = (f) => {
+      const n = f.pts.length, sp = speedsOf(f);
+      // A pause inside a stroke (a tear) does not split it.
+      // Not round the loop: the jump back to the first point separates strokes.
+      const moving = sp.filter((x) => dirOf(x) !== 'held');
+      const back = moving.filter((x, i) => dirOf(x) === 'back' && (i === 0 || dirOf(moving[i - 1]) !== 'back')).length;
+      const cuts = runsOf(f.fader.flat(), (x) => !x);
+      return 'Scratch · ' + f.rec + ' recorded · ' + n + (n === 1 ? ' step' : ' steps') + ' of ' + sizeWord[f.size] + ', loops · ' + back + (back === 1 ? ' backward stroke' : ' backward strokes') + ' · ' + (cuts ? 'fader cuts ' + cuts : 'fader open');
+    };
+    const scratchPaint = (i, p) => {
+      const D = this._drag;
+      const a = Math.min(D.last, i), b = Math.max(D.last, i);
+      for (let k = a; k <= b; k++) D.pts[k] = p;
+      D.last = i;
+      const m = D.base[D.modId];
+      this.setState({ hist: D.hist, status: '', drag: { e: D.effId, i }, mods: { ...D.base, [D.modId]: { ...m, effects: m.effects.map((x) => (x.id === D.effId ? { ...x, pts: [...D.pts] } : x)) } } });
+    };
+    const scratchCard = (f) => {
+      const n = f.pts.length, G = sgeo(f), R = recOf(f), sp = speedsOf(f);
+      const W = 1000, X = (six) => (six / G.total) * W;
+      const Q = [...f.pts, endOf(f)];
+      const P = (j) => Q[clamp(j, 0, n)];
+      const f1 = (x) => x.toFixed(1);
+      // Smooth through the points (Catmull-Rom as cubic Béziers) within one pass; at ↻ the needle jumps.
+      const segD = (j, off) => {
+        const x1 = X(off + j * G.sl), x2 = X(off + (j + 1) * G.sl), dx = x2 - x1;
+        const y0 = Yp(P(j - 1)), y1 = Yp(P(j)), y2 = Yp(P(j + 1)), y3 = Yp(P(j + 2));
+        return 'M' + f1(x1) + ' ' + f1(y1) + 'C' + f1(x1 + dx / 3) + ' ' + f1(y1 + (y2 - y0) / 6) + ' ' + f1(x2 - dx / 3) + ' ' + f1(y2 - (y3 - y1) / 6) + ' ' + f1(x2) + ' ' + f1(y2);
+      };
+      const d = { fwd: '', back: '', held: '', ghost: '', jump: '' };
+      for (let r = 0; r * G.len < G.total; r++) {
+        for (let j = 0; j < n && r * G.len + j * G.sl < G.total; j++) { if (r === 0) d[dirOf(sp[j])] += segD(j, 0); else d.ghost += segD(j, r * G.len); }
+        const xj = f1(X((r + 1) * G.len));
+        if ((r + 1) * G.len <= G.total) d.jump += 'M' + xj + ' ' + f1(Yp(Q[n])) + 'L' + xj + ' ' + f1(Yp(Q[0]));
+      }
+      const orNone = (x) => x || 'M0 0';
+      const setF = (fn, status) => setEff(f.id, (x) => ({ ...x, ...fn(x) }), status);
+      const parts = [], ghostParts = [], mutes = [];
+      for (let j = 0; j * G.sl < G.total; j++) {
+        const cell = f.fader[j % n], m = cell.length;
+        cell.forEach((on, k) => {
+          const left = (j * G.sl + (k * G.sl) / m) / G.total, w = G.sl / m / G.total;
+          const box = 'position: absolute; top: 2px; bottom: 2px; left: calc(' + pct(left) + ' + 1px); width: calc(' + pct(w) + ' - 2px); border-radius: 3px; padding: 0; border: none; background: ' + (on ? '#d8d2c4' : 'repeating-linear-gradient(135deg, #2a2e33 0 3px, #0c0d0f 3px 6px)') + ';';
+          if (!on) mutes.push('position: absolute; top: 0; bottom: 0; left: ' + pct(left) + '; width: ' + pct(w) + '; background: repeating-linear-gradient(135deg, rgb(12 13 15 / 0.75) 0 3px, rgb(12 13 15 / 0.35) 3px 6px); opacity: ' + (j < n ? 1 : 0.5) + '; pointer-events: none;');
+          if (j >= n) { ghostParts.push(box + ' opacity: 0.25; pointer-events: none;'); return; }
+          const i = j;
+          parts.push({
+            on: String(on), style: box + ' cursor: pointer;',
+            title: 'Fader, step ' + (i + 1) + (m > 1 ? (k ? ', second half' : ', first half') : '') + ': ' + (on ? 'open' : 'closed (muted)') + '. Click to ' + (on ? 'close' : 'open') + '; Alt-click to ' + (m > 1 ? 'join the halves' : 'split it in two'),
+            toggle: (e) => setF((x) => ({ fader: x.fader.map((c, ci) => {
+              if (ci !== i) return c;
+              if (e && e.altKey) return c.length > 1 ? [c[0] || c[1]] : [c[0], c[0]];
+              return c.map((b, bi) => (bi === k ? !b : b));
+            }) }))
+          });
+        });
+      }
+      const marks = [];
+      for (let k = 0; k < G.total; k += 4) {
+        const bar = k % 16 === 0;
+        marks.push({ label: bar ? String(k / 16 + 1) : (Math.floor(k / 16) + 1) + '.' + ((k % 16) / 4 + 1), style: 'position: absolute; left: calc(54px + 8px + (100% - 62px) * ' + (k / G.total).toFixed(5) + ' + 3px); top: 2px; color: ' + (bar ? '#a3a098' : '#5a5c60') + ';' });
+      }
+      const dragHere = s.drag && s.drag.e === f.id;
+      return {
+        lane: false, collapsed: false, scratch: true, name: 'Scratch', sentence: scratchSentence(f),
+        removeLabel: 'Remove Scratch',
+        remove: () => setMod({ ...mod, effects: mod.effects.filter((x) => x.id !== f.id) }),
+        rec: f.rec, recs: REC.map((r) => r[0]),
+        pickRec: (e) => setF(() => ({ rec: e.target.value })),
+        sizes: ['1/16', 'beat', 'bar'].map((z) => ({ label: z, on: String(f.size === z), style: seg(f.size === z), title: 'Each step lasts ' + sizeWord[z], pick: () => setF(() => ({ size: z })) })),
+        count: n + (n === 1 ? ' step' : ' steps'),
+        less: () => { if (n > 2) setF((x) => ({ pts: x.pts.slice(0, -1), fader: x.fader.slice(0, -1) })); },
+        more: () => { if (n < 16) setF((x) => ({ pts: [...x.pts, x.pts[n - 1]], fader: [...x.fader, [...x.fader[n - 1]]] })); },
+        presets: Object.keys(PRESETS).map((k) => ({ label: k, title: PRESETS[k].title, pick: () => setF(() => ({ size: '1/16', pts: [...PRESETS[k].pts], fader: PRESETS[k].fader.map((c) => [...c]) }), 'Drew ' + k) })),
+        randomize: () => setF((x) => {
+          let p = 0.1 + Math.random() * 0.3;
+          const pts = x.pts.map(() => { const now = p; const r = Math.random(); p = r < 0.15 ? p : clamp(p + (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.15), 0, 1); return snapP(x, now); });
+          const fader = x.fader.map(() => (Math.random() < 0.25 ? [Math.random() < 0.6, Math.random() < 0.5] : [Math.random() < 0.8]));
+          return { pts, fader };
+        }, 'Drew a random hand movement'),
+        // Ramp toggles: up = one forward sweep through the recording, then down = backward, and so on.
+        rampLabel: f.rampDown ? 'Ramp ↘' : 'Ramp ↗',
+        rampTitle: f.rampDown ? 'One steady backward sweep through the recording (end to start); next press sweeps forward' : 'One steady forward sweep through the recording (start to end); next press sweeps backward',
+        ramp: () => {
+          if (n < 2) return;
+          let lo = Math.min(...f.pts), hi = Math.max(...f.pts);
+          if (hi - lo < 1e-6) { lo = 0; hi = 1; }
+          const [a, b] = f.rampDown ? [hi, lo] : [lo, hi];
+          setF((x) => ({ rampDown: !x.rampDown, pts: x.pts.map((_, k) => snapP(x, a + ((b - a) * k) / (n - 1))) }), f.rampDown ? 'Swept backward' : 'Swept forward');
+        },
+        // Clear = play normally: forward through the recording at 1×, one pass over the lane, fader open.
+        clear: () => setF((x) => ({ pts: x.pts.map((_, k) => snapP(x, (k * SL[x.size]) / recOf(x))), fader: x.fader.map(() => [true]) }), 'Plays normally: forward at 1×'),
+        marks,
+        laneStyle: 'position: relative; height: ' + LH + 'px; border: 1px solid #2c3036; border-radius: 6px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; background-color: #0c0d0f; background-image: linear-gradient(90deg, #4a4f56 1px, transparent 1px), linear-gradient(90deg, #2c3036 1px, transparent 1px), linear-gradient(90deg, #1b1e22 1px, transparent 1px), linear-gradient(0deg, #1b1e22 1px, transparent 1px); background-size: calc(100% * 16 / ' + G.total + ') 100%, calc(100% * 4 / ' + G.total + ') 100%, calc(100% / ' + G.total + ') 100%, 100% calc((100% - ' + (2 * PAD) + 'px) / ' + R + '); background-position: 0 0, 0 0, 0 0, 0 ' + PAD + 'px;',
+        ghostShade: 'position: absolute; top: 0; bottom: 0; left: ' + pct(G.len / G.total) + '; right: 0; background: repeating-linear-gradient(90deg, transparent 0 6px, rgb(16 17 19 / 0.25) 6px 8px); pointer-events: none;',
+        endStyle: 'position: absolute; top: 0; bottom: 0; left: ' + pct(G.len / G.total) + '; width: 2px; margin-left: -1px; background: #e8b04a; color: #e8b04a; font-size: 12px; line-height: 1; padding-left: 4px; white-space: nowrap; cursor: help; z-index: 2;',
+        jumpD: orNone(d.jump), ghostD: orNone(d.ghost), fwdD: orNone(d.fwd), backD: orNone(d.back), heldD: orNone(d.held),
+        mutes,
+        down: (e) => {
+          if (e.button !== undefined && e.button !== 0) return;
+          const el = e.currentTarget, r = el.getBoundingClientRect();
+          const six = ((e.clientX - r.left) / r.width) * G.total;
+          if (six > G.len - G.sl / 2) return;
+          const i = clamp(Math.round(six / G.sl), 0, n - 1);
+          e.preventDefault();
+          try { el.setPointerCapture(e.pointerId); } catch (_) { /* not every browser */ }
+          this._drag = { scratch: true, modId: s.pick, effId: f.id, base: s.mods, hist: [...s.hist, snap()], pts: [...f.pts], last: i, G, f };
+          scratchPaint(i, snapP(f, pAt(r, e.clientY)));
+        },
+        move: (e) => {
+          const D = this._drag;
+          if (!D || D.effId !== f.id) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          const i = clamp(Math.round((((e.clientX - r.left) / r.width) * D.G.total) / D.G.sl), 0, D.pts.length - 1);
+          scratchPaint(i, snapP(f, pAt(r, e.clientY)));
+        },
+        up: () => { if (this._drag) { this._drag = null; set({ drag: null }); } },
+        pts: f.pts.map((p, i) => {
+          const editing = dragHere && s.drag.i === i;
+          const left = (i * G.sl) / G.total, top = Yp(p) / LH;
+          return {
+            title: 'Point ' + (i + 1) + ': ' + Math.round(p * 100) + '% into the recording, then ' + speedText(sp[i]),
+            dot: 'position: absolute; left: calc(' + pct(left) + ' - 6px); top: calc(' + pct(top) + ' - 6px); width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; border: 2px solid #0c0d0f; background: ' + (editing ? '#ece9e2' : DIRC[dirOf(sp[i])]) + '; pointer-events: none; z-index: 3;',
+            bubble: editing,
+            bubbleText: editing ? Math.round(p * 100) + '% · ' + speedText(sp[i]) : '',
+            bubbleStyle: 'position: absolute; left: calc(' + pct(left) + ' + 8px); top: calc(' + pct(Math.max(top, 0.2)) + ' - 26px); padding: 2px 7px; border-radius: 10px; background: ' + DIRC[dirOf(sp[i])] + '; color: #101113; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none; z-index: 4;'
+          };
+        }),
+        speeds: sp.map((x, i) => {
+          const dir = dirOf(x);
+          return {
+            title: 'Step ' + (i + 1) + ': ' + speedText(x),
+            label: dir === 'held' ? '–' : (dir === 'fwd' ? '▸' : '◂') + Math.abs(x).toFixed(1),
+            style: 'position: absolute; top: 0; left: ' + pct((i * G.sl) / G.total) + '; width: ' + pct(G.sl / G.total) + '; text-align: center; overflow: hidden; white-space: nowrap; color: ' + DIRC[dir] + ';'
+          };
+        }),
+        parts, ghostParts
+      };
+    };
+
+    const effects = mod.effects.map((f) => {
+      if (f.t === 'scratch') return scratchCard(f);
+      if (f.collapsed) return { lane: false, scratch: false, collapsed: true, name: OTHER[f.t], removeLabel: 'Remove ' + OTHER[f.t], remove: () => setMod({ ...mod, effects: mod.effects.filter((x) => x.id !== f.id) }) };
+      const D = T[f.t], G = geo(f), H = laneHandlers(f), n = f.steps.length;
+      const dragHere = s.drag && s.drag.e === f.id;
+      const ghosts = [];
+      for (let j = n; j * G.sl < G.total; j++) {
+        const st = f.steps[j % n];
+        ghosts.push({
+          style: 'position: absolute; top: 0; bottom: 0; left: calc(' + pct((j * G.sl) / G.total) + ' + 1px); width: calc(' + pct(Math.min(G.sl, G.total - j * G.sl) / G.total) + ' - 2px); pointer-events: none;' + (j % n === 0 ? ' border-left: 1px dashed rgb(232 176 74 / 0.35);' : ''),
+          shape: shape(f.t, st, true, f.size)
+        });
+      }
+      const marks = [];
+      for (let k = 0; k < G.total; k += 4) {
+        const bar = k % 16 === 0;
+        marks.push({ label: bar ? String(k / 16 + 1) : (Math.floor(k / 16) + 1) + '.' + ((k % 16) / 4 + 1), style: 'position: absolute; left: calc(' + pct(k / G.total) + ' + 3px); top: 2px; color: ' + (bar ? '#a3a098' : '#5a5c60') + ';' + (k >= G.len ? ' opacity: 0.6;' : '') });
+      }
+      const extras = [];
+      if (f.t === 'pitch') extras.push({ label: 'Values', opts: [['Semitones', true], ['Free', false]].map(([label, on]) => ({ label, on: String(!!f.extra.semis === on), style: seg(!!f.extra.semis === on), pick: () => setEff(f.id, (x) => ({ ...x, extra: { ...x.extra, semis: on } })) })) });
+      if (f.t === 'filter') {
+        extras.push({ label: 'Type', opts: [['Low-pass', 'lp'], ['High-pass', 'hp']].map(([label, k]) => ({ label, on: String(f.extra.type === k), style: seg(f.extra.type === k), pick: () => setEff(f.id, (x) => ({ ...x, extra: { ...x.extra, type: k } })) })) });
+        extras.push({ label: 'Resonance', opts: [0, 30, 60].map((r) => ({ label: r + '%', on: String(f.extra.res === r), style: seg(f.extra.res === r), pick: () => setEff(f.id, (x) => ({ ...x, extra: { ...x.extra, res: r } })) })) });
+      }
+      (EX[f.t] || []).forEach(([label, key, opts, fmt, show]) => {
+        if (show && !show(f.extra)) return;
+        extras.push({ label, opts: opts.map((o) => ({ label: fmt ? fmt(o) : String(o), on: String(f.extra[key] === o), style: seg(f.extra[key] === o), pick: () => setEff(f.id, (x) => ({ ...x, extra: { ...x.extra, [key]: o } })) })) });
+      });
+      const presets = f.t === 'stutter' ? [{ label: 'Roll', title: '1/16 → 1/32 → 1/64 over a beat', pick: () => setEff(f.id, (x) => ({ ...x, size: '1/16', steps: [1, 2, 3, 3].map((v) => ({ v })) }), 'Drew a roll') }] : [];
+      return {
+        hasLane: !D.noLane, canRamp: !D.toggle && !D.labels, hasNote: !!D.audio, presets,
+        hasViz: f.t === 'scramble', viz: f.t === 'scramble' ? scrambleViz(f) : noViz,
+        lane: true, scratch: false, collapsed: false, name: D.name, unit: D.noLane ? 'no lane' : D.unit, sentence: sentence(f),
+        removeLabel: 'Remove ' + D.name,
+        remove: () => setMod({ ...mod, effects: mod.effects.filter((x) => x.id !== f.id) }),
+        sizes: ['1/16', 'beat', 'bar'].map((z) => ({ label: z, on: String(f.size === z), style: seg(f.size === z), title: 'Each step lasts ' + sizeWord[z], pick: () => setEff(f.id, (x) => ({ ...x, size: z })) })),
+        count: n + (n === 1 ? ' step' : ' steps'),
+        less: () => { if (n > 1) setEff(f.id, (x) => ({ ...x, steps: x.steps.slice(0, -1) })); },
+        more: () => { if (n < 16) setEff(f.id, (x) => ({ ...x, steps: [...x.steps, { ...x.steps[n - 1] }] })); },
+        randomize: (e) => setEff(f.id, (x) => ({ ...x, steps: x.steps.map(() => (e && e.shiftKey ? randomDice(f.t) : { v: randomFixed(f.t) })) }), e && e.shiftKey ? 'Filled ' + D.name + ' with dice steps' : ''),
+        diceAll: () => setEff(f.id, (x) => ({ ...x, steps: x.steps.map(() => randomDice(f.t)) }), 'Filled ' + D.name + ' with dice steps'),
+        // Ramp toggles: up (lowest → highest of the lane), then down, and so on. No spread in the lane: the target's whole range.
+        rampLabel: f.rampDown ? 'Ramp ↘' : 'Ramp ↗',
+        rampTitle: f.rampDown ? 'Draw a straight line down, from the highest value in the lane to the lowest; next press ramps up' : 'Draw a straight line up, from the lowest value in the lane to the highest; next press ramps down',
+        ramp: () => {
+          if (n < 2) return;
+          const ns = f.steps.flatMap((st) => (st.dice ? [norm(f.t, st.lo), norm(f.t, st.hi)] : [norm(f.t, st.v)]));
+          let lo = Math.min(...ns), hi = Math.max(...ns);
+          if (hi - lo < 1e-6) { lo = 0; hi = 1; }
+          const [a, b] = f.rampDown ? [hi, lo] : [lo, hi];
+          setEff(f.id, (x) => ({ ...x, rampDown: !x.rampDown, steps: x.steps.map((_, k) => ({ v: denorm(f.t, a + ((b - a) * k) / (n - 1)) })) }), f.rampDown ? 'Ramped down' : 'Ramped up');
+        },
+        clearTitle: 'Every step back to ' + full(f.t, D.zero) + ', fixed',
+        clear: () => setEff(f.id, (x) => ({ ...x, steps: x.steps.map(() => ({ v: D.zero })) })),
+        extras,
+        marks,
+        laneLabel: D.name + ' steps',
+        laneStyle: 'position: relative; height: 130px; border: 1px solid #2c3036; border-radius: 6px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; background-color: #0c0d0f; background-image: linear-gradient(90deg, #4a4f56 1px, transparent 1px), linear-gradient(90deg, #2c3036 1px, transparent 1px), linear-gradient(90deg, #1b1e22 1px, transparent 1px); background-size: calc(100% * 16 / ' + G.total + ') 100%, calc(100% * 4 / ' + G.total + ') 100%, calc(100% / ' + G.total + ') 100%;',
+        bipolar: !!D.bipolar,
+        zeroStyle: 'position: absolute; left: 0; right: 0; bottom: ' + pct(baseN(f.t)) + '; height: 1px; background: #5a5c60; pointer-events: none;',
+        ghostShade: 'position: absolute; top: 0; bottom: 0; left: ' + pct(G.len / G.total) + '; right: 0; background: repeating-linear-gradient(90deg, transparent 0 6px, rgb(16 17 19 / 0.25) 6px 8px); pointer-events: none;',
+        endStyle: 'position: absolute; top: 0; bottom: 0; left: ' + pct(G.len / G.total) + '; width: 2px; margin-left: -1px; background: #e8b04a; color: #e8b04a; font-size: 12px; line-height: 1; padding-left: 4px; white-space: nowrap; cursor: help; z-index: 2;',
+        ghosts,
+        down: H.down, move: H.move, up: H.up,
+        steps: f.steps.map((st, i) => {
+          const left = (i * G.sl) / G.total, w = G.sl / G.total;
+          const editing = dragHere && s.drag.i === i;
+          const narrow = f.size === '1/16' && G.total > 32;
+          const topN = st.dice ? norm(f.t, st.hi) : Math.max(norm(f.t, st.v), baseN(f.t));
+          return {
+            title: 'Step ' + (i + 1) + ': ' + (st.dice ? '🎲 ' + full(f.t, st.lo) + ' to ' + full(f.t, st.hi) + ', ' + st.chance + '% chance' : full(f.t, st.v)),
+            style: 'position: absolute; top: 0; bottom: 0; left: calc(' + pct(left) + ' + 1px); width: calc(' + pct(w) + ' - 2px); border-radius: 3px; background: ' + (editing ? 'rgb(232 176 74 / 0.1)' : 'rgb(255 255 255 / 0.025)') + ';',
+            shape: shape(f.t, st, false, f.size),
+            dice: !!st.dice,
+            chance: (st.chance || 100) + '%',
+            chanceCycle: () => setEff(f.id, (x) => ({ ...x, steps: x.steps.map((y, k) => (k === i ? { ...y, chance: y.chance === 25 ? 100 : y.chance - 25 } : y)) })),
+            toggleLabel: st.dice ? 'Step ' + (i + 1) + ' is a dice step: click to fix it at ' + full(f.t, st.v) : 'Make step ' + (i + 1) + ' a dice step: a new value every pass',
+            toggle: () => setEff(f.id, (x) => ({ ...x, steps: x.steps.map((y, k) => {
+              if (k !== i) return y;
+              if (y.dice) return { v: q(f.t, (y.lo + y.hi) / 2) };
+              const c = norm(f.t, y.v);
+              if (T[f.t].toggle) return { v: y.v, dice: true, lo: 0, hi: 1, chance: 50 };
+              if (T[f.t].labels) return { v: y.v, dice: true, lo: clamp(y.v - 1, 0, 3), hi: clamp(y.v + 1, 0, 3), chance: 100 };
+              return { v: y.v, dice: true, lo: denorm(f.t, c - 0.15), hi: denorm(f.t, c + 0.15), chance: 100 };
+            }) })),
+            dtStyle: 'position: absolute; top: 2px; right: 2px; width: 18px; height: 17px; padding: 0; border: 1px solid ' + (st.dice ? '#e8b04a' : '#3a3f45') + '; border-radius: 4px; background: ' + (st.dice ? '#2e2715' : '#1f2226') + '; font-size: 10px; line-height: 1; z-index: 3; opacity: ' + (st.dice ? 1 : 0) + ';',
+            bubble: editing,
+            bubbleText: !editing ? '' : st.dice ? '🎲 ' + full(f.t, st.lo) + ' to ' + full(f.t, st.hi) : full(f.t, st.v),
+            bubbleStyle: 'position: absolute; left: 50%; bottom: calc(' + pct(Math.min(topN, 0.8)) + ' + 6px); transform: translateX(-50%); padding: 2px 7px; border-radius: 10px; background: #e8b04a; color: #101113; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none; z-index: 4;',
+            short: st.dice ? (narrow || f.size === '1/16' ? '🎲' : num(f.t, st.lo) + '…' + num(f.t, st.hi)) : num(f.t, st.v),
+            valStyle: 'position: absolute; top: 0; left: ' + pct(left) + '; width: ' + pct(w) + '; text-align: center; overflow: hidden; white-space: nowrap; color: ' + (editing ? '#e8b04a' : '#a3a098') + ';'
+          };
+        })
+      };
+    });
+
+    // Preview: the loop's 16 steps with each lane laid over them from the loop's start.
+    const LOOPS = {
+      amen1: { label: 'Amen 1', hits: (i) => (i % 2 === 0 ? String(i / 2 + 1).padStart(2, '0') : '') },
+      think1: { label: 'Think 1', hits: (i) => (i % 4 === 0 ? String(i / 4 + 1).padStart(2, '0') : '') },
+      fill1: { label: 'Amen 1 fill', hits: (i) => (i < 8 ? (i % 2 === 0 ? String(i / 2 + 1).padStart(2, '0') : '') : 'S' + ((i % 3) + 1)) }
+    };
+    const loopNow = LOOPS[s.plays];
+    const cellBase = 'position: relative; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-family: "IBM Plex Mono", monospace; font-size: 11px; overflow: hidden;';
+    const rows = [{
+      label: loopNow.label, labelStyle: 'align-self: center; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: #e8b04a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;',
+      cells: Array.from({ length: 16 }, (_, i) => {
+        const h = loopNow.hits(i);
+        return { label: h || '·', title: h ? 'Hit ' + h + ' on step ' + (i + 1) : 'No hit on step ' + (i + 1), band: 'display: none;', bar: 'display: none;', style: cellBase + ' height: 34px; background: ' + (h ? '#1f2226' : '#0c0d0f') + '; color: ' + (h ? '#ece9e2' : '#5a5c60') + '; border: 1px solid ' + (i % 4 === 0 ? '#3a3f45' : '#2c3036') + ';' };
+      })
+    }];
+    mod.effects.filter((f) => !f.collapsed && f.t !== 'scratch' && !T[f.t].noLane).forEach((f) => {
+      const sl = SL[f.size], len = f.steps.length * sl;
+      rows.push({
+        label: T[f.t].name, labelStyle: 'align-self: center; font-size: 12px; color: #a3a098; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;',
+        cells: Array.from({ length: 16 }, (_, i) => {
+          const pos = i % len, k = Math.floor(pos / sl), st = f.steps[k];
+          const hit = !!loopNow.hits(i);
+          const restart = pos === 0;
+          let band = 'display: none;', bar, title;
+          const b = baseN(f.t);
+          const barFor = (n, colour) => { const lo = Math.min(n, b), hi = Math.max(n, b); return 'position: absolute; left: 2px; right: 2px; bottom: ' + pct(lo) + '; height: max(2px, ' + pct(hi - lo) + '); background: ' + colour + '; border-radius: 1px;'; };
+          if (st.dice) {
+            // Each pass rolls again: the roll hangs on the pass, the mod's seed and the step's place in the loop.
+            const key = f.id + ':' + Math.floor(i / sl) + ':' + s.pass + ':' + s.seed;
+            const fires = hash(key + 'c') * 100 < st.chance;
+            const val = fires ? q(f.t, st.lo + hash(key) * (st.hi - st.lo)) : T[f.t].zero;
+            band = 'position: absolute; left: 2px; right: 2px; bottom: ' + pct(norm(f.t, st.lo)) + '; height: ' + pct(norm(f.t, st.hi) - norm(f.t, st.lo)) + '; background: rgb(232 176 74 / 0.18); outline: 1px dashed rgb(232 176 74 / 0.6); outline-offset: -1px;';
+            bar = fires ? barFor(norm(f.t, val), '#f3c873') : 'display: none;';
+            title = 'Step ' + (i + 1) + ': lane step ' + (k + 1) + ', 🎲 this pass ' + (fires ? full(f.t, val) : 'nothing (chance)');
+          } else {
+            bar = barFor(norm(f.t, st.v), '#e8b04a');
+            title = 'Step ' + (i + 1) + ': lane step ' + (k + 1) + ', ' + full(f.t, st.v);
+          }
+          return { label: '', title, band, bar, style: cellBase + ' height: 26px; background: #0c0d0f; opacity: ' + (hit ? 1 : 0.35) + '; box-shadow: ' + (restart ? 'inset 2px 0 0 #e8b04a' : 'none') + ';' };
+        })
+      });
+    });
+    mod.effects.filter((f) => f.t === 'scratch').forEach((f) => {
+      const sl = SL[f.size], len = f.pts.length * sl, sp = speedsOf(f);
+      rows.push({
+        label: 'Scratch', labelStyle: 'align-self: center; font-size: 12px; color: #a3a098;',
+        cells: Array.from({ length: 16 }, (_, i) => {
+          const pos = i % len, k = Math.floor(pos / sl), dir = dirOf(sp[k]), cell = f.fader[k];
+          const within = (pos - k * sl) / sl;
+          const parts = cell.length === 1 ? [cell[0]] : sl === 1 ? cell : [cell[within < 0.5 ? 0 : 1]];
+          const hatch = 'repeating-linear-gradient(135deg, #2a2e33 0 3px, #0c0d0f 3px 6px)';
+          const bg = parts.length === 2 && parts[0] !== parts[1] ? 'linear-gradient(90deg, ' + (parts[0] ? '#1f2226' : '#2a2e33') + ' 50%, ' + (parts[1] ? '#1f2226' : '#2a2e33') + ' 50%)' : parts[0] ? '#1f2226' : hatch;
+          return { label: dir === 'held' ? '–' : dir === 'fwd' ? '▸' : '◂', title: 'Step ' + (i + 1) + ': ' + speedText(sp[k]) + (parts.every((x) => !x) ? ', fader closed' : parts.some((x) => !x) ? ', fader cuts half' : ''), band: 'display: none;', bar: 'display: none;', style: cellBase + ' height: 26px; color: ' + DIRC[dir] + '; background: ' + bg + '; box-shadow: ' + (pos === 0 ? 'inset 2px 0 0 #e8b04a' : 'none') + ';' };
+        })
+      });
+    });
+
+    const have = new Set(mod.effects.map((f) => f.t));
+    const labelOf = (t) => (T[t] ? T[t].name : OTHER[t]);
+    const order = ['swap', 'member', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'tempo', 'tape', 'scratch', 'scramble', 'stutter', 'freeze', 'reverse', 'rewind', 'halftime'];
+    const defaults = { scramble: 50, stutter: 0, freeze: 0, reverse: 0, rewind: 0, halftime: 0, volume: 0, pitch: 0, filter: 18000, pan: 0, ratchet: 1, dist: 0, reverb: 100, delay: 80, stretch: 1 };
+    const nEff = mod.effects.length;
+    return {
+      playing: s.playing, stopped: !s.playing, playLabel: s.playing ? 'Stop' : 'Play',
+      togglePlay: () => set({ playing: !s.playing }),
+      loop: String(s.loop), loopStyle: toggle(s.loop), toggleLoop: () => set({ loop: !s.loop }),
+      undoLabel: s.hist.length ? 'Undo (Ctrl+Z)' : 'Nothing to undo',
+      undoStyle: 'width: 44px; height: 40px; margin-left: 8px; border: 1px solid ' + (s.hist.length ? '#3a3f45' : '#2c3036') + '; border-radius: 6px; background: ' + (s.hist.length ? '#1f2226' : 'transparent') + '; color: ' + (s.hist.length ? '#ece9e2' : '#5a5c60') + '; display: grid; place-items: center;',
+      undo: () => { if (!s.hist.length) return; const last = s.hist[s.hist.length - 1]; set({ ...last, hist: s.hist.slice(0, -1), draft: null, status: 'Undone' + (last.seed !== s.seed ? ': the previous roll is back' : '') }); },
+      rerollAll: () => commit({ seed: s.seed + 1 }, 'Rerolled everything: new random for the whole project'),
+      status: s.status,
+      stop: (e) => e.stopPropagation(),
+      current: mod.name,
+      currentDetail: nEff === 0 ? 'no effects' : mod.effects.map((f) => labelOf(f.t)).join(' · '),
+      heard: !!mod.heard,
+      rn: {
+        off: s.draft === null, on: s.draft !== null, draft: s.draft || '',
+        start: () => set({ draft: mod.name }),
+        type: (e) => set({ draft: e.target.value }),
+        key: (e) => {
+          if (e.key === 'Enter') { setMod({ ...mod, name: s.draft.trim() || mod.name }); set({ draft: null }); }
+          if (e.key === 'Escape') set({ draft: null });
+        }
+      },
+      newMod: () => { const id = 'm' + s.next; commit({ mods: { ...s.mods, [id]: { name: 'Mod ' + (s.order.length + 1), heard: false, effects: [] } }, order: [...s.order, id], pick: id, next: s.next + 1, draft: null }); },
+      clone: () => { const id = 'm' + s.next; commit({ mods: { ...s.mods, [id]: { ...mod, name: mod.name + ' copy', heard: false, effects: mod.effects.map((f) => ({ ...f, id: f.id + 'c' + s.next })) } }, order: [...s.order, id], pick: id, next: s.next + 1, draft: null }); },
+      remove: () => { if (s.order.length < 2) return; const order2 = s.order.filter((x) => x !== s.pick); commit({ order: order2, pick: order2[0], draft: null }, 'Deleted ' + mod.name); },
+      rerollMod: () => commit({ seed: s.seed + 1 }, 'Rerolled ' + mod.name + ': new random everywhere it plays'),
+      effectCount: nEff + (nEff === 1 ? ' effect' : ' effects'),
+      noEffects: nEff === 0,
+      list: s.order.map((id) => { const m = s.mods[id]; const k = m.effects.length; return { name: m.name, effects: k + (k === 1 ? ' effect' : ' effects'), heard: m.heard ? '♪' : '', on: String(id === s.pick), style: row(id === s.pick), pick: () => set({ pick: id, draft: null }) }; }),
+      effects,
+      addVal: '',
+      targets: order.filter((t) => !have.has(t)).map((t) => ({ key: t, label: labelOf(t) })),
+      add: (e) => {
+        const t = e.target.value;
+        if (!t) return;
+        const id = 'n' + s.next;
+        const f = t === 'scratch' ? { id, t, size: '1/16', rec: '1 bar', pts: [0.1, 0.25, 0.1, 0.25, 0.1, 0.25, 0.1, 0.25], fader: Array.from({ length: 8 }, () => [true]) } : T[t] ? { id, t, size: 'beat', steps: Array.from({ length: 4 }, () => ({ v: defaults[t] })), extra: EXDEF[t] ? { ...EXDEF[t] } : t === 'filter' ? { type: 'lp', res: 30 } : t === 'pitch' ? { semis: true } : {} } : { id, t, collapsed: true };
+        commit({ mods: { ...s.mods, [s.pick]: { ...mod, effects: [...mod.effects, f] } }, next: s.next + 1 });
+      },
+      plays: s.plays,
+      pickPlays: (e) => set({ plays: e.target.value }),
+      loops: Object.keys(LOOPS).map((k) => ({ key: k, label: LOOPS[k].label })),
+      rows,
+      passLabel: s.playing ? 'Pass ' + (s.pass + 1) + ' · each pass rolls the dice steps again' : 'Each pass rolls the dice steps again',
+      playheadStyle: 'position: absolute; top: 0; bottom: 0; width: 2px; background: #ece9e2; animation: ph ' + ((60 / 170) * 4).toFixed(3) + 's linear infinite;',
+      nextPass: () => set({ pass: s.pass + 1 })
+    };
+  }
+}
+</script>
+</body>
+</html>

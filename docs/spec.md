@@ -151,7 +151,7 @@ Appen har sex vyer i arbetsordning: Samples, Matrices, Loops, Mods, Song och Pro
 - *Webbläsarens Back och Forward* går mellan flikarna: varje flikbyte är ett steg, och fliken man kommer tillbaka till visar det som var öppet där (hit, pad, loop, mod och vald sample i Samples). Vilken matrix Matrices visar och nålarna är inga steg. Ändringar inom en flik är inga steg, och ångra (Ctrl+Z) är skilt från Back.
 - *Hjälptext* står inte i rubriker; rubriker är namn ("Pads", "Loops and mods"), och hjälpen står i en liten grå rad sist i sin panel. Ett tomt läge länkar till fliken där man gör det som saknas (← Samples, ← Loops, ← Mods).
 - *Av och på* (Loop i Song) markeras som ett valt segment.
-- *Knappar säger vad de gör*: −1 ms och +1 ms flyttar en markör; pilar betyder att man hoppar till en annan flik. New example ritar om ett exempel i Mods, och 🎲 (Reroll) slår om slumpen (se Slump och seeds).
+- *Knappar säger vad de gör*: −1 ms och +1 ms flyttar en markör; pilar betyder att man hoppar till en annan flik. Randomize ritar nya värden i en stegrad, och 🎲 (Reroll) slår om slumpen (se Slump och seeds).
 - *Chips*: länkchips har accentfärg, och bara det som går att dra har dra-markören.
 - *Spelknappar i flikar* finns bara där det inte är klart vad Play i toppen spelar.
 
@@ -176,13 +176,13 @@ Samples behåller stereo. Tempo ställs per låt i BPM. En ny låt börjar på 1
 
 ## Mods
 
-En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekter och gör ingenting förrän man lägger till en. En stegeffekt är ett mål, en rate och en form; slump är bara en av formerna. Tape är en effekt som arbetar på ljud (se Tape). Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
+En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekter och gör ingenting förrän man lägger till en. En stegeffekt är ett mål och en stegrad (se Stegrader); slump är 🎲-steg i raden. Tape är en effekt som arbetar på ljud (se Tape). Mods byggs i Mods-vyn och placeras i raderna A och B i Song; en mod i en takt verkar på det lager som hörs i den takten.
 
 | Fält | Val i v1 |
 | --- | --- |
 | Mål | Swap (Stack eller Shuffle), Pad member, Pitch (halvtoner), Volume (dB), Pan (−100 till +100 %), Direction, Ratchet (1–8), Stretch (faktor, bitlängd i ms, Multiply eller Replace), Dist (läge; värdet är mängden 0–1), Filter (typ och resonans; värdet är brytfrekvensen i Hz), Reverb (storlek; värdet är mängden i %), Delay (tid och feedback; värdet är mängden i %), Tempo (slip), Tape |
-| Rate | Per steg, per beat, per bar. Värdet hålls över intervallet och gäller alla triggers i det. |
-| Form | (Alla mål utom Swap och Tape.) List (värden i tur och ordning, ett per intervall), Cycle (stegar genom värden eller medlemmar), Ramp (från–till över modens längd), Random (slumpvärde inom ett intervall, med chans i %; för pitch hela halvtoner eller fritt, förvalt halvtoner) |
+| Mål som arbetar på ljud | Tape, Scratch, Scramble, Stutter, Freeze, Reverse, Rewind, Halftime (se Tape, Scratch och Mods som samplar det som hörs) |
+| Stegrad | (Alla mål utom Swap, Tempo, Tape, Scratch och Halftime.) 1–16 steg av 1/16, beat eller bar; varje steg har ett fast värde eller är ett 🎲-steg (se Stegrader). Värdet hålls över steget och gäller alla triggers i det. Formerna List, Cycle, Ramp och Random finns inte längre. |
 
 **Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym, pan), och för lägesvärden (riktning, medlem, ratchet, stretch, dist, filter) vinner B. Mods läggs ovanpå hitten och stegets locks.
 
@@ -203,7 +203,7 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 
 Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 
-**Längd.** En mod gäller sitt klipp i Song, på 1/16 när. Varje klipp är en sammanhängande modulation: intervallen räknas från klippets början, och Ramp sträcker sig över klippets längd.
+**Längd.** En mod gäller sitt klipp i Song, på 1/16 när. Varje klipp är en sammanhängande modulation: stegraden räknas från klippets början och loopar på sin egen längd över hela klippet.
 
 **Ratchet** n delar stegets längd i n lika delar och triggar hitten i varje del.
 
@@ -213,14 +213,14 @@ Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 
 - **Dist** har tre lägen och en mängd 0–1. *Drive* är mjuk mättnad som blir hård klippning; *Crush* sänker bitdjupet (16 bitar vid 0, 2 vid 1); *Decimate* sänker samplingsfrekvensen. Dist håller nivån: ljudets genomsnittliga nivå (RMS) är densamma efter dist som före, så att det inte blir tyst och sedan högt.
 - **Filter** är Low-pass eller High-pass med en brytfrekvens i Hz och en resonans. Filtret håller inte nivån, för ett stängt lågpass ska låta tunnare, men en hög resonanstopp dämpas så att den inte skjuter iväg.
-- **På hitten** (i Matrices) gäller dist och filter alltid; på paden och matrisen gäller de hits under dem som saknar egna. **I en mod** ställs läget (dist) eller typen och resonansen (filter) i moden, och List, Ramp och Random ändrar mängden respektive brytfrekvensen. En mod gäller i stället för hittens dist eller filter.
+- **På hitten** (i Matrices) gäller dist och filter alltid; på paden och matrisen gäller de hits under dem som saknar egna. **I en mod** ställs läget (dist) eller typen och resonansen (filter) i moden, och stegraden ger mängden respektive brytfrekvensen. En mod gäller i stället för hittens dist eller filter.
 
 **Reverb och delay** är kast: ett break får plötsligt rymd eller eko en kort stund, eller bara på slumpvisa slag, som en del av breaket. (Reverb över hela låten läggs i Reason eller Digitakt.)
 
 - **Bredvid rösten.** Låten har en reverb och en delay som klingar ut bredvid rösten. Ett slag skickar en del av sitt ljud dit, som det hörs, alltså avklippt där nästa slag klipper det; svansen klipps inte av nästa slag eller av att moden tar slut.
 - **Reverb** har en mängd (0–100 %, hur mycket av slaget som skickas) och en storlek från litet rum till stor hall (0,3–4 s). Rummet är brus som klingar av, alltid samma, så samma låt låter likadant varje gång.
 - **Delay** har en mängd, en tid i låtens tempo (1/16, 1/8, 3/16 eller 1/4) och feedback (0–90 %, hur mycket av varje eko som kommer tillbaka).
-- **På hitten** (i Matrices) skickar en hit alltid; mängd 0 på en hit tar närmaste lagers (pad, sedan matrix). **I en mod** ställs storleken (reverb) eller tiden och feedbacken (delay) i moden, och formen ger mängden i procent. En ny Reverb- eller Delay-effekt är ett kast (List 100, för delay 80), så att alla slag under klippet skickas; Random med chans ger kast på slumpvisa slag. Under Start from finns Reverb throw, Delay throw och Random verb. En mod gäller i stället för hittens; när A och B båda skickar adderas mängderna (högst 100 %) och B:s inställningar gäller.
+- **På hitten** (i Matrices) skickar en hit alltid; mängd 0 på en hit tar närmaste lagers (pad, sedan matrix). **I en mod** ställs storleken (reverb) eller tiden och feedbacken (delay) i moden, och stegraden ger mängden i procent. En ny Reverb- eller Delay-effekt är ett kast (alla steg 100, för delay 80), så att alla slag under klippet skickas; 🎲-steg med chans ger kast på slumpvisa slag. Under Start from finns Reverb throw, Delay throw och Random verb. En mod gäller i stället för hittens; när A och B båda skickar adderas mängderna (högst 100 %) och B:s inställningar gäller.
 - **Svansen.** I en loop och i låten som spelas runt hörs det som klingar efter slutet i början av nästa varv. Spelas något en gång, och i Export WAV, klingar svansen ut efter slutet, så filen blir längre än låten.
 - **Exporten.** MIDI-filen, bit-WAV:en och REX-filen är torra: slagen utan reverb och delay. Har låten reverb eller delay följer en WAV med bara dem (…-reverb-delay.wav), tyst däremellan, från låtens början och så länge de klingar, i samma nivå som bitarna, så att den på ett ljudspår bredvid ger låten.
 
@@ -228,7 +228,46 @@ Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 
 - **På hitten** (i Matrices, bredvid pitch): Off (förvalt), Fit to tempo eller Factor. Fit to tempo stretchar med tempot hos trimmen som hittens sample kommer från delat med låtens, gånger hastigheten från hittens pitch, så att slicen blir lika lång som sina steg i låten. **En one-shot passar som ett break med en pad:** en trim som inte är slicad räknas som ett break på det hela antal 1/16-steg som ligger närmast dess längd i låtens tempo, minst ett, och det ger trimmen ett tempo. Fit to tempo i pitch och stretch passar den då till de stegen (en snare på 1,3 steg pitchas upp till 1 steg, en på 1,7 ner till 2), och en hit med kortare region pitchas lika mycket som hela trimmen, som en slice i ett break. One-shots får inga takter att ställa in. *(Magnus beslut; ändras inte utan att fråga.)* På paden och matrisen verkar stretch som makro för alla hits under dem och multipliceras med hittens egen (se Config i tre lager).
 - **Var bitarna börjar**, ett val på hitten: *Sample* (förvalt) lägger bitarna i ett rutnät från trimmens början, som när en sampler stretchade hela breaket: spelas slicesen i ordning låter det som ett stretchat break, och en slice behåller sina bitar var den än spelas. *Hit* börjar bitarna vid hittens start, vilket ger rena slag.
-- **I en mod:** en faktor och en bitlängd, och ett val av hur den möter hittens stretch: *Multiply* (multipliceras med hittens, så att en mod på 2× gör ett break på Fit to tempo dubbelt så långt som stegen) eller *Replace* (modens stretch gäller i stället för hittens). Ramp och Random kan ändra faktorn över tid.
+- **I en mod:** en faktor och en bitlängd, och ett val av hur den möter hittens stretch: *Multiply* (multipliceras med hittens, så att en mod på 2× gör ett break på Fit to tempo dubbelt så långt som stegen) eller *Replace* (modens stretch gäller i stället för hittens). Stegraden ändrar faktorn över tid.
+
+## Stegrader och fliken Mods
+
+Fliken Mods byggs som skissen `docs/sketches/mods.html` (Mods – audio, godkänd av Magnus 2026-10-21). *(Magnus beslut; ändras inte utan att fråga.)* Där skissen och den här texten skiljer sig gäller texten.
+
+**Sidan.** Till vänster listan med mods (+ New mod, en rad per mod med namn, antal effekter och ♪ när den hörs i låten), och under den Start from med förvalen som idag. Till höger den valda moden: namnet med Rename, Clone (kopian heter "<namn> copy" och blir vald), Delete (som Delete överallt) och 🎲 (Reroll this mod), och sedan alla modens effekter som kort under varandra, inga flikar. Under korten + Add effect (bara mål moden inte redan har, i ordningen Swap, Pad member, Ratchet, Pitch, Volume, Pan, Direction, Stretch, Dist, Filter cutoff, Reverb, Delay, Tempo (slip), Tape, Scratch, Scramble, Stutter, Freeze, Reverse, Rewind, Halftime). Under moden förhandsvisningen: Plays on (en loop), och ett rutnät med loopens steg och en rad per effekt som visar vad varje steg gör i det här varvet. Play spelar moden på loopen under Plays on, i loop, och varje varv slår om 🎲-stegen. New example och grafen finns inte längre.
+
+**Kortet.** Överst namnet, en enhet (dB, st, Hz, %, ×) och Remove. Sedan en mening som säger vad effekten gör (Volume · 4 steps of 1 beat (1 bar), loops · 0 to −12 dB; Pitch · 3 steps of 1/16 (3/16), loops · +5 to −7 st, 1 dice step). Sedan reglagen: Step (1/16, beat, bar), Length (− N steps +, 1–16; + lägger till en kopia av sista steget), Randomize, Ramp ↗/↘, Clear, eventuella förval, och effektens egna val. Sedan en linjal med slag och stegraden.
+
+**Stegrader.** *(Magnus beslut; ändras inte utan att fråga.)*
+- En stegrad är 1–16 steg av samma storlek. Den börjar där loopen eller klippet börjar och loopar på sin egen längd, så 3 steg av 1/16 hamnar olika på varje slag. Efter slutet (↻) visas raden svagt igen, som den fortsätter över ett klipp i Song.
+- Ett steg är fast (ett värde) eller ett **🎲-steg**: ett intervall (från–till) och en chans (100, 75, 50 eller 25 %, ett klick på chansen stegar). Ett 🎲-steg slår ett nytt värde i intervallet varje gång det spelas, ur modens seed (se Slump och seeds); misslyckas chansen gör steget ingenting (målets nollvärde). På en på/av-rad är chansen sannolikheten att steget är på.
+- Dra upp eller ner på ett steg för att sätta värdet, och dra över stegen för att måla dem (🎲-steg målas inte över). På ett 🎲-steg flyttar draget närmaste kant av intervallet. Under draget visas värdet (−6 dB, 🎲 −7 st to +5 st). En 🎲 syns när musen är över ett steg: ett klick gör steget till ett 🎲-steg (intervallet ±15 % av omfånget runt värdet, chans 100; på en på/av-rad 0–1 och 50 %), ett klick till gör det fast igen på intervallets mitt.
+- **Randomize** fyller stegen med slumpade fasta värden, som om de var ritade. Shift-klick (och knappen Shift: dice) fyller dem med 🎲-steg: intervall på 15–40 % av omfånget och chans 100, 75 eller 50 % (på/av-rader 75, 50 eller 25 %). Slumpen här är ett ritverktyg: den sparas som stegens värden.
+- **Ramp ↗/↘** ritar en rak linje över stegen, från radens lägsta värde till dess högsta (↗) eller tvärtom (↘), och stegen blir fasta. Är alla värden lika går linjen över hela omfånget. Varje tryck byter riktning, och knappen visar vad nästa tryck gör. Med färre än 2 steg gör den ingenting.
+- **Clear** sätter alla steg till målets nollvärde, fasta.
+- En ny effekt har 4 steg av beat med nollvärdet, utom Reverb (100), Delay (80) och Scramble (50).
+- Ett reglage som inte gör något gråas ut med en förklaring (se Reglage som inte hörs), till exempel Ramp på en på/av-rad (An on/off lane has no slope) och Around the clip när Take from inte är ± bars.
+
+**Raderna per mål.** Omfånget gäller när man ritar i en mod; hitten behåller sitt. *(Magnus beslut.)*
+
+| Mål | Rad | Omfång (nollvärde) | Egna val på kortet |
+| --- | --- | --- | --- |
+| Pitch | värde från nollinjen | −24 till +24 st, hela halvtoner eller fritt (0) | Values: Semitones (förvalt) eller Free |
+| Volume | värde | −24 till +6 dB, steg 1 (0) | – |
+| Pan | värde från nollinjen | −100 till +100 %, steg 5 (0) | – |
+| Ratchet | värde | 1–8 (1) | – |
+| Pad member | värde | medlem 1–8 (1); en medlem paden saknar spelar medlem 1 | knappen In turn ritar 1, 2, 3 … upp till padens medlemmar |
+| Direction | på/av | baklänges på eller av (av) | – |
+| Stretch | värde, logaritmisk | 0,25–4× (1×) | bitlängd och Multiply/Replace som idag |
+| Dist | värde | 0–100 % (0) | läge: Drive, Crush, Decimate |
+| Filter cutoff | värde, logaritmisk | 60 Hz–18 kHz (18 kHz) | Type: Low-pass, High-pass; Resonance: 0, 30 (förvalt) eller 60 % |
+| Reverb | värde | 0–100 % (0) | storlek som idag |
+| Delay | värde | 0–100 % (0) | tid och feedback som idag |
+| Scramble, Stutter, Freeze, Reverse, Rewind | se Mods som samplar det som hörs | | |
+
+Swap, Tempo (slip) och Tape har ingen stegrad: de behåller sina reglage, på ett kort. *(Magnus beslut.)*
+
+**Gamla projekt** räknas om när de laddas: List och Cycle blir stegrader med samma värden (en Cycle utan värden på Pad member blir In turn), Ramp blir en ritad linje med 16 steg av ratens storlek, och Random blir lika många 🎲-steg med samma intervall och närmaste chans av 100, 75, 50 och 25 %. Värden utanför radens omfång begränsas till det. *(Claudes val.)*
 
 ## Tape
 
@@ -253,7 +292,12 @@ Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in
 - **Crossfader:** en egen rad med på och av per steg, som klipper ljudet (chirp, transformer).
 - **Clear** spelar normalt: en rak linje framåt genom inspelningen i 1×, med fadern öppen. *(Magnus beslut; ändras inte utan att fråga.)*
 - **Färdiga rörelser** som en scratchande DJ, var och en med sin egen fader: Baby (fram och tillbaka, fadern öppen), Chirp (fadern stängs just när skivan vänder), Transformer (lugn rörelse fram och tillbaka medan fadern hackar jämnt i 1/32) och Tear (bakåtdraget i två ryck). *(Magnus beslut att de ska likna en DJ; rörelserna i detalj är Claudes val.)*
-- TODO(spec): resten (stegraden, hur kurvan jämnas ut) bestäms efter skissen.
+- **Kortet** (se skissen): Records the first (1 beat, 2 beats, 1 bar (förvalt), 2 bars) under the clip, Step (1/16, beat, bar) och Length (2–16). Start from: Baby, Chirp, Transformer, Tear. Randomize ritar en slumpad handrörelse och fader. Ramp ↗/↘ ritar ett jämnt svep framåt eller bakåt genom inspelningen. Clear spelar normalt. *(Magnus beslut.)*
+- **Nålraden:** en punkt per steg, nålens läge (0–1) i inspelningen där steget börjar, i steg om en halv 1/16 av inspelningen. Mellan punkterna jämnas kurvan ut (Catmull-Rom), och ljudet följer den utjämnade kurvan man ser. *(Magnus beslut.)* Sista steget fortsätter i den fart det kom med. Ett steg som rör sig långsammare än 0,05× står stilla och är tyst. Under varje steg står farten (▸2.4, ◂2.4, –). Framåt är gult, bakåt blått och stilla streckat grått.
+- **Loopen:** när raden loopar lyfts nålen och hoppar tillbaka till första punkten (streckat), utan drag. *(Magnus beslut.)*
+- **Fadern:** en ruta per steg, öppen eller stängd (tyst); Alt-klick delar rutan i två halvor eller slår ihop dem.
+- **Förvalen** har 8 steg av 1/16: Baby (punkter .1 .25 .1 .25 …, fadern öppen), Chirp (.1 .18 .26 .18 .1 .18 .26 .18, varannan ruta öppen och varannan delad öppen–stängd), Transformer (.1 .13 .16 .19 .22 .19 .16 .13, alla rutor delade öppen–stängd) och Tear (.1 .2 .3 .25 .2 .2 .15 .1, fadern öppen). En ny Scratch är Baby på 1 bar.
+- **Meningen:** Scratch · 1 bar recorded · 8 steps of 1/16, loops · 3 backward strokes · fader cuts 4 (eller fader open).
 
 **En röst.** Ett nytt ljud klipper alltid det som klingar, också en stretchad hit, men aldrig reverb och delay, som klingar ut bredvid; det finns inget poly-läge där slag klingar över varandra. En stretchad hit hörs alltså i sin fulla längd bara när stegen efter den är tomma. *(Magnus beslut; ändras inte utan att fråga.)*
 
@@ -269,7 +313,13 @@ Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stu
 - **Reverse** spelar det som hörs baklänges, ruta för ruta på sin plats.
 - **Rewind** drar tillbaka det senaste slaget eller takten som ett band som spolas tillbaka.
 - **Halftime** spelar det som hörs i halv fart under klippet, med tonhöjden ner som en skiva.
-- TODO(spec): reglagen bestäms efter skissen.
+- Varje kort har raden Source: what's heard (step mods, reverb/delay, tape), never itself or another audio mod. Every roll is seeded. *(Reglagen nedan: Magnus beslut via skissen.)*
+- **Scramble:** stegraden är chansen (0–100 %) att en ruta byts. Cell (1/32, 1/16, 1/8, beat), Take from (Whole song, ± bars, Inside the clip), Around the clip (± 1, ± 2, ± 4 takter; bara med ± bars), Reverse chance (0, 25, 50, 100 %). Under kortet en bild, Where each cell comes from, med rutorna och pilar från där de hämtas, och 🎲 Reroll för moden.
+- **Stutter:** en valrad per steg: off, 1/16, 1/32, 1/64 (upprepningens längd). Grabs (1/16, 1/8, beat: hur mycket som upprepas), Pitch per repeat (−2 till +2 st), Gate (100, 75, 50 %). Förvalet Roll ritar 1/16 → 1/32 → 1/64 över ett slag.
+- **Freeze:** på/av per steg. Grain (10, 30, 80 ms), Spread (0, 25, 50 %), Level (−6, −3, 0 dB).
+- **Reverse:** på/av per steg; rutorna spelas baklänges på sin plats. Cell (1/32, 1/16, 1/8, beat).
+- **Rewind:** på/av per steg (där den slår till). Pulls back (1 beat, 2 beats, 1 bar), Curve (Fast, Slowing, Spin-back).
+- **Halftime:** ingen stegrad; gäller hela klippet. Speed (×0,5, ×0,75, ×2), Keep pitch (Off förvalt: tonhöjden följer farten som en skiva; On: stretch).
 
 ## Slip-tempo
 
@@ -297,7 +347,7 @@ Play spelar det som visas i fliken:
 | Mods | Moden på sin loop, renderad och loopad. Utan någon mod finns inget att spela. |
 | Song, Project | Hela låten, renderad och loopad |
 
-I Samples spelar Play i headern och mellanslag hela den valda samplen. Ett klick på en slice spelar den slicen, och ett klick i en one shots vågform spelar den, direkt vid tryck; de stoppar Play i headern, och Play i headern stoppar dem; en sak spelar i taget. Editorn har ingen egen Play. *(Magnus beslut; ändras inte utan att fråga.)* Headern har till höger, i ordning: tempot (BPM), Play, Loop, Undo, Redo, Load, Save och New snapshot. Loop är på från början: då spelar Play det den spelar om och om igen, och av spelar den det en gång. *(Magnus beslut; ändras inte utan att fråga.)* Loop gäller också i Song: på loopar Play låten (dess loopområde om det är på, annars hela låten, som Song redan gör), och av spelar Play låten från startpunkten till slutet och stannar. *(Magnus beslut; ändras inte utan att fråga.)* I Project spelar Play låten på samma sätt, och Loop gäller där också. Slås Loop av eller på medan något spelar börjar det om, låten från startpunkten. Loop är vyns val och sparas inte i projektet. *(Claudes val.)* I Matrices spelar Play i headern och mellanslag den visade matrisen, i loop, vad som än är valt; det finns ingen egen Play matrix. Ett klick på en hit (i rutnätet eller listan), och ▶ i dialogen New matrix, spelar en hit en gång; ett klick på en pad (dess nummer eller dess rad i listan) spelar ett val av paden. Den som vill höra en pad eller en hit klickar alltså på den. *(Magnus beslut; ändras inte utan att fråga.)* Valet ändrar inte vad Play spelar: medan Play spelar hörs ett klick ovanpå, en gång. Visas en annan matrix under tiden spelar den nya matrisen hel. Byts flik under uppspelning startar den nya flikens ljud direkt från början när det är renderat; ändras det som spelar hörs ändringen så snart som möjligt, med Loop på såväl som av (se Byte under uppspelning). *(Magnus beslut; ändras inte utan att fråga.)* Har den nya fliken inget att spela stannar uppspelningen. Play i headern är en enda knapp, som alla andra ▶: den visar ■ och heter Stop medan det spelar. Mellanslag gör samma sak som Play/Stop, i alla vyer, utom när man skriver i ett fält.
+I Samples spelar Play i headern och mellanslag hela den valda samplen. Ett klick på en slice spelar den slicen, och ett klick i en one shots vågform spelar den, direkt vid tryck; de stoppar Play i headern, och Play i headern stoppar dem; en sak spelar i taget. Editorn har ingen egen Play. *(Magnus beslut; ändras inte utan att fråga.)* Headern har till höger, i ordning: tempot (BPM), Play, Loop, Undo, Redo, 🎲 (Reroll everything), Load, Save och New snapshot. Loop är på från början: då spelar Play det den spelar om och om igen, och av spelar den det en gång. *(Magnus beslut; ändras inte utan att fråga.)* Loop gäller också i Song: på loopar Play låten (dess loopområde om det är på, annars hela låten, som Song redan gör), och av spelar Play låten från startpunkten till slutet och stannar. *(Magnus beslut; ändras inte utan att fråga.)* I Project spelar Play låten på samma sätt, och Loop gäller där också. Slås Loop av eller på medan något spelar börjar det om, låten från startpunkten. Loop är vyns val och sparas inte i projektet. *(Claudes val.)* I Matrices spelar Play i headern och mellanslag den visade matrisen, i loop, vad som än är valt; det finns ingen egen Play matrix. Ett klick på en hit (i rutnätet eller listan), och ▶ i dialogen New matrix, spelar en hit en gång; ett klick på en pad (dess nummer eller dess rad i listan) spelar ett val av paden. Den som vill höra en pad eller en hit klickar alltså på den. *(Magnus beslut; ändras inte utan att fråga.)* Valet ändrar inte vad Play spelar: medan Play spelar hörs ett klick ovanpå, en gång. Visas en annan matrix under tiden spelar den nya matrisen hel. Byts flik under uppspelning startar den nya flikens ljud direkt från början när det är renderat; ändras det som spelar hörs ändringen så snart som möjligt, med Loop på såväl som av (se Byte under uppspelning). *(Magnus beslut; ändras inte utan att fråga.)* Har den nya fliken inget att spela stannar uppspelningen. Play i headern är en enda knapp, som alla andra ▶: den visar ■ och heter Stop medan det spelar. Mellanslag gör samma sak som Play/Stop, i alla vyer, utom när man skriver i ett fält.
 
 - **Varv i loop:** en matrix eller en loop som Play spelar i loop (i Samples, Matrices och Loops) renderas inte bara ett varv, för då väljer varje pad bara en gång och variationerna hörs aldrig. Den renderas i så många varv att varje pad på Round robin hinner gå ett helt varv och börjar om på första hitten när bufferten loopar (minsta gemensamma multipel av antalet hits, med hänsyn till hur många gånger paden spelar per varv), och att varje pad på Random och No repeat hinner välja minst 8 gånger. Ett steg med en låst medlem väljer inget och räknas inte. Taket är 32 takter; når varven inte runt inom taket blir det så många varv som ryms. Spelhuvudet går samma väg varje varv. Ändras något medan varven spelar väntar bytet inte på att varven tar slut: den nya renderingen tar vid mitt i varven (se Byte under uppspelning), och Round robin och Random fortsätter från den nya renderingen på samma ställe. *(Magnus beslut om att det hörs så snart som möjligt; att valen fortsätter från den nya renderingen är Claudes val.)* En matrix som spelas en gång (ett klick i hyllan i Loops) är ett varv. *(Magnus beslut; antalet 8 och taket 32 takter är Claudes val.)* TODO(spec): med ny slump varje varv (se Slump och seeds) räcker inte en buffer med ett fast antal varv; hur varven renderas löpande bestäms när det byggs.
 - **Slump och seeds:** *(Magnus beslut; ändras inte utan att fråga.)*
@@ -368,7 +418,10 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 22. Matrix | Break och one-shot blir en Matrix: Sample → Hit → Pad → Matrix, pads i y-led och hits i x-led, config i tre lager (hit, pad, matrix). Break och one-shot är bara en klassificering (ikon). Drag ger kopior. Slicingen hör till trimmen; ändringar som byter numrering frågar först (New trim eller Renumber). Plays och Replace with file tas bort. Import väljer Slice eller Don't slice. Gamla projekt öppnas inte | Amen slicas och blir en matrix med 64 pads som spelar som i dag i sin loop. En ny matrix *Snares* kan fyllas med fyra snares från olika filer, ställas på Round robin och spela en ny snare varje gång på ett steg i Loops. *Snares* kopieras till Amens rad 07 och ger fyra nya hits där; pitchas en av kopiorna ändras inte snaren i *Snares*, och tvärtom. Sänks volymen på Amens pad 07 sänks alla dess hits; sänks Amens matrix sänks allt i Amen, även kopiorna. Ingen kod, typ eller text i gränssnittet använder Break eller One-shot som objekt |
 | 22b. REX2-import | En REX2-fil (.rx2) importeras i Import som ett slicat sample, med läsdelen av VelociLoops i TypeScript | En .rx2 importeras i Import (Browse och drag) och blir ett sample som redan är slicat: REX-filens slicer är markörer, takterna kommer från filen, och matrisen och loopen skapas som när man slicar själv. Loopen låter som filen. Testfilerna från VelociLoops (`120Stereo.rx2`, `120Mono.rx2`, `120FourBeats.rx2`) avkodas till samma ljud som deras WAV-facit, inom avrundningen från heltal till flyttal. En fil som Breakseq själv exporterat som REX läses tillbaka med samma antal slicer, samma tempo och samma ljud. En trasig eller okänd fil ger ett tydligt fel i Import, ingen krasch |
 | 23. Gränssnitt för matriser | Flikarna Samples, Pads, Loops, Mods, Song och Project på tangenterna 1–6. Samples ersätter Import och Slice; Pads ersätter Hits med en matrix i fokus som tidslinje, Take from, reglagen för det valda, drag som lägger till, ersätter och flyttar, tryck med finger, tangentbord och + New matrix av one-shots. Loops delar fokus. Modellbuggarna från sorteringen rättade (loopen följer matrisen, padnamn efter rad, MIDI-bitar per ljud) | Amen importeras och slicas i Samples utan att byta flik. I Pads ligger amen 1 i fokus som en tidslinje och one-shots under Take from; en snare dras till pad 07 och blir en kopia där, och en hit som släpps på sista padens hit ersätter den. En ny matrix *Snares* byggs med + New matrix och kryssrutor, där varje ljud hörs vid ett klick. Hela flödet går med tangentbordet och på en mobil. Loops hylla visar bara matrisen i fokus och de man tar från. Ingen text i gränssnittet använder break eller one-shot som namn på ett objekt, bara som klassificering |
-| 24. Mods att leka med (planerad) | Ett gränssnitt för mods där det är lätt och roligt att leka med parametrarna. Utformas före fasen | – |
+| 24a. Seeds och Reroll | Seeds på mod, matrix, pad och klipp; all slump räknas ur seed och plats; varv i loop slår om; 🎲 i headern, på mod, matrix, pad och klipp, med Undo | Samma projekt låter likadant efter Load och i export; Play i Mods låter olika varje varv; 🎲 på ett klipp ändrar bara det klippet och Undo tar tillbaka det |
+| 24b. Stegrader | Fliken Mods som skissen: kort, stegrader med 🎲-steg, Randomize, Ramp ↗/↘, Clear, förhandsvisning på Plays on; formerna bort och gamla projekt räknas om; reglage som inte hörs gråas ut | En Volume på 3 steg av 1/16 hörs falla olika på varje slag; ett 🎲-steg på Pitch låter olika varje varv; ett projekt med List, Ramp och Random laddas och låter som förut |
+| 24c. Mods som samplar det som hörs | Scramble, Stutter, Freeze, Reverse, Rewind, Halftime; Tape spelar in reverb och delay | En Stutter Roll på sista slaget rullar 1/16 → 1/64; Scramble från hela låten byter rutor; en Tape över ett kast spelar in svansen |
+| 24d. Scratch | Nålrad, fader, förvalen, Clear, Ramp och Randomize; ljudet följer kurvan | Baby och Chirp låter som en DJ på ett break, och Clear låter som utan Scratch |
 
 Flikarna bytte namn i fas 23. Faserna före den använder de gamla namnen: Import och Slice är nu Samples, och Hits är nu Pads. Efter fas 23 heter Pads Matrices, och trim heter sample i appen.
 
