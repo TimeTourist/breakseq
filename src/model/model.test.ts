@@ -33,6 +33,7 @@ import {
   copyClip,
   moveClip,
   removeClip,
+  loopIndex,
   resizeClip,
   setLoopKind,
   setSongCell,
@@ -384,7 +385,8 @@ describe('clips', () => {
     expect(spans(run(long, ctx, addClip('main', loop, 20, 8)))).toEqual([
       [0, 20, 0],
       [20, 8, 0],
-      [28, 36, 12],
+      // The other half keeps its place in the loop unwrapped, so its random choices stay.
+      [28, 36, 28],
     ]);
     const two = run(project, ctx, addClip('main', loop, 0, 16), addClip('main', loop, 16, 16));
     expect(spans(run(two, ctx, addClip('main', loop, 8, 16)))).toEqual([
@@ -401,9 +403,14 @@ describe('clips', () => {
     const id = next.song.clips[0]!.id;
     next = run(next, ctx, resizeClip(id, 'start', 28));
     expect(spans(next)).toEqual([[28, 4, 12]]);
-    // Pulled out past its start, the loop wraps round: 4 steps earlier is offset 8.
-    expect(spans(run(next, ctx, resizeClip(id, 'start', 24)))).toEqual([[24, 8, 8]]);
+    // Pulled out past its start, the offset goes below 0 (the loop wraps round where it is read).
+    expect(spans(run(next, ctx, resizeClip(id, 'start', 12)))).toEqual([[12, 20, -4]]);
     expect(spans(run(next, ctx, resizeClip(id, 'end', 0)))).toEqual([[28, 1, 12]]);
+  });
+
+  it('a loop clip reads its loop wrapped round, also with an offset past its length or below 0', () => {
+    expect([0, 3, 4, 7].map((t) => loopIndex({ start: 0, offset: 10 }, t, 4))).toEqual([2, 1, 2, 1]);
+    expect([0, 1, 4].map((t) => loopIndex({ start: 0, offset: -1 }, t, 4))).toEqual([3, 0, 3]);
   });
 
   it('moving and copying keep length and offset, and stay with their kind of row', () => {

@@ -1,5 +1,5 @@
 import type { Clip, DelayPlay, Direction, DistPlay, FilterPlay, Id, Loop, Project, Region, ReverbPlay, StretchPlay } from '../model';
-import { STEPS_PER_BAR, clampStretch, clipsByStep, effectiveHit, hitColour, hitSound, hitSpace, hitStretch, stepDuration } from '../model';
+import { STEPS_PER_BAR, clampStretch, clipPlace, clipsByStep, effectiveHit, hitColour, hitSound, hitSpace, hitStretch, loopIndex, stepDuration } from '../model';
 import type { StepState } from './mods';
 import { applyMods, modRuns, modValues, stepState, tempoEffect, tempoRuns, tempoValues } from './mods';
 import type { PickState } from './pad-choice';
@@ -58,7 +58,7 @@ export function songLayers(project: Project): (Layer | null)[] {
     const clip = fill[t] ?? m;
     const loop = clip === null ? undefined : project.loops[clip.ref];
     if (clip === null || loop === undefined || loop.steps.length === 0) return null;
-    return { loop, index: (t - clip.start + clip.offset) % loop.steps.length, clip };
+    return { loop, index: loopIndex(clip, t, loop.steps.length), clip };
   });
 }
 
@@ -156,7 +156,7 @@ function heardTriggers(project: Project, runs: ReturnType<typeof modRuns>, dice:
     // A random pick comes from the matrix's, pad's and clip's seeds and the step in the clip: a copied clip picks the same.
     const { clip } = layer;
     const pick = (pad: NonNullable<typeof modded.pad>) =>
-      picker.pick(pad, dice(CHOICE.pad, matrixSeed.get(pad.id) ?? 0, pad.seed, clip.seed, content - clip.start + clip.offset));
+      picker.pick(pad, dice(CHOICE.pad, matrixSeed.get(pad.id) ?? 0, pad.seed, clip.seed, clipPlace(clip, content)));
     const picked = modded.cell.memberId === null && modded.pad !== undefined && modded.hit !== undefined ? pick(modded.pad) : undefined;
     const state = picked === undefined ? modded : { ...modded, hit: project.hits[picked] };
     if (state.hit === undefined) return;
