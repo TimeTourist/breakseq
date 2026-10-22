@@ -47,14 +47,21 @@ export interface Focus {
    * always shows it, and a click on another matrix's pad or hit only plays it.
    */
   readonly matrix: Id | null;
-  /** The matrices pinned in Loops, whose pads its shelf holds: several, apart from the Matrices pin (Magnus beslut). */
-  readonly loopPins: readonly Id[];
+  /**
+   * The matrices unpinned in Loops. Every other matrix is pinned there and its
+   * pads are in the shelf: all from the start, also a new one (Magnus beslut
+   * 2026-10-22), apart from the Matrices pin.
+   */
+  readonly loopUnpins: readonly Id[];
   /** The matrix Matrices shows while none is pinned: the one whose row, pad or hit was clicked last. Missing is none. */
   readonly shown?: Id | null;
 }
 
 /** The matrix Matrices shows: the pinned one, else the one clicked last. */
 export const matrixInView = (focus: Focus): Id | null => focus.matrix ?? focus.shown ?? null;
+
+/** Whether a matrix is pinned in Loops, so its pads are in the shelf. */
+export const loopPinned = (focus: Focus, matrix: Id): boolean => !focus.loopUnpins.includes(matrix);
 
 export interface AppState {
   readonly history: History;
@@ -108,7 +115,7 @@ export type Action =
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
-  focus: { matrix: null, loopPins: [] },
+  focus: { matrix: null, loopUnpins: [] },
   projectFolder: { folder: null, active: null, saved: null, snapshots: [] },
   view: 'samples',
   sliceTarget: null,
@@ -123,8 +130,8 @@ export const initialState = (project: Project = createProject()): AppState => ({
 const settleFocus = (focus: Focus, project: Project): Focus => {
   const matrix = focus.matrix !== null && project.matrices[focus.matrix] !== undefined ? focus.matrix : null;
   const shown = (focus.shown ?? null) !== null && project.matrices[focus.shown!] !== undefined ? focus.shown! : null;
-  const loopPins = focus.loopPins.filter((id) => project.matrices[id] !== undefined);
-  return matrix === focus.matrix && shown === (focus.shown ?? null) && loopPins.length === focus.loopPins.length ? focus : { matrix, loopPins, shown };
+  const loopUnpins = focus.loopUnpins.filter((id) => project.matrices[id] !== undefined);
+  return matrix === focus.matrix && shown === (focus.shown ?? null) && loopUnpins.length === focus.loopUnpins.length ? focus : { matrix, loopUnpins, shown };
 };
 
 /** The state with a new history, its focus settled on the project the history now shows. */
@@ -160,8 +167,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'show':
       return { state: { ...state, focus: { ...state.focus, shown: action.matrix, matrix: state.focus.matrix === null ? null : action.matrix } }, error: null };
     case 'loopPin': {
-      const others = state.focus.loopPins.filter((id) => id !== action.matrix);
-      return { state: { ...state, focus: { ...state.focus, loopPins: action.on ? [...others, action.matrix] : others } }, error: null };
+      const others = state.focus.loopUnpins.filter((id) => id !== action.matrix);
+      return { state: { ...state, focus: { ...state.focus, loopUnpins: action.on ? others : [...others, action.matrix] } }, error: null };
     }
     case 'view':
       return { state: { ...state, view: action.view }, error: null };
@@ -169,8 +176,11 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, ...action.place }, error: null };
     case 'sliceTarget':
       return { state: { ...state, sliceTarget: action.sampleId }, error: null };
-    case 'load':
-      return { state: { ...withHistory(state, createHistory(action.project)), songCursor: 0 }, error: null };
+    case 'load': {
+      // The pins in Loops are not saved: after Load everything is pinned again.
+      const loaded = withHistory({ ...state, focus: { ...state.focus, loopUnpins: [] } }, createHistory(action.project));
+      return { state: { ...loaded, songCursor: 0 }, error: null };
+    }
     case 'projectFolder':
       return { state: { ...state, projectFolder: { ...state.projectFolder, ...action.state } }, error: null };
     case 'songCursor':

@@ -36,6 +36,7 @@ import { LoopLength } from './LoopLength';
 import { RenameInPlace } from './RenameInPlace';
 import type { Services } from './services';
 import type { Selection } from './store';
+import { loopPinned } from './store';
 import { Waveform } from './Waveform';
 
 /** A loop's row being dragged in the list, to reorder it: its id. Only the list takes it. */
@@ -130,7 +131,7 @@ function LoopsList({
   const run = useRun();
   const open = useOpen();
   const heard = useHeard();
-  const pins = useSelect((s) => s.focus.loopPins);
+  const focus = useSelect((s) => s.focus);
   /** Groups folded: the view's choice, not saved. (Claudes val.) */
   const [folded, setFolded] = useState<ReadonlySet<LoopKind>>(new Set());
   const [dragged, setDragged] = useState<Id | null>(null);
@@ -250,7 +251,7 @@ function LoopsList({
         <span className="muted small drop-hint">· pin to use in the shelf</span>
       </div>
       {Object.values(project.matrices).map((m) => {
-        const pinned = pins.includes(m.id);
+        const pinned = loopPinned(focus, m.id);
         return (
           <div key={m.id} className="sample-row matrix-pin-row">
             <button
@@ -309,7 +310,7 @@ function LoopEditor({
   const run = useRun();
   const open = useOpen();
   const selection = useSelect((s) => s.selection);
-  const pins = useSelect((s) => s.focus.loopPins);
+  const focus = useSelect((s) => s.focus);
   const [shelfPad, setShelfPad] = useState<Id | null>(null);
   const [shelfMatrix, setShelfMatrix] = useState<Id | null>(null);
   const drops = useDropTargets();
@@ -322,7 +323,7 @@ function LoopEditor({
   const held = holds(loop.steps.map((s) => s.padId != null));
   const silent = new Set(Object.values(project.pads).filter((p) => padSilent(project, p)).map((p) => p.id));
   // The pinned matrices, in the order Matrices lists them.
-  const groups = shelfGroups(project, Object.keys(project.matrices).filter((id) => pins.includes(id)));
+  const groups = shelfGroups(project, Object.keys(project.matrices).filter((id) => loopPinned(focus, id)));
   const selectedStep = selection.step !== null && selection.step < loop.steps.length ? selection.step : null;
   const step = selectedStep === null ? undefined : loop.steps[selectedStep];
   const stepPad = step?.padId == null ? undefined : project.pads[step.padId];

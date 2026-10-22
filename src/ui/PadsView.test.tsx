@@ -88,7 +88,7 @@ const settle = () =>
 async function setup(project: Project, shown: string | null, patch: Partial<AppState> = {}, rng?: () => () => number) {
   const fake = services();
   if (rng !== undefined) Object.assign(fake.services, { rng });
-  const store: Store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: null, loopPins: [], shown }, ...patch });
+  const store: Store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: null, loopUnpins: [], shown }, ...patch });
   render(<App store={store} services={fake.services} />);
   await settle();
   return { store, ...fake };
@@ -711,8 +711,8 @@ describe('Matrices: the pin (Magnus beslut)', () => {
     const snaresId = matrixNamed(p, 'Snares').id;
     const { store } = await setup(p, matrixNamed(p, 'amen 1').id);
     fireEvent.click(within(list()).getByRole('button', { name: 'Pin Snares' }));
-    expect(store.getState().focus).toMatchObject({ matrix: snaresId, loopPins: [] });
-    act(() => void store.dispatch({ type: 'loopPin', matrix: matrixNamed(p, 'amen 1').id, on: true }));
+    expect(store.getState().focus).toMatchObject({ matrix: snaresId, loopUnpins: [] });
+    act(() => void store.dispatch({ type: 'loopPin', matrix: matrixNamed(p, 'amen 1').id, on: false }));
     expect(store.getState().focus.matrix).toBe(snaresId);
     expect(store.getState().history.past).toHaveLength(0);
   });

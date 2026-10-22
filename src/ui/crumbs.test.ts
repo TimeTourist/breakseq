@@ -67,10 +67,10 @@ describe('the row under the tabs: one chain, one step per tab (Magnus beslut)', 
     const m = amenMatrix(p);
     const pad = p.pads[m.pads[1]!]!;
     const hit = pad.members[0]!;
-    expect(text(trail(state(p, { view: 'pads', focus: { matrix: m.id, loopPins: [] } })))).toBe('amen.wav · sample 1 › [amen 1] › 1 loop →');
-    const padState = state(p, { view: 'pads', focus: { matrix: m.id, loopPins: [] }, selection: { ...initialState().selection, pad: pad.id } });
+    expect(text(trail(state(p, { view: 'pads', focus: { matrix: m.id, loopUnpins: [] } })))).toBe('amen.wav · sample 1 › [amen 1] › 1 loop →');
+    const padState = state(p, { view: 'pads', focus: { matrix: m.id, loopUnpins: [] }, selection: { ...initialState().selection, pad: pad.id } });
     expect(text(trail(padState))).toBe('amen.wav · sample 1 › [amen 1 pad 02] › 1 loop →');
-    const hitState = state(p, { view: 'pads', focus: { matrix: m.id, loopPins: [] }, selection: { ...initialState().selection, pad: pad.id, hit } });
+    const hitState = state(p, { view: 'pads', focus: { matrix: m.id, loopUnpins: [] }, selection: { ...initialState().selection, pad: pad.id, hit } });
     expect(text(trail(hitState))).toBe('amen.wav · sample 1 › [amen 1 pad 02 · hit 1] › 1 loop →');
   });
 
@@ -78,7 +78,7 @@ describe('the row under the tabs: one chain, one step per tab (Magnus beslut)', 
     const base = chain();
     const thinkHit = base.pads[thinkMatrix(base).pads[0]!]!.members[0]!;
     const p = on(base, (q) => copyHits([thinkHit], amenMatrix(q).pads[0]!));
-    const focus = { matrix: amenMatrix(p).id, loopPins: [] };
+    const focus = { matrix: amenMatrix(p).id, loopUnpins: [] };
     const t = trail(state(p, { view: 'pads', focus }));
     expect(text(t)).toBe('2 samples ▾ › [amen 1] › 1 loop →');
     const menu = links(t)[0]!;
@@ -133,7 +133,7 @@ describe('the row under the tabs: one chain, one step per tab (Magnus beslut)', 
 
   it('the file is never a link: only the sample is, and it goes to Samples with it selected', () => {
     const p = chain();
-    const store = createStore(state(p, { view: 'pads', focus: { matrix: amenMatrix(p).id, loopPins: [] } }));
+    const store = createStore(state(p, { view: 'pads', focus: { matrix: amenMatrix(p).id, loopUnpins: [] } }));
     const sample = links(trail(store.getState()))[0]!;
     if (isMenu(sample)) throw new Error('one sample is one place');
     expect(sample).toMatchObject({ label: 'sample 1', context: { label: 'amen.wav' } });

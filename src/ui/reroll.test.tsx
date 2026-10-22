@@ -111,7 +111,7 @@ describe('🎲 Reroll', () => {
 
   it('in Matrices, on the matrix (its pads) and on the selected pad', async () => {
     const { project: p, matrix } = project();
-    const focus = { matrix: matrix.id, loopPins: [] };
+    const focus = { matrix: matrix.id, loopUnpins: [] };
     const padId = matrix.pads[2]!;
     const store = await setup(p, { view: 'pads', focus, selection: { ...initialState(p).selection, pad: padId } });
     fireEvent.click(screen.getByRole('button', { name: 'Reroll this pad' }));
