@@ -130,6 +130,22 @@ describe('Reroll', () => {
     expect(seedsOf(undo(history.history).present)).toEqual(before);
   });
 
+  it('everything keeps copies as copies: clips that shared a seed get the same new seed, the others each their own', () => {
+    const p = amen();
+    const main = p.song.clips.find((c) => c.row === 'main')!;
+    const copied = run(p, copyClip(main.id, 'main', main.start + main.length));
+    const before = copied.song.clips.filter((c) => c.row === 'main');
+    expect(before).toHaveLength(2);
+    expect(before[0]!.seed).toBe(before[1]!.seed);
+    const after = run(copied, rerollAll());
+    const [a, b] = before.map((c) => after.song.clips.find((x) => x.id === c.id)!);
+    expect(a!.seed).not.toBe(main.seed);
+    expect(a!.seed).toBe(b!.seed);
+    const mod = after.song.clips.find((c) => c.row === 'modA')!;
+    expect(mod.seed).not.toBe(a!.seed);
+    expect(mod.seed).not.toBe(copied.song.clips.find((c) => c.row === 'modA')!.seed);
+  });
+
   it('a clip: only that clip', () => {
     const p = amen();
     const clip = p.song.clips.find((c) => c.row === 'main')!;
