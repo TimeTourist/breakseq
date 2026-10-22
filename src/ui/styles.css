@@ -4108,3 +4108,42 @@ button.danger:hover:not(:disabled) {
 .song-list .song-list-group {
   margin-top: 6px;
 }
+
+/* Song-v2: every clip's seed in its lower left corner, and the selected clip's panel under the timeline. */
+.clip-seed {
+  position: absolute;
+  left: 6px;
+  bottom: 3px;
+  z-index: 1;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(16 17 19 / 0.7);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.selected-clip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sunken);
+  font-size: 13px;
+}
+
+.selected-clip .push {
+  margin-left: auto;
+  gap: 8px;
+}
+
+.seed-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: 12px;
+}
