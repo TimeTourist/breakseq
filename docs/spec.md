@@ -290,7 +290,7 @@ Tape spelar in en bit av det som hörs och spelar upp den som ett band, så län
 - **Ramp over:** hur lång rampen är, från klippets start (förvalt hela klippet). Därefter ligger hastigheten kvar på slutvärdet. Kurvan är Linear, Soft start, Soft end, Hard start (det mesta av ändringen direkt) eller Hard end (håller emot och ändras sist).
 - **Wow och flutter:** två reglage, 0–100 %. Wow är långsam, lite oregelbunden svajning i hastigheten (upp till ±25 %), och flutter är snabbt, oregelbundet fladder (upp till ±6 %). Båda ligger ovanpå rampen och slumpas ur seeds (se Slump och seeds).
 - **Under klippet** hörs bara tapen. Vid 0× är det tyst. Tapen klipper rösten före sig.
-- **Det som hörs som källa** *(Claudes val)*: tapen spelar in det som hörs i segmentet som ljud, också det som klingar in i det från före klippet (ett slag, reverb och delay), och klipps där segmentet slutar. Under klippet ersätter tapen det som hörs (med 3 ms övertoning), också reverb och delay som klingade före. Efter klippet hörs det som hörs på huvudklockan igen, som efter en glitch-effekt på utgången: också det som klingar vidare av slagen under klippet (svansar av reverb och delay, ett långt slag som började under klippet). Exporten: reverb/delay-WAV:en är tyst under en tape, eftersom tapen är en egen bit i MIDI-filen, klippt ur låten med det den spelade in.
+- **Det som hörs som källa** *(Claudes val)*: tapen spelar in det som hörs i segmentet som ljud, också det som klingar in i det från före klippet (ett slag, reverb och delay), och klipps där segmentet slutar. Under klippet ersätter tapen det som hörs (med 3 ms övertoning), också reverb och delay som klingade före. *(Magnus beslut 2026-10-22, gäller också Scratch och ljudmoddarna: under klippet hörs bara det de spelar, eftersom svansen redan finns i inspelningen; ändras inte utan att fråga.)* Efter klippet hörs det som hörs på huvudklockan igen, som efter en glitch-effekt på utgången: också det som klingar vidare av slagen under klippet (svansar av reverb och delay, ett långt slag som började under klippet). Exporten: reverb/delay-WAV:en är tyst under en tape, eftersom tapen är en egen bit i MIDI-filen, klippt ur låten med det den spelade in.
 - **Efter klippet** fortsätter det som syns där, på huvudklockan, som efter slip.
 - **A och B:** har båda raderna Tape samtidigt vinner B. Tape går före slip-tempo i sitt spann.
 
@@ -316,7 +316,7 @@ Scratch är en egen effekt bredvid Tape, som en hand på en skiva: den spelar in
   - Kurvans ändar: före första punkten och efter där sista steget slutar fortsätter kurvan rakt, så en rak linje är rak ända ut i ändarna. Skissen upprepar ändpunkten, vilket ger halv fart i första och sista steget. Kortet ritar samma kurva som ljudet spelar.
   - Kurvan kan slå över lite förbi 0 eller 1 vid en vändning. Där läser nålen det som hörs strax utanför inspelningen.
   - Övertoningarna: varje steg (och varje faderhalva) är en egen skarv, och skarvar bredvid varandra tonas över på 3 ms. Så klickar varken faderns kanter eller hoppet vid loopen.
-  - Clear behåller Length, som skissen (ett varv över raden). Den låter alltså precis som utan Scratch när raden är lika lång som inspelningen och klippet. Med kortare rad börjar inspelningen om vid ↻.
+  - **Clear sätter Length** så att raden spelar inspelningen en gång i 1× med det valda Step (Records the first 1 bar och Step 1/16 ger 16 steg; går det inte jämnt ut, eller blir det fler än 16 steg, väljs närmaste längd inom 2–16). Clear låter alltså alltid som utan Scratch när inspelningen ryms i raden. *(Magnus beslut 2026-10-22; ändras inte utan att fråga.)*
   - Meningen räknar en paus mitt i ett bakåtdrag (Tear) som samma drag. Hoppet vid loopen delar drag.
   - Spelhuvudet följer huvudklockan under Scratch, som under ljudmoddarna. Kortet har ingen Source-rad, som skissen; Records the first har förklaringen i sin title.
 
@@ -353,7 +353,8 @@ Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stu
 - **Rewind:** på ett steg där den slår till spolas Pulls back tillbaka under stegets längd, från stegets början. Fast: jämn fart bakåt. Slowing: snabbt först, stannar vid slutet. Spin-back: skivan går som den hörs, bromsar, vänder och snurrar bakåt allt fortare, och slutar Pulls back tillbaka. Tonhöjden följer farten.
 - **Halftime:** spelar det som hörs från där klippet börjar på tidslinjen (det man ser är det som hörs), i sin fart, under hela klippet; ×2 läser framåt i låten. Keep pitch spelar det som korn på 30 ms (som Stretch) så att tonhöjden står kvar.
 - **Where each cell comes from** visar rutorna som Play i Mods renderar i varvet som visas: låten är blocket av varv som Play renderar (se Varv i loop), så Whole song är blocket, och på en loop av en takt är det just varvet. 🎲 Reroll gör Reroll this mod.
-- **Spelhuvudet** följer huvudklockan under ljudmoddarna. TODO(spec): MIDI-, bit- och REX-exporten känner inte till ljudmoddarna eller Scratch; under dem spelar MIDI-filen slagen som de hörs utan dem. Ska ett klipp med ljudmoddar eller Scratch bli en egen bit, som en tape?
+- **Spelhuvudet** följer huvudklockan under ljudmoddarna.
+- **Exporten:** ett klipp med en ljudmodd eller Scratch blir en egen bit i MIDI-, bit- och REX-exporten, som en tape: klippt ur låten som det hörs, med ljudmoddarna och Scratch. Reverb/delay-WAV:en är tyst under den. Där ljudmodden inte gör något under klippet hörs ändå biten, eftersom den är klippt som det hörs. *(Magnus beslut 2026-10-22; ändras inte utan att fråga.)*
 
 ## Slip-tempo
 
@@ -459,6 +460,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 24b. Stegrader | Fliken Mods som skissen: kort, stegrader med 🎲-steg, Randomize, Ramp ↗/↘, Clear, förhandsvisning på Plays on; formerna bort och gamla projekt räknas om; reglage som inte hörs gråas ut | En Volume på 3 steg av 1/16 hörs falla olika på varje slag; ett 🎲-steg på Pitch låter olika varje varv; ett projekt med List, Ramp och Random laddas och låter som förut |
 | 24c. Mods som samplar det som hörs | Scramble, Stutter, Freeze, Reverse, Rewind, Halftime; Tape spelar in reverb och delay | En Stutter Roll på sista slaget rullar 1/16 → 1/64; Scramble från hela låten byter rutor; en Tape över ett kast spelar in svansen |
 | 24d. Scratch | Nålrad, fader, förvalen, Clear, Ramp och Randomize; ljudet följer kurvan | Baby och Chirp låter som en DJ på ett break, och Clear låter som utan Scratch |
+| 24e. Rättelser efter 24d | Clear i Scratch sätter Length; klipp med ljudmoddar eller Scratch blir egna bitar i exporten | Clear på en Scratch med 8 steg av 1/16 och Records the first 1 bar ger 16 steg och låter som utan Scratch; en Stutter i låten är en egen bit i MIDI-filen |
 
 Flikarna bytte namn i fas 23. Faserna före den använder de gamla namnen: Import och Slice är nu Samples, och Hits är nu Pads. Efter fas 23 heter Pads Matrices, och trim heter sample i appen.
 
