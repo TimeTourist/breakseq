@@ -45,4 +45,4 @@ npm run lint
 - Projektet byggs i faser (se `docs/spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** 25a – Songs lista och hylla (`docs/tasks/fas-25.md`).
+**Aktuell fas:** 25a – Songs lista och hylla (`docs/tasks/fas-25.md`), klar. Nästa är 25b.
