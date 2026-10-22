@@ -122,6 +122,22 @@ describe('step lanes', () => {
     }
   });
 
+  it('Pad member: B off lets A’s member through; A off and B off let the pad choose (Magnus beslut 2026-10-22)', () => {
+    const base = song([{ target: 'padMember', step: 'bar', lane: fixed(2) }]);
+    const first = base.project.pads[base.pad]!.members[0]!;
+    const withMembers = run(base.project, copyHits([first], base.pad), copyHits([first], base.pad), setPadChoice(base.pad, 'roundRobin'));
+    const members = withMembers.pads[base.pad]!.members;
+    const withB = run(withMembers, createMod('B', [{ target: 'padMember', step: 'bar', lane: fixed(0) }]));
+    const modB = newest(withMembers.mods, withB.mods);
+    const both = run(withB, addClip('modB', modB, 0, 16));
+    const hits = (project: Project) => generateTriggers(project).map((t) => members.indexOf(t.hitId) + 1);
+    expect(hits(both)).toEqual(Array.from({ length: 16 }, () => 2));
+    // A off too: the pad's own choice, as without mods.
+    const plain = hits(run(withMembers, replaceEffect(base.mod, 'padMember', { target: 'volume', step: 'bar', lane: fixed(0) })));
+    expect(new Set(plain).size).toBeGreaterThan(1);
+    expect(hits(run(both, replaceEffect(base.mod, 'padMember', { target: 'padMember', step: 'bar', lane: fixed(0) })))).toEqual(plain);
+  });
+
   it('Dist values are the amount in percent', () => {
     const { project } = song([{ target: 'dist', step: 'bar', lane: fixed(50), dist: { mode: 'crush' } }]);
     expect(generateTriggers(project)[0]!.dist).toEqual({ mode: 'crush', amount: 0.5 });
