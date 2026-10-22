@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Clip, Command, Id, LaneStep, Mod, Project, StepEffect } from '../model';
-import { addClip, addSample, copyHits, createLoop, createMod, createProject, setBpm, setSongBars, setStep, upgradeProject } from '../model';
+import { addClip, addSample, copyHits, createLoop, createMod, createProject, replaceEffect, setBpm, setPadChoice, setSongBars, setStep, upgradeProject } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { oldShapesSong } from './fixtures/old-shapes';
 import golden from './fixtures/old-shapes-triggers.json';
@@ -102,6 +102,24 @@ describe('step lanes', () => {
     const second = project.pads[pad]!.members[1]!;
     const hits = generateTriggers(project).map((t) => t.hitId);
     expect(hits.slice(0, 4)).toEqual([second, first, second, first]);
+  });
+
+  it('Pad member off lets the pad choose as usual: Round robin, Random', () => {
+    for (const choice of ['roundRobin', 'random'] as const) {
+      // One song, three members in the pad, and its mod's effect swapped: the seeds stay the same.
+      const base = song([{ target: 'volume', step: 'beat', lane: fixed(0) }]);
+      const first = base.project.pads[base.pad]!.members[0]!;
+      const project = run(base.project, copyHits([first], base.pad), copyHits([first], base.pad), setPadChoice(base.pad, choice));
+      const members = project.pads[base.pad]!.members;
+      const hits = (effect: StepEffect) => generateTriggers(run(project, replaceEffect(base.mod, 'volume', effect))).map((t) => members.indexOf(t.hitId) + 1);
+      const plain = hits({ target: 'volume', step: 'beat', lane: fixed(0) });
+      expect(new Set(plain).size).toBeGreaterThan(1);
+      expect(hits({ target: 'padMember', step: 'beat', lane: fixed(0, 0, 0, 0) })).toEqual(plain);
+      // Off and a member mixed: member steps play that member.
+      const mixed = hits({ target: 'padMember', step: 'beat', lane: fixed(0, 2) });
+      expect(mixed.slice(4, 8)).toEqual([2, 2, 2, 2]);
+      expect(mixed.slice(0, 4)).toEqual(plain.slice(0, 4));
+    }
   });
 
   it('Dist values are the amount in percent', () => {
@@ -214,6 +232,27 @@ describe('old projects (Gamla projekt)', () => {
     const effects = out.mods.x!.effects as StepEffect[];
     expect(effects[0]!.lane).toEqual(fixed(0, -24));
     expect(effects[1]!.lane).toEqual(fixed(50));
+  });
+
+  it('keep Pad member values 1–8: off is new, and an old 0 or a Random from 0 is member 1', () => {
+    const project = oldShapesSong(sequentialIds()).project;
+    const mods = {
+      x: {
+        id: 'x',
+        name: 'X',
+        seed: 1,
+        effects: [{ target: 'padMember', rate: 'step', shape: { kind: 'list', values: [0, 2, 9] } }],
+      },
+      y: {
+        id: 'y',
+        name: 'Y',
+        seed: 2,
+        effects: [{ target: 'padMember', rate: 'step', shape: { kind: 'random', min: 0, max: 3, chance: 100, whole: true } }],
+      },
+    } as unknown as Project['mods'];
+    const out = upgradeProject({ ...project, mods, song: { ...project.song, clips: [] } })!;
+    expect((out.mods.x!.effects[0] as StepEffect).lane).toEqual(fixed(1, 2, 8));
+    expect((out.mods.y!.effects[0] as StepEffect).lane[0]).toEqual({ lo: 1, hi: 3, chance: 100 });
   });
 });
 

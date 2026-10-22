@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LaneStep, StepEffect } from '../model';
-import { dragText, fullValue, laneSentence, stepTitle } from './laneText';
+import { dragText, fullValue, laneSentence, shortValue, stepTitle } from './laneText';
 
 const fixed = (...values: number[]): LaneStep[] => values.map((v) => ({ v }));
 
@@ -23,6 +23,11 @@ describe('the sentence on a card', () => {
     expect(laneSentence({ target: 'filter', step: 'bar', lane: fixed(18000, 300) })).toBe('Filter cutoff · 2 steps of 1 bar, loops · 18 kHz to 300 Hz');
     expect(laneSentence({ target: 'direction', step: '1/16', lane: fixed(0, 1, 0, 0) })).toBe('Direction · 4 steps of 1/16 (1 beat), loops · reversed on 1 of 4');
     expect(laneSentence({ target: 'padMember', step: '1/16', lane: fixed(1, 2, 3) })).toBe('Pad member · 3 steps of 1/16 (3/16), loops · members 1 to 3');
+    // Off lets the pad choose.
+    expect(laneSentence({ target: 'padMember', step: 'beat', lane: fixed(0, 0, 0, 0) })).toBe('Pad member · 4 steps of 1 beat (1 bar), loops · at off');
+    expect(laneSentence({ target: 'padMember', step: '1/16', lane: fixed(0, 3) })).toBe('Pad member · 2 steps of 1/16 (2/16), loops · off to member 3');
+    expect(fullValue({ target: 'padMember' }, 0)).toBe('off');
+    expect(shortValue({ target: 'padMember' }, 0)).toBe('off');
   });
 
   it('16 steps of 1/16 make a bar; 8 make 2 beats', () => {

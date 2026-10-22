@@ -33,7 +33,7 @@ describe('lane ranges', () => {
     expect(LANES.filter).toMatchObject({ min: 60, max: 18000, zero: 18000, log: true });
     expect(LANES.stretch).toMatchObject({ min: 0.25, max: 4, zero: 1, log: true });
     expect(LANES.ratchet).toMatchObject({ min: 1, max: 8, zero: 1 });
-    expect(LANES.padMember).toMatchObject({ min: 1, max: 8, zero: 1 });
+    expect(LANES.padMember).toMatchObject({ min: 0, max: 8, zero: 0 });
     expect(LANES.direction).toMatchObject({ onOff: true, zero: 0 });
   });
 
@@ -60,6 +60,22 @@ describe('a new effect', () => {
     expect(newStepEffect('reverb').lane).toEqual(fixed(100, 100, 100, 100));
     expect(newStepEffect('delay').lane).toEqual(fixed(80, 80, 80, 80));
     expect(newStepEffect('pitch').pitch).toEqual({ values: 'semitones' });
+  });
+});
+
+describe('Pad member has off', () => {
+  it('its range is off or member 1–8, and a new one is off on every step, so it does not change the sound', () => {
+    expect(LANES.padMember).toMatchObject({ min: 0, max: 8, zero: 0 });
+    expect(newStepEffect('padMember').lane).toEqual(fixed(0, 0, 0, 0));
+  });
+
+  it('Clear sets off; drawing and a dice step reach off', () => {
+    const pm = effect('padMember', fixed(3, 2));
+    expect(clearLane(pm)).toEqual(fixed(0, 0));
+    expect(denorm(pm, 0)).toBe(0);
+    expect(laneProblem(effect('padMember', [{ lo: 0, hi: 2, chance: 100 }]))).toBeNull();
+    // 🎲 round off: a band from off.
+    expect(toggleDice(effect('padMember', fixed(0)), 0)).toEqual([{ lo: 0, hi: 1, chance: 100 }]);
   });
 });
 

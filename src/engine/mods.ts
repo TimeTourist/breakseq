@@ -84,10 +84,10 @@ const handlers: readonly (readonly [LaneTarget, TargetHandler])[] = [
     'padMember',
     {
       combine: 'b-wins',
-      // Member numbers count from 1; a member the pad does not have plays member 1.
+      // Member numbers count from 1; a member the pad does not have plays member 1. Off (0) lets the pad choose as usual.
       apply: (state, value, _mod, _place, project) => {
         const members = state.pad?.members ?? [];
-        if (members.length === 0) return state;
+        if (members.length === 0 || Math.round(value) <= 0) return state;
         const memberId = members[Math.round(value) - 1] ?? members[0]!;
         return { ...state, hit: project.hits[memberId], cell: { ...state.cell, memberId } };
       },
