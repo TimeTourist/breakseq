@@ -6,13 +6,26 @@ import { useRun } from './context';
  * anew (see Slump och seeds). One undo step: Undo brings back the randomness
  * there was. `label` names it for a screen reader, `title` says what it rolls.
  */
-export function RerollButton({ command, label, title, onError }: { command: Command; label: string; title: string; onError?: (error: string | null) => void }) {
+export function RerollButton({
+  command,
+  label,
+  title,
+  text,
+  onError,
+}: {
+  command: Command;
+  label: string;
+  title: string;
+  /** Shown beside 🎲 as a whole button ("🎲 Reroll this clip"); then it is also its name, and `label` is not used. */
+  text?: string;
+  onError?: (error: string | null) => void;
+}) {
   const run = useRun();
   return (
     <button
       type="button"
-      className="icon-button reroll"
-      aria-label={label}
+      className={text === undefined ? 'icon-button reroll' : 'reroll-text'}
+      aria-label={text === undefined ? label : undefined}
       title={`${title} Undo brings it back.`}
       onClick={(e) => {
         e.stopPropagation();
@@ -21,7 +34,7 @@ export function RerollButton({ command, label, title, onError }: { command: Comm
         onError?.(error);
       }}
     >
-      <span aria-hidden="true">🎲</span>
+      {text === undefined ? <span aria-hidden="true">🎲</span> : `🎲 ${text}`}
     </button>
   );
 }

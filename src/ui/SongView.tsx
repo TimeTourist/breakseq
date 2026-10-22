@@ -6,6 +6,7 @@ import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, loopIndex, moveCli
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
 import { isTyping, modalOpen } from './isTyping';
+import { clipSeedTitle, seedTag, twinsText, barsText } from './clipSeed';
 import { HIT_COLOR, lengthText } from './labels';
 import { playOnce } from './LoopsView';
 import { previewLoopId } from './ModsView';
@@ -38,6 +39,13 @@ export const position = (step: number) =>
 /** A mod's effects in a clip: "pitch + ratchet", "tape 2/16". */
 const effectsText = (mod: Mod) =>
   mod.effects.length === 0 ? 'no effect' : mod.effects.map((e) => `${TARGET_LABELS[e.target].toLowerCase()}${e.target === 'tape' ? ` ${lengthText(e.length)}` : ''}`).join(' + ');
+
+/** A clip's name in its colour: a loop's kind (a fill in Main too) or a mod's, as on the timeline. */
+const clipColour = (project: Project, clip: Clip) =>
+  !isLoopRow(clip.row) ? 'mod-name' : clip.row === 'fill' || project.loops[clip.ref]?.kind === 'fill' ? 'loop-name fill' : 'loop-name main';
+
+/** The on-clip and panel 🎲 say the same. */
+const REROLL_CLIP_TITLE = 'Reroll this clip: new random here only. A copied clip keeps its seed, so it sounds the same until you reroll it.';
 
 const clipName = (project: Project, clip: Clip) =>
   (isLoopRow(clip.row) ? project.loops[clip.ref]?.name : project.mods[clip.ref]?.name) ?? '?';
@@ -90,6 +98,22 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
   const region = songLoop ?? { start: 0, end: total, on: false };
   const loopText = `${position(region.start)} – ${position(region.end)}`;
 
+  /** A copy of `from` at `at` in its row, which becomes the selected clip. */
+  const paste = (from: Clip, at: number) => {
+    const before = new Set(project.song.clips.map((c) => c.id));
+    const failed = run(pasteClip(from, from.row, at));
+    setError(failed);
+    if (failed !== null) return;
+    const added = store.getState().history.present.song.clips.find((c) => !before.has(c.id) && c.row === from.row && c.start === at);
+    if (added !== undefined) setSelected(added.id);
+  };
+  /** Ctrl+D and Copy after it: a copy right after the clip, selected. */
+  const copyAfter = (clip: Clip) => {
+    if (clip.start + clip.length >= total) setError('No room after it: the song ends there');
+    else paste(clip, clip.start + clip.length);
+  };
+  const selectedClip = project.song.clips.find((c) => c.id === selected);
+
   /**
    * Ctrl+C copies the selected clip; Ctrl+V pastes it where the playhead is,
    * or at the cursor when stopped; Ctrl+D puts a copy right after it. A pasted
@@ -101,14 +125,6 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
     if (isTyping(e.target) || modalOpen()) return;
     const key = e.key.toLowerCase();
     const clip = project.song.clips.find((c) => c.id === selected);
-    const paste = (from: Clip, at: number) => {
-      const before = new Set(project.song.clips.map((c) => c.id));
-      const failed = run(pasteClip(from, from.row, at));
-      setError(failed);
-      if (failed !== null) return;
-      const added = store.getState().history.present.song.clips.find((c) => !before.has(c.id) && c.row === from.row && c.start === at);
-      if (added !== undefined) setSelected(added.id);
-    };
     if (key === 'c' && clip !== undefined) {
       if (window.getSelection()?.toString()) return;
       e.preventDefault();
@@ -120,8 +136,7 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
       paste(copied, playheadStep === null ? cursor : Math.floor(playheadStep));
     } else if (key === 'd' && clip !== undefined) {
       e.preventDefault();
-      if (clip.start + clip.length >= total) setError('No room after it: the song ends there');
-      else paste(clip, clip.start + clip.length);
+      copyAfter(clip);
     }
   };
   useEffect(() => {
@@ -218,7 +233,7 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
         className={`clip ${clip.row}${loop?.kind === 'fill' ? ' tag-fill' : ''}${selected === clip.id ? ' selected' : ''}${from > 0 ? ' trimmed' : ''}`}
         style={{ left: clip.start * STEP_PX, width: clip.length * STEP_PX }}
         aria-label={label}
-        title={`${label} · drag to move (Ctrl: copy), drag an edge to resize, double-click to edit`}
+        title={`${clipSeedTitle(project.song.clips, clip, name)} · drag to move (Ctrl: copy), drag an edge to resize, double-click to edit`}
         draggable
         onDragStart={(e) => {
           if (resizing.current) {
@@ -272,15 +287,11 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
           {from > 0 && loop !== undefined && <span className="clip-from"> from {position(from)}</span>}
           {mod !== undefined && <span className="clip-from"> {effectsText(mod)}</span>}
         </span>
+        <span className="clip-seed mono">{seedTag(clip.seed)}</span>
         {selected === clip.id && (
           // On the selected clip: only it rolls anew. Not a drag handle.
           <span className="clip-reroll" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
-            <RerollButton
-              command={rerollClip(clip.id)}
-              label="Reroll this clip"
-              title={`Reroll this clip of ${name}: new random choices for only this clip; its copies keep theirs.`}
-              onError={setError}
-            />
+            <RerollButton command={rerollClip(clip.id)} label="Reroll this clip" title={REROLL_CLIP_TITLE} onError={setError} />
           </span>
         )}
         <span className="clip-edge start" aria-hidden="true" {...edge(clip, 'start')} />
@@ -417,10 +428,30 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
                 {playheadStep !== null && <span className="playhead" style={{ left: playheadStep * STEP_PX }} />}
               </div>
             </div>
+            {selectedClip !== undefined && (
+              <section className="selected-clip" aria-label="Selected clip">
+                <span className={`mono ${clipColour(project, selectedClip)}`}>{clipName(project, selectedClip)}</span>
+                <span className="muted">
+                  {ROWS.find((r) => r.row === selectedClip.row)?.name} · {barsText(selectedClip)}
+                </span>
+                <span className="seed-tag mono" title="This clip's seed: the random it plays with">
+                  {seedTag(selectedClip.seed)}
+                </span>
+                <span>{twinsText(project.song.clips, selectedClip)}</span>
+                <span className="row push">
+                  <button type="button" title="Copy after it (Ctrl+D): the copy keeps its seed, so it sounds the same" onClick={() => copyAfter(selectedClip)}>
+                    Copy after it
+                  </button>
+                  <RerollButton command={rerollClip(selectedClip.id)} label="Reroll this clip" text="Reroll this clip" title={REROLL_CLIP_TITLE} onError={setError} />
+                </span>
+              </section>
+            )}
             <p className="muted small">
-              Drag clips to move them (Ctrl: copy) and their edges to resize; a fill takes over the main for its length. Click a clip to select it: Delete removes it,
-              ←/→ moves it a step (Shift: a beat), Ctrl+C copies it, Ctrl+D puts a copy right after it, Ctrl+V pastes at the playhead. Click the lower strip of the
-              ruler, with the bar numbers, to play from there; drag in its upper strip to mark a loop, and the loop's handles to move its ends. Space plays and stops.
+              Every clip carries its own seed (◆). A copy keeps it and sounds the same; 🎲 on a selected clip rolls new random for that clip only. The song plays the
+              same every time round, as Export WAV writes it. Drag clips to move them (Ctrl: copy) and their edges to resize; a fill takes over the main for its
+              length. Click a clip to select it: Delete removes it, ←/→ moves it a step (Shift: a beat), Ctrl+C copies it, Ctrl+D puts a copy right after it, Ctrl+V
+              pastes at the playhead. Click the lower strip of the ruler, with the bar numbers, to play from there; drag in its upper strip to mark a loop, and the
+              loop's handles to move its ends. Space plays and stops.
             </p>
           </section>
 

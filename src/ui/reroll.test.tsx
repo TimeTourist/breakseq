@@ -131,7 +131,7 @@ describe('🎲 Reroll', () => {
     const { project: p, clip } = project();
     const store = await setup(p, { view: 'song', selection: { ...initialState(p).selection, clip: clip.id } });
     const dice = screen.getByRole('button', { name: 'Reroll this clip' });
-    expect(dice.title).toMatch(/only this clip/);
+    expect(dice.title).toMatch(/new random here only/);
     fireEvent.click(dice);
     const after = present(store);
     expect(after.song.clips.find((c) => c.id === clip.id)!.seed).not.toBe(clip.seed);
