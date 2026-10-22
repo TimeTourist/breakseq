@@ -256,7 +256,7 @@ Fliken Mods byggs som skissen `docs/sketches/mods.html` (Mods – audio, godkän
 | Volume | värde | −24 till +6 dB, steg 1 (0) | – |
 | Pan | värde från nollinjen | −100 till +100 %, steg 5 (0) | – |
 | Ratchet | värde | 1–8 (1) | – |
-| Pad member | värde | medlem 1–8 (1); en medlem paden saknar spelar medlem 1 | knappen In turn ritar 1, 2, 3 … upp till padens medlemmar |
+| Pad member | värde | off eller medlem 1–8 (off); off låter paden välja som vanligt (Top, Round robin, Random, No repeat), så en ny Pad member ändrar inte ljudet *(Magnus beslut 2026-10-22)*; en medlem paden saknar spelar medlem 1 | knappen In turn ritar 1, 2, 3 … upp till padens medlemmar |
 | Direction | på/av | baklänges på eller av (av) | – |
 | Stretch | värde, logaritmisk | 0,25–4× (1×) | bitlängd och Multiply/Replace som idag |
 | Dist | värde | 0–100 % (0) | läge: Drive, Crush, Decimate |
@@ -277,7 +277,7 @@ Swap, Tempo (slip) och Tape har ingen stegrad: de behåller sina reglage, på et
 - Förhandsvisningens rutnät har en rad per effekt: stegraderna med varvets värden (🎲-stegens intervall streckat, slaget värde ljusare), Swap med hitten där Swap bytte, Tempo med hastigheten och Tape med rampens hastighet. Medan Play spelar moden visar rutnätet varvet som spelas och steget spelhuvudet är på; annars varv 1.
 - På smal skärm står listan med Start from över moden och rullar bort med sidan.
 
-**Gamla projekt** räknas om när de laddas: List och Cycle blir stegrader med samma värden (en Cycle utan värden på Pad member blir In turn upp till de flesta medlemmar en pad i projektet har), Ramp blir en ritad linje med lika många steg av ratens storlek som modens längsta klipp i Song har (16 när den inte ligger i Song), och Random blir lika många 🎲-steg med samma intervall och närmaste chans av 100, 75, 50 och 25 % (på Direction chansen att det blev baklänges, alltså halva den gamla, eftersom Random slog fram eller bak). Ett 🎲-steg slår på samma plats som Random gjorde, så Random med en av de fyra chanserna låter exakt som förut, och Ramp gör det när klippen är lika långa. Cycle räknade bara intervall med en hit, så den blir exakt där varje intervall har en hit; ett medlemsnummer paden saknar spelar nu medlem 1 i stället för att räknas runt paden. Dists värden blir procent. Värden utanför radens omfång begränsas till det. *(Claudes val.)*
+**Gamla projekt** räknas om när de laddas: List och Cycle blir stegrader med samma värden (en Cycle utan värden på Pad member blir In turn upp till de flesta medlemmar en pad i projektet har), Ramp blir en ritad linje med lika många steg av ratens storlek som modens längsta klipp i Song har (16 när den inte ligger i Song), och Random blir lika många 🎲-steg med samma intervall och närmaste chans av 100, 75, 50 och 25 % (på Direction chansen att det blev baklänges, alltså halva den gamla, eftersom Random slog fram eller bak). Ett 🎲-steg slår på samma plats som Random gjorde, så Random med en av de fyra chanserna låter exakt som förut, och Ramp gör det när klippen är lika långa. Cycle räknade bara intervall med en hit, så den blir exakt där varje intervall har en hit; ett medlemsnummer paden saknar spelar nu medlem 1 i stället för att räknas runt paden. Dists värden blir procent. Värden utanför radens omfång begränsas till det. Random med hela tal slår hela tal också i stegraden. En tom List eller Cycle gjorde ingenting och tas bort. Direction är undantaget: 0 tvingade förut fram, men off låter nu hittens egen riktning gälla, så en gammal Direction över en baklänges hit låter inte exakt som förut. *(Claudes val.)*
 
 ## Tape
 
@@ -354,7 +354,7 @@ Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stu
 - **Halftime:** spelar det som hörs från där klippet börjar på tidslinjen (det man ser är det som hörs), i sin fart, under hela klippet; ×2 läser framåt i låten. Keep pitch spelar det som korn på 30 ms (som Stretch) så att tonhöjden står kvar.
 - **Where each cell comes from** visar rutorna som Play i Mods renderar i varvet som visas: låten är blocket av varv som Play renderar (se Varv i loop), så Whole song är blocket, och på en loop av en takt är det just varvet. 🎲 Reroll gör Reroll this mod.
 - **Spelhuvudet** följer huvudklockan under ljudmoddarna.
-- **Exporten:** ett klipp med en ljudmodd eller Scratch blir en egen bit i MIDI-, bit- och REX-exporten, som en tape: klippt ur låten som det hörs, med ljudmoddarna och Scratch. Reverb/delay-WAV:en är tyst under den. Där ljudmodden inte gör något under klippet hörs ändå biten, eftersom den är klippt som det hörs. *(Magnus beslut 2026-10-22; ändras inte utan att fråga.)*
+- **Exporten:** ett klipp med en ljudmodd eller Scratch blir en egen bit i MIDI-, bit- och REX-exporten, som en tape: klippt ur låten som det hörs, med ljudmoddarna och Scratch. Reverb/delay-WAV:en är tyst under den. Där ljudmodden inte gör något under klippet hörs ändå biten, eftersom den är klippt som det hörs. Överlappar en Tape ett sådant klipp vinner klippets bit (den innehåller redan tapen), och tapen klipps runt den i en eller två bitar, så att inget spelas två gånger. *(Magnus beslut 2026-10-22; ändras inte utan att fråga.)*
 
 ## Slip-tempo
 
@@ -461,6 +461,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 24c. Mods som samplar det som hörs | Scramble, Stutter, Freeze, Reverse, Rewind, Halftime; Tape spelar in reverb och delay | En Stutter Roll på sista slaget rullar 1/16 → 1/64; Scramble från hela låten byter rutor; en Tape över ett kast spelar in svansen |
 | 24d. Scratch | Nålrad, fader, förvalen, Clear, Ramp och Randomize; ljudet följer kurvan | Baby och Chirp låter som en DJ på ett break, och Clear låter som utan Scratch |
 | 24e. Rättelser efter 24d | Clear i Scratch sätter Length; klipp med ljudmoddar eller Scratch blir egna bitar i exporten | Clear på en Scratch med 8 steg av 1/16 och Records the first 1 bar ger 16 steg och låter som utan Scratch; en Stutter i låten är en egen bit i MIDI-filen |
+| 24f. Rättelser efter granskningen | Trim och delning behåller slumpen; Scratchs sista steg vid kanten; svansen vid blockgränsen; gamla projekt (hela tal, tom List); Pad member börjar off | Dra vänsterkanten på ett loopklipp med en Random-pad: resten låter som förut |
 
 Flikarna bytte namn i fas 23. Faserna före den använder de gamla namnen: Import och Slice är nu Samples, och Hits är nu Pads. Efter fas 23 heter Pads Matrices, och trim heter sample i appen.
 
