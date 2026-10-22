@@ -157,6 +157,21 @@ describe('MIDI plan', () => {
     ]);
   });
 
+  it('a Tape over a clip with an audio mod or Scratch: the clip wins, and the tape is cut round it in one or two pieces or none', () => {
+    const { project } = song();
+    const tape = { time: 0.5, end: 2, start: 0.5, length: 0.5 } as unknown as Tape;
+    const cuts = (time: number, end: number) =>
+      midiPlan(project, { triggers: [], tapes: [tape], audioClips: [{ time, end }] })
+        .pieces.map((x) => (x.kind === 'tape' ? ['tape', x.tape.time, x.tape.end] : x.kind === 'audio' ? ['audio', x.time, x.end] : []));
+    // Over the tape's start: the rest of the tape is one piece.
+    expect(cuts(0.25, 1)).toEqual([
+      ['audio', 0.25, 1],
+      ['tape', 1, 2],
+    ]);
+    // Over all of it: nothing is left of the tape.
+    expect(cuts(0, 2)).toEqual([['audio', 0, 2]]);
+  });
+
   it(`more than ${MAX_PIECES} sounds do not fit`, () => {
     const { project } = song();
     const one = take(project).triggers[0]!;
