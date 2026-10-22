@@ -99,9 +99,9 @@ const EPSILON = 1e-9;
 /**
  * What is left of a tape outside the clips with an audio mod or Scratch: those
  * are pieces of their own, cut with the tape as heard, so the tape is not
- * played twice.
+ * played twice. The clip's piece wins, and the tape is cut round it in one or
+ * two pieces (Magnus beslut 2026-10-22).
  */
-// TODO(spec): the spec does not say what the export does where a tape and a clip with an audio mod or Scratch overlap; here the clip's piece wins and the tape is cut around it.
 function tapeOutside(tape: Tape, clips: readonly AudioClip[]): Tape[] {
   let parts: Tape[] = [tape];
   for (const clip of clips) {
