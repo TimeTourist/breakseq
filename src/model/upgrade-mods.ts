@@ -1,4 +1,4 @@
-import { LANES, clampToLane, inTurn, zeroOf } from './lanes';
+import { LANES, clampToLane, inTurn, wholeValues } from './lanes';
 import type { Chance, Clip, LaneStep, LaneTarget, Mod, ModEffect, ModRate, Project, StepEffect, StepSize } from './types';
 import { CHANCES, LANE_TARGETS, STEP_SIZES } from './types';
 
@@ -44,14 +44,15 @@ function laneValue(target: LaneTarget, value: number): number {
 }
 
 /**
- * One old step effect as a lane. List and Cycle keep their values (a Cycle
- * with no values on Pad member is In turn); Ramp is a line over as many steps
+ * One old step effect as a lane, or null when it did nothing and goes: an
+ * empty List or Cycle (but a Cycle with no values on Pad member is In turn).
+ * List and Cycle keep their values; Ramp is a line over as many steps
  * of its rate as its longest clip has (16 when it has none); Random as many
  * dice steps with the same band and the nearest chance (on Direction, the
  * chance that it was reversed). Values outside the lane's range are kept
  * within it. (Claudes val.)
  */
-export function upgradeStepEffect(old: OldStepEffect, ctx: UpgradeContext): StepEffect {
+export function upgradeStepEffect(old: OldStepEffect, ctx: UpgradeContext): StepEffect | null {
   const { rate, shape, ...settings } = old;
   const { target } = old;
   const size = STEP_SIZES[SIZE_OF_RATE[rate] ?? '1/16'];
@@ -62,8 +63,8 @@ export function upgradeStepEffect(old: OldStepEffect, ctx: UpgradeContext): Step
   switch (shape.kind) {
     case 'list':
     case 'cycle':
-      lane =
-        shape.values.length > 0 ? fixed(shape.values) : shape.kind === 'cycle' && target === 'padMember' ? inTurn(ctx.members) : [{ v: zeroOf(target) }];
+      if (shape.values.length === 0 && !(shape.kind === 'cycle' && target === 'padMember')) return null;
+      lane = shape.values.length > 0 ? fixed(shape.values) : inTurn(ctx.members);
       free = target === 'pitch' && shape.values.some((v) => !Number.isInteger(v));
       break;
     case 'ramp': {
@@ -78,7 +79,9 @@ export function upgradeStepEffect(old: OldStepEffect, ctx: UpgradeContext): Step
       const chance = nearestChance(onOff && shape.min <= 0 && shape.max >= 1 ? shape.chance / 2 : shape.chance);
       const lo = onOff ? 0 : laneValue(target, Math.min(shape.min, shape.max));
       const hi = onOff ? 1 : laneValue(target, Math.max(shape.min, shape.max));
-      lane = Array.from({ length: runs }, () => ({ lo, hi, chance }));
+      // Whole numbers stay whole, also where the lane's dice roll freely (Random med hela tal).
+      const whole = shape.whole && !onOff && !wholeValues({ target, pitch: { values: 'semitones' } });
+      lane = Array.from({ length: runs }, () => (whole ? { lo, hi, chance, whole: true as const } : { lo, hi, chance }));
       free = target === 'pitch' && !shape.whole;
       break;
     }
@@ -95,5 +98,5 @@ export function upgradeMod(mod: Mod, project: Pick<Project, 'pads' | 'song'>): M
     members,
     intervals: (size) => (clips.length === 0 ? null : Math.max(...clips.map((c) => Math.max(1, Math.ceil((c.offset + c.length) / size))))),
   };
-  return { ...mod, effects: mod.effects.map((e: ModEffect | OldStepEffect) => (isOld(e) ? upgradeStepEffect(e, ctx) : e)) as ModEffect[] };
+  return { ...mod, effects: mod.effects.flatMap((e: ModEffect | OldStepEffect) => (isOld(e) ? (upgradeStepEffect(e, ctx) ?? []) : [e])) as ModEffect[] };
 }

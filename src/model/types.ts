@@ -306,7 +306,12 @@ export type Chance = (typeof CHANCES)[number];
  * band each time it plays, if its chance comes up; otherwise it does nothing.
  * On an on/off lane the band is 0–1 and the chance is how likely it is on.
  */
-export type LaneStep = { readonly v: number } | { readonly lo: number; readonly hi: number; readonly chance: Chance };
+/**
+ * A fixed step, or a dice step: a band and a chance. `whole` makes a dice step
+ * roll whole numbers on a target whose rolls are free otherwise: an old Random
+ * with whole numbers (see Gamla projekt).
+ */
+export type LaneStep = { readonly v: number } | { readonly lo: number; readonly hi: number; readonly chance: Chance; readonly whole?: true };
 export const isDice = (step: LaneStep): step is Extract<LaneStep, { lo: number }> => 'lo' in step;
 
 /** Targets with a lane: every target that sets a value on a step, all but Swap and Tempo, and the audio mods but Halftime. */

@@ -168,7 +168,8 @@ export const clipPosition = (clip: Pick<Clip, 'start' | 'offset'>, t: number): n
  * its value. A dice step rolls once per time it plays, from the mod's and the
  * clip's seeds, the target and which step of the clip it is (see Slump och
  * seeds): if its chance does not come up it does nothing (null); otherwise a
- * value in its band, whole where the target's values are whole, and on for an
+ * value in its band, whole where the target's values are whole (or the step
+ * says so, from an old Random with whole numbers), and on for an
  * on/off lane.
  */
 export function laneValueAt(effect: StepEffect, position: number, roll: (occurrence: number) => Rng): number | null {
@@ -181,7 +182,7 @@ export function laneValueAt(effect: StepEffect, position: number, roll: (occurre
   if (rng() * 100 >= step.chance) return null;
   if (LANES[effect.target].onOff === true) return 1;
   const r = rng();
-  if (wholeValues(effect)) {
+  if (wholeValues(effect) || step.whole === true) {
     const lo = Math.ceil(step.lo);
     const hi = Math.floor(step.hi);
     return hi < lo ? Math.round((step.lo + step.hi) / 2) : lo + Math.floor(r * (hi - lo + 1));
