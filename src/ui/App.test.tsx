@@ -75,7 +75,8 @@ describe('App', () => {
     const current = () => nav.getAllByRole('button').find((b) => b.getAttribute('aria-current') === 'page')?.textContent;
     expect(current()).toBe('1Samples');
     fireEvent.keyDown(window, { key: '5' });
-    expect(heading()).toBe('Song');
+    // Song has no heading (Song-v2): the tab says where one is.
+    expect(current()).toBe('5Song');
     fireEvent.keyDown(window, { key: '2' });
     expect(current()).toBe('2Matrices');
     fireEvent.keyDown(window, { key: '1' });

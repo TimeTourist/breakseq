@@ -1,11 +1,16 @@
 import type { DragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { loopSong, modPreviewSong } from '../engine';
 import type { Clip, Id, Mod, Project, SongRow } from '../model';
 import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, loopIndex, moveClip, pasteClip, removeClip, rerollClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
 import { isTyping, modalOpen } from './isTyping';
 import { HIT_COLOR, lengthText } from './labels';
+import { playOnce } from './LoopsView';
+import { previewLoopId } from './ModsView';
+import { SongList, songGroups } from './SongList';
+import { songPinned } from './store';
 import { RerollButton } from './RerollButton';
 import { RegionHandle } from './RegionHandle';
 import { TARGET_LABELS } from './modLabels';
@@ -50,7 +55,8 @@ const DRAG_PX = 4;
 
 export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps) {
   const project = useProject();
-  const { store } = useApp();
+  const { store, services } = useApp();
+  const focus = useSelect((s) => s.focus);
   const cursor = useSelect((s) => s.songCursor);
   const ruler = useRef<{ x: number; from: number; dragged: boolean } | null>(null);
   const run = useRun();
@@ -67,6 +73,17 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
   const width = total * STEP_PX;
   const loops = Object.values(project.loops);
   const mods = Object.values(project.mods);
+  /** The shelf: what is pinned in the list, by Main, Fill and Mods. */
+  const shelf = songGroups(project, focus).filter((g) => g.loops.length + g.mods.length > 0);
+  const report = (e: unknown) => setError(`Could not play it: ${e instanceof Error ? e.message : String(e)}`);
+  const play = {
+    loop: (id: Id) => void playOnce(services, loopSong(project, id)).catch(report),
+    // A mod plays on its loop under Plays on in Mods; without a loop there is nothing to hear it on.
+    mod: (id: Id) => {
+      const loop = previewLoopId(project, store.getState().selection);
+      if (loop !== null) void playOnce(services, modPreviewSong(project, id, loop)).catch(report);
+    },
+  };
   const playheadStep = playheadSeconds === null ? null : playheadSeconds / stepSeconds;
   const songLoop = project.song.loop ?? null;
   /** The loop region always shows: with none marked, the whole song, off. */
@@ -273,208 +290,219 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
   };
 
   return (
-    <main className="view">
-      <div className="view-head row">
-        <div className="stack-tight">
-          <h1>Song</h1>
-        </div>
-        <div className="row push">
-          <label className="field">
-            Bars
-            <input
-              type="number"
-              min={1}
-              max={256}
-              value={bars}
-              onChange={(e) => {
-                const value = Math.round(Number(e.target.value));
-                if (value >= 1 && value <= 256) run(setSongBars(value), 'song:bars');
-              }}
-              onBlur={seal}
-            />
-          </label>
-          <button
-            type="button"
-            className="loop-toggle"
-            aria-pressed={region.on}
-            title={region.on ? `Looping ${loopText}: click to play the whole song` : `Loop ${loopText}`}
-            onClick={() => setError(run(setSongLoopOn(!region.on)))}
-          >
-            Loop {loopText}
-          </button>
-          <span className="readout mono" aria-live="off">
-            {position(playheadStep === null ? cursor : Math.floor(playheadStep))} / {bars}
-          </span>
-        </div>
-      </div>
-
-      <div className="table-scroll timeline-box" onClick={() => setSelected(null)}>
-        <div className="song-timeline" style={{ width }}>
-          <div className="timeline-ruler" style={{ width }} onClick={(e) => e.stopPropagation()}>
-            {/* Upper strip: the loop region, marked by a drag; its handles sit here. */}
-            <div
-              className="ruler-loop-strip"
-              aria-label="Loop region: drag to mark it"
-              title={`Loop ${loopText}${region.on ? '' : ' (off)'} · drag here to mark a new loop`}
-              onPointerDown={(e) => {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                ruler.current = { x: e.clientX, from: boundaryAt(e, e.currentTarget), dragged: false };
-              }}
-              onPointerMove={(e) => {
-                const down = ruler.current;
-                if (down === null || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
-                if (!down.dragged && Math.abs(e.clientX - down.x) < DRAG_PX) return;
-                down.dragged = true;
-                const to = boundaryAt(e, e.currentTarget);
-                if (to !== down.from) setError(run(setSongLoop(Math.min(down.from, to), Math.max(down.from, to)), 'song:loop'));
-              }}
-              onPointerUp={() => {
-                const down = ruler.current;
-                ruler.current = null;
-                // A click without a drag does nothing here: where Play starts is set in the strip below.
-                if (down?.dragged === true) seal();
-              }}
-            >
-              <span className={`ruler-loop${region.on ? ' on' : ''}`} style={{ left: region.start * STEP_PX, width: (region.end - region.start) * STEP_PX }} />
-              {loopHandle('start')}
-              {loopHandle('end')}
-            </div>
-            {/* Lower strip, with the bar numbers: where Play starts. */}
-            <div
-              className="ruler-start-strip"
-              aria-label="Start point: click to play from a step"
-              title="Click to play from here"
-              onPointerUp={(e) => {
-                const step = Math.min(total - 1, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / STEP_PX));
-                store.dispatch({ type: 'songCursor', step: Math.max(0, step) });
-                onSeek(Math.max(0, step));
-              }}
-            >
-              <span className="ruler-cursor" style={{ left: cursor * STEP_PX }} aria-label={`Play starts at ${position(cursor)}`} />
-              {Array.from({ length: bars }, (_, bar) => (
-                <span key={bar} className="ruler-bar mono" style={{ left: bar * STEPS_PER_BAR * STEP_PX }}>
-                  {bar + 1}
-                </span>
-              ))}
-            </div>
-          </div>
-          {ROWS.map(({ row, name }) => (
-            <div key={row} className="timeline-row">
-              <div
-                className={`timeline-lane ${row}`}
-                style={{ width }}
-                aria-label={`${name} lane`}
-                title={name}
-                onDragOver={(e) => {
-                  if (!accepts(row, e)) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = dropEffectFor(e.dataTransfer.effectAllowed, copies(e));
-                  const step = stepAt(e, e.currentTarget);
-                  if (hover?.row !== row || hover.step !== step) setHover({ row, step });
-                }}
-                onDragLeave={() => setHover(null)}
-                onDrop={(e) => onDrop(row, e)}
-                onClick={(e) => {
-                  if (chip === null || chip.loop !== isLoopRow(row)) return;
-                  setError(run(addClip(row, chip.ref, stepAt(e, e.currentTarget))));
-                }}
+    <main className="view song-view">
+      <div className="samples-layout">
+        <SongList project={project} onPlayLoop={play.loop} onPlayMod={play.mod} />
+        <div className="matrix-side stack">
+          <section className="panel stack-tight song-box" aria-label="Song">
+            <div className="row song-top">
+              <label className="field">
+                Bars
+                <input
+                  type="number"
+                  min={1}
+                  max={256}
+                  value={bars}
+                  onChange={(e) => {
+                    const value = Math.round(Number(e.target.value));
+                    if (value >= 1 && value <= 256) run(setSongBars(value), 'song:bars');
+                  }}
+                  onBlur={seal}
+                />
+              </label>
+              <button
+                type="button"
+                className="loop-toggle"
+                aria-pressed={region.on}
+                title={region.on ? `Looping ${loopText}: click to play the whole song` : `Loop ${loopText}`}
+                onClick={() => setError(run(setSongLoopOn(!region.on)))}
               >
-                <span className="lane-label small" aria-hidden="true">
-                  {name}
-                </span>
-                {hover?.row === row && <span className="drop-marker" style={{ left: hover.step * STEP_PX }} />}
-                {project.song.clips.filter((c) => c.row === row).map(clipView)}
+                Loop {loopText}
+              </button>
+              <span className="readout mono push" aria-live="off">
+                {position(playheadStep === null ? cursor : Math.floor(playheadStep))} / {bars}
+              </span>
+            </div>
+
+            <div className="table-scroll timeline-box" onClick={() => setSelected(null)}>
+              <div className="song-timeline" style={{ width }}>
+                <div className="timeline-ruler" style={{ width }} onClick={(e) => e.stopPropagation()}>
+                  {/* Upper strip: the loop region, marked by a drag; its handles sit here. */}
+                  <div
+                    className="ruler-loop-strip"
+                    aria-label="Loop region: drag to mark it"
+                    title={`Loop ${loopText}${region.on ? '' : ' (off)'} · drag here to mark a new loop`}
+                    onPointerDown={(e) => {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      ruler.current = { x: e.clientX, from: boundaryAt(e, e.currentTarget), dragged: false };
+                    }}
+                    onPointerMove={(e) => {
+                      const down = ruler.current;
+                      if (down === null || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+                      if (!down.dragged && Math.abs(e.clientX - down.x) < DRAG_PX) return;
+                      down.dragged = true;
+                      const to = boundaryAt(e, e.currentTarget);
+                      if (to !== down.from) setError(run(setSongLoop(Math.min(down.from, to), Math.max(down.from, to)), 'song:loop'));
+                    }}
+                    onPointerUp={() => {
+                      const down = ruler.current;
+                      ruler.current = null;
+                      // A click without a drag does nothing here: where Play starts is set in the strip below.
+                      if (down?.dragged === true) seal();
+                    }}
+                  >
+                    <span className={`ruler-loop${region.on ? ' on' : ''}`} style={{ left: region.start * STEP_PX, width: (region.end - region.start) * STEP_PX }} />
+                    {loopHandle('start')}
+                    {loopHandle('end')}
+                  </div>
+                  {/* Lower strip, with the bar numbers: where Play starts. */}
+                  <div
+                    className="ruler-start-strip"
+                    aria-label="Start point: click to play from a step"
+                    title="Click to play from here"
+                    onPointerUp={(e) => {
+                      const step = Math.min(total - 1, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / STEP_PX));
+                      store.dispatch({ type: 'songCursor', step: Math.max(0, step) });
+                      onSeek(Math.max(0, step));
+                    }}
+                  >
+                    <span className="ruler-cursor" style={{ left: cursor * STEP_PX }} aria-label={`Play starts at ${position(cursor)}`} />
+                    {Array.from({ length: bars }, (_, bar) => (
+                      <span key={bar} className="ruler-bar mono" style={{ left: bar * STEPS_PER_BAR * STEP_PX }}>
+                        {bar + 1}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {ROWS.map(({ row, name }) => (
+                  <div key={row} className="timeline-row">
+                    <div
+                      className={`timeline-lane ${row}`}
+                      style={{ width }}
+                      aria-label={`${name} lane`}
+                      title={name}
+                      onDragOver={(e) => {
+                        if (!accepts(row, e)) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = dropEffectFor(e.dataTransfer.effectAllowed, copies(e));
+                        const step = stepAt(e, e.currentTarget);
+                        if (hover?.row !== row || hover.step !== step) setHover({ row, step });
+                      }}
+                      onDragLeave={() => setHover(null)}
+                      onDrop={(e) => onDrop(row, e)}
+                      onClick={(e) => {
+                        // A chip taken off the shelf (unpinned) places nothing.
+                        if (chip === null || chip.loop !== isLoopRow(row) || !songPinned(focus, chip.ref)) return;
+                        setError(run(addClip(row, chip.ref, stepAt(e, e.currentTarget))));
+                      }}
+                    >
+                      <span className="lane-label small" aria-hidden="true">
+                        {name}
+                      </span>
+                      {hover?.row === row && <span className="drop-marker" style={{ left: hover.step * STEP_PX }} />}
+                      {project.song.clips.filter((c) => c.row === row).map(clipView)}
+                    </div>
+                  </div>
+                ))}
+                {/* As in Trim: what is outside the loop is shaded while it is on, and its ends are lines over the lanes. */}
+                {region.on && (
+                  <>
+                    <span className="region-shade song-shade" style={{ left: 0, width: region.start * STEP_PX }} />
+                    <span className="region-shade song-shade" style={{ left: region.end * STEP_PX, width: (total - region.end) * STEP_PX }} />
+                  </>
+                )}
+                {[region.start, region.end].map((at, i) => (
+                  <span key={i} className={`loop-line${region.on ? '' : ' off'}`} style={{ left: at * STEP_PX }} aria-hidden="true" />
+                ))}
+                {playheadStep !== null && <span className="playhead" style={{ left: playheadStep * STEP_PX }} />}
               </div>
             </div>
-          ))}
-          {/* As in Trim: what is outside the loop is shaded while it is on, and its ends are lines over the lanes. */}
-          {region.on && (
-            <>
-              <span className="region-shade song-shade" style={{ left: 0, width: region.start * STEP_PX }} />
-              <span className="region-shade song-shade" style={{ left: region.end * STEP_PX, width: (total - region.end) * STEP_PX }} />
-            </>
+            <p className="muted small">
+              Drag clips to move them (Ctrl: copy) and their edges to resize; a fill takes over the main for its length. Click a clip to select it: Delete removes it,
+              ←/→ moves it a step (Shift: a beat), Ctrl+C copies it, Ctrl+D puts a copy right after it, Ctrl+V pastes at the playhead. Click the lower strip of the
+              ruler, with the bar numbers, to play from there; drag in its upper strip to mark a loop, and the loop's handles to move its ends. Space plays and stops.
+            </p>
+          </section>
+
+          {error !== null && (
+            <p className="error" role="alert">
+              {error}
+            </p>
           )}
-          {[region.start, region.end].map((at, i) => (
-            <span key={i} className={`loop-line${region.on ? '' : ' off'}`} style={{ left: at * STEP_PX }} aria-hidden="true" />
-          ))}
-          {playheadStep !== null && <span className="playhead" style={{ left: playheadStep * STEP_PX }} />}
+
+          <section className="panel stack-tight" aria-label="Loops and mods">
+            <div className="sound-head">
+              <h2 className="label">Loops and mods</h2>
+              <span className="muted small">The pinned loops and mods. Drag one onto a lane, or select it and click a lane; double-click it to edit.</span>
+            </div>
+            {(loops.length === 0 || mods.length === 0) && (
+              <p className="muted small row">
+                {loops.length === 0 && (
+                  <span>
+                    No loops yet.{' '}
+                    <button type="button" className="link-text small" onClick={() => open({}, 'loops')}>
+                      ← Loops
+                    </button>
+                  </span>
+                )}
+                {mods.length === 0 && (
+                  <span>
+                    No mods yet.{' '}
+                    <button type="button" className="link-text small" onClick={() => open({}, 'mods')}>
+                      ← Mods
+                    </button>
+                  </span>
+                )}
+              </p>
+            )}
+            {shelf.length === 0 && loops.length + mods.length > 0 && <p className="muted small">Pin a loop or mod in the list to use it here.</p>}
+            {/* TODO(spec): the mod presets (Crazy, Rnd) get a fixed group of their own on the shelf (Listan och hyllan i Song); no such presets exist as objects yet. */}
+            {shelf.map((group) => (
+              <div key={group.name} className="shelf-group" role="group" aria-label={group.name}>
+                <span className="muted small shelf-label">{group.name}</span>
+                <div className="row">
+                  {group.loops.map((loop) => (
+                    <button
+                      key={loop.id}
+                      type="button"
+                      draggable
+                      className={`chip mono loop-name ${loop.kind}`}
+                      title="Drag onto Main or Fill · double-click to edit"
+                      aria-pressed={chip?.ref === loop.id}
+                      onClick={() => setChip(chip?.ref === loop.id ? null : { ref: loop.id, loop: true })}
+                      onDoubleClick={() => open({ loop: loop.id, step: null }, 'loops')}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(LOOP_MIME, loop.id);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                    >
+                      {loop.name}
+                    </button>
+                  ))}
+                  {group.mods.map((mod) => (
+                    <button
+                      key={mod.id}
+                      type="button"
+                      draggable
+                      className="chip mod-chip"
+                      title="Drag onto Mod A or Mod B · double-click to edit"
+                      aria-pressed={chip?.ref === mod.id}
+                      onClick={() => setChip(chip?.ref === mod.id ? null : { ref: mod.id, loop: false })}
+                      onDoubleClick={() => open({ mod: mod.id }, 'mods')}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(MOD_MIME, mod.id);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                    >
+                      {mod.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
         </div>
       </div>
-
-      {error !== null && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-
-      <section className="panel stack">
-        <h2 className="label">Loops and mods</h2>
-        <div className="row">
-          <span className="muted small library-label">Loops</span>
-          {loops.length === 0 && (
-            <span className="muted small">
-              No loops yet.{' '}
-              <button type="button" className="link-text small" onClick={() => open({}, 'loops')}>
-                ← Loops
-              </button>
-            </span>
-          )}
-          {loops.map((loop) => (
-            <button
-              key={loop.id}
-              type="button"
-              draggable
-              className={`chip mono loop-name ${loop.kind}`}
-              title="Drag onto Main or Fill · double-click to edit"
-              aria-pressed={chip?.ref === loop.id}
-              onClick={() => setChip(chip?.ref === loop.id ? null : { ref: loop.id, loop: true })}
-              onDoubleClick={() => open({ loop: loop.id, step: null }, 'loops')}
-              onDragStart={(e) => {
-                e.dataTransfer.setData(LOOP_MIME, loop.id);
-                e.dataTransfer.effectAllowed = 'copy';
-              }}
-            >
-              {loop.name}
-            </button>
-          ))}
-        </div>
-        <div className="row">
-          <span className="muted small library-label">Mods</span>
-          {mods.length === 0 && (
-            <span className="muted small">
-              No mods yet.{' '}
-              <button type="button" className="link-text small" onClick={() => open({}, 'mods')}>
-                ← Mods
-              </button>
-            </span>
-          )}
-          {mods.map((mod) => (
-            <button
-              key={mod.id}
-              type="button"
-              draggable
-              className="chip mod-chip"
-              title="Drag onto Mod A or Mod B · double-click to edit"
-              aria-pressed={chip?.ref === mod.id}
-              onClick={() => setChip(chip?.ref === mod.id ? null : { ref: mod.id, loop: false })}
-              onDoubleClick={() => open({ mod: mod.id }, 'mods')}
-              onDragStart={(e) => {
-                e.dataTransfer.setData(MOD_MIME, mod.id);
-                e.dataTransfer.effectAllowed = 'copy';
-              }}
-            >
-              {mod.name}
-            </button>
-          ))}
-        </div>
-        <p className="muted small">
-          Drag a loop or mod onto a lane, or select it and click a lane; double-click it to edit. Drag clips to move them (Ctrl: copy)
-          and their edges to resize; a fill takes over the main for its length. Click a clip to select it: Delete removes it, ←/→
-          moves it a step (Shift: a beat), Ctrl+C copies it, Ctrl+D puts a copy right after it, Ctrl+V pastes at the playhead. Click
-          the lower strip of the ruler, with the bar numbers, to play from there; drag in its upper strip to mark a loop, and the
-          loop's handles to move its ends. Space plays and stops.
-        </p>
-      </section>
     </main>
   );
 }
