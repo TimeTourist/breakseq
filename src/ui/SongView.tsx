@@ -1,7 +1,7 @@
 import type { DragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { Clip, Id, Mod, Project, SongRow } from '../model';
-import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, moveClip, pasteClip, removeClip, rerollClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
+import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, loopIndex, moveClip, pasteClip, removeClip, rerollClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
 import { isTyping, modalOpen } from './isTyping';
@@ -190,13 +190,15 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
     const loop = isLoopRow(clip.row) ? project.loops[clip.ref] : undefined;
     const mod = isLoopRow(clip.row) ? undefined : project.mods[clip.ref];
     const name = clipName(project, clip);
-    const label = `${name}, ${position(clip.start)}, ${lengthText(clip.length)}${clip.offset > 0 && loop !== undefined ? `, from ${position(clip.offset)}` : ''}`;
+    // Where in its content the clip starts: a loop's offset is kept unwrapped (the random choices follow it), shown within the loop.
+    const from = loop === undefined || loop.steps.length === 0 ? clip.offset : loopIndex(clip, clip.start, loop.steps.length);
+    const label = `${name}, ${position(clip.start)}, ${lengthText(clip.length)}${from > 0 && loop !== undefined ? `, from ${position(from)}` : ''}`;
     return (
       <div
         key={clip.id}
         role="button"
         tabIndex={0}
-        className={`clip ${clip.row}${loop?.kind === 'fill' ? ' tag-fill' : ''}${selected === clip.id ? ' selected' : ''}${clip.offset > 0 ? ' trimmed' : ''}`}
+        className={`clip ${clip.row}${loop?.kind === 'fill' ? ' tag-fill' : ''}${selected === clip.id ? ' selected' : ''}${from > 0 ? ' trimmed' : ''}`}
         style={{ left: clip.start * STEP_PX, width: clip.length * STEP_PX }}
         aria-label={label}
         title={`${label} · drag to move (Ctrl: copy), drag an edge to resize, double-click to edit`}
@@ -235,7 +237,7 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
         {loop !== undefined && (
           <span className="clip-pattern" aria-hidden="true">
             {Array.from({ length: clip.length }, (_, i) => {
-              const index = (clip.offset + i) % loop.steps.length;
+              const index = loopIndex(clip, clip.start + i, loop.steps.length);
               const cell = loop.steps[index];
               const pad = cell?.padId == null ? undefined : project.pads[cell.padId];
               const restart = index === 0 && i > 0;
@@ -250,7 +252,7 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
         )}
         <span className="clip-label">
           {name}
-          {clip.offset > 0 && loop !== undefined && <span className="clip-from"> from {position(clip.offset)}</span>}
+          {from > 0 && loop !== undefined && <span className="clip-from"> from {position(from)}</span>}
           {mod !== undefined && <span className="clip-from"> {effectsText(mod)}</span>}
         </span>
         {selected === clip.id && (

@@ -22,12 +22,21 @@ export function defaultLength(project: Project, row: SongRow, ref: Id): number {
 
 const tooShort = (min: number) => invalid(`Its tape needs at least ${min} steps here`);
 
-/** An offset brought into a loop's length; mods keep theirs as it is. */
-function wrapOffset(project: Project, clip: Pick<Clip, 'row' | 'ref'>, offset: number): number {
-  if (!isLoopRow(clip.row)) return Math.max(0, offset);
-  const length = project.loops[clip.ref]?.steps.length ?? 1;
-  return ((offset % length) + length) % length;
+/**
+ * A moved edge's offset. A loop's is kept as it is, past its length or below 0,
+ * since the random choices come from where in the clip a step is: wrapping it
+ * would move every step a whole loop and reroll them (En ändring slår inte om
+ * slumpen). It wraps where the loop is read (loopIndex). A mod's stops at 0.
+ */
+function edgeOffset(clip: Pick<Clip, 'row'>, offset: number): number {
+  return isLoopRow(clip.row) ? offset : Math.max(0, offset);
 }
+
+/** Where a clip is in its content at song step `t`, and the random choices with it: its offset counts, unwrapped. */
+export const clipPlace = (clip: Pick<Clip, 'start' | 'offset'>, t: number): number => t - clip.start + clip.offset;
+
+/** The step of its loop (of `length` steps) a loop clip plays at song step `t`: it wraps round, also before its start. */
+export const loopIndex = (clip: Pick<Clip, 'start' | 'offset'>, t: number, length: number): number => ((clipPlace(clip, t) % length) + length) % length;
 
 /**
  * Puts a clip into its row, making room: clips it covers whole are removed, one
@@ -44,11 +53,11 @@ function placeClip(project: Project, clip: Clip, ctx: CommandContext): Clip[] {
     } else if (c.start < clip.start && cEnd > end) {
       out.push({ ...c, length: clip.start - c.start });
       // The other half of the same clip: it keeps its seed, so it sounds as it did.
-      out.push({ ...c, id: ctx.newId(), start: end, length: cEnd - end, offset: wrapOffset(project, c, c.offset + (end - c.start)) });
+      out.push({ ...c, id: ctx.newId(), start: end, length: cEnd - end, offset: edgeOffset(c, c.offset + (end - c.start)) });
     } else if (c.start < clip.start) {
       out.push({ ...c, length: clip.start - c.start });
     } else if (cEnd > end) {
-      out.push({ ...c, start: end, length: cEnd - end, offset: wrapOffset(project, c, c.offset + (end - c.start)) });
+      out.push({ ...c, start: end, length: cEnd - end, offset: edgeOffset(c, c.offset + (end - c.start)) });
     }
   }
   out.push(clip);
@@ -136,7 +145,7 @@ export const resizeClip =
       resized = { ...clip, length: to - clip.start };
     } else {
       const from = Math.max(0, Math.min(end - min, Math.round(position)));
-      resized = { ...clip, start: from, length: end - from, offset: wrapOffset(project, clip, clip.offset + (from - clip.start)) };
+      resized = { ...clip, start: from, length: end - from, offset: edgeOffset(clip, clip.offset + (from - clip.start)) };
     }
     return ok(withClips(project, placeClip(project, resized, ctx)));
   };

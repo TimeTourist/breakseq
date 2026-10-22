@@ -12,6 +12,7 @@ import {
   setBpm,
   setMarkers,
   setMatrixConfig,
+  setPadChoice,
   setPadConfig,
   setSlicing,
   setSongBars,
@@ -403,6 +404,46 @@ describe('fill clips', () => {
     const project = run(base, resizeClip(clip.id, 'start', 16 + 12), resizeClip(clip.id, 'end', 32 + 4));
     expect(layerOf(project, hit, 1)).toBe('M'.repeat(12) + 'F'.repeat(4));
     expect(layerOf(project, hit, 2)).toBe('F'.repeat(4) + 'M'.repeat(12));
+  });
+});
+
+describe('a change does not reroll', () => {
+  /** A 4-bar song of one 1-bar loop whose 16 steps play a Random pad of four members. */
+  function randomSong() {
+    let { project, pad, hit } = withPads(['A', 'B', 'C', 'D']);
+    project = run(project, copyHits([hit.B!, hit.C!, hit.D!], pad.A!), setPadChoice(pad.A!, 'random'));
+    let loop: Id;
+    let other: Id;
+    [project, loop] = addLoop(project, 'M1', 'main', 1);
+    [project, other] = addLoop(project, 'M2', 'main', 1);
+    project = run(project, ...Array.from({ length: 16 }, (_, i) => setStep(loop, i, { padId: pad.A! })), setSongBars(4), addClip('main', loop, 0, 64));
+    return { project, other, clip: project.song.clips[0]! };
+  }
+  /** The hit played at each song step from `from` on. */
+  const picks = (project: Project, from: number) =>
+    generateTriggers(project)
+      .map((t) => [t.bar * 16 + t.step, t.hitId] as const)
+      .filter(([step]) => step >= from);
+
+  it('the random picks vary, so the tests below can tell', () => {
+    const { project } = randomSong();
+    expect(new Set(picks(project, 0).map(([, id]) => id)).size).toBeGreaterThan(1);
+  });
+
+  it('trimming the start of a loop clip keeps the picks in the part that is left', () => {
+    const { project, clip } = randomSong();
+    const before = picks(project, 36);
+    const trimmed = run(project, resizeClip(clip.id, 'start', 36));
+    expect(picks(trimmed, 0)).toEqual(before);
+    // Pulled back out, it plays as it did.
+    expect(picks(run(trimmed, resizeClip(clip.id, 'start', 0)), 0)).toEqual(picks(project, 0));
+  });
+
+  it('splitting a loop clip keeps the picks in both halves', () => {
+    const { project, other } = randomSong();
+    const split = run(project, addClip('main', other, 20, 8));
+    expect(picks(split, 28)).toEqual(picks(project, 28));
+    expect(picks(split, 0).filter(([step]) => step < 20)).toEqual(picks(project, 0).filter(([step]) => step < 20));
   });
 });
 

@@ -1,5 +1,5 @@
 import type { Project, Rng, ShufflePick, StackPick, Step, SwapEffect } from '../model';
-import { STEPS_PER_BAR, clipsByStep, swapOf } from '../model';
+import { STEPS_PER_BAR, clipsByStep, loopIndex, swapOf } from '../model';
 import type { ModRun } from './mods';
 import type { Dice } from './random';
 import { CHOICE } from './random';
@@ -18,7 +18,7 @@ export function songStack(project: Project): (readonly Step[])[] {
       const clip = row[t] ?? null;
       const loop = clip === null ? undefined : project.loops[clip.ref];
       if (clip === null || loop === undefined || loop.steps.length === 0) return [];
-      const cell = loop.steps[(t - clip.start + clip.offset) % loop.steps.length];
+      const cell = loop.steps[loopIndex(clip, t, loop.steps.length)];
       return cell === undefined ? [] : [cell];
     }),
   );
