@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createMatrix, createProject, remove } from '../model';
-import { createStore, initialState, loopPinned, matrixInView } from './store';
+import { createLoop, createMatrix, createMod, createProject, remove } from '../model';
+import { createStore, initialState, loopPinned, matrixInView, songPinned } from './store';
 
 /** A store whose project has two matrices; returns their ids. */
 function twoMatrices() {
@@ -45,7 +45,7 @@ describe('focus', () => {
     const { store, a } = twoMatrices();
     store.dispatch({ type: 'focus', matrix: a });
     store.dispatch({ type: 'load', project: createProject() });
-    expect(store.getState().focus).toEqual({ matrix: null, loopUnpins: [], shown: null });
+    expect(store.getState().focus).toEqual({ matrix: null, loopUnpins: [], shown: null, songUnpins: [] });
   });
 });
 
@@ -106,5 +106,68 @@ describe('the pin and the matrix shown (Magnus beslut)', () => {
     expect(store.getState().focus).toMatchObject({ matrix: a, shown: a });
     store.dispatch({ type: 'focus', matrix: null });
     expect(store.getState().focus).toMatchObject({ matrix: null, shown: a });
+  });
+});
+
+describe('the pins in Song (Magnus beslut 2026-10-22: Listan och hyllan i Song)', () => {
+  /** A store whose project has a loop and a mod; returns their ids. */
+  function loopAndMod() {
+    const store = createStore(initialState(createProject()));
+    store.dispatch({ type: 'run', command: createLoop('Amen', 'main', 1) });
+    store.dispatch({ type: 'run', command: createMod('Wobble', []) });
+    const present = store.getState().history.present;
+    return { store, loop: Object.keys(present.loops)[0]!, mod: Object.keys(present.mods)[0]! };
+  }
+
+  it('pins every loop and mod from the start, also a new one', () => {
+    const { store, loop, mod } = loopAndMod();
+    expect(songPinned(store.getState().focus, loop)).toBe(true);
+    expect(songPinned(store.getState().focus, mod)).toBe(true);
+    store.dispatch({ type: 'run', command: createLoop('Fill', 'fill', 1) });
+    const fill = Object.keys(store.getState().history.present.loops).find((id) => id !== loop)!;
+    expect(songPinned(store.getState().focus, fill)).toBe(true);
+  });
+
+  it('unpins and pins loops and mods again, each once', () => {
+    const { store, loop, mod } = loopAndMod();
+    store.dispatch({ type: 'songPin', id: loop, on: false });
+    store.dispatch({ type: 'songPin', id: loop, on: false });
+    store.dispatch({ type: 'songPin', id: mod, on: false });
+    expect(store.getState().focus.songUnpins).toEqual([loop, mod]);
+    expect(songPinned(store.getState().focus, loop)).toBe(false);
+    store.dispatch({ type: 'songPin', id: loop, on: true });
+    expect(store.getState().focus.songUnpins).toEqual([mod]);
+    expect(songPinned(store.getState().focus, loop)).toBe(true);
+  });
+
+  it('has nothing to do with the pins in Loops or Matrices', () => {
+    const { store, loop } = loopAndMod();
+    store.dispatch({ type: 'run', command: createMatrix('Snares') });
+    const matrix = Object.keys(store.getState().history.present.matrices)[0]!;
+    store.dispatch({ type: 'songPin', id: loop, on: false });
+    expect(store.getState().focus).toMatchObject({ matrix: null, loopUnpins: [] });
+    store.dispatch({ type: 'loopPin', matrix, on: false });
+    store.dispatch({ type: 'focus', matrix });
+    expect(store.getState().focus.songUnpins).toEqual([loop]);
+  });
+
+  it('drops removed loops and mods', () => {
+    const { store, loop, mod } = loopAndMod();
+    store.dispatch({ type: 'songPin', id: loop, on: false });
+    store.dispatch({ type: 'songPin', id: mod, on: false });
+    store.dispatch({ type: 'run', command: remove('mod', mod) });
+    expect(store.getState().focus.songUnpins).toEqual([loop]);
+  });
+
+  it('is view state, not undone, and everything is pinned again after Load', () => {
+    const { store, loop } = loopAndMod();
+    const before = store.getState().history;
+    store.dispatch({ type: 'songPin', id: loop, on: false });
+    expect(store.getState().history).toBe(before);
+    store.dispatch({ type: 'undo' });
+    store.dispatch({ type: 'redo' });
+    expect(songPinned(store.getState().focus, loop)).toBe(false);
+    store.dispatch({ type: 'load', project: store.getState().history.present });
+    expect(songPinned(store.getState().focus, loop)).toBe(true);
   });
 });

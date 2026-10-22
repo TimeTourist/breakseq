@@ -55,6 +55,13 @@ export interface Focus {
   readonly loopUnpins: readonly Id[];
   /** The matrix Matrices shows while none is pinned: the one whose row, pad or hit was clicked last. Missing is none. */
   readonly shown?: Id | null;
+  /**
+   * The loops and mods unpinned in Song's list. Every other one is pinned and
+   * on the shelf Loops and mods: all from the start, also a new one (Magnus
+   * beslut 2026-10-22, Listan och hyllan i Song). Its own pins, apart from
+   * those in Loops and Matrices. Missing is none.
+   */
+  readonly songUnpins?: readonly Id[];
 }
 
 /** The matrix Matrices shows: the pinned one, else the one clicked last. */
@@ -62,6 +69,9 @@ export const matrixInView = (focus: Focus): Id | null => focus.matrix ?? focus.s
 
 /** Whether a matrix is pinned in Loops, so its pads are in the shelf. */
 export const loopPinned = (focus: Focus, matrix: Id): boolean => !focus.loopUnpins.includes(matrix);
+
+/** Whether a loop or mod is pinned in Song, so it is on the shelf Loops and mods. */
+export const songPinned = (focus: Focus, id: Id): boolean => !(focus.songUnpins ?? []).includes(id);
 
 export interface AppState {
   readonly history: History;
@@ -102,6 +112,8 @@ export type Action =
   | { readonly type: 'show'; readonly matrix: Id }
   /** Pins a matrix in Loops, or unpins it. */
   | { readonly type: 'loopPin'; readonly matrix: Id; readonly on: boolean }
+  /** Pins a loop or mod in Song, or unpins it. */
+  | { readonly type: 'songPin'; readonly id: Id; readonly on: boolean }
   | { readonly type: 'view'; readonly view: View }
   | { readonly type: 'place'; readonly place: Place }
   | { readonly type: 'sliceTarget'; readonly sampleId: string | null }
@@ -131,7 +143,13 @@ const settleFocus = (focus: Focus, project: Project): Focus => {
   const matrix = focus.matrix !== null && project.matrices[focus.matrix] !== undefined ? focus.matrix : null;
   const shown = (focus.shown ?? null) !== null && project.matrices[focus.shown!] !== undefined ? focus.shown! : null;
   const loopUnpins = focus.loopUnpins.filter((id) => project.matrices[id] !== undefined);
-  return matrix === focus.matrix && shown === (focus.shown ?? null) && loopUnpins.length === focus.loopUnpins.length ? focus : { matrix, loopUnpins, shown };
+  const songUnpins = focus.songUnpins?.filter((id) => project.loops[id] !== undefined || project.mods[id] !== undefined);
+  return matrix === focus.matrix &&
+    shown === (focus.shown ?? null) &&
+    loopUnpins.length === focus.loopUnpins.length &&
+    songUnpins?.length === focus.songUnpins?.length
+    ? focus
+    : { ...focus, matrix, loopUnpins, shown, ...(songUnpins === undefined ? {} : { songUnpins }) };
 };
 
 /** The state with a new history, its focus settled on the project the history now shows. */
@@ -170,6 +188,10 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       const others = state.focus.loopUnpins.filter((id) => id !== action.matrix);
       return { state: { ...state, focus: { ...state.focus, loopUnpins: action.on ? others : [...others, action.matrix] } }, error: null };
     }
+    case 'songPin': {
+      const others = (state.focus.songUnpins ?? []).filter((id) => id !== action.id);
+      return { state: { ...state, focus: { ...state.focus, songUnpins: action.on ? others : [...others, action.id] } }, error: null };
+    }
     case 'view':
       return { state: { ...state, view: action.view }, error: null };
     case 'place':
@@ -177,8 +199,8 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
     case 'sliceTarget':
       return { state: { ...state, sliceTarget: action.sampleId }, error: null };
     case 'load': {
-      // The pins in Loops are not saved: after Load everything is pinned again.
-      const loaded = withHistory({ ...state, focus: { ...state.focus, loopUnpins: [] } }, createHistory(action.project));
+      // The pins in Loops and Song are not saved: after Load everything is pinned again.
+      const loaded = withHistory({ ...state, focus: { ...state.focus, loopUnpins: [], songUnpins: [] } }, createHistory(action.project));
       return { state: { ...loaded, songCursor: 0 }, error: null };
     }
     case 'projectFolder':
