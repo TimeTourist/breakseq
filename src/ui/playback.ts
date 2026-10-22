@@ -132,9 +132,37 @@ export function playheadTrigger(triggers: readonly Trigger[], position: number):
   return last;
 }
 
+/**
+ * The first turn of block `next` as heard after block `previous` (see
+ * Svansen and Varv i loop): its own frames without its tail, and what of
+ * `previous` rings past its end added from its start, round and round as
+ * folded does. Its own tail comes in when it loops, or with the block after
+ * it. Null when that is just its buffer: nothing rings past either.
+ */
+export function afterTail(previous: Pick<Take, 'buffer' | 'full'>, next: Pick<Take, 'buffer' | 'full'>): Float32Array[] | null {
+  if (previous.full === undefined && next.full === undefined) return null;
+  const length = next.buffer.length;
+  const own = next.full ?? next.buffer;
+  return Array.from({ length: next.buffer.numberOfChannels }, (_, c) => {
+    const out = own.getChannelData(c).slice(0, length);
+    if (previous.full !== undefined && length > 0) {
+      const tail = previous.full.getChannelData(Math.min(c, previous.full.numberOfChannels - 1));
+      for (let i = previous.buffer.length; i < tail.length; i++) out[(i - previous.buffer.length) % length]! += tail[i]!;
+    }
+    return out;
+  });
+}
+
 interface Segment extends Run {
   readonly take: Take;
-  readonly source: AudioBufferSourceNode;
+  /** Its buffer, looped; after the first turn when it has a lead. Replaced when a queued block is taken away again (see cut). */
+  source: AudioBufferSourceNode;
+  /** A queued block's first turn, with the tail of the block before it (afterTail); null when it has none. */
+  readonly lead: AudioBufferSourceNode | null;
+  /** When `source` starts: after the lead's turn, or at once. */
+  readonly loopFrom: number;
+  /** Set when a block queued after this one's lead stopped `source` before it started: the time it would have started. */
+  cut: number | null;
   /** Its level: faded in and out when one take takes over from another. */
   readonly gain: GainNode;
   /** Plays to the end and stops, rather than looping. */
@@ -222,24 +250,48 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     return { buffer, loop: once ? { start: 0, end: buffer.duration } : fitLoop(range, buffer.duration) };
   };
 
-  /** Starts a take at `at`, `from` seconds in; with `fadeIn`, from silence over SWAP_FADE. */
-  const start = (take: Take, at: number, from: number, once = false, fadeIn = false): Segment => {
-    const c = ctx();
-    const { buffer, loop } = playedOf(take, once);
-    const offset = fadeIn ? from : startOffset(from, loop);
-    const source = c.createBufferSource();
+  /** A source playing `buffer` into `gain`, looping `loop` unless `once`. */
+  const sourceOf = (buffer: AudioBuffer, loop: LoopRange, once: boolean, gain: GainNode): AudioBufferSourceNode => {
+    const source = ctx().createBufferSource();
     source.buffer = buffer;
     source.loop = !once;
     source.loopStart = loop.start;
     source.loopEnd = loop.end;
+    source.connect(gain);
+    return source;
+  };
+
+  /**
+   * Starts a take at `at`, `from` seconds in; with `fadeIn`, from silence over
+   * SWAP_FADE. A block that follows `before` from its start plays its first
+   * turn with the tail of `before` instead of its own (afterTail), and then
+   * loops its own buffer.
+   */
+  const start = (take: Take, at: number, from: number, once = false, fadeIn = false, before?: Take): Segment => {
+    const c = ctx();
+    const { buffer, loop } = playedOf(take, once);
+    const offset = fadeIn ? from : startOffset(from, loop);
     const gain = c.createGain();
     if (fadeIn) {
       gain.gain.setValueAtTime(0, at);
       gain.gain.linearRampToValueAtTime(1, at + SWAP_FADE);
     }
-    source.connect(gain).connect(c.destination);
-    source.start(at, offset);
-    const segment: Segment = { take, source, gain, startTime: at, offset, loop, once };
+    gain.connect(c.destination);
+    const source = sourceOf(buffer, loop, once, gain);
+    const joined = before === undefined || once || offset !== 0 || loop.start > 1e-6 || loop.end < buffer.duration - 1e-6 ? null : afterTail(before, take);
+    let lead: AudioBufferSourceNode | null = null;
+    let loopFrom = at;
+    if (joined !== null) {
+      const first = c.createBuffer(joined.length, buffer.length, buffer.sampleRate);
+      joined.forEach((data, ch) => first.copyToChannel(data as Float32Array<ArrayBuffer>, ch));
+      lead = sourceOf(first, loop, true, gain);
+      lead.start(at, 0);
+      loopFrom = at + buffer.duration;
+      source.start(loopFrom, 0);
+    } else {
+      source.start(at, offset);
+    }
+    const segment: Segment = { take, source, lead, loopFrom, cut: null, gain, startTime: at, offset, loop, once };
     if (once) {
       source.onended = () => {
         // Played out, or taken over from: the take after it, if any, is what plays.
@@ -251,11 +303,22 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     return segment;
   };
 
+  /** Stops a segment's sources, at `at` or now. */
+  const stopSegment = (segment: Segment, at?: number) => {
+    for (const source of [segment.lead, segment.source]) {
+      try {
+        source?.stop(at);
+      } catch {
+        // Already stopped.
+      }
+    }
+  };
+
   /** Fades a segment out from `at`, over SWAP_FADE, and stops it. */
   const fadeOut = (segment: Segment, at: number) => {
     segment.gain.gain.setValueAtTime(1, at);
     segment.gain.gain.linearRampToValueAtTime(0, at + SWAP_FADE);
-    segment.source.stop(at + SWAP_FADE);
+    stopSegment(segment, at + SWAP_FADE);
   };
 
   /** Takes the queued take away: what it would have followed loops again. */
@@ -264,23 +327,20 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
     if (queued === null) return;
     const { segment, after } = queued;
     queued = null;
-    try {
-      segment.source.stop();
-    } catch {
-      // Already stopped.
+    stopSegment(segment);
+    if (after.cut === null) {
+      after.source.loop = true;
+      return;
     }
-    after.source.loop = true;
+    // Its own buffer was stopped before it started: it gets a new one, from the same time.
+    after.source = sourceOf(after.take.buffer, after.loop, false, after.gain);
+    after.source.start(after.cut, 0);
+    after.cut = null;
   };
 
   const stopAll = () => {
     unqueue();
-    for (const segment of [current, pending]) {
-      try {
-        segment?.source.stop();
-      } catch {
-        // Already stopped.
-      }
-    }
+    for (const segment of [current, pending]) if (segment !== null) stopSegment(segment);
     current = null;
     pending = null;
   };
@@ -328,8 +388,14 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       const length = after.loop.end - after.loop.start;
       let at = after.startTime + (after.loop.end - after.offset);
       if (length > 0 && at < context.currentTime + MIN_LEAD) at += Math.ceil((context.currentTime + MIN_LEAD - at) / length) * length;
-      after.source.loop = false;
-      queued = { segment: start(take, at, 0), after, onStart };
+      if (after.lead !== null && at <= after.loopFrom + 1e-6) {
+        // Still in its first turn: its own buffer never starts.
+        after.source.stop(at);
+        after.cut = at;
+      } else {
+        after.source.loop = false;
+      }
+      queued = { segment: start(take, at, 0, false, false, after.take), after, onStart };
       // Polling settles it too; this makes sure it is settled near the time.
       setTimeout(settle, Math.max(0, (at - context.currentTime) * 1000) + 5);
     },
@@ -341,7 +407,7 @@ export function createPlayer(makeContext: () => AudioContext = () => new AudioCo
       const { loop } = playedOf(take, once);
       if (pending !== null) {
         // A newer take supersedes one that has not started yet: it takes over at the same time, from the same step.
-        pending.source.stop();
+        stopSegment(pending);
         const offset = onGrid(pending.offset, pending.take.step, take.step);
         const length = loop.end - loop.start;
         const fitted = once || offset < loop.end || length <= 0 ? offset : loop.start + ((offset - loop.start) % length);

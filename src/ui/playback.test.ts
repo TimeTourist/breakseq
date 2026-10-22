@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Trigger } from '../engine';
 import type { Take } from './playback';
-import { SWAP_FADE, auditionPosition, createPlayer, fitLoop, playheadTrigger, runPosition, startOffset, swapPoint } from './playback';
+import { SWAP_FADE, afterTail, auditionPosition, createPlayer, fitLoop, playheadTrigger, runPosition, startOffset, swapPoint } from './playback';
 
 const at = (time: number, bar: number): Trigger => ({
   time,
@@ -158,6 +158,10 @@ function fakeContext() {
       return source;
     },
     createGain: () => ({ gain: param(), connect: (node: unknown) => node }),
+    createBuffer: (channels: number, length: number, sampleRate: number) => {
+      const data = Array.from({ length: channels }, () => new Float32Array(length));
+      return { numberOfChannels: channels, length, sampleRate, duration: length / sampleRate, getChannelData: (c: number) => data[c]!, copyToChannel: (from: Float32Array, c: number) => data[c]!.set(from) };
+    },
   };
   return { context, sources, ramps };
 }
@@ -287,5 +291,70 @@ describe('the player queues the next block of passes (Varv i loop)', () => {
     player.play(takeOf(4, 0.25), 0, true);
     player.queue(takeOf(4, 0.25));
     expect(sources).toHaveLength(1);
+  });
+});
+
+/** A stand-in AudioBuffer of one channel at 1 frame a second, so frames are seconds. */
+const bufferOf = (frames: readonly number[]): AudioBuffer => {
+  const data = Float32Array.from(frames);
+  return { numberOfChannels: 1, length: data.length, sampleRate: 1, duration: data.length, getChannelData: () => data } as unknown as AudioBuffer;
+};
+/** A take of `frames`, `rings` more ringing past its end; its buffer has them folded in at its start. */
+const ringing = (frames: readonly number[], rings: readonly number[]): Take => {
+  const folded = frames.map((f, i) => f + (rings[i] ?? 0));
+  return { buffer: bufferOf(folded), full: bufferOf([...frames, ...rings]), triggers: [], tapes: [], step: 0.25 };
+};
+
+describe('the tail at a block boundary (Svansen)', () => {
+  it('the next block starts with what rings past the end of the one before, not with its own tail', () => {
+    const a = ringing([1, 1, 1, 1], [0.5, 0.25]);
+    const b = ringing([2, 2, 2, 2], [0.1]);
+    expect(Array.from(afterTail(a, b)![0]!)).toEqual([2.5, 2.25, 2, 2]);
+    // Nothing rings past either: the next block plays as it is.
+    expect(afterTail(takeOf(4, 0.25), takeOf(4, 0.25))).toBeNull();
+  });
+
+  it('the player plays the first turn of the queued block with the tail before it, and then loops it with its own', () => {
+    const { context, sources } = fakeContext();
+    const player = createPlayer(() => context as unknown as AudioContext);
+    const a = ringing([1, 1, 1, 1], [0.5]);
+    const b = ringing([2, 2, 2, 2], [0.25]);
+    player.play(a);
+    context.currentTime = 1;
+    player.queue(b);
+    const [playing, own, lead] = sources;
+    expect(playing!.loop).toBe(false);
+    // Its first turn: its own frames and the tail of the block before.
+    expect(lead!.started).toEqual([4.02, 0]);
+    expect(lead!.loop).toBe(false);
+    expect(Array.from(lead!.buffer!.getChannelData(0))).toEqual([2.5, 2, 2, 2]);
+    // After it, its own buffer loops: what rings past its end at its start.
+    expect(own!.buffer).toBe(b.buffer);
+    expect(own!.started).toEqual([8.02, 0]);
+    expect(own!.loop).toBe(true);
+    context.currentTime = 9;
+    expect(player.currentPosition()).toBeCloseTo(0.98);
+  });
+
+  it('a block queued after one still in its first turn takes over at the end of that turn', () => {
+    const { context, sources } = fakeContext();
+    const player = createPlayer(() => context as unknown as AudioContext);
+    player.play(ringing([1, 1, 1, 1], [0.5]));
+    context.currentTime = 1;
+    player.queue(ringing([2, 2, 2, 2], [0.25]));
+    context.currentTime = 5;
+    expect(player.isPlaying()).toBe(true);
+    const c = ringing([3, 3, 3, 3], [0.125]);
+    player.queue(c);
+    const [, own, , , lead] = sources;
+    // The block before loops no more: its own buffer never starts, and the next takes over at 8.02.
+    expect(own!.stopped).toBeCloseTo(8.02);
+    expect(lead!.started).toEqual([8.02, 0]);
+    expect(Array.from(lead!.buffer!.getChannelData(0))).toEqual([3.25, 3, 3, 3]);
+    // Taken away again, the block playing loops on with its own buffer.
+    player.queue(null);
+    const again = sources.at(-1)!;
+    expect(again.started).toEqual([8.02, 0]);
+    expect(again.loop).toBe(true);
   });
 });
