@@ -203,11 +203,24 @@ describe('old projects (Gamla projekt)', () => {
     expect(bars(now(), 6, 7)).toEqual(bars(golden, 6, 7));
   });
 
-  it('an empty List or Cycle did nothing and goes; an empty Cycle on Pad member is In turn', () => {
+  it('an empty List did nothing and goes', () => {
     const mods = upgraded().mods as Record<Id, Mod>;
     expect(mods['old-empty']!.effects).toEqual([]);
     // Bar 7: Empty.
     expect(bars(now(), 7, 8)).toEqual(bars(golden, 7, 8));
+  });
+
+  it('an empty Cycle counted 1, 2, 3 … and does so in the lane, exactly as before (Magnus beslut 2026-10-22)', () => {
+    const mods = upgraded().mods as Record<Id, Mod>;
+    const lane = (target: string) => (mods['old-counting']!.effects.find((e) => e.target === target) as StepEffect);
+    // As many steps of its rate as its clip has, as Ramp.
+    expect(lane('volume')).toMatchObject({ step: 'beat', lane: fixed(1, 2, 3, 4) });
+    expect(lane('pitch')).toMatchObject({ step: '1/16', lane: fixed(...Array.from({ length: 16 }, (_, i) => i + 1)), pitch: { values: 'semitones' } });
+    // Bar 8: Counting.
+    expect(bars(now(), 8, 9)).toEqual(bars(golden, 8, 9));
+  });
+
+  it('an empty Cycle without a clip has 16 steps, within the lane’s range; on Pad member it is In turn', () => {
     const project = oldShapesSong(sequentialIds()).project;
     const cycles = {
       x: {
@@ -222,7 +235,10 @@ describe('old projects (Gamla projekt)', () => {
       },
     } as unknown as Project['mods'];
     const out = upgradeProject({ ...project, mods: cycles, song: { ...project.song, clips: [] } })!;
-    expect((out.mods.x!.effects as StepEffect[]).map((e) => [e.target, e.lane])).toEqual([['padMember', fixed(1, 2, 3, 4)]]);
+    expect((out.mods.x!.effects as StepEffect[]).map((e) => [e.target, e.lane])).toEqual([
+      ['volume', fixed(...Array.from({ length: 16 }, (_, i) => Math.min(6, i + 1)))],
+      ['padMember', fixed(1, 2, 3, 4)],
+    ]);
   });
 
   it('leave a project with lanes as it is', () => {
