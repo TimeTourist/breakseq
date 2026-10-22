@@ -1,5 +1,6 @@
 import type { Hit, Project } from '../model';
 import { effectiveHit, hitColour, hitStretch } from '../model';
+import type { AudioClip } from './audio-mods';
 import type { Trigger } from './generate';
 import { playedStretch } from './generate';
 import type { Tape } from './tape';
@@ -21,10 +22,15 @@ export const MIDI_VELOCITY = 100;
 /** Ticks per quarter note. */
 export const MIDI_PPQ = 960;
 
-/** One sound in the WAV: a trigger as heard (its first time in the song), or a tape segment. */
+/**
+ * One sound in the WAV: a trigger as heard (its first time in the song), a
+ * tape segment, or a clip with an audio mod or Scratch. A tape and a clip are
+ * cut from the song as heard, from `time` to `end`.
+ */
 export type Piece =
   | { readonly kind: 'hit'; readonly trigger: Trigger; readonly seconds: number }
-  | { readonly kind: 'tape'; readonly tape: Tape; readonly seconds: number };
+  | { readonly kind: 'tape'; readonly tape: Tape; readonly seconds: number }
+  | { readonly kind: 'audio'; readonly time: number; readonly end: number; readonly seconds: number };
 
 /** A note: when, how long, and which piece it plays (0 is C1). */
 export interface Note {
@@ -88,16 +94,54 @@ function isPlain(project: Project, t: Trigger): boolean {
   );
 }
 
+const EPSILON = 1e-9;
+
+/**
+ * What is left of a tape outside the clips with an audio mod or Scratch: those
+ * are pieces of their own, cut with the tape as heard, so the tape is not
+ * played twice.
+ */
+// TODO(spec): the spec does not say what the export does where a tape and a clip with an audio mod or Scratch overlap; here the clip's piece wins and the tape is cut around it.
+function tapeOutside(tape: Tape, clips: readonly AudioClip[]): Tape[] {
+  let parts: Tape[] = [tape];
+  for (const clip of clips) {
+    parts = parts.flatMap((p) => {
+      if (clip.end <= p.time + EPSILON || clip.time >= p.end - EPSILON) return [p];
+      return [
+        ...(clip.time > p.time + EPSILON ? [{ ...p, end: clip.time }] : []),
+        ...(clip.end < p.end - EPSILON ? [{ ...p, time: clip.end }] : []),
+      ];
+    });
+  }
+  return parts;
+}
+
+
+/** A take as the exports see it: the triggers heard, and the stretches cut from the song as heard. */
+export interface ExportTake {
+  readonly triggers: readonly Trigger[];
+  readonly tapes: readonly Tape[];
+  readonly audioClips?: readonly AudioClip[];
+}
+
 /**
  * The pieces and notes of a take. Pieces go by sample and slice: first each
  * sample's slices as they are (Amen 01, 02 …), then variants, then one-shots,
- * then tape segments, each segment a piece of its own. A note lasts as long as
- * its sound is heard: until it ends, or the next sound cuts it.
+ * then what is cut from the song as heard, in time order: tape segments and
+ * clips with an audio mod or Scratch, each a piece of its own (Magnus beslut
+ * 2026-10-22). Under a clip there are no notes but its own; where it plays
+ * over a tape, the tape is cut there. A note lasts as long as its sound is
+ * heard: until it ends, or the next sound cuts it.
  */
-// TODO(spec): the audio mods (take.splices) and Scratch (take.scratches) are not in the export: under them the notes are the triggers as heard without them.
-export function midiPlan(project: Project, take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[] }): MidiPlan {
-  const triggers = [...take.triggers].sort((a, b) => a.time - b.time);
-  const cuts = [...triggers.map((t) => t.time), ...take.tapes.map((t) => t.time)].sort((a, b) => a - b);
+export function midiPlan(project: Project, take: ExportTake): MidiPlan {
+  const clips = take.audioClips ?? [];
+  const under = (time: number) => clips.some((c) => time >= c.time - EPSILON && time < c.end - EPSILON);
+  const triggers = take.triggers.filter((t) => !under(t.time)).sort((a, b) => a.time - b.time);
+  const cutPieces: Piece[] = [
+    ...take.tapes.flatMap((tape) => tapeOutside(tape, clips)).map((tape): Piece => ({ kind: 'tape', tape, seconds: tape.end - tape.time })),
+    ...clips.map((c): Piece => ({ kind: 'audio', time: c.time, end: c.end, seconds: c.end - c.time })),
+  ].sort((a, b) => cutTime(a) - cutTime(b));
+  const cuts = [...triggers.map((t) => t.time), ...cutPieces.map(cutTime)].sort((a, b) => a - b);
   const sampleOrder = Object.keys(project.samples);
 
   const firsts = new Map<string, { trigger: Trigger; seconds: number; order: number[] }>();
@@ -114,10 +158,7 @@ export function midiPlan(project: Project, take: { readonly triggers: readonly T
     return 0;
   };
   const hits = [...firsts.entries()].sort(([, a], [, b]) => byOrder(a.order, b.order));
-  const pieces: Piece[] = [
-    ...hits.map(([, p]): Piece => ({ kind: 'hit', trigger: p.trigger, seconds: p.seconds })),
-    ...take.tapes.map((tape): Piece => ({ kind: 'tape', tape, seconds: tape.end - tape.time })),
-  ];
+  const pieces: Piece[] = [...hits.map(([, p]): Piece => ({ kind: 'hit', trigger: p.trigger, seconds: p.seconds })), ...cutPieces];
   if (pieces.length > MAX_PIECES) {
     throw new MidiExportError(`The song has ${pieces.length} different sounds; a MIDI export has room for ${MAX_PIECES}, from C1 up`);
   }
@@ -125,12 +166,22 @@ export function midiPlan(project: Project, take: { readonly triggers: readonly T
   const index = new Map(hits.map(([key], i) => [key, i]));
   const notes: Note[] = [
     ...triggers.map((t): Note => {
-      const next = cuts.find((c) => c > t.time + 1e-9);
+      const next = cuts.find((c) => c > t.time + EPSILON);
       return { time: t.time, length: Math.min(triggerSeconds(t), next === undefined ? Infinity : next - t.time), piece: index.get(soundKey(project, t))! };
     }),
-    ...take.tapes.map((tape, i): Note => ({ time: tape.time, length: tape.end - tape.time, piece: hits.length + i })),
+    ...cutPieces.map((p, i): Note => ({ time: cutTime(p), length: p.seconds, piece: hits.length + i })),
   ].sort((a, b) => a.time - b.time);
   return { pieces, notes };
+}
+
+/** Where a piece cut from the song starts in it. */
+function cutTime(piece: Piece): number {
+  return piece.kind === 'tape' ? piece.tape.time : piece.kind === 'audio' ? piece.time : piece.trigger.time;
+}
+
+/** Where a piece cut from the song is in it, in seconds; null for a hit, rendered on its own. */
+export function cutSpan(piece: Piece): { readonly time: number; readonly end: number } | null {
+  return piece.kind === 'tape' ? { time: piece.tape.time, end: piece.tape.end } : piece.kind === 'audio' ? { time: piece.time, end: piece.end } : null;
 }
 
 /** How many equal slots the WAV has for `count` pieces: up to a grid size, or exactly `count` past the largest. */

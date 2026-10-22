@@ -1,23 +1,27 @@
 import type { AudioData, Project } from '../model';
 import { encodeWav, normalizeGain, peakOf } from './codec';
-import type { Trigger } from './generate';
+import type { Take } from './generate';
 import type { MidiPlan, Piece } from './midi';
-import { encodeMidi, midiPlan, slotCount } from './midi';
+import { cutSpan, encodeMidi, midiPlan, slotCount } from './midi';
 import { renderTakeWithTail, scheduleHit } from './render';
 import { encodeRex } from './rex';
-import type { Tape } from './tape';
 
 /** Silence after the longest piece in its slot, so every piece starts after a gap. */
 export const SLOT_GAP = 0.01;
 
-/** One piece on its own, as heard: a hit rendered whole, or a tape segment cut from the song. */
+/**
+ * One piece on its own, as heard: a hit rendered whole, or a tape segment or a
+ * clip with an audio mod or Scratch cut from the song as heard.
+ */
 async function pieceAudio(project: Project, piece: Piece, song: AudioBuffer, sampleRate: number): Promise<Float32Array[]> {
-  if (piece.kind === 'tape') {
-    // Under a tape nothing else is heard, so the song there is the tape.
-    const from = Math.round(piece.tape.time * sampleRate);
-    const to = Math.round(piece.tape.end * sampleRate);
+  const span = cutSpan(piece);
+  if (span !== null) {
+    // Under a tape, Scratch or audio mod only what it plays is heard, so the song there is it.
+    const from = Math.round(span.time * sampleRate);
+    const to = Math.round(span.end * sampleRate);
     return [0, 1].map((c) => song.getChannelData(Math.min(c, song.numberOfChannels - 1)).slice(from, to));
   }
+  if (piece.kind !== 'hit') throw new Error('A piece is a hit or cut from the song');
   const length = Math.max(1, Math.ceil(piece.seconds * sampleRate));
   const context = new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
   scheduleHit(context, project, piece.trigger, 0);
@@ -43,11 +47,12 @@ export async function renderSlices(
 /**
  * The song's reverb and delay alone, from its start for as long as they ring,
  * at `gain`: laid beside the dry slices in a DAW, from where the MIDI starts,
- * they sound like the song. Null when nothing is sent to them.
+ * they sound like the song. Silent under tapes and clips with an audio mod or
+ * Scratch, which are pieces of their own. Null when nothing is sent to them.
  */
 async function spaceStem(
   project: Project,
-  take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[] },
+  take: Take,
   sampleRate: number,
   gain: number,
 ): Promise<Uint8Array | null> {
@@ -65,7 +70,7 @@ async function spaceStem(
  */
 export async function midiExport(
   project: Project,
-  take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[]; readonly buffer: AudioBuffer },
+  take: Take & { readonly buffer: AudioBuffer },
   sampleRate: number,
 ): Promise<{ readonly midi: Uint8Array; readonly wav: Uint8Array; readonly pieces: number; readonly space: Uint8Array | null }> {
   const plan = midiPlan(project, take);
@@ -90,7 +95,7 @@ const MIN_REX_SLICE = 256;
  */
 export async function rexExport(
   project: Project,
-  take: { readonly triggers: readonly Trigger[]; readonly tapes: readonly Tape[]; readonly buffer: AudioBuffer },
+  take: Take & { readonly buffer: AudioBuffer },
   sampleRate: number,
 ): Promise<{ readonly midi: Uint8Array; readonly rex: Uint8Array; readonly pieces: number; readonly space: Uint8Array | null }> {
   const plan = midiPlan(project, take);
