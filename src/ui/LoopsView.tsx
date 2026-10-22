@@ -43,7 +43,7 @@ import { Waveform } from './Waveform';
 const LOOP_ROW_MIME = 'application/x-breakseq-loop-row';
 
 /** Renders a song and plays it once as an audition: beside the transport, cutting any other audition. */
-async function playOnce(services: Services, song: Project): Promise<void> {
+export async function playOnce(services: Services, song: Project): Promise<void> {
   const take = await services.renderSong(song);
   const buffer = take.full ?? take.buffer;
   const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));

@@ -4097,3 +4097,14 @@ button.danger:hover:not(:disabled) {
     max-height: none;
   }
 }
+
+/* Song (Song-v2, Magnus beslut 2026-10-22): the list with its pins on the left as in Loops, the Song box and the shelf on the right. */
+.song-box .song-top {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+}
+
+.song-list .song-list-group {
+  margin-top: 6px;
+}
