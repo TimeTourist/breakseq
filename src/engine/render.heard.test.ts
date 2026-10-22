@@ -36,10 +36,10 @@ function song(audio: AudioData, steps: readonly number[]): Project {
   return project;
 }
 
-function withMod(project: Project, effects: readonly ModEffect[], start: number, length: number): Project {
+function withMod(project: Project, effects: readonly ModEffect[], start: number, length: number, row: 'modA' | 'modB' = 'modA'): Project {
   const before = project;
   const made = run(project, createMod('M', effects));
-  return run(made, addClip('modA', Object.keys(made.mods).find((k) => !(k in before.mods))! as Id, start, length));
+  return run(made, addClip(row, Object.keys(made.mods).find((k) => !(k in before.mods))! as Id, start, length));
 }
 
 const render = (project: Project, options = {}) => renderTakeWithTail(generateTake(project), project, SAMPLE_RATE, undefined, 'all', options);
@@ -124,5 +124,41 @@ describe('audio mods in a render', () => {
     const parts = await renderTakeWithTail(take, project, SAMPLE_RATE, undefined, 'all', { chunkSeconds: 0.25 });
     expect(rms(whole, 0, 4)).toBeGreaterThan(0.05);
     expect(difference(parts, whole)).toBeLessThan(1e-4);
+  });
+});
+
+describe('under a Tape, Scratch or audio mod only what it plays is heard (Magnus beslut 2026-10-22)', () => {
+  // A short hit on step 0 thrown into a long reverb: the tail rings on into the second beat and past it.
+  const reverb: StepEffect = { ...newStepEffect('reverb'), step: 'bar', lane: [{ v: 100 }], reverb: { size: 1 } };
+  const thrown = withMod(song(noise(0.05, 3), [0]), [reverb], 0, 4);
+  const clip = { start: 8, length: 4 };
+  // Inside the 3 ms fades at the edges (a tape lets what is heard back in over its last 3 ms).
+  const under = [clip.start * STEP + 0.004, (clip.start + clip.length) * STEP - 0.004] as const;
+  const silent: Record<string, ModEffect[]> = {
+    // A tape at 0× is silent.
+    Tape: [{ target: 'tape', length: 4, direction: 'forward', speed: { from: 0, to: 0 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 }],
+    // The fader closed all through.
+    Scratch: [{ target: 'scratch', record: 4, step: '1/16', points: [0, 0.25, 0.5, 0.75], fader: [[false], [false], [false], [false]] }],
+  };
+
+  it('the reverb tail rings on where the clips go', async () => {
+    expect(rms(await render(thrown), ...under)).toBeGreaterThan(0.002);
+  });
+
+  for (const [name, effects] of Object.entries(silent)) {
+    it(`${name} that plays nothing is silent under its clip, also the reverb that rang in before it`, async () => {
+      const got = await render(withMod(thrown, effects, clip.start, clip.length, 'modB'));
+      expect(rms(got, ...under)).toBeLessThan(1e-5);
+    });
+  }
+
+  it('Stutter at Gate 50 % is silent in the gated half of each repeat, also the reverb that rang in before it', async () => {
+    const stutter = lane('stutter', '1/16', [1, 1, 1, 1], { stutter: { grabs: 1, pitch: 0, gate: 50 } });
+    const got = await render(withMod(thrown, [stutter], clip.start, clip.length, 'modB'));
+    for (let k = 0; k < clip.length; k++) {
+      const step = (clip.start + k) * STEP;
+      expect(rms(got, step + STEP / 2 + 0.004, step + STEP - 0.0005)).toBeLessThan(1e-5);
+      expect(rms(got, step + 0.004, step + STEP / 2 - 0.004)).toBeGreaterThan(0.001);
+    }
   });
 });
