@@ -55,10 +55,30 @@ describe('Scratch in the model', () => {
     expect(snapPoint(16, -0.2)).toBe(0);
   });
 
-  it('the last step carries on at the speed it arrived with', () => {
+  it('the last step carries on at the speed it arrived with, also past the ends of the recording', () => {
     expect(scratchEnd([0.1, 0.25])).toBeCloseTo(0.4);
-    expect(scratchEnd([0.5, 0.9])).toBe(1);
-    expect(scratchEnd([0.3, 0.1])).toBe(0);
+    expect(scratchEnd([0.5, 0.9])).toBeCloseTo(1.3);
+    expect(scratchEnd([0.3, 0.1])).toBeCloseTo(-0.1);
+  });
+
+  it('Clear, Ramp ↗ and Ramp ↘ give a last step that moves, at the speed of the one before', () => {
+    const lastTwo = (effect: ScratchEffect) => scratchSpeeds(effect).slice(-2);
+    const flat = { ...newScratch(), points: Array.from({ length: 8 }, () => 0.5), fader: Array.from({ length: 8 }, () => [true] as const) };
+    // Ramp over points all the same goes through the whole recording, 0 to 1.
+    const up = rampScratch(flat, true);
+    expect(up.points.at(-1)).toBe(1);
+    const [a, b] = lastTwo(up);
+    expect(scratchMotion(b!)).toBe('forward');
+    expect(b).toBeCloseTo(a!);
+    const down = rampScratch(flat, false);
+    expect(down.points.at(-1)).toBe(0);
+    const [c, d] = lastTwo(down);
+    expect(scratchMotion(d!)).toBe('backward');
+    expect(d).toBeCloseTo(c!);
+    // Clear on 1 beat in steps of a bar: two steps, 0 and 1, both forward.
+    const cleared = clearScratch({ ...newScratch(), record: 4, step: 'bar' });
+    expect(cleared.points).toEqual([0, 1]);
+    expect(scratchSpeeds(cleared).map(scratchMotion)).toEqual(['forward', 'forward']);
   });
 
   it('gives each step its speed: the needle’s way times the recording over the step', () => {

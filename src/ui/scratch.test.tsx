@@ -121,6 +121,8 @@ describe('Scratch in Mods', () => {
     fireEvent.click(button('Ramp ↘'));
     expect(scratch(store).points[0]).toBeCloseTo(0.9375);
     expect(sentence()).toMatch(/1 backward stroke/);
+    // The last step carries on at the speed it came with, also past the start of the recording.
+    expect(within(card('Scratch')).getAllByText('◂1.0')).toHaveLength(16);
     fireEvent.click(button('Ramp ↗'));
     expect(scratch(store).points.at(-1)).toBeCloseTo(0.9375);
   });
