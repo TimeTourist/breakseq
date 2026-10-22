@@ -48,8 +48,9 @@ function laneValue(target: LaneTarget, value: number): number {
 
 /**
  * One old step effect as a lane, or null when it did nothing and goes: an
- * empty List or Cycle (but a Cycle with no values on Pad member is In turn).
- * List and Cycle keep their values; Ramp is a line over as many steps
+ * empty List. An empty Cycle counted 1, 2, 3 … (Magnus beslut 2026-10-22):
+ * on Pad member it is In turn, elsewhere it counts over as many steps as
+ * Ramp has. List and Cycle keep their values; Ramp is a line over as many steps
  * of its rate as its longest clip has (16 when it has none); Random as many
  * dice steps with the same band and the nearest chance (on Direction, the
  * chance that it was reversed). Values outside the lane's range are kept
@@ -66,8 +67,8 @@ export function upgradeStepEffect(old: OldStepEffect, ctx: UpgradeContext): Step
   switch (shape.kind) {
     case 'list':
     case 'cycle':
-      if (shape.values.length === 0 && !(shape.kind === 'cycle' && target === 'padMember')) return null;
-      lane = shape.values.length > 0 ? fixed(shape.values) : inTurn(ctx.members);
+      if (shape.values.length === 0 && shape.kind === 'list') return null;
+      lane = shape.values.length > 0 ? fixed(shape.values) : target === 'padMember' ? inTurn(ctx.members) : fixed(Array.from({ length: runs }, (_, k) => k + 1));
       free = target === 'pitch' && shape.values.some((v) => !Number.isInteger(v));
       break;
     case 'ramp': {
