@@ -127,6 +127,36 @@ describe('MIDI plan', () => {
     expect(plan.notes.at(-2)!.time + plan.notes.at(-2)!.length).toBeCloseTo(1.5);
   });
 
+  it('a clip with an audio mod or Scratch is a piece of its own, cut as heard: no notes under it, the hit before cut where it starts', () => {
+    const { project } = song();
+    const t = take(project);
+    const plan = midiPlan(project, { triggers: t.triggers, tapes: [], audioClips: [{ time: 1, end: 1.5 }] });
+    // M1 plays amen's 16 slices, one per step of 0.125 s: those from 1 s up to 1.5 s are under the clip.
+    expect(plan.pieces.filter((x) => x.kind === 'hit')).toHaveLength(12);
+    expect(plan.pieces.at(-1)).toMatchObject({ kind: 'audio', time: 1, end: 1.5, seconds: 0.5 });
+    expect(plan.notes.filter((n) => n.time >= 1 - 1e-9 && n.time < 1.5 - 1e-9)).toEqual([{ time: 1, length: 0.5, piece: plan.pieces.length - 1 }]);
+    expect(plan.notes.find((n) => Math.abs(n.time - 1.5) < 1e-9)).toBeDefined();
+    const before = plan.notes.find((n) => Math.abs(n.time - 0.875) < 1e-9)!;
+    expect(before.time + before.length).toBeLessThanOrEqual(1 + 1e-9);
+  });
+
+  it('cut pieces come after the hits in time order, and a tape is cut where a clip with an audio mod plays over it', () => {
+    const { project } = song();
+    const tape = { time: 0.5, end: 2, start: 0.5, length: 0.5 } as unknown as Tape;
+    const plan = midiPlan(project, { triggers: take(project).triggers.filter((x) => x.time < 0.5), tapes: [tape], audioClips: [{ time: 1, end: 1.25 }] });
+    const cut = plan.pieces.filter((x) => x.kind !== 'hit').map((x) => (x.kind === 'tape' ? ['tape', x.tape.time, x.tape.end] : x.kind === 'audio' ? ['audio', x.time, x.end] : []));
+    expect(cut).toEqual([
+      ['tape', 0.5, 1],
+      ['audio', 1, 1.25],
+      ['tape', 1.25, 2],
+    ]);
+    expect(plan.notes.slice(-3).map((n) => [n.time, n.length])).toEqual([
+      [0.5, 0.5],
+      [1, 0.25],
+      [1.25, 0.75],
+    ]);
+  });
+
   it(`more than ${MAX_PIECES} sounds do not fit`, () => {
     const { project } = song();
     const one = take(project).triggers[0]!;

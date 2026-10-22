@@ -1,6 +1,8 @@
 import type { Take } from './generate';
 import type { Mix } from './render';
 import { CHOKE_FADE, scheduleTape } from './render';
+import type { AudioClip } from './audio-mods';
+import { SPLICE_FADE } from './audio-mods';
 import { applySplices } from './render-audio-mods';
 import type { RenderCache } from './render-chunks';
 import { keepChunk, remember } from './render-chunks';
@@ -63,14 +65,27 @@ function tapeMask(tape: Tape, f: number, sampleRate: number): number {
 }
 
 /**
+ * How much of the reverb and delay is left over a clip with an audio mod or
+ * Scratch in the mix of only them: none under it, faded out over SPLICE_FADE
+ * where it starts, as what is heard is under the splices there. From its end
+ * the song as heard goes on, so all of it.
+ */
+function clipMask(clip: AudioClip, f: number, sampleRate: number): number {
+  const t = f / sampleRate;
+  if (t < clip.time || t >= clip.end) return 1;
+  return Math.max(0, 1 - (t - clip.time) / SPLICE_FADE);
+}
+
+/**
  * Plays the take's tapes, Scratch and splices over `heard` (the triggers' sound with
  * reverb and delay, for the mix asked for). In the mix of only reverb and
- * delay a tape leaves silence: a MIDI export has the tape as a piece of its
- * own, cut from the song.
+ * delay a tape, and a clip with an audio mod or Scratch, leaves silence: a
+ * MIDI export has each as a piece of its own, cut from the song as heard
+ * (Magnus beslut 2026-10-22).
  */
 export async function finishHeard(
   heard: readonly Float32Array[],
-  take: Pick<Take, 'tapes' | 'splices' | 'scratches'>,
+  take: Pick<Take, 'tapes' | 'splices' | 'scratches' | 'audioClips'>,
   sampleRate: number,
   mix: Mix,
   cache?: RenderCache,
@@ -85,6 +100,14 @@ export async function finishHeard(
       for (let f = first; f < last; f++) data[f] = data[f]! * tapeMask(tape, f, sampleRate) + (played?.[c]?.[f] ?? 0);
       return data;
     });
+  }
+  if (mix === 'space') {
+    for (const clip of take.audioClips ?? []) {
+      const first = Math.max(0, Math.floor(clip.time * sampleRate));
+      const last = Math.min(total, Math.ceil(clip.end * sampleRate));
+      for (const data of out) for (let f = first; f < last; f++) data[f] = data[f]! * clipMask(clip, f, sampleRate);
+    }
+    return out;
   }
   // Scratch records what is heard without tape, and is heard instead of it and of tape (Claudes val: where both play, Scratch).
   if (take.scratches !== undefined && take.scratches.length > 0) out = applySplices(out, take.scratches, sampleRate, heard);
