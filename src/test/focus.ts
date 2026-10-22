@@ -6,5 +6,8 @@ import type { Focus, Selection } from '../ui/store';
 export function focusOn(project: Project, selection: Partial<Selection>): Focus {
   const pad: Id | undefined = selection.pad ?? (selection.hit == null ? undefined : padOfHit(project, selection.hit)?.id);
   const matrix = selection.matrix ?? (pad == null ? null : (matrixOfPad(project, pad)?.id ?? null));
-  return { matrix, loopPins: [] };
+  return { matrix, loopUnpins: [] };
 }
+
+/** The matrices to unpin in Loops so that only `pinned` are pinned there. */
+export const unpinAllBut = (project: Project, pinned: readonly Id[]): readonly Id[] => Object.keys(project.matrices).filter((id) => !pinned.includes(id));

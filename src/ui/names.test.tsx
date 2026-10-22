@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, copyHits, createLoop, createMatrix, createProject } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
+import { unpinAllBut } from '../test/focus';
 import { App } from './App';
 import { NAME_MAX, middleEllipsis } from './labels';
 import type { Take } from './playback';
@@ -90,7 +91,7 @@ describe('long names are shortened the same way everywhere', () => {
     const { project, kit, own } = longNames();
     const hit = Object.values(project.hits).find((h) => project.pads[kit.pads[0]!]!.members.includes(h.id))!;
     expect(hit.name.length).toBeGreaterThan(NAME_MAX);
-    await setup(project, { view: 'pads', focus: { matrix: kit.id, loopPins: [own.id] } });
+    await setup(project, { view: 'pads', focus: { matrix: kit.id, loopUnpins: unpinAllBut(project, [own.id]) } });
     const chip = within(screen.getByRole('list', { name: /^Hits of/ })).getByRole('button');
     const shown = chip.querySelector('.hit-label')!.textContent!;
     expect(shown.length).toBeLessThanOrEqual(NAME_MAX);

@@ -209,7 +209,7 @@ describe('files and samples in the GUI', () => {
     const project = await sliced();
     const matrix = Object.values(project.matrices)[0]!;
     const sample = Object.values(project.samples)[0]!;
-    const store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: matrix.id, loopPins: [] } });
+    const store = createStore({ ...initialState(project), view: 'pads', focus: { matrix: matrix.id, loopUnpins: [] } });
     render(<App store={store} services={fakeServices()} />);
     await act(async () => {});
     fireEvent.click(screen.getByRole('button', { name: `Rename ${matrix.name}` }));

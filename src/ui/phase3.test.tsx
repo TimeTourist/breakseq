@@ -5,6 +5,7 @@ import { generateTriggers } from '../engine';
 import type { Command, Project } from '../model';
 import { addSample, copyHits, createLoop, createMatrix, createMod, createProject, effectiveHit, resizeClip, setSongCell, setStep, sliceSample } from '../model';
 import { constantAudio, sequentialIds, withRng } from '../test/fixtures';
+import { unpinAllBut } from '../test/focus';
 import { App } from './App';
 import type { Player, Take } from './playback';
 import type { Services } from './services';
@@ -65,7 +66,7 @@ async function setup(project: Project, view: View, focus?: string, pins: readonl
   const matrices = Object.values(project.matrices);
   const focused = (focus === undefined ? matrices[0] : matrices.find((m) => m.name === focus))?.id ?? null;
   const pinned = pins.map((name) => matrices.find((m) => m.name === name)!.id);
-  const store = createStore({ ...initialState(project), view, focus: { matrix: focused, loopPins: pinned } });
+  const store = createStore({ ...initialState(project), view, focus: { matrix: focused, loopUnpins: unpinAllBut(project, pinned) } });
   render(<App store={store} services={fakeServices()} />);
   await act(async () => {});
   return store;

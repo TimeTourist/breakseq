@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Command, Project } from '../model';
 import { addSample, createLoop, createProject, setSlicing, setStep } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
+import { unpinAllBut } from '../test/focus';
 import { App } from './App';
 import type { Take } from './playback';
 import type { Services } from './services';
@@ -188,7 +189,7 @@ describe('Loops: the loop box', () => {
 
   it('a pad from the shelf of pinned matrices lands on a step, as a copy, by drag or by a pick and a click', async () => {
     const { project: p, m1, matrix } = project();
-    const { store } = await setup(p, { selection: { ...initialState(p).selection, loop: m1.id }, focus: { matrix: null, loopPins: [matrix.id] } });
+    const { store } = await setup(p, { selection: { ...initialState(p).selection, loop: m1.id }, focus: { matrix: null, loopUnpins: unpinAllBut(p, [matrix.id]) } });
     const shelf = within(screen.getByRole('region', { name: 'Pads to use' }));
     drag(shelf.getAllByRole('button', { name: /^Pad / })[2]!, step(4));
     expect(present(store).loops[m1.id]!.steps[3]!.padId).toBe(matrix.pads[2]);
