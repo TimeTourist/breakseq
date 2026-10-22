@@ -17,10 +17,15 @@ export const snapPoint = (record: ScratchRecord, p: number): number => {
   return Math.round(clamp(Number.isFinite(p) ? p : 0, 0, 1) * k) / k;
 };
 
-/** Where the needle is at the end of the last step: it carries on at the speed it arrived with, within the recording. */
+/**
+ * Where the needle is at the end of the last step: it carries on at the speed
+ * it arrived with (Magnus beslut), also past 0 or 1, where it reads what is
+ * heard just outside the recording. So a Ramp or Clear ending at an edge does
+ * not stand still in its last step.
+ */
 export const scratchEnd = (points: readonly number[]): number => {
   const n = points.length;
-  return n < 2 ? (points[0] ?? 0) : clamp(2 * points[n - 1]! - points[n - 2]!, 0, 1);
+  return n < 2 ? (points[0] ?? 0) : 2 * points[n - 1]! - points[n - 2]!;
 };
 
 /** Each step's speed, × the recording's: how far the needle goes in the step, from one point to the next. */
