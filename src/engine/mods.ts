@@ -72,6 +72,8 @@ export interface StepPlace {
 interface TargetHandler {
   /** How values from A and B on the same target combine: 'add' for amounts, 'b-wins' for modes. */
   readonly combine: 'add' | 'b-wins';
+  /** A value that does nothing, so the other row's value comes through: Pad member off (Magnus beslut 2026-10-22). */
+  readonly off?: (value: number) => boolean;
   readonly apply: (state: StepState, value: number, effect: StepEffect, place: StepPlace, project: Project) => StepState;
 }
 
@@ -84,6 +86,8 @@ const handlers: readonly (readonly [LaneTarget, TargetHandler])[] = [
     'padMember',
     {
       combine: 'b-wins',
+      // B off lets A's member through.
+      off: (value) => Math.round(value) <= 0,
       // Member numbers count from 1; a member the pad does not have plays member 1. Off (0) lets the pad choose as usual.
       apply: (state, value, _mod, _place, project) => {
         const members = state.pad?.members ?? [];
@@ -287,9 +291,9 @@ export function applyMods(
     if (current.cell.ignoreMods) break;
     const fromRow = (run: ModRun | null) => {
       const effect = run === null ? undefined : effectFor(run.mod, target);
-      return run !== null && effect !== undefined
-        ? { effect, value: values(run, effect, place.clock) }
-        : null;
+      if (run === null || effect === undefined) return null;
+      const value = values(run, effect, place.clock);
+      return { effect, value: value !== null && handler.off?.(value) === true ? null : value };
     };
     const a = fromRow(runs.A);
     const b = fromRow(runs.B);
