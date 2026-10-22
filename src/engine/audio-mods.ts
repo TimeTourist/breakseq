@@ -10,6 +10,7 @@ import {
   STEPS_PER_BAR,
   STEP_SIZES,
   halftimeOf,
+  scratchOf,
   stepDuration,
 } from '../model';
 import type { ModRun } from './mods';
@@ -377,6 +378,25 @@ export function audioSplices(project: Project, runs: { readonly A: readonly (Mod
     taken = take(taken, mine);
   }
   return out.filter((s) => s.length > EPSILON).sort((a, b) => a.time - b.time);
+}
+
+/** A stretch of song, in seconds from its start, where a clip with an audio mod or Scratch plays. */
+export interface AudioClip {
+  readonly time: number;
+  readonly end: number;
+}
+
+const hasAudio = (run: ModRun | null): run is ModRun => run !== null && (scratchOf(run.mod) !== undefined || AUDIO_ORDER.some((target) => hasTarget(run, target)));
+
+/**
+ * Where clips with an audio mod or Scratch play, in time order: for each song
+ * step B's clip if its mod has one, else A's, a stretch of steps with the same
+ * clip one stretch. The export cuts each from the song as heard, as a piece of
+ * its own like a tape (Magnus beslut 2026-10-22), also where the mod does nothing.
+ */
+export function audioClips(project: Project, runs: { readonly A: readonly (ModRun | null)[]; readonly B: readonly (ModRun | null)[] }): AudioClip[] {
+  const stepTime = stepDuration(project.song.bpm);
+  return windowsWhere(runs, hasAudio).map((w) => ({ time: w.start * stepTime, end: w.end * stepTime }));
 }
 
 export { audioWindows, windowsWhere, contentStart, type AudioWindow };
