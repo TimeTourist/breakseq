@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Id, LaneStep, ModEffect, Project, StepEffect } from '../model';
-import { DEFAULT_HALFTIME, addClip, addSample, createLoop, createMod, createProject, newStepEffect, rerollMod, setBpm, setSongBars, setStep, stepDuration } from '../model';
+import { DEFAULT_HALFTIME, addClip, addSample, createLoop, createMod, createProject, newScratch, newStepEffect, rerollMod, setBpm, setSongBars, setStep, stepDuration } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import type { Splice } from './audio-mods';
 import { sourceAt } from './audio-mods';
@@ -248,5 +248,39 @@ describe('Where each cell comes from', () => {
       expect(picture.cells.filter((c) => c.from !== null).map((c) => [c.start, c.from])).toEqual(played);
     }
     expect(scramblePicture(made, mod, loop, 0)!.cells).not.toEqual(scramblePicture(made, mod, loop, 1)!.cells);
+  });
+});
+
+describe('where the export cuts a piece of its own (Magnus beslut 2026-10-22)', () => {
+  const clips = (project: Project) => (generateTake(project).audioClips ?? []).map((c) => ({ time: +(c.time / STEP).toFixed(6), end: +(c.end / STEP).toFixed(6) }));
+
+  it('a clip with an audio mod is a stretch of its own, also where the mod does nothing', () => {
+    const [project] = withMod(song(), [effect('stutter', '1/16', [0, 0, 2, 0])], 4, 8);
+    expect(clips(project)).toEqual([{ time: 4, end: 12 }]);
+  });
+
+  it('so is a clip with Scratch, and Halftime', () => {
+    const [scratched] = withMod(song(), [newScratch()], 0, 8);
+    const [both] = withMod(scratched, [DEFAULT_HALFTIME], 16, 4, 'modB');
+    expect(clips(both)).toEqual([
+      { time: 0, end: 8 },
+      { time: 16, end: 20 },
+    ]);
+  });
+
+  it('a clip with only step mods, or Tape, is not', () => {
+    const tape: ModEffect = { target: 'tape', length: 4, direction: 'forward', speed: { from: 1, to: 1 }, rampOver: null, curve: 'linear', wow: 0, flutter: 0 };
+    const [project] = withMod(withMod(song(), [effect('pitch', '1/16', [3])], 0, 8)[0], [tape], 8, 8, 'modB');
+    expect(clips(project)).toEqual([]);
+  });
+
+  it('where A and B both have one, each clip is a stretch where it plays: B over A', () => {
+    const [a] = withMod(song(), [effect('reverse', 'beat', [1])], 0, 16);
+    const [project] = withMod(a, [newScratch()], 4, 4, 'modB');
+    expect(clips(project)).toEqual([
+      { time: 0, end: 4 },
+      { time: 4, end: 8 },
+      { time: 8, end: 16 },
+    ]);
   });
 });
