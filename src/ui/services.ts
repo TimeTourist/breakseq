@@ -83,7 +83,19 @@ export function renderers(cache: RenderCache = createRenderCache()) {
   const renderSong = async (project: Project, request?: RenderRequest): Promise<Take> => {
     const take = generateTake(project, request?.from === undefined ? {} : { from: request.from });
     const rendered = await renderTakeWithTail(take, project, EXPORT_SAMPLE_RATE, undefined, 'all', options(request));
-    return { ...withTail(rendered), triggers: take.triggers, tapes: take.tapes, step: stepDuration(project.song.bpm), ...(take.end === undefined ? {} : { end: take.end }) };
+    // The exports need what generate gave beside the triggers: a Scratch or an audio mod is a piece of its own, and the reverb and delay come from every trigger heard.
+    const { heard, scratches, splices, audioClips, end } = take;
+    return {
+      ...withTail(rendered),
+      triggers: take.triggers,
+      tapes: take.tapes,
+      step: stepDuration(project.song.bpm),
+      ...(heard === undefined ? {} : { heard }),
+      ...(scratches === undefined ? {} : { scratches }),
+      ...(splices === undefined ? {} : { splices }),
+      ...(audioClips === undefined ? {} : { audioClips }),
+      ...(end === undefined ? {} : { end }),
+    };
   };
 
   return { renderSong, renderPreview };
