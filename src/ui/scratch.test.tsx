@@ -112,16 +112,17 @@ describe('Scratch in Mods', () => {
     add('scratch');
     fireEvent.click(button('Chirp'));
     fireEvent.click(button('Clear'));
-    expect(scratch(store).points).toEqual([0, 0.0625, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375]);
-    expect(scratch(store).fader).toEqual(Array.from({ length: 8 }, () => [true]));
-    expect(sentence()).toMatch(/0 backward strokes · fader open$/);
-    expect(within(card('Scratch')).getAllByText('▸1.0')).toHaveLength(8);
+    // Clear sets Length: 1 bar recorded in steps of 1/16 is 16 steps, the recording once at 1×.
+    expect(scratch(store).points).toEqual(Array.from({ length: 16 }, (_, k) => k / 16));
+    expect(scratch(store).fader).toEqual(Array.from({ length: 16 }, () => [true]));
+    expect(sentence()).toMatch(/16 steps of 1\/16, loops · 0 backward strokes · fader open$/);
+    expect(within(card('Scratch')).getAllByText('▸1.0')).toHaveLength(16);
     // Clear is a line going forward already: Ramp turns it round.
     fireEvent.click(button('Ramp ↘'));
-    expect(scratch(store).points[0]).toBeCloseTo(0.4375);
+    expect(scratch(store).points[0]).toBeCloseTo(0.9375);
     expect(sentence()).toMatch(/1 backward stroke/);
     fireEvent.click(button('Ramp ↗'));
-    expect(scratch(store).points.at(-1)).toBeCloseTo(0.4375);
+    expect(scratch(store).points.at(-1)).toBeCloseTo(0.9375);
   });
 
   it('Randomize draws a hand movement and a fader', async () => {

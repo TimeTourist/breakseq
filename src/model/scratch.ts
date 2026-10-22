@@ -81,12 +81,21 @@ export const SCRATCH_PRESETS: readonly { readonly name: string; readonly does: s
 /** A new Scratch: Baby on 1 bar. */
 export const newScratch = (): ScratchEffect => SCRATCH_PRESETS[0]!.draw({ target: 'scratch', record: 16, step: '1/16', points: [], fader: [] });
 
-/** Clear plays normally: a straight line forward through the recording at 1×, one pass over the lane, the fader open. (Magnus beslut.) */
-export const clearScratch = (effect: ScratchEffect): ScratchEffect => ({
-  ...effect,
-  points: effect.points.map((_, k) => snapPoint(effect.record, (k * STEP_SIZES[effect.step]) / effect.record)),
-  fader: open(effect.points.length),
-});
+/**
+ * Clear plays normally: a straight line forward through the recording at 1×,
+ * the fader open (Magnus beslut). It sets Length so the lane plays the
+ * recording once with its Step; where that does not come out even, or is more
+ * than 16 steps, the nearest length within 2–16 (Magnus beslut 2026-10-22).
+ */
+export const clearScratch = (effect: ScratchEffect): ScratchEffect => {
+  const size = STEP_SIZES[effect.step];
+  const count = clamp(Math.round(effect.record / size), MIN_SCRATCH_STEPS, MAX_LANE_STEPS);
+  return {
+    ...effect,
+    points: Array.from({ length: count }, (_, k) => snapPoint(effect.record, (k * size) / effect.record)),
+    fader: open(count),
+  };
+};
 
 /**
  * Whether the next Ramp sweeps forward: it does, unless the points already

@@ -98,9 +98,53 @@ describe('Scratch in the model', () => {
 
   it('Clear plays normally: forward through the recording at 1×, the fader open', () => {
     const cleared = clearScratch({ ...SCRATCH_PRESETS[1]!.draw(newScratch()), step: 'beat' });
-    expect(cleared.points).toEqual([0, 0.25, 0.5, 0.75, 1, 1, 1, 1]);
-    expect(cleared.fader).toEqual(Array.from({ length: 8 }, () => [true]));
-    expect(scratchSpeeds(cleared).slice(0, 4).map((s) => +s.toFixed(9))).toEqual([1, 1, 1, 1]);
+    expect(cleared.points).toEqual([0, 0.25, 0.5, 0.75]);
+    expect(cleared.fader).toEqual(Array.from({ length: 4 }, () => [true]));
+    expect(scratchSpeeds(cleared).map((s) => +s.toFixed(9))).toEqual([1, 1, 1, 1]);
+  });
+
+  describe('Clear sets Length so the lane plays the recording once at 1× with its Step (Magnus beslut 2026-10-22)', () => {
+    const records = [
+      { record: 4, name: '1 beat' },
+      { record: 8, name: '2 beats' },
+      { record: 16, name: '1 bar' },
+    ] as const;
+    for (const { record, name } of records) {
+      it(`Records the first ${name}, Step 1/16: ${record} steps`, () => {
+        const cleared = clearScratch(scratch([0.3, 0.1, 0.2], { record, step: '1/16' }));
+        expect(cleared.points).toEqual(Array.from({ length: record }, (_, k) => k / record));
+        expect(cleared.fader).toEqual(Array.from({ length: record }, () => [true]));
+        expect(scratchSpeeds(cleared).map((s) => +s.toFixed(9))).toEqual(Array.from({ length: record }, () => 1));
+      });
+    }
+
+    it('Records the first 2 bars, Step 1/16: 32 steps would be more than 16, so 16', () => {
+      const cleared = clearScratch(scratch([0.3, 0.1], { record: 32, step: '1/16' }));
+      expect(cleared.points).toEqual(Array.from({ length: 16 }, (_, k) => k / 32));
+      expect(scratchSpeeds(cleared).map((s) => +s.toFixed(9))).toEqual(Array.from({ length: 16 }, () => 1));
+    });
+
+    for (const { record, name, steps } of [
+      { record: 8, name: '2 beats', steps: 2 },
+      { record: 16, name: '1 bar', steps: 4 },
+      { record: 32, name: '2 bars', steps: 8 },
+    ] as const) {
+      it(`Records the first ${name}, Step beat: ${steps} steps`, () => {
+        const cleared = clearScratch(scratch([0.3, 0.1, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 0.5], { record, step: 'beat' }));
+        expect(cleared.points).toEqual(Array.from({ length: steps }, (_, k) => k / steps));
+        expect(scratchSpeeds(cleared).map((s) => +s.toFixed(9))).toEqual(Array.from({ length: steps }, () => 1));
+      });
+    }
+
+    it('Records the first 1 beat, Step beat: one step does not fit 2–16, so 2', () => {
+      const cleared = clearScratch(scratch([0.3, 0.1, 0.2], { record: 4, step: 'beat' }));
+      expect(cleared.points).toHaveLength(2);
+      expect(cleared.points[0]).toBe(0);
+    });
+
+    it('Step bar: the nearest length within 2–16 is 2', () => {
+      for (const record of [4, 8, 16, 32] as const) expect(clearScratch(scratch([0.3, 0.1, 0.2], { record, step: 'bar' })).points).toHaveLength(2);
+    });
   });
 
   it('Ramp draws one steady sweep through the recording, forward then backward', () => {
