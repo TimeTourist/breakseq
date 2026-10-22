@@ -37,9 +37,12 @@ export interface UpgradeContext {
 const nearestChance = (chance: number): Chance =>
   CHANCES.reduce((best, c) => (Math.abs(c - chance) < Math.abs(best - chance) ? c : best), CHANCES[0] as Chance);
 
-/** An old value in the lane's units: Dist was 0–1 and is percent now; within range; whole where the target is. */
+/**
+ * An old value in the lane's units: Dist was 0–1 and is percent now; within
+ * range; whole where the target is. Pad member keeps 1–8: off is new.
+ */
 function laneValue(target: LaneTarget, value: number): number {
-  const v = clampToLane(target, target === 'dist' ? value * 100 : value);
+  const v = Math.max(target === 'padMember' ? 1 : -Infinity, clampToLane(target, target === 'dist' ? value * 100 : value));
   return target === 'ratchet' || target === 'padMember' || target === 'direction' ? Math.round(v) : v;
 }
 

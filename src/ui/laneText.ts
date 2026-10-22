@@ -17,6 +17,8 @@ export function shortValue({ target }: Target, x: number): string {
       return x >= 1000 ? `${round(x / 1000, 1)}k` : String(Math.round(x));
     case 'stretch':
       return String(round(x, 2));
+    case 'padMember':
+      return Math.round(x) <= 0 ? 'off' : String(Math.round(x));
     case 'direction':
       return x >= 0.5 ? '◂' : '·';
     case 'stutter':
@@ -42,7 +44,7 @@ export function fullValue(effect: Target, x: number): string {
   const { target } = effect;
   if (target === 'filter') return x >= 1000 ? `${round(x / 1000, 1)} kHz` : `${Math.round(x)} Hz`;
   if (target === 'direction') return x >= 0.5 ? 'reversed' : 'as it is';
-  if (target === 'padMember') return `member ${Math.round(x)}`;
+  if (target === 'padMember') return Math.round(x) <= 0 ? 'off' : `member ${Math.round(x)}`;
   if (target === 'scramble') return `${Math.round(x)}% swap`;
   if (target === 'stutter') return Math.round(x) <= 0 ? 'off' : `repeats ${shortValue(effect, x)}`;
   if (target === 'freeze') return x >= 0.5 ? 'frozen' : 'passes through';
@@ -98,7 +100,9 @@ export function laneSentence(effect: StepEffect): string {
       : target === 'filter'
         ? `${fullValue(effect, a)} to ${fullValue(effect, b)}`
         : target === 'padMember'
-          ? `members ${Math.round(a)} to ${Math.round(b)}`
+          ? Math.round(a) <= 0
+            ? `off to ${fullValue(effect, b)}`
+            : `members ${Math.round(a)} to ${Math.round(b)}`
           : `${shortValue(effect, a)} to ${fullValue(effect, b)}`;
   return `${head}${range}${diceCount(lane)}`;
 }

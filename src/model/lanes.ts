@@ -42,7 +42,8 @@ export const LANES: Readonly<Record<LaneTarget, LaneRange>> = {
   volume: { min: -24, max: 6, zero: 0, step: 1, unit: 'dB' },
   pan: { min: -100, max: 100, zero: 0, step: 5, bipolar: true, unit: '%' },
   ratchet: { min: 1, max: 8, zero: 1, step: 1, unit: '×' },
-  padMember: { min: 1, max: 8, zero: 1, step: 1, unit: 'member' },
+  // 0 is off: the pad chooses as usual (Magnus beslut 2026-10-22).
+  padMember: { min: 0, max: 8, zero: 0, step: 1, unit: 'member' },
   direction: { min: 0, max: 1, zero: 0, step: 1, onOff: true, unit: 'on/off' },
   stretch: { min: 0.25, max: 4, zero: 1, step: 0.01, log: true, unit: '×' },
   dist: { min: 0, max: 100, zero: 0, step: 5, unit: '%' },
