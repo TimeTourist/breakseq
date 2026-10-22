@@ -62,12 +62,32 @@ export const OLD_MODS = {
       { target: 'direction', rate: 'step', shape: { kind: 'random', min: 0, max: 1, chance: 25, whole: true } },
     ],
   },
+  // Random with whole numbers on a target whose dice roll freely now (fas 24f).
+  whole: {
+    id: 'old-whole',
+    name: 'Whole',
+    seed: 16,
+    effects: [
+      { target: 'volume', rate: 'step', shape: { kind: 'random', min: -12, max: 0, chance: 100, whole: true } },
+      { target: 'pan', rate: 'beat', shape: { kind: 'random', min: -50, max: 50, chance: 50, whole: true } },
+    ],
+  },
+  // An empty List did nothing (fas 24f). An empty Cycle is not here: it played 1, 2, 3 … on any target (see lanes.test.ts).
+  empty: {
+    id: 'old-empty',
+    name: 'Empty',
+    seed: 17,
+    effects: [
+      { target: 'pitch', rate: 'step', shape: { kind: 'list', values: [] } },
+      { target: 'volume', rate: 'beat', shape: { kind: 'list', values: [] } },
+    ],
+  },
 } as const;
 
 /**
- * A one-bar loop with a pad of four hits on every step, in Main over 6 bars,
+ * A one-bar loop with a pad of four hits on every step, in Main over 8 bars,
  * and one old mod per bar in Mod A: List (twice, the second clip trimmed by 3
- * steps), Cycle, Ramp, Random and Nearest. Built with sequential ids, so the
+ * steps), Cycle, Ramp, Random, Nearest, Whole and Empty. Built with sequential ids, so the
  * same every time. The project is as a saved file has it: not upgraded.
  */
 export function oldShapesSong(ctx: CommandContext = sequentialIds()): { readonly project: Project; readonly pad: Id; readonly loop: Id } {
@@ -84,16 +104,18 @@ export function oldShapesSong(ctx: CommandContext = sequentialIds()): { readonly
   project = run(project, copyHits(hits.slice(1), pad!));
   const withLoop = run(project, createLoop('M1', 'main', 1));
   const loop = added(project, withLoop, 'loops');
-  project = run(withLoop, ...Array.from({ length: 16 }, (_, i) => setStep(loop, i, { padId: pad })), setSongBars(6));
+  project = run(withLoop, ...Array.from({ length: 16 }, (_, i) => setStep(loop, i, { padId: pad })), setSongBars(8));
   const clip = (id: string, row: Clip['row'], ref: Id, start: number, length: number, offset: number, seed: number): Clip => ({ id, row, ref, start, length, offset, seed });
   const clips: Clip[] = [
-    clip('main-1', 'main', loop, 0, 96, 0, 101),
+    clip('main-1', 'main', loop, 0, 128, 0, 101),
     clip('mod-list-1', 'modA', OLD_MODS.list.id, 0, 16, 0, 201),
     clip('mod-list-2', 'modA', OLD_MODS.list.id, 16, 13, 3, 202),
     clip('mod-cycle', 'modA', OLD_MODS.cycle.id, 32, 16, 0, 203),
     clip('mod-ramp', 'modA', OLD_MODS.ramp.id, 48, 16, 0, 204),
     clip('mod-random', 'modA', OLD_MODS.random.id, 64, 16, 0, 205),
     clip('mod-nearest', 'modA', OLD_MODS.nearest.id, 80, 16, 0, 206),
+    clip('mod-whole', 'modA', OLD_MODS.whole.id, 96, 16, 0, 207),
+    clip('mod-empty', 'modA', OLD_MODS.empty.id, 112, 16, 0, 208),
   ];
   // Saved as a file has it: mods of the old shape go in as they are, past the commands' checks.
   const mods = Object.fromEntries(Object.values(OLD_MODS).map((m) => [m.id, m])) as unknown as Project['mods'];
