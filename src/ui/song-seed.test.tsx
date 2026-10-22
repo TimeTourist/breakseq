@@ -5,7 +5,7 @@ import type { Clip, Command, Project } from '../model';
 import { addClip, addSample, copyClip, createMod, createProject, resizeClip, setBpm, setSlicing } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { App } from './App';
-import { barsText, seedCode, twinsText } from './clipSeed';
+import { clipLength, placeText, seedCode, twinsText } from './clipSeed';
 import type { Player, Take } from './playback';
 import type { Services } from './services';
 import type { Store } from './store';
@@ -79,11 +79,19 @@ describe('the seed shown on clips (Song-v2)', () => {
     expect(seedCode(7)).toBe('007');
   });
 
-  it('bars are counted from 1: one bar, or the first and last', () => {
-    const clip = { start: 48, length: 16 } as Clip;
-    expect(barsText(clip)).toBe('bar 4');
-    expect(barsText({ ...clip, length: 48 })).toBe('bars 4–6');
-    expect(barsText({ ...clip, start: 50, length: 14 })).toBe('bar 4');
+  it('where a clip sits: its start as bar.beat as in the ruler (with the 1/16 when off the beat), and its length', () => {
+    const clip = { start: 56, length: 16 } as Clip;
+    expect(placeText(clip)).toBe('at 4.3 · 1 bar');
+    expect(placeText({ ...clip, start: 48, length: 8 })).toBe('at 4.1 · 2 beats');
+    expect(placeText({ ...clip, start: 57, length: 24 })).toBe('at 4.3.2 · 1 bar 2 beats');
+  });
+
+  it('a clip’s length as a musician says it', () => {
+    expect(clipLength(4)).toBe('1 beat');
+    expect(clipLength(3)).toBe('3/16');
+    expect(clipLength(32)).toBe('2 bars');
+    expect(clipLength(20)).toBe('1 bar 1 beat');
+    expect(clipLength(35)).toBe('2 bars 3/16');
   });
 
   it('every clip shows its seed in its corner, and a copy shows the same', async () => {
@@ -101,8 +109,8 @@ describe('the seed shown on clips (Song-v2)', () => {
     const p = song();
     const main = p.song.clips.find((c) => c.row === 'main')!;
     await setup(run(p, copyClip(main.id, 'main', 32)));
-    expect(clipButton('1.1.1').title).toMatch(new RegExp(`^amen 1 · bar 1 · seed ◆ ${seedCode(main.seed)} \\(sounds the same as bar 3\\)`));
-    expect(screen.getByRole('button', { name: /^Wobble, 1\.1\.1/ }).title).toMatch(/^Wobble · bar 1 · seed ◆ [0-9a-f]{3} ·/);
+    expect(clipButton('1.1.1').title).toMatch(new RegExp(`^amen 1 · at 1\\.1 · 1 bar · seed ◆ ${seedCode(main.seed)} \\(sounds the same as the clip at 3\\.1\\)`));
+    expect(screen.getByRole('button', { name: /^Wobble, 1\.1\.1/ }).title).toMatch(/^Wobble · at 1\.1 · 1 bar · seed ◆ [0-9a-f]{3} ·/);
   });
 });
 
@@ -111,17 +119,17 @@ describe('the sentence about other clips', () => {
 
   it('they sound the same, they only share the seed, or it is its own roll', () => {
     const a = clip({});
-    expect(twinsText([a, clip({ id: 'b', start: 16 })], a)).toBe('Same seed as the clip at bar 2: they sound the same.');
-    expect(twinsText([a, clip({ id: 'b', start: 16, length: 8, offset: 8 })], a)).toBe('Shares its seed with the clip at bar 2.');
+    expect(twinsText([a, clip({ id: 'b', start: 16 })], a)).toBe('Same seed as the clip at 2.1: they sound the same.');
+    expect(twinsText([a, clip({ id: 'b', start: 16, length: 8, offset: 8 })], a)).toBe('Shares its seed with the clip at 2.1.');
     expect(twinsText([a, clip({ id: 'b', start: 16, seed: 2 })], a)).toBe('Its own roll.');
   });
 
   it('several: all of them; the ones that sound the same go first', () => {
     const a = clip({});
     const twins = [a, clip({ id: 'b', start: 16 }), clip({ id: 'c', start: 48 })];
-    expect(twinsText(twins, a)).toBe('Same seed as the clips at bar 2 and bar 4: they sound the same.');
+    expect(twinsText(twins, a)).toBe('Same seed as the clips at 2.1 and 4.1: they sound the same.');
     expect(twinsText([a, clip({ id: 'b', start: 16, length: 4 }), clip({ id: 'c', start: 32, length: 4 }), clip({ id: 'd', start: 48, length: 4 })], a)).toBe(
-      'Shares its seed with the clips at bar 2, bar 3 and bar 4.',
+      'Shares its seed with the clips at 2.1, 3.1 and 4.1.',
     );
   });
 });
@@ -133,13 +141,13 @@ describe('the selected clip’s panel', () => {
     fireEvent.click(clipButton('1.1.1'));
     const main = mainClips(store)[0]!;
     expect(within(panel()).getByText('amen 1').className).toMatch(/loop-name main/);
-    expect(within(panel()).getByText('Main · bar 1')).toBeTruthy();
+    expect(within(panel()).getByText('Main · at 1.1 · 1 bar')).toBeTruthy();
     expect(within(panel()).getByText(`◆ ${seedCode(main.seed)}`)).toBeTruthy();
     expect(within(panel()).getByText('Its own roll.')).toBeTruthy();
     // A mod clip: Mod A, in the mod's colour.
     fireEvent.click(screen.getByRole('button', { name: /^Wobble, 1\.1\.1/ }));
     expect(within(panel()).getByText('Wobble').className).toMatch(/mod-name/);
-    expect(within(panel()).getByText('Mod A · bar 1')).toBeTruthy();
+    expect(within(panel()).getByText('Mod A · at 1.1 · 1 bar')).toBeTruthy();
   });
 
   it('Copy after it puts a copy right after the clip, as Ctrl+D, selects it, and they sound the same', async () => {
@@ -153,12 +161,12 @@ describe('the selected clip’s panel', () => {
     const [first, copy] = mainClips(store);
     expect(copy!.seed).toBe(first!.seed);
     expect(store.getState().selection.clip).toBe(copy!.id);
-    expect(within(panel()).getByText('Main · bar 2')).toBeTruthy();
-    expect(within(panel()).getByText('Same seed as the clip at bar 1: they sound the same.')).toBeTruthy();
+    expect(within(panel()).getByText('Main · at 2.1 · 1 bar')).toBeTruthy();
+    expect(within(panel()).getByText('Same seed as the clip at 1.1: they sound the same.')).toBeTruthy();
     // Ctrl+D does the same: the next one.
     press('d', { ctrlKey: true });
     expect(mainClips(store).map((c) => c.start)).toEqual([0, 16, 32]);
-    expect(within(panel()).getByText('Same seed as the clips at bar 1 and bar 2: they sound the same.')).toBeTruthy();
+    expect(within(panel()).getByText('Same seed as the clips at 1.1 and 2.1: they sound the same.')).toBeTruthy();
     expect(within(clipButton('3.1.1')).getByText(`◆ ${seedCode(first!.seed)}`)).toBeTruthy();
   });
 
@@ -169,7 +177,7 @@ describe('the selected clip’s panel', () => {
     const copy = copied.song.clips.find((c) => c.row === 'main' && c.start === 32)!;
     await setup(run(copied, resizeClip(copy.id, 'end', 40)));
     fireEvent.click(clipButton('1.1.1'));
-    expect(within(panel()).getByText('Shares its seed with the clip at bar 3.')).toBeTruthy();
+    expect(within(panel()).getByText('Shares its seed with the clip at 3.1.')).toBeTruthy();
   });
 
   it('Copy after it at the song’s end says there is no room, as Ctrl+D', async () => {
@@ -197,7 +205,7 @@ describe('the selected clip’s panel', () => {
     expect(within(panel()).getByText(`◆ ${seedCode(second!.seed)}`)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^Undo/ }));
     expect(present(store)).toBe(before);
-    expect(within(panel()).getByText('Same seed as the clip at bar 1: they sound the same.')).toBeTruthy();
+    expect(within(panel()).getByText('Same seed as the clip at 1.1: they sound the same.')).toBeTruthy();
   });
 
   it('🎲 on the clip’s edge is still there', async () => {

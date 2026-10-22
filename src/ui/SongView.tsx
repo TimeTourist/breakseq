@@ -6,7 +6,7 @@ import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, loopIndex, moveCli
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
 import { isTyping, modalOpen } from './isTyping';
-import { clipSeedTitle, seedTag, twinsText, barsText } from './clipSeed';
+import { clipSeedTitle, placeText, seedTag, twinsText } from './clipSeed';
 import { HIT_COLOR, lengthText } from './labels';
 import { playOnce } from './LoopsView';
 import { previewLoopId } from './ModsView';
@@ -432,7 +432,7 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
               <section className="selected-clip" aria-label="Selected clip">
                 <span className={`mono ${clipColour(project, selectedClip)}`}>{clipName(project, selectedClip)}</span>
                 <span className="muted">
-                  {ROWS.find((r) => r.row === selectedClip.row)?.name} · {barsText(selectedClip)}
+                  {ROWS.find((r) => r.row === selectedClip.row)?.name} · {placeText(selectedClip)}
                 </span>
                 <span className="seed-tag mono" title="This clip's seed: the random it plays with">
                   {seedTag(selectedClip.seed)}

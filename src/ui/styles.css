@@ -4109,10 +4109,10 @@ button.danger:hover:not(:disabled) {
   margin-top: 6px;
 }
 
-/* Song-v2: every clip's seed in its lower left corner, and the selected clip's panel under the timeline. */
+/* Song-v2: every clip's seed in its lower right corner, and the selected clip's panel under the timeline. */
 .clip-seed {
   position: absolute;
-  left: 2px;
+  right: 2px;
   bottom: 2px;
   z-index: 1;
   padding: 0 3px;
