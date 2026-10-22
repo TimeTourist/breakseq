@@ -239,7 +239,7 @@ export function ScratchCard({ effect, onChange, onCommit, onRemove, rng }: Scrat
         >
           {rampsUp ? 'Ramp ↗' : 'Ramp ↘'}
         </button>
-        <button type="button" className="small-button" title="Play normally: forward through the recording at 1×, the fader open" onClick={() => onChange(clearScratch(effect))}>
+        <button type="button" className="small-button" title="Play normally: forward through the recording once at 1×, the fader open; sets Length to fit the recording" onClick={() => onChange(clearScratch(effect))}>
           Clear
         </button>
         <span className="scratch-key push" aria-hidden="true">

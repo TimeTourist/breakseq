@@ -90,6 +90,14 @@ describe('Scratch in a render', () => {
     expect(difference(got, as)).toBeLessThan(1e-4);
   });
 
+  it('Clear on a lane that was shorter sets Length, and sounds as without Scratch under the clip', async () => {
+    const short = clearScratch(newScratch());
+    expect(short.points).toHaveLength(16);
+    const as = await render(song());
+    const got = await render(withMod(song(), [short], BAR, BAR));
+    expect(difference(got, as)).toBeLessThan(1e-4);
+  });
+
   it('Baby plays backwards on every other step: a backward step plays the recording the other way', async () => {
     const as = await render(song());
     const got = await render(withMod(song(), [preset('Baby')], BAR, 8));
