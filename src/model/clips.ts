@@ -174,3 +174,15 @@ export function clipsByStep(project: Project, row: SongRow): (Clip | null)[] {
   }
   return steps;
 }
+
+/** Two clips share their seed: they may still play different parts (a split or trimmed clip keeps its seed). */
+export const sameSeed = (a: Clip, b: Clip): boolean => a.id !== b.id && a.seed === b.seed;
+
+/**
+ * Two clips sound the same: the same loop or mod, seed and length, starting at
+ * the same place in it (Song-v2). The offset is compared unwrapped, since the
+ * random choices follow it (clipPlace). Claudes val: a loop clip in Main and
+ * one in Fill count as the same, as do a mod in Mod A and Mod B.
+ */
+export const soundsSame = (a: Clip, b: Clip): boolean =>
+  sameSeed(a, b) && isLoopRow(a.row) === isLoopRow(b.row) && a.ref === b.ref && a.length === b.length && a.offset === b.offset;
