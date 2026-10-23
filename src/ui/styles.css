@@ -14,6 +14,9 @@
   --accent-bg: #2e2715;
   --accent-dim: #4a3d1f;
   --error: #f08a7e;
+  /* The acid smileys of the mode button and Go crazy (docs/sketches/crazy-smileys.html). */
+  --face: #ffd400;
+  --ink: #141414;
   /* A hit's tail over the steps after it: the hit colour, fainter. */
   --hold: rgb(201 196 184 / 0.55);
   --sans: 'IBM Plex Sans', 'Helvetica Neue', sans-serif;
@@ -251,6 +254,28 @@ p {
   justify-content: center;
   background: var(--raised);
   border-color: var(--border-strong);
+}
+
+.mode-toggle:hover,
+.go-crazy:hover {
+  border-color: var(--accent);
+}
+
+.go-crazy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mode-toggle .smiley {
+    transition: transform 0.25s;
+  }
+
+  .mode-toggle:active .smiley {
+    transform: rotate(-20deg) scale(0.9);
+  }
 }
 
 .icon-button[aria-pressed='true'] {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { rerollAll, setBpm } from '../model';
+import { goCrazy, rerollAll, setBpm, setMode } from '../model';
+import { CrazySmiley, HappySmiley } from './icons';
 import { useApp, useProject, useRun, useSelect } from './context';
 import { ConfirmLoad } from './ConfirmLoad';
 import { RerollButton } from './RerollButton';
@@ -19,6 +20,9 @@ const LABELS: Record<View, string> = {
   song: 'Song',
   project: 'Project',
 };
+
+const GO_CRAZY =
+  'Go crazy: throw away matrices, loops and the song and build it all again from a new recipe. Samples and your own mods stay. Undo brings it back.';
 
 interface HeaderProps {
   readonly onView: (view: View) => void;
@@ -40,7 +44,10 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
   const next = history.future[0];
   const undoText = previous === undefined ? 'Nothing to undo' : `Undo: ${describeChange(previous, history.present)} (Ctrl+Z)`;
   const redoText = next === undefined ? 'Nothing to redo' : `Redo: ${describeChange(history.present, next)} (Ctrl+Shift+Z)`;
-  const bpm = useProject().song.bpm;
+  const project = useProject();
+  const bpm = project.song.bpm;
+  const crazy = project.mode === 'crazy';
+  const modeText = crazy ? 'Crazy madness. Click for Total control' : 'Total control. Click for Crazy madness';
   const run = useRun();
   const [draft, setDraft] = useState(String(bpm));
   useEffect(() => {
@@ -79,6 +86,14 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
         <span className="rendering muted small" role="status" aria-hidden={!rendering} style={{ visibility: rendering ? 'visible' : 'hidden' }}>
           Rendering…
         </span>
+        {/* First among the buttons on the right, before the tempo (the sketch); Go crazy right after it, in both modes (Claudes val). */}
+        <button type="button" className="icon-button mode-toggle" aria-label={modeText} title={modeText} onClick={() => run(setMode(crazy ? 'total' : 'crazy'))}>
+          {crazy ? <CrazySmiley /> : <HappySmiley />}
+        </button>
+        <button type="button" className="go-crazy" title={GO_CRAZY} onClick={() => run(goCrazy())}>
+          <CrazySmiley size={20} />
+          <span>Go crazy</span>
+        </button>
         <label className="bpm">
           <input
             aria-label="Tempo in BPM"
