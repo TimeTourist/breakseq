@@ -192,7 +192,7 @@ En mod har ett namn och effekter, högst en per mål. En ny mod har inga effekte
 | Fält | Val i v1 |
 | --- | --- |
 | Mål | Swap (Stack eller Shuffle), Pad member, Pitch (halvtoner), Volume (dB), Pan (−100 till +100 %), Direction, Ratchet (1–8), Stretch (faktor, bitlängd i ms, Multiply eller Replace), Dist (läge; värdet är mängden 0–1), Filter (typ och resonans; värdet är brytfrekvensen i Hz), Reverb (storlek; värdet är mängden i %), Delay (tid och feedback; värdet är mängden i %), Tempo (slip), Tape |
-| Mål som arbetar på ljud | Tape, Scratch, Scramble, Stutter, Freeze, Reverse, Rewind, Halftime (se Tape, Scratch och Mods som samplar det som hörs) |
+| Mål som arbetar på ljud | Tape, Scratch, Scramble, Stutter, Freeze, Reverse, Rewind, Halftime, Trance gate (se Tape, Scratch och Mods som samplar det som hörs) |
 | Stegrad | (Alla mål utom Swap, Tempo, Tape, Scratch och Halftime.) 1–16 steg av 1/16, beat eller bar; varje steg har ett fast värde eller är ett 🎲-steg (se Stegrader). Värdet hålls över steget och gäller alla triggers i det. Formerna List, Cycle, Ramp och Random finns inte längre. |
 
 **Samverkan.** När A och B rör samma mål adderas numeriska värden (pitch, volym, pan), och för lägesvärden (riktning, medlem, ratchet, stretch, dist, filter) vinner B. Mods läggs ovanpå hitten och stegets locks.
@@ -245,7 +245,7 @@ Swap tillämpas före alla andra mål. Har både A och B Swap vinner B.
 
 Fliken Mods byggs som skissen `docs/sketches/mods.html` (Mods – audio, godkänd av Magnus 2026-10-21). *(Magnus beslut; ändras inte utan att fråga.)* Där skissen och den här texten skiljer sig gäller texten.
 
-**Sidan.** Till vänster listan med mods (+ New mod, en rad per mod med namn, antal effekter och ♪ när den hörs i låten), och under den Start from med förvalen som idag. Till höger den valda moden: namnet med Rename, Clone (kopian heter "<namn> copy" och blir vald), Delete (som Delete överallt) och 🎲 (Reroll this mod), och sedan alla modens effekter som kort under varandra, inga flikar. Under korten + Add effect (bara mål moden inte redan har, i ordningen Swap, Pad member, Ratchet, Pitch, Volume, Pan, Direction, Stretch, Dist, Filter cutoff, Reverb, Delay, Tempo (slip), Tape, Scratch, Scramble, Stutter, Freeze, Reverse, Rewind, Halftime). Under moden förhandsvisningen: Plays on (en loop), och ett rutnät med loopens steg och en rad per effekt som visar vad varje steg gör i det här varvet. Play spelar moden på loopen under Plays on, i loop, och varje varv slår om 🎲-stegen. New example och grafen finns inte längre.
+**Sidan.** Till vänster listan med mods (+ New mod, en rad per mod med namn, antal effekter och ♪ när den hörs i låten), och under den Start from med förvalen som idag. Till höger den valda moden: namnet med Rename, Clone (kopian heter "<namn> copy" och blir vald), Delete (som Delete överallt) och 🎲 (Reroll this mod), och sedan alla modens effekter som kort under varandra, inga flikar. Under korten + Add effect (bara mål moden inte redan har, i ordningen Swap, Pad member, Ratchet, Pitch, Volume, Pan, Direction, Stretch, Dist, Filter cutoff, Reverb, Delay, Tempo (slip), Tape, Scratch, Scramble, Stutter, Freeze, Reverse, Rewind, Halftime, Trance gate). Under moden förhandsvisningen: Plays on (en loop), och ett rutnät med loopens steg och en rad per effekt som visar vad varje steg gör i det här varvet. Play spelar moden på loopen under Plays on, i loop, och varje varv slår om 🎲-stegen. New example och grafen finns inte längre.
 
 **Kortet.** Överst namnet, en enhet (dB, st, Hz, %, ×) och Remove. Sedan en mening som säger vad effekten gör (Volume · 4 steps of 1 beat (1 bar), loops · 0 to −12 dB; Pitch · 3 steps of 1/16 (3/16), loops · +5 to −7 st, 1 dice step). Sedan reglagen: Step (1/16, beat, bar), Length (− N steps +, 1–16; + lägger till en kopia av sista steget), Randomize, Ramp ↗/↘, Clear, eventuella förval, och effektens egna val. Sedan en linjal med slag och stegraden.
 
@@ -256,7 +256,7 @@ Fliken Mods byggs som skissen `docs/sketches/mods.html` (Mods – audio, godkän
 - **Randomize** fyller stegen med slumpade fasta värden, som om de var ritade. Shift-klick (och knappen Shift: dice) fyller dem med 🎲-steg: intervall på 15–40 % av omfånget och chans 100, 75 eller 50 % (på/av-rader 75, 50 eller 25 %). Slumpen här är ett ritverktyg: den sparas som stegens värden.
 - **Ramp ↗/↘** ritar en rak linje över stegen, från radens lägsta värde till dess högsta (↗) eller tvärtom (↘), och stegen blir fasta. Är alla värden lika går linjen över hela omfånget. Varje tryck byter riktning, och knappen visar vad nästa tryck gör. Med färre än 2 steg gör den ingenting.
 - **Clear** sätter alla steg till målets nollvärde, fasta.
-- En ny effekt har 4 steg av beat med nollvärdet, utom Reverb (100), Delay (80) och Scramble (50).
+- En ny effekt har 4 steg av beat med nollvärdet, utom Reverb (100), Delay (80) och Scramble (50). En ny Trance gate har 16 steg av 1/16, alla på (förvalet Straight), så att den hörs direkt.
 - Ett reglage som inte gör något gråas ut med en förklaring (se Reglage som inte hörs), till exempel Ramp på en på/av-rad (An on/off lane has no slope) och Around the clip när Take from inte är ± bars. Stutters rad har en ordning (off, 1/16, 1/32, 1/64), så Ramp ritar en linje genom valen och är inte gråad där, fast skissen döljer den; 🎲 på ett Stutter-steg ger ett val åt varje håll, som skissen. Around the clip går att ändra fast den är gråad. *(Claudes val.)*
 
 **Raderna per mål.** Omfånget gäller när man ritar i en mod; hitten behåller sitt. *(Magnus beslut.)*
@@ -352,6 +352,13 @@ Utöver Tape och Scratch finns mods som arbetar på det som hörs: Scramble, Stu
 - **Reverse:** på/av per steg; rutorna spelas baklänges på sin plats. Cell (1/32, 1/16, 1/8, beat).
 - **Rewind:** på/av per steg (där den slår till). Pulls back (1 beat, 2 beats, 1 bar), Curve (Fast, Slowing, Spin-back).
 - **Halftime:** ingen stegrad; gäller hela klippet. Speed (×0,5, ×0,75, ×2), Keep pitch (Off förvalt: tonhöjden följer farten som en skiva; On: stretch).
+
+**Trance gate** *(Magnus beslut 2026-10-23; ändras inte utan att fråga)*: en ljudmodd som hackar allt som hörs i takt, som en trance gate. Den ändrar bara nivån på ljudet, så också långa slag, reverb och delay, tape och de andra ljudmoddarna hackas.
+- **Raden:** på/av per steg (på = öppen). 🎲-steg ger chansen att steget är öppet, som andra på/av-rader.
+- **Reglagen:** Depth, hur tyst ett stängt steg är (−6, −12, −24 dB eller −∞, förvalt −∞). Open, hur stor del av ett öppet steg som hörs (25, 50, 75, 100 %, förvalt 50 %): så ger 16 öppna 1/16-steg 16 pulser. Smooth, attack och release i ms (1–50 ms, förvalt 5), samma för alla kanter.
+- **Förval under kortet:** Straight (16 steg av 1/16, alla öppna, Open 50 %), Off-beat (16 steg av 1/16, öppna på slagens "och": steg 3, 7, 11, 15, Open 75 %) och 3-3-2 (16 steg av 1/16, öppna på steg 1, 4, 7, 9, 12, 15, Open 75 %). Randomize, Shift: dice, Ramp (gråad: på/av-rad) och Clear (alla öppna, Open 100 %, alltså som utan gate) som på andra rader.
+- **Namnet** är Trance gate, och förvalet Gate (Volume) under Start from heter kvar Gate.
+- *(Claudes val:)* Trance gate läser inte det som hörs som de andra ljudmoddarna, utan ändrar nivån sist, på det som spelar: det som hörs eller den ljudmodd som hörs där. Den är därför inte med i ordningen bland ljudmoddarna, och en Stutter under en Trance gate hackas. Har A och B båda Trance gate vinner B. Ett klipp med Trance gate är ett klipp med en ljudmodd, så exporten gör det till en egen bit. Efter klippet hörs det som hörs igen, med det som klingar vidare. Förhandsvisningens rutnät visar raden som de andra på/av-raderna.
 
 **Hur ljudmoddarna verkar.** *(Claudes val.)*
 - Det som hörs är ett ljud på låtens tidslinje (slagen med stegeffekter, reverb och delay, sedan tape). En ljudmodd spelar bitar av det ljudet i stället för det som hörs där den verkar, med 3 ms övertoningar i kanterna; där den inte gör något (ett steg som är off, en ruta som inte byts) hörs det som hörs. Den läser alltid det som hörs, aldrig en annan ljudmodd. Efter klippet hörs det som hörs på huvudklockan, också det som klingar vidare av det som spelade under klippet (som för Tape).
@@ -476,6 +483,7 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 24g. Nålar och små rättelser | Alla matriser fästa från början i Loops; gammal tom Cycle räknar 1, 2, 3 …; B off på Pad member släpper igenom A | En ny matrix syns direkt på hyllan i Loops; ett gammalt projekt med tom Cycle på Volume låter som förut |
 | 25a. Songs lista och hylla | Egen lista med loopar och mods och en nål per rad, allt fäst från början; hyllan visar det fästa | Med 20 fills och 10 mods: ta bort nålarna på det du inte vill se, och hyllan är kort |
 | 25b. Seeden syns i Song | ◆ på klippen, rutan för det markerade klippet, Copy after it, Reroll everything behåller kopior | En kopia visar samma ◆ och rutan säger they sound the same; 🎲 ger en ny |
+| 26. Trance gate | En ljudmodd som hackar allt som hörs i takt: på/av per steg, Depth, Open, Smooth, förvalen Straight, Off-beat och 3-3-2 | Straight på ett break med lång reverb hackar också svansen i 1/16-pulser; Clear låter som utan gate |
 
 Flikarna bytte namn i fas 23. Faserna före den använder de gamla namnen: Import och Slice är nu Samples, och Hits är nu Pads. Efter fas 23 heter Pads Matrices, och trim heter sample i appen.
 
