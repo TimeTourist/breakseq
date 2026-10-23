@@ -24,8 +24,14 @@ export function createProject(): Project {
   return { audio: {}, samples: {}, matrices: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
 
-/** A new project: empty but for the mod presets (see Mod-förval). */
-export const newProject = (ctx: CommandContext = defaultContext): Project => addMissingPresets(createProject(), ctx);
+/** A new project: empty but for the mod presets (see Mod-förval), in Crazy madness with a recipe of its own (see Crazy madness). */
+export const newProject = (ctx: CommandContext = defaultContext): Project => addMissingPresets({ ...createProject(), mode: 'crazy', recipeSeed: ctx.newSeed() }, ctx);
+
+/**
+ * A recipe seed for a project saved without one, made from its samples' ids,
+ * so it is the same every time it is loaded. (Claudes val.)
+ */
+export const recipeSeedOf = (project: Pick<Project, 'samples'>): number => seedOf(`recipe:${Object.keys(project.samples).join(',')}`);
 
 /** The next free loop name: M1, M2, … for mains and F1, F2, … for fills. */
 export function nextLoopName(project: Project, kind: LoopKind): string {
@@ -53,6 +59,8 @@ const seededAll = <T extends { readonly id: Id; readonly seed: number }>(record:
  * from its id, so it sounds the same every time it is loaded. Mods with the
  * forms List, Cycle, Ramp and Random get step lanes (see Gamla projekt). (Claudes val.)
  * The mod presets it lacks are added; nothing plays them, so it sounds the same.
+ * One without a mode opens in Total control (it was built by hand), and gets a
+ * recipe seed (see Crazy madness). (Claudes val.)
  */
 export function upgradeProject(saved: unknown, ctx: CommandContext = defaultContext): Project | null {
   if (typeof saved !== 'object' || saved === null) return null;
@@ -61,6 +69,8 @@ export function upgradeProject(saved: unknown, ctx: CommandContext = defaultCont
   const project = saved as Project;
   return addMissingPresets({
     ...project,
+    mode: project.mode === 'crazy' ? 'crazy' : 'total',
+    recipeSeed: isSeed(project.recipeSeed) ? project.recipeSeed : recipeSeedOf(project),
     mods: Object.fromEntries(Object.entries(seededAll<Mod>(project.mods)).map(([id, m]) => [id, upgradeMod(m, project)])),
     matrices: seededAll(project.matrices),
     pads: seededAll(project.pads),

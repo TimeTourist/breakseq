@@ -50,6 +50,21 @@ function addOwnMatrix(project: Project, sample: Sample, ctx: CommandContext): Pr
 }
 
 /**
+ * A sample's own matrix made anew, as the automatic chain makes it (Go crazy):
+ * a one-shot, or for a sliced sample a row per slice and a loop playing them in order.
+ */
+export function remakeOwnMatrix(project: Project, sampleId: Id, ctx: CommandContext): Project {
+  const sample = project.samples[sampleId];
+  if (sample === undefined) return project;
+  const matrix: Matrix = { id: ctx.newId(), name: defaultMatrixName(sample), pads: [], config: NO_CONFIG, sampleId: sample.id, loop: null, seed: ctx.newSeed() };
+  const next = ensureRows(setMatrixIn(project, matrix), matrix.id, 0, sample.bars === null ? 1 : sample.markers.length, ctx);
+  if (sample.bars === null) return next;
+  const made = next.matrices[matrix.id]!;
+  const loop: Loop = { id: ctx.newId(), name: baseName(made.name), kind: 'main', steps: laidOut(next, made) };
+  return setMatrixIn({ ...next, loops: { ...next.loops, [loop.id]: loop } }, { ...made, loop: loop.id });
+}
+
+/**
  * Adds an imported file: its audio, a sample over all of it, and the sample's
  * own matrix, a one-shot. A file with cue markers is marked to be sliced, not
  * sliced: its cues are kept for Slice to offer.
