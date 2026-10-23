@@ -256,8 +256,7 @@ p {
   border-color: var(--border-strong);
 }
 
-.mode-toggle:hover,
-.go-crazy:hover {
+.mode-toggle:hover {
   border-color: var(--accent);
 }
 

@@ -92,15 +92,13 @@ describe('the mode button', () => {
     expect(store.getState().history.present.mode).toBe('crazy');
   });
 
-  it('comes first among the header’s buttons on the right, before the tempo, with Go crazy right after it', () => {
+  it('comes first among the header’s buttons on the right, before the tempo, and is the only smiley', () => {
     mount(newProject(ctx));
     const transport = document.querySelector('.transport')!;
     const controls = [...transport.querySelectorAll('button, input')];
     expect(controls[0]!.getAttribute('aria-label')).toBe('Crazy madness. Click for Total control');
-    expect(controls[1]!.getAttribute('aria-label')).toBe('Go crazy');
-    // Only the smiley, so the header fits one row; the words are in the hover text.
-    expect(controls[1]!.textContent).toBe('');
-    expect(controls[2]!.getAttribute('aria-label')).toBe('Tempo in BPM');
+    expect(controls[1]!.getAttribute('aria-label')).toBe('Tempo in BPM');
+    expect(transport.querySelectorAll('.smiley').length).toBe(1);
   });
 
   it('an old project is in Total control', () => {
@@ -113,11 +111,20 @@ describe('Go crazy', () => {
   const tip =
     'Go crazy: throw away matrices, loops and the song and build it all again from a new recipe. Samples and your own mods stay. Undo brings it back.';
 
-  it('builds again from a new recipe, in both modes, and Undo brings it all back', () => {
+  it('is 🎲 in Total control only rerolls seeds; in Crazy madness 🎲 is Go crazy', () => {
+    const total = apply(newProject(ctx), setMode('total'));
+    mount(total);
+    expect(screen.getByRole('button', { name: 'Reroll everything' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Go crazy' })).toBeNull();
+  });
+
+  it('🎲 in Crazy madness builds again from a new recipe, and Undo brings it all back', () => {
     const { project, sampleId } = withFile(newProject(ctx));
-    const sliced = apply(project, setMode('total'), setSlicing(sampleId, 1));
+    const sliced = apply(project, setSlicing(sampleId, 1));
     const store = mount(sliced);
-    const button = screen.getByRole('button', { name: /Go crazy/ });
+    expect(screen.queryByRole('button', { name: 'Reroll everything' })).toBeNull();
+    const button = screen.getByRole('button', { name: 'Go crazy' });
+    expect(button.textContent).toBe('🎲');
     expect(button.getAttribute('title')).toBe(tip);
     act(() => fireEvent.click(button));
     const now = store.getState().history.present;

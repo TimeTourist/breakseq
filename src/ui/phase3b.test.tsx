@@ -169,11 +169,11 @@ describe('Play in Samples (Magnus beslut)', () => {
     expect(vi.mocked(player.play).mock.calls.at(-1)?.[2]).toBe(true);
   });
 
-  it('the header has the mode, Go crazy, BPM, Play, Loop, Undo, Redo, 🎲 (Reroll everything), Load, Save and New snapshot, in that order; Loop works in Song too', async () => {
+  it('the header has the mode, BPM, Play, Loop, Undo, Redo, 🎲 (Reroll everything), Load, Save and New snapshot, in that order; Loop works in Song too', async () => {
     const store = await setup(build(addSample({ name: 'snare.wav', audio: constantAudio(0.3) })), 'samples');
     const transport = document.querySelector('.transport')!;
     const order = [...transport.querySelectorAll('input, button')].map((e) => e.getAttribute('aria-label') ?? e.textContent);
-    expect(order).toEqual(['Total control. Click for Crazy madness', 'Go crazy', 'Tempo in BPM', 'Play', 'Loop', 'Nothing to undo', 'Nothing to redo', 'Reroll everything', 'Load', 'Save', 'New snapshot']);
+    expect(order).toEqual(['Total control. Click for Crazy madness', 'Tempo in BPM', 'Play', 'Loop', 'Nothing to undo', 'Nothing to redo', 'Reroll everything', 'Load', 'Save', 'New snapshot']);
     act(() => void store.dispatch({ type: 'view', view: 'song' }));
     expect((button('Loop') as HTMLButtonElement).disabled).toBe(false);
     // Off, the song plays from its start point to its end, once. (Magnus beslut)
