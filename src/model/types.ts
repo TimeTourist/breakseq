@@ -626,7 +626,18 @@ export interface Song {
   readonly loop?: SongLoop | null;
 }
 
+/**
+ * What is built by itself when a break is sliced (see Crazy madness, Två
+ * lägen): Total control only the automatic chain, Crazy madness all the way
+ * to Song after the song's recipe.
+ */
+export type Mode = 'total' | 'crazy';
+
 export interface Project {
+  /** Missing in a project from before Crazy madness: it opens in Total control, since it was built by hand. (Claudes val) */
+  readonly mode?: Mode;
+  /** The song's recipe (see Crazy madness, Recept): set when the project is made, new at Go crazy. 0 ≤ seed < 2³². */
+  readonly recipeSeed?: number;
   readonly audio: Readonly<Record<Id, AudioData>>;
   readonly samples: Readonly<Record<Id, Sample>>;
   readonly matrices: Readonly<Record<Id, Matrix>>;
