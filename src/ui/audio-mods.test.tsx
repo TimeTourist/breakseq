@@ -165,6 +165,8 @@ describe('audio mods in Mods', () => {
     const store = await setup();
     add('tranceGate');
     const gate = card('Trance gate');
+    expect(within(gate).getByText('Gates everything heard: step mods, reverb/delay, tape and the other audio mods.')).toBeTruthy();
+    expect(within(gate).queryByText(SOURCE)).toBeNull();
     const steps = (open: readonly number[]) => Array.from({ length: 16 }, (_, i) => ({ v: open.includes(i + 1) ? 1 : 0 }));
     expect(effect(store, 'tranceGate')).toEqual({ target: 'tranceGate', step: '1/16', lane: steps(Array.from({ length: 16 }, (_, i) => i + 1)), tranceGate: { depth: '-inf', open: 50, smooth: 5 } });
     expect(within(gate).getByText('Trance gate · 16 steps of 1/16 (1 bar), loops · open on 16 of 16 · depth −∞, open 50%, smooth 5 ms')).toBeTruthy();

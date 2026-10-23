@@ -309,8 +309,7 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
       <p className="mod-card-sentence" aria-live="polite">
         {laneSentence(effect)}
       </p>
-      {/* TODO(spec): Trance gate gates what plays, other audio mods too, so the Source line would be wrong on it; the spec does not say what its card says instead. */}
-      {isAudioEffect(effect) && effect.target !== 'tranceGate' && <SourceNote />}
+      {isAudioEffect(effect) && <SourceNote gate={effect.target === 'tranceGate'} />}
       <div className="mod-card-controls">
         <span className="lane-extra-label">Step</span>
         <div className="segmented" role="group" aria-label="Step size">

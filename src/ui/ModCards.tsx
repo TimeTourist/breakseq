@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { HalftimeEffect, SwapEffect, TapeEffect, TempoEffect } from '../model';
 import { HALFTIME_SPEEDS } from '../model';
-import { SOURCE_NOTE, SOURCE_TITLE, halftimeSentence, speedText } from './audioText';
+import { GATE_SOURCE_NOTE, SOURCE_NOTE, SOURCE_TITLE, halftimeSentence, speedText } from './audioText';
 import { TrashIcon } from './icons';
 import { TARGET_LABELS } from './modLabels';
 import { SwapSentence, TapeSentence, TempoSentence } from './ModSentence';
@@ -57,10 +57,10 @@ export function TapeCard({ effect, onChange, onCommit, onRemove }: CardProps<Tap
 }
 
 /** The line on every audio mod's card: what it samples. */
-export function SourceNote() {
+export function SourceNote({ gate = false }: { gate?: boolean }) {
   return (
-    <p className="mod-card-source" title={SOURCE_TITLE}>
-      {SOURCE_NOTE}
+    <p className="mod-card-source" title={gate ? undefined : SOURCE_TITLE}>
+      {gate ? GATE_SOURCE_NOTE : SOURCE_NOTE}
     </p>
   );
 }

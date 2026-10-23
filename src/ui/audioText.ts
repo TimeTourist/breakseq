@@ -6,6 +6,7 @@ import { laneLength } from './laneText';
 
 /** The line every audio mod's card has, and what its title says. */
 export const SOURCE_NOTE = 'Source: what’s heard (step mods, reverb/delay, tape), never itself or another audio mod. Every roll is seeded.';
+export const GATE_SOURCE_NOTE = 'Gates everything heard: step mods, reverb/delay, tape and the other audio mods.';
 export const SOURCE_TITLE =
   'Audio mods sample what is heard under their clip: Main or Fill with every step mod, reverb and delay, and tape. Never themselves, and never another audio mod (Scramble, Stutter, Freeze, Reverse, Rewind, Halftime).';
 
