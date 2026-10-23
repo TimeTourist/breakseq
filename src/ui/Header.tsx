@@ -21,8 +21,9 @@ const LABELS: Record<View, string> = {
   project: 'Project',
 };
 
+/** 🎲 in Crazy madness (Magnus beslut 2026-10-23); RerollButton adds "Undo brings it back." */
 const GO_CRAZY =
-  'Go crazy: throw away matrices, loops and the song and build it all again from a new recipe. Samples and your own mods stay. Undo brings it back.';
+  'Go crazy: throw away matrices, loops and the song and build it all again from a new recipe. Samples and your own mods stay.';
 
 interface HeaderProps {
   readonly onView: (view: View) => void;
@@ -86,12 +87,9 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
         <span className="rendering muted small" role="status" aria-hidden={!rendering} style={{ visibility: rendering ? 'visible' : 'hidden' }}>
           Rendering…
         </span>
-        {/* First among the buttons on the right, before the tempo (the sketch); Go crazy right after it, in both modes, only the smiley (Magnus beslut 2026-10-23). */}
+        {/* First among the buttons on the right, before the tempo (the sketch). The only mode control: Go crazy is 🎲 in Crazy madness (Magnus beslut 2026-10-23). */}
         <button type="button" className="icon-button mode-toggle" aria-label={modeText} title={modeText} onClick={() => run(setMode(crazy ? 'total' : 'crazy'))}>
           {crazy ? <CrazySmiley /> : <HappySmiley />}
-        </button>
-        <button type="button" className="icon-button go-crazy" aria-label="Go crazy" title={GO_CRAZY} onClick={() => run(goCrazy())}>
-          <CrazySmiley size={20} />
         </button>
         <label className="bpm">
           <input
@@ -159,7 +157,11 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
             <path d="M11 4l3 3-3 3M13.5 7H6a3.5 3.5 0 0 0 0 7h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <RerollButton command={rerollAll()} label="Reroll everything" title="Reroll everything: new random choices for every pad, matrix, mod and clip in the project." />
+        {crazy ? (
+          <RerollButton command={goCrazy()} label="Go crazy" title={GO_CRAZY} />
+        ) : (
+          <RerollButton command={rerollAll()} label="Reroll everything" title="Reroll everything: new random choices for every pad, matrix, mod and clip in the project." />
+        )}
         <SnapshotButtons />
       </div>
       <Crumbs />
