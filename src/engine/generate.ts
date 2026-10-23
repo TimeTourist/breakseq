@@ -8,6 +8,8 @@ import type { Dice } from './random';
 import { CHOICE, passSeed, placeRng } from './random';
 import type { AudioClip, Splice } from './audio-mods';
 import { audioClips, audioSplices } from './audio-mods';
+import type { Gate } from './trance-gate';
+import { tranceGates } from './trance-gate';
 import { scratchSplices } from './scratch';
 import { swapper } from './swap';
 import type { Tape } from './tape';
@@ -79,6 +81,8 @@ export interface Take {
   readonly scratches?: readonly Splice[];
   /** What the audio mods play, from what is heard with tape and Scratch (see audioSplices). Missing: none. */
   readonly splices?: readonly Splice[];
+  /** Where the Trance gates change the level of what plays, last of all (see tranceGates). Missing: none. */
+  readonly gates?: readonly Gate[];
   /** Where clips with an audio mod or Scratch play: the exports cut each as a piece of its own (see audioClips). Missing: none. */
   readonly audioClips?: readonly AudioClip[];
   /** Where the pads' choices stood at the end: the next pass of Play starts from it. Missing in takes not generated. */
@@ -105,9 +109,10 @@ export function generateTake(project: Project, options: GenerateOptions = {}): T
   const { triggers: heard, end } = heardTriggers(project, runs, dice, options.from);
   const splices = audioSplices(project, runs, dice);
   const scratches = scratchSplices(project, runs);
+  const gates = tranceGates(project, runs, dice);
   const clips = audioClips(project, runs);
   const windows = tapeWindows(runs);
-  if (windows.length === 0) return { triggers: heard, tapes: [], heard, scratches, splices, audioClips: clips, end };
+  if (windows.length === 0) return { triggers: heard, tapes: [], heard, scratches, splices, gates, audioClips: clips, end };
   const stepTime = stepDuration(project.song.bpm);
   const covered = (time: number) => windows.some((w) => time >= w.start * stepTime - 1e-9 && time < w.end * stepTime - 1e-9);
   return {
@@ -116,6 +121,7 @@ export function generateTake(project: Project, options: GenerateOptions = {}): T
     heard,
     scratches,
     splices,
+    gates,
     audioClips: clips,
     end,
   };

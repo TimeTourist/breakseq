@@ -26,8 +26,8 @@ import {
 const scratch = (points: readonly number[], extra: Partial<ScratchEffect> = {}): ScratchEffect => ({ ...newScratch(), points, fader: points.map(() => [true] as const), ...extra });
 
 describe('Scratch in the model', () => {
-  it('comes last among the targets, so the others keep their numbers in dice rolls', () => {
-    expect(MOD_TARGETS.at(-1)).toBe('scratch');
+  it('comes after the targets before it, so they keep their numbers in dice rolls (only Trance gate after it)', () => {
+    expect(MOD_TARGETS.at(-2)).toBe('scratch');
     expect(MOD_TARGETS.indexOf('halftime')).toBe(18);
   });
 

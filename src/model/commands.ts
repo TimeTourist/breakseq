@@ -10,7 +10,7 @@ import { emptyStep, emptySteps, nextLoopName } from './project';
 import type { ReferableKind } from './references';
 import { findUsages } from './references';
 import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEffect, Pad, PadChoice, Project, Sample, Song, SongRow, Step, StepEffect } from './types';
-import { CELL_SIZES, HALFTIME_SPEEDS, MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR, STEP_SIZES, STUTTER_GRABS, isStepEffect } from './types';
+import { CELL_SIZES, HALFTIME_SPEEDS, MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR, STEP_SIZES, STUTTER_GRABS, MAX_TRANCE_SMOOTH, MIN_TRANCE_SMOOTH, TRANCE_DEPTHS, TRANCE_OPENS, isStepEffect } from './types';
 import { laneProblem } from './lanes';
 import { scratchProblem } from './scratch';
 
@@ -497,7 +497,7 @@ const oneOf = (value: unknown, options: readonly unknown[]) => options.includes(
 
 /** What is wrong with an audio mod's own settings, or null (see Mods som samplar det som hörs). */
 function audioSettingsProblem(effect: StepEffect): string | null {
-  const { scramble, stutter, freeze, reverse, rewind } = effect;
+  const { scramble, stutter, freeze, reverse, rewind, tranceGate } = effect;
   if (scramble !== undefined && !(oneOf(scramble.cell, CELL_SIZES) && oneOf(scramble.from, ['song', 'around', 'clip']) && oneOf(scramble.around, [1, 2, 4]) && oneOf(scramble.reverse, [0, 25, 50, 100]))) {
     return 'Scramble’s cell, Take from, Around the clip or Reverse chance is not one of its choices';
   }
@@ -510,6 +510,12 @@ function audioSettingsProblem(effect: StepEffect): string | null {
   if (reverse !== undefined && !oneOf(reverse.cell, CELL_SIZES)) return 'Reverse’s cell is 1/32, 1/16, 1/8 or a beat';
   if (rewind !== undefined && !(oneOf(rewind.pullBack, [4, 8, 16]) && oneOf(rewind.curve, ['fast', 'slowing', 'spinBack']))) {
     return 'Rewind pulls back 1 beat, 2 beats or 1 bar, Fast, Slowing or Spin-back';
+  }
+  if (
+    tranceGate !== undefined &&
+    !(oneOf(tranceGate.depth, TRANCE_DEPTHS) && oneOf(tranceGate.open, TRANCE_OPENS) && Number.isFinite(tranceGate.smooth) && tranceGate.smooth >= MIN_TRANCE_SMOOTH && tranceGate.smooth <= MAX_TRANCE_SMOOTH)
+  ) {
+    return 'Trance gate’s Depth is −6, −12, −24 dB or −∞, Open 25–100 %, Smooth 1–50 ms';
   }
   return null;
 }
