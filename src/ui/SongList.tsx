@@ -1,4 +1,5 @@
 import type { Id, Loop, Mod, Project } from '../model';
+import { ownMods, presetMods } from '../model';
 import { useApp, useSelect } from './context';
 import { PinIcon } from './icons';
 import { InSongMark, useHeard } from './InSong';
@@ -6,22 +7,34 @@ import { middleEllipsis, musicalLength } from './labels';
 import type { Focus } from './store';
 import { songPinned } from './store';
 
-/** A group in Song's list and shelf: Main and Fill loops, and Mods. */
+/** A group in Song's list and shelf: Main and Fill loops, and Mods; on the shelf also Presets. */
 export interface SongGroup {
-  readonly name: 'Main' | 'Fill' | 'Mods';
+  readonly name: 'Main' | 'Fill' | 'Mods' | 'Presets';
   readonly loops: readonly Loop[];
   readonly mods: readonly Mod[];
 }
 
-/** The groups Main, Fill and Mods in Loops' and Mods' order; with `focus`, only what is pinned in Song. */
+/** The groups Main, Fill and Mods in Loops' and Mods' order, the mods of one's own only; with `focus`, only what is pinned in Song. */
 export function songGroups(project: Project, focus?: Focus): readonly SongGroup[] {
   const keep = (id: Id) => focus === undefined || songPinned(focus, id);
   const loops = Object.values(project.loops).filter((l) => keep(l.id));
   return [
     { name: 'Main', loops: loops.filter((l) => l.kind === 'main'), mods: [] },
     { name: 'Fill', loops: loops.filter((l) => l.kind === 'fill'), mods: [] },
-    { name: 'Mods', loops: [], mods: Object.values(project.mods).filter((m) => keep(m.id)) },
+    { name: 'Mods', loops: [], mods: ownMods(project).filter((m) => keep(m.id)) },
   ];
+}
+
+/**
+ * The shelf: the pinned groups that have something, and the mod presets as a
+ * fixed group last, always there and without pins (see Mod-förval).
+ */
+export function shelfGroups(project: Project, focus: Focus): { readonly pinned: readonly SongGroup[]; readonly presets: SongGroup | null } {
+  const presets = presetMods(project);
+  return {
+    pinned: songGroups(project, focus).filter((g) => g.loops.length + g.mods.length > 0),
+    presets: presets.length === 0 ? null : { name: 'Presets', loops: [], mods: presets },
+  };
 }
 
 const effectCount = (mod: Mod) => `${mod.effects.length} ${mod.effects.length === 1 ? 'effect' : 'effects'}`;

@@ -2,7 +2,7 @@ import type { DragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { loopSong, modPreviewSong } from '../engine';
 import type { Clip, Id, Mod, Project, SongRow } from '../model';
-import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, loopIndex, moveClip, pasteClip, removeClip, rerollClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
+import { STEPS_PER_BAR, addClip, clipAt, copyClip, isLoopRow, loopIndex, moveClip, ownMods, pasteClip, removeClip, rerollClip, resizeClip, setSongBars, setSongLoop, setSongLoopOn } from '../model';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import { copies, dropEffectFor } from './dnd';
 import { isTyping, modalOpen } from './isTyping';
@@ -10,7 +10,7 @@ import { clipSeedTitle, placeText, seedTag, twinsText } from './clipSeed';
 import { HIT_COLOR, lengthText } from './labels';
 import { playOnce } from './LoopsView';
 import { previewLoopId } from './ModsView';
-import { SongList, songGroups } from './SongList';
+import { SongList, shelfGroups } from './SongList';
 import { songPinned } from './store';
 import { RerollButton } from './RerollButton';
 import { RegionHandle } from './RegionHandle';
@@ -81,8 +81,9 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
   const width = total * STEP_PX;
   const loops = Object.values(project.loops);
   const mods = Object.values(project.mods);
-  /** The shelf: what is pinned in the list, by Main, Fill and Mods. */
-  const shelf = songGroups(project, focus).filter((g) => g.loops.length + g.mods.length > 0);
+  /** The shelf: what is pinned in the list, by Main, Fill and Mods, and the presets last. */
+  const { pinned, presets } = shelfGroups(project, focus);
+  const shelf = presets === null ? pinned : [...pinned, presets];
   const report = (e: unknown) => setError(`Could not play it: ${e instanceof Error ? e.message : String(e)}`);
   const play = {
     loop: (id: Id) => void playOnce(services, loopSong(project, id)).catch(report),
@@ -486,8 +487,7 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
                 )}
               </p>
             )}
-            {shelf.length === 0 && loops.length + mods.length > 0 && <p className="muted small">Pin a loop or mod in the list to use it here.</p>}
-            {/* TODO(spec): the mod presets (Crazy, Rnd) get a fixed group of their own on the shelf (Listan och hyllan i Song); no such presets exist as objects yet. */}
+            {pinned.length === 0 && loops.length + ownMods(project).length > 0 && <p className="muted small">Pin a loop or mod in the list to use it here.</p>}
             {shelf.map((group) => (
               <div key={group.name} className="shelf-group" role="group" aria-label={group.name}>
                 <span className="muted small shelf-label">{group.name}</span>
@@ -515,8 +515,8 @@ export function SongView({ playheadSeconds, stepSeconds, onSeek }: SongViewProps
                       key={mod.id}
                       type="button"
                       draggable
-                      className="chip mod-chip"
-                      title="Drag onto Mod A or Mod B · double-click to edit"
+                      className={`chip mod-chip${mod.isPreset === true ? ' preset' : ''}`}
+                      title={mod.isPreset === true ? 'Preset · drag onto Mod A or Mod B · double-click to open it in Mods' : 'Drag onto Mod A or Mod B · double-click to edit'}
                       aria-pressed={chip?.ref === mod.id}
                       onClick={() => setChip(chip?.ref === mod.id ? null : { ref: mod.id, loop: false })}
                       onDoubleClick={() => open({ mod: mod.id }, 'mods')}

@@ -219,6 +219,13 @@ export function addMissingPresets(project: Project, ctx: CommandContext = defaul
 
 export const isPreset = (project: Project, id: Id): boolean => project.mods[id]?.isPreset === true;
 
+/** The mods of one's own, in the order they were made. */
+export const ownMods = (project: Project): Mod[] => Object.values(project.mods).filter((m) => m.isPreset !== true);
+/** The presets, in the order they were made. */
+export const presetMods = (project: Project): Mod[] => Object.values(project.mods).filter((m) => m.isPreset === true);
+/** The mods as listed: one's own first, then the presets. */
+export const modsInOrder = (project: Project): Mod[] => [...ownMods(project), ...presetMods(project)];
+
 /** `name` if no mod has it, else `name 2`, `name 3` … the first free. */
 export function freeModName(project: Project, name: string): string {
   const names = new Set(Object.values(project.mods).map((m) => m.name));

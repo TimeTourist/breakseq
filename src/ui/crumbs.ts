@@ -1,5 +1,5 @@
 import type { Id, Loop, Matrix, Mod, Pad, Project, Sample } from '../model';
-import { STEPS_PER_BAR, heardInSong, loopMatrices, ownMatrix, trimName } from '../model';
+import { STEPS_PER_BAR, heardInSong, loopMatrices, modsInOrder, ownMatrix, trimName } from '../model';
 import { middleEllipsis, padLabel } from './labels';
 import type { Action, AppState } from './store';
 import { matrixInView } from './store';
@@ -196,7 +196,7 @@ function loopsTrail(state: AppState, project: Project): Trail {
 
 /** Mods: the mod alone, and on to ♪ Song; mods have nothing to do with samples, matrices or loops. (Magnus beslut) */
 function modsTrail(state: AppState, project: Project): Trail {
-  const mod = project.mods[state.selection.mod ?? ''] ?? Object.values(project.mods)[0];
+  const mod = project.mods[state.selection.mod ?? ''] ?? modsInOrder(project)[0];
   if (mod === undefined) return EMPTY;
   return { steps: current({ label: middleEllipsis(mod.name), title: `Mod ${mod.name}` }), song: heardInSong(project).mods.has(mod.id) };
 }

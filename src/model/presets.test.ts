@@ -5,7 +5,7 @@ import { addClip } from './clips';
 import { addEffect, cloneMod, createMod, remove, removeAnyway, removeEffect, renameMod, replaceEffect } from './commands';
 import { apply, createHistory, undo } from './history';
 import { laneProblem } from './lanes';
-import { MOD_PRESETS, START_FROM_PRESETS, addMissingPresets, startFromPreset } from './presets';
+import { MOD_PRESETS, START_FROM_PRESETS, addMissingPresets, modsInOrder, startFromPreset } from './presets';
 import { createProject, newProject, upgradeProject } from './project';
 import { rerollAll, rerollMod } from './reroll';
 import type { Id, Mod, Project, StepEffect } from './types';
@@ -112,6 +112,12 @@ describe('a new project', () => {
     for (const [id, m] of Object.entries(project.mods)) expect(m.id).toBe(id);
     expect(presetNamed(project, 'Gate').effects).toEqual(MOD_PRESETS.find((p) => p.name === 'Gate')!.effects(project));
     expect(project.song.clips).toEqual([]);
+  });
+
+  it('lists the mods of one’s own first, then the presets', () => {
+    const ctx = sequentialIds();
+    const made = run(newProject(ctx), createMod('Mine', []), ctx);
+    expect(modsInOrder(made).map((m) => m.name)).toEqual(['Mine', ...MOD_PRESETS.map((p) => p.name)]);
   });
 
   it('a mod made by hand has no flag', () => {

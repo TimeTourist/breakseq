@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { blockPasses, scramblePicture } from '../engine';
 import type { EffectTarget, Id, Mod, ModEffect, Project, SwapEffect, TempoEffect } from '../model';
 import {
   DEFAULT_HALFTIME,
+  DEFAULT_TAPE,
+  START_FROM_PRESETS,
   addEffect,
   cloneMod,
   createMod,
+  freeModName,
+  modsInOrder,
+  ownMods,
+  presetMods,
   hitStretch,
   isStepEffect,
   newScratch,
@@ -14,6 +20,7 @@ import {
   renameMod,
   replaceEffect,
   rerollMod,
+  startFromPreset,
   stepDuration,
 } from '../model';
 import { Delete } from './DeleteButton';
@@ -23,17 +30,28 @@ import { HalftimeCard, SwapCard, TapeCard, TempoCard } from './ModCards';
 import { ADD_ORDER, TARGET_LABELS } from './modLabels';
 import type { PassPlace } from './ModPreview';
 import { ModPreview } from './ModPreview';
-import { DEFAULT_TAPE, MOD_PRESETS } from './modPresets';
 import { RenameInPlace } from './RenameInPlace';
 import { RerollButton } from './RerollButton';
 import { ScratchCard } from './ScratchCard';
 import { useApp, useOpen, useProject, useRun, useSeal, useSelect } from './context';
 import type { Selection } from './store';
 
-/** The mod open in Mods: the selected one, else the first. */
+/** The mod open in Mods: the selected one, else the first in the list (one's own before the presets). */
 export function currentModId(project: Project, selection: Selection): Id | null {
   if (selection.mod !== null && project.mods[selection.mod] !== undefined) return selection.mod;
-  return Object.keys(project.mods)[0] ?? null;
+  return modsInOrder(project)[0]?.id ?? null;
+}
+
+/** What a preset says of itself: it never changes. */
+export const PRESET_TITLE = 'Preset: it never changes. A change to it makes a mod of your own, which takes its clips';
+
+/** The mark on a preset: a word by its name, or `compact` a small ◇ in the narrow list. */
+export function PresetMark({ compact = false }: { readonly compact?: boolean }) {
+  return (
+    <span className={`preset-mark${compact ? ' compact' : ''}`} aria-label="preset" title={PRESET_TITLE}>
+      {compact ? '◇' : 'preset'}
+    </span>
+  );
 }
 
 /** The loop a mod is tried on (Plays on): the chosen one, else the first main. */
@@ -79,17 +97,44 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
   const mod = modId === null ? undefined : project.mods[modId];
   const previewId = previewLoopId(project, selection);
 
-  /** Runs a command that makes a mod, and opens the new mod. */
-  const runAndOpen = (command: Parameters<typeof run>[0]) => {
+  /**
+   * A mod made from a preset by a change to it keeps the preset's cards (their
+   * React keys) and merge keys, so a drag that began on the preset goes on in
+   * the new mod and is one undo step with the change that made it.
+   */
+  const madeFrom = useRef<Record<Id, Id>>({});
+  const viewKey = (id: Id): Id => madeFrom.current[id] ?? id;
+
+  /** Runs a command that may make a mod (a new one, or one made from a preset by a change), and opens the new mod. */
+  const runAndOpen = (command: Parameters<typeof run>[0], mergeKey?: string, from?: Id) => {
     const before = store.getState().history.present.mods;
-    const failed = run(command);
+    const failed = run(command, mergeKey);
     setError(failed);
     if (failed === null) {
       const id = Object.keys(store.getState().history.present.mods).find((k) => !(k in before));
-      if (id !== undefined) open({ mod: id }, 'mods');
+      if (id === undefined) return failed;
+      if (from !== undefined) madeFrom.current[id] = viewKey(from);
+      open({ mod: id }, 'mods');
     }
+    return failed;
   };
-  const newMod = (name: string | null, effects: readonly ModEffect[]) => runAndOpen(createMod(name ?? `Mod ${Object.keys(project.mods).length + 1}`, effects));
+  const newMod = (name: string | null, effects: readonly ModEffect[]) => runAndOpen(createMod(name ?? `Mod ${ownMods(project).length + 1}`, effects));
+  /** Start from: a mod of one's own from the project's preset, else (never in a loaded project) from its definition. */
+  const startFrom = (preset: (typeof START_FROM_PRESETS)[number]) => {
+    const made = presetMods(project).find((m) => m.name === preset.name);
+    runAndOpen(made === undefined ? createMod(freeModName(project, preset.name), preset.effects(project)) : startFromPreset(made.id));
+  };
+  const modRow = (m: Mod) => (
+    <button key={m.id} type="button" className="list-item" aria-current={m.id === modId ? 'true' : undefined} onClick={() => open({ mod: m.id }, 'mods')}>
+      <span className="mono mod-name grow ellipsis" title={m.name}>
+        {m.name}
+      </span>
+      {m.isPreset === true && <PresetMark compact />}
+      <span className="muted small effect-count">{effectCount(m)}</span>
+      <InSongMark heard={heard.mods.has(m.id)} />
+    </button>
+  );
+  const presets = presetMods(project);
 
   const sidebar = (
     <aside className="sidebar narrow mods-sidebar" aria-label="Mods">
@@ -98,21 +143,21 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
         <button type="button" className="dashed" title="An empty mod, selected: it does nothing until you add an effect" onClick={() => newMod(null, [])}>
           + New mod
         </button>
-        {Object.values(project.mods).map((m) => (
-          <button key={m.id} type="button" className="list-item" aria-current={m.id === modId ? 'true' : undefined} onClick={() => open({ mod: m.id }, 'mods')}>
-            <span className="mono mod-name grow ellipsis" title={m.name}>
-              {m.name}
-            </span>
-            <span className="muted small">{effectCount(m)}</span>
-            <InSongMark heard={heard.mods.has(m.id)} />
-          </button>
-        ))}
+        {ownMods(project).map(modRow)}
+        {presets.length > 0 && (
+          <div className="stack-tight preset-group" role="group" aria-label="Presets">
+            <h3 className="label" title="Ready mods in every project. They never change: a change makes a mod of your own">
+              Presets
+            </h3>
+            {presets.map(modRow)}
+          </div>
+        )}
       </section>
       <section className="stack-tight">
         <h2 className="label">Start from</h2>
         <div className="row wrap" role="group" aria-label="Start from">
-          {MOD_PRESETS.map((preset) => (
-            <button key={preset.name} type="button" className="chip" title={preset.does} onClick={() => newMod(preset.name, preset.effects(project))}>
+          {START_FROM_PRESETS.map((preset) => (
+            <button key={preset.name} type="button" className="chip" title={preset.does} onClick={() => startFrom(preset)}>
               {preset.name}
             </button>
           ))}
@@ -137,9 +182,12 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
   }
 
   const taken = new Set(mod.effects.map((e) => e.target));
+  const preset = mod.isPreset === true;
+  /** Runs a change to the mod; on a preset it makes a mod of one's own, which opens (see Mod-förval). */
+  const runOnMod = (command: Parameters<typeof run>[0], mergeKey?: string): string | null => (preset ? runAndOpen(command, mergeKey, mod.id) : run(command, mergeKey));
   const change = (target: EffectTarget) => (next: ModEffect, key?: string) =>
-    setError(run(replaceEffect(mod.id, target, next), key === undefined ? undefined : `mod:${mod.id}:${target}:${key}`));
-  const remove = (target: EffectTarget) => () => setError(run(removeEffect(mod.id, target)));
+    setError(runOnMod(replaceEffect(mod.id, target, next), key === undefined ? undefined : `mod:${viewKey(mod.id)}:${target}:${key}`));
+  const remove = (target: EffectTarget) => () => setError(runOnMod(removeEffect(mod.id, target)));
 
   const loop = previewId === null ? undefined : project.loops[previewId];
   const loopPads = (loop?.steps ?? []).flatMap((s) => (s.padId === null ? [] : [project.pads[s.padId]])).filter((p) => p !== undefined);
@@ -160,7 +208,7 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
         })();
   const scramble = {
     picture: previewId === null ? null : scramblePicture(project, mod.id, previewId, playing?.pass ?? 0),
-    onReroll: () => setError(run(rerollMod(mod.id))),
+    onReroll: () => setError(runOnMod(rerollMod(mod.id))),
   };
 
   return (
@@ -177,14 +225,26 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
             <h1 className="mono mod-name mod-title ellipsis" title={mod.name}>
               {mod.name}
             </h1>
-            <RenameInPlace key={mod.id} name={mod.name} what="mod" onRename={(name) => run(renameMod(mod.id, name))} onError={setError} />
+            {preset && <PresetMark />}
+            {!preset && <RenameInPlace key={mod.id} name={mod.name} what="mod" onRename={(name) => run(renameMod(mod.id, name))} onError={setError} />}
             <button type="button" title="A copy of the mod, selected" onClick={() => runAndOpen(cloneMod(mod.id))}>
               Clone
             </button>
-            <Delete kind="mod" id={mod.id} name={mod.name} onError={setError} icon onDeleted={() => open({ mod: null }, 'mods')} />
-            <RerollButton command={rerollMod(mod.id)} label="Reroll this mod" title={`Reroll ${mod.name}: its dice steps roll new values everywhere it plays.`} onError={setError} />
+            {!preset && <Delete kind="mod" id={mod.id} name={mod.name} onError={setError} icon onDeleted={() => open({ mod: null }, 'mods')} />}
+            <RerollButton
+              command={rerollMod(mod.id)}
+              run={runOnMod}
+              label="Reroll this mod"
+              title={
+                preset
+                  ? `Reroll ${mod.name}: a preset never changes, so this makes a mod of your own with new dice rolls, which takes its clips.`
+                  : `Reroll ${mod.name}: its dice steps roll new values everywhere it plays.`
+              }
+              onError={setError}
+            />
             <span className="muted small mono push">{effectCount(mod)}</span>
           </div>
+          {preset && <p className="muted small preset-note">{PRESET_TITLE}.</p>}
           <div className="mod-cards">
             {mod.effects.length === 0 && <p className="mod-empty">No effects yet: the mod does nothing. Add one below.</p>}
             {mod.effects.map((effect) => {
@@ -192,7 +252,7 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
               if (isStepEffect(effect))
                 return (
                   <LaneCard
-                    key={`${mod.id}:${effect.target}`}
+                    key={`${viewKey(mod.id)}:${effect.target}`}
                     effect={effect}
                     onChange={change(effect.target)}
                     rng={Math.random}
@@ -202,11 +262,11 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
                     {...common}
                   />
                 );
-              if (effect.target === 'swap') return <SwapCard key={`${mod.id}:swap`} effect={effect} onChange={change('swap')} {...common} />;
-              if (effect.target === 'tempo') return <TempoCard key={`${mod.id}:tempo`} effect={effect} onChange={change('tempo')} {...common} />;
-              if (effect.target === 'halftime') return <HalftimeCard key={`${mod.id}:halftime`} effect={effect} onChange={change('halftime')} {...common} />;
-              if (effect.target === 'scratch') return <ScratchCard key={`${mod.id}:scratch`} effect={effect} onChange={change('scratch')} rng={Math.random} {...common} />;
-              return <TapeCard key={`${mod.id}:tape`} effect={effect} onChange={change('tape')} {...common} />;
+              if (effect.target === 'swap') return <SwapCard key={`${viewKey(mod.id)}:swap`} effect={effect} onChange={change('swap')} {...common} />;
+              if (effect.target === 'tempo') return <TempoCard key={`${viewKey(mod.id)}:tempo`} effect={effect} onChange={change('tempo')} {...common} />;
+              if (effect.target === 'halftime') return <HalftimeCard key={`${viewKey(mod.id)}:halftime`} effect={effect} onChange={change('halftime')} {...common} />;
+              if (effect.target === 'scratch') return <ScratchCard key={`${viewKey(mod.id)}:scratch`} effect={effect} onChange={change('scratch')} rng={Math.random} {...common} />;
+              return <TapeCard key={`${viewKey(mod.id)}:tape`} effect={effect} onChange={change('tape')} {...common} />;
             })}
             <div className="row">
               <select
@@ -216,7 +276,7 @@ export function ModsView({ playback = null }: { readonly playback?: ModsPlayback
                 title="One effect per target"
                 onChange={(e) => {
                   const target = e.target.value as EffectTarget | '';
-                  if (target !== '') setError(run(addEffect(mod.id, newEffect(target))));
+                  if (target !== '') setError(runOnMod(addEffect(mod.id, newEffect(target))));
                 }}
               >
                 <option value="">+ Add effect</option>
