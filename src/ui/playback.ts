@@ -4,10 +4,10 @@ import type { AudioData, Id, Project } from '../model';
 
 /**
  * A rendered take: the audio and the triggers it was made from, and for a song
- * what the exports cut from it (what is heard, Scratch, the audio mods and
- * where their clips are).
+ * what the exports cut from it (what is heard, Scratch, the audio mods, the Trance gates
+ * and where their clips are).
  */
-export interface Take extends Pick<Generated, 'heard' | 'scratches' | 'splices' | 'audioClips'> {
+export interface Take extends Pick<Generated, 'heard' | 'scratches' | 'splices' | 'gates' | 'audioClips'> {
   /** Exactly as long as what it plays, ready to loop: reverb and delay ringing past the end come in at the start. */
   readonly buffer: AudioBuffer;
   /** As long as it rings, for playing once and for export; missing when nothing rings past the end. */

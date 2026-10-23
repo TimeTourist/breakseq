@@ -84,7 +84,7 @@ export function renderers(cache: RenderCache = createRenderCache()) {
     const take = generateTake(project, request?.from === undefined ? {} : { from: request.from });
     const rendered = await renderTakeWithTail(take, project, EXPORT_SAMPLE_RATE, undefined, 'all', options(request));
     // The exports need what generate gave beside the triggers: a Scratch or an audio mod is a piece of its own, and the reverb and delay come from every trigger heard.
-    const { heard, scratches, splices, audioClips, end } = take;
+    const { heard, scratches, splices, gates, audioClips, end } = take;
     return {
       ...withTail(rendered),
       triggers: take.triggers,
@@ -93,6 +93,7 @@ export function renderers(cache: RenderCache = createRenderCache()) {
       ...(heard === undefined ? {} : { heard }),
       ...(scratches === undefined ? {} : { scratches }),
       ...(splices === undefined ? {} : { splices }),
+      ...(gates === undefined ? {} : { gates }),
       ...(audioClips === undefined ? {} : { audioClips }),
       ...(end === undefined ? {} : { end }),
     };
