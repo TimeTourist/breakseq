@@ -119,6 +119,15 @@ describe('seeds', () => {
   });
 });
 
+describe('a project saved with Crazy madness', () => {
+  it('loads without its mode and recipe seed, which no longer exist', () => {
+    const saved = JSON.parse(JSON.stringify({ ...createProject(), mode: 'crazy', recipeSeed: 7 })) as unknown;
+    const loaded = upgradeProject(saved)!;
+    expect('mode' in loaded).toBe(false);
+    expect('recipeSeed' in loaded).toBe(false);
+  });
+});
+
 describe('Reroll', () => {
   const changed = (a: readonly number[], b: readonly number[]) => a.filter((x, i) => x !== b[i]).length;
 

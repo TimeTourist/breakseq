@@ -45,4 +45,4 @@ npm run lint
 - Projektet byggs i faser (se `docs/spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** 27b – Crazy madness (`docs/tasks/fas-27b.md`), klar. Fas 27 är klar.
+**Aktuell fas:** ingen. Fas 27b (Crazy madness) togs bort 2026-10-23; mod-förvalen (27a) och loggan finns kvar.

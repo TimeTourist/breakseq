@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Folder, SnapshotInfo } from '../engine';
 import type { Clip, Command, CommandError, History, Id, Project } from '../model';
-import { apply, crazyChain, createHistory, createProject, redo, seal, undo } from '../model';
+import { apply, createHistory, createProject, redo, seal, undo } from '../model';
 
 export const VIEWS = ['samples', 'pads', 'loops', 'mods', 'song', 'project'] as const;
 export type View = (typeof VIEWS)[number];
@@ -163,8 +163,7 @@ const withHistory = (state: AppState, history: History): AppState => ({
 export function reduce(state: AppState, action: Action): { state: AppState; error: CommandError | null } {
   switch (action.type) {
     case 'run': {
-      // In Crazy madness a trim sliced the first time is built into the song in the same undo step (see Crazy madness).
-      const result = apply(state.history, crazyChain(action.command), undefined, action.mergeKey ?? null);
+      const result = apply(state.history, action.command, undefined, action.mergeKey ?? null);
       return result.ok ? { state: withHistory(state, result.history), error: null } : { state, error: result.error };
     }
     case 'seal': {
