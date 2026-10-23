@@ -177,4 +177,23 @@ describe('a clip with an audio mod or Scratch in the exports (Magnus beslut 2026
     expect(slices).toHaveLength(pieces);
     expect(slices.at(-2)).toBe(SAMPLE_RATE);
   });
+
+  it('a clip with Trance gate is a piece of its own, gated as heard, and the reverb and delay WAV is silent under it (Magnus beslut 2026-10-23)', async () => {
+    // Straight from 1 s to 2 s, over the reverb ringing from the first two beats.
+    const project = withMod(plain(), [newStepEffect('tranceGate')], 8, 8, 'modB');
+    const { take, buffer } = await rendered(project);
+    const plan = midiPlan(project, take);
+    expect(plan.pieces.at(-1)).toEqual({ kind: 'audio', time: 1, end: 2, seconds: 1 });
+    const { audio, cues } = await renderSlices(project, plan, buffer, SAMPLE_RATE);
+    const at = cues[plan.pieces.length - 1]!;
+    for (let c = 0; c < 2; c++) expect(audio.channels[c]!.slice(at, at + SAMPLE_RATE)).toEqual(buffer.getChannelData(c).slice(SAMPLE_RATE, 2 * SAMPLE_RATE));
+    // The piece is gated: silent in the closed half of a 1/16 (0.0625–0.125 s into it, after the 5 ms release).
+    expect(Math.max(...audio.channels[0]!.slice(at + Math.round(0.0685 * SAMPLE_RATE), at + Math.round(0.125 * SAMPLE_RATE)).map(Math.abs))).toBe(0);
+    expect(Math.max(...audio.channels[0]!.slice(at + Math.round(0.01 * SAMPLE_RATE), at + Math.round(0.06 * SAMPLE_RATE)).map(Math.abs))).toBeGreaterThan(0.01);
+    const { space } = await midiExport(project, { ...take, buffer }, SAMPLE_RATE);
+    const data = decodeAudioFile(space!).channels[0]!;
+    const peak = (from: number, to: number) => Math.max(...data.slice(Math.round(from * SAMPLE_RATE), Math.round(to * SAMPLE_RATE)).map(Math.abs));
+    expect(peak(0.5, 1)).toBeGreaterThan(0.001);
+    expect(peak(1.004, 2)).toBe(0);
+  });
 });

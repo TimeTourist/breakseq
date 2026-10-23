@@ -89,11 +89,16 @@ describe('Trance gate (Magnus beslut 2026-10-23)', () => {
     expect(level(project, 10 * STEP)).toBe(0);
     expect(level(project, 12 * STEP)).toBe(1);
     expect(level(project, 30 * STEP)).toBe(1);
+    // Down over Smooth from where the clip starts, up over Smooth to where it ends.
+    expect(level(project, 8 * STEP + 0.0025)).toBeCloseTo(0.5, 9);
+    expect(level(project, 12 * STEP - 0.0025)).toBeCloseTo(0.5, 9);
   });
 
   it('Clear: every step open and Open 100 %, so the level is 1 all through, as without the gate', () => {
     const [project] = withMod(song(), [clearTranceGate(gate([0, 1, { lo: 0, hi: 1, chance: 25 }, 0], { depth: -24, open: 25 }))], 0, 16);
     for (let t = 0; t < 16 * STEP; t += STEP / 7) expect(level(project, t)).toBe(1);
+    // Also at the clip's edges: an open part there has no edge.
+    for (const t of [1e-5, 1e-3, 16 * STEP - 1e-3]) expect(level(project, t)).toBe(1);
   });
 
   it('with Trance gate in A and B, B’s plays where they meet', () => {

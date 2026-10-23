@@ -3,7 +3,7 @@ import type { Mix } from './render';
 import { CHOKE_FADE, scheduleTape } from './render';
 import type { AudioClip } from './audio-mods';
 import { SPLICE_FADE } from './audio-mods';
-import { applySplices } from './render-audio-mods';
+import { applyGates, applySplices } from './render-audio-mods';
 import type { RenderCache } from './render-chunks';
 import { keepChunk, remember } from './render-chunks';
 import type { Tape } from './tape';
@@ -77,7 +77,7 @@ function clipMask(clip: AudioClip, f: number, sampleRate: number): number {
 }
 
 /**
- * Plays the take's tapes, Scratch and splices over `heard` (the triggers' sound with
+ * Plays the take's tapes, Scratch and splices over `heard`, then the Trance gates, (the triggers' sound with
  * reverb and delay, for the mix asked for). In the mix of only reverb and
  * delay a tape, and a clip with an audio mod or Scratch, leaves silence: a
  * MIDI export has each as a piece of its own, cut from the song as heard
@@ -85,7 +85,7 @@ function clipMask(clip: AudioClip, f: number, sampleRate: number): number {
  */
 export async function finishHeard(
   heard: readonly Float32Array[],
-  take: Pick<Take, 'tapes' | 'splices' | 'scratches' | 'audioClips'>,
+  take: Pick<Take, 'tapes' | 'splices' | 'scratches' | 'gates' | 'audioClips'>,
   sampleRate: number,
   mix: Mix,
   cache?: RenderCache,
@@ -111,5 +111,7 @@ export async function finishHeard(
   }
   // Scratch records what is heard without tape, and is heard instead of it and of tape (Claudes val: where both play, Scratch).
   if (take.scratches !== undefined && take.scratches.length > 0) out = applySplices(out, take.scratches, sampleRate, heard);
-  return take.splices === undefined || take.splices.length === 0 ? out : applySplices(out, take.splices, sampleRate);
+  if (take.splices !== undefined && take.splices.length > 0) out = applySplices(out, take.splices, sampleRate);
+  // Trance gate changes the level last, of whatever plays there (Claudes val).
+  return take.gates === undefined || take.gates.length === 0 ? out : applyGates(out, take.gates, sampleRate);
 }
