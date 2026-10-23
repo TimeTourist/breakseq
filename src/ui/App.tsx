@@ -409,7 +409,7 @@ function Shell() {
         <ProjectView
           canExport={songTake !== null}
           onExport={() => {
-            if (songTake !== null) services.exportWav(songTake);
+            if (songTake !== null) services.exportWav(songTake, store.getState().history.present.song.bpm);
           }}
           onExportMidi={() => (songTake === null ? Promise.resolve(0) : services.exportMidi(store.getState().history.present, songTake))}
           onExportRex={() => (songTake === null ? Promise.resolve(0) : services.exportRex(store.getState().history.present, songTake))}

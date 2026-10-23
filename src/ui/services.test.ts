@@ -5,7 +5,7 @@ import type { Command, Id, ModEffect, Project, StepEffect } from '../model';
 import { addClip, addSample, createLoop, createMod, createProject, newScratch, newStepEffect, setBpm, setSongBars, setStep } from '../model';
 import { midiPlan } from '../engine';
 import { constantAudio, sequentialIds } from '../test/fixtures';
-import { renderers } from './services';
+import { exportBase, renderers } from './services';
 
 const ctx = sequentialIds();
 function run(project: Project, ...commands: Command[]): Project {
@@ -50,5 +50,13 @@ describe('the song take the exports get', () => {
     expect(take.audioClips).toEqual([{ time: 1, end: 2 }]);
     expect(take.gates).toHaveLength(1);
     expect(midiPlan(project, take).pieces.filter((p) => p.kind === 'audio')).toHaveLength(1);
+  });
+});
+
+describe('export file names', () => {
+  it('carry the song’s tempo, after the snapshot’s name and before the time', () => {
+    expect(exportBase(172, '2026-10-23T10-00-00')).toBe('breakseq-172bpm-2026-10-23T10-00-00');
+    expect(exportBase(170.5, '2026-10-23T10-00-00', 'Hek-tick Amen')).toBe('breakseq-hek-tick-amen-170.5bpm-2026-10-23T10-00-00');
+    expect(exportBase(174.123456, 'x')).toBe('breakseq-174.12bpm-x');
   });
 });

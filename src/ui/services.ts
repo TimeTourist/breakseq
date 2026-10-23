@@ -26,7 +26,7 @@ export interface Services {
   /** Renders what a view plays that is not a song: hits one after another, or a sample's audio as it is. */
   readonly renderPreview: (preview: Preview, options?: RenderRequest) => Promise<Take>;
   /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
-  readonly exportWav: (take: Take, name?: string) => void;
+  readonly exportWav: (take: Take, bpm: number, name?: string) => void;
   /** Saves the song as a MIDI file and a WAV of its sounds in slots; says how many sounds. */
   readonly exportMidi: (project: Project, take: Take) => Promise<number>;
   /** Saves the song as a MIDI file and a REX file of its sounds, one slice each; says how many sounds. */
@@ -123,29 +123,34 @@ export const fileSafe = (name: string) =>
     .replace(/[^a-z0-9åäöæø]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
+/** An export's file name before its ending, with the song's tempo: "breakseq-hek-tick-172bpm-2026-10-23T10-00-00". (Claudes val) */
+export const exportBase = (bpm: number, stamp: string, name?: string): string => {
+  const part = name === undefined || fileSafe(name) === '' ? '' : `${fileSafe(name)}-`;
+  return `breakseq-${part}${Number(bpm.toFixed(2))}bpm-${stamp}`;
+};
+
 /** The song as heard, then its reverb and delay ringing out. */
-function exportWav(take: Take, name?: string): void {
+function exportWav(take: Take, bpm: number, name?: string): void {
   const buffer = take.full ?? take.buffer;
   const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
-  const part = name === undefined || fileSafe(name) === '' ? '' : `${fileSafe(name)}-`;
-  download(`breakseq-${part}${timestamp()}.wav`, encodeWav({ sampleRate: buffer.sampleRate, channels }), 'audio/wav');
+  download(`${exportBase(bpm, timestamp(), name)}.wav`, encodeWav({ sampleRate: buffer.sampleRate, channels }), 'audio/wav');
 }
 
 async function exportMidi(project: Project, take: Take): Promise<number> {
   const { midi, wav, pieces, space } = await midiExport(project, take, EXPORT_SAMPLE_RATE);
-  const stamp = timestamp();
-  download(`breakseq-${stamp}.mid`, midi, 'audio/midi');
-  download(`breakseq-${stamp}-slices.wav`, wav, 'audio/wav');
-  if (space !== null) download(`breakseq-${stamp}-reverb-delay.wav`, space, 'audio/wav');
+  const base = exportBase(project.song.bpm, timestamp());
+  download(`${base}.mid`, midi, 'audio/midi');
+  download(`${base}-slices.wav`, wav, 'audio/wav');
+  if (space !== null) download(`${base}-reverb-delay.wav`, space, 'audio/wav');
   return pieces;
 }
 
 async function exportRex(project: Project, take: Take): Promise<number> {
   const { midi, rex, pieces, space } = await rexExport(project, take, EXPORT_SAMPLE_RATE);
-  const stamp = timestamp();
-  download(`breakseq-${stamp}.mid`, midi, 'audio/midi');
-  download(`breakseq-${stamp}.rx2`, rex, 'application/octet-stream');
-  if (space !== null) download(`breakseq-${stamp}-reverb-delay.wav`, space, 'audio/wav');
+  const base = exportBase(project.song.bpm, timestamp());
+  download(`${base}.mid`, midi, 'audio/midi');
+  download(`${base}.rx2`, rex, 'application/octet-stream');
+  if (space !== null) download(`${base}-reverb-delay.wav`, space, 'audio/wav');
   return pieces;
 }
 

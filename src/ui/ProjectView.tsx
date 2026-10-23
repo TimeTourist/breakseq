@@ -174,13 +174,13 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
    * Renders a snapshot's song straight from its file, for playing or export.
    * The work that is loaded is not touched.
    */
-  const renderSnapshot = (info: SnapshotInfo, then: (take: Take) => void) =>
+  const renderSnapshot = (info: SnapshotInfo, then: (take: Take, project: Project) => void) =>
     void attempt(async () => {
       if (folder === null) return;
       setRendering(info.file);
       try {
         const project = await loadSnapshot(folder, info.file);
-        then(await services.renderSong(project));
+        then(await services.renderSong(project), project);
       } finally {
         setRendering(null);
       }
@@ -334,7 +334,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
                 <button type="button" className="icon-button" disabled={busy} aria-label={`Play ${s.name}`} onClick={() => renderSnapshot(s, onPlayTake)}>
                   <PlayIcon />
                 </button>
-                <button type="button" disabled={busy} aria-label={`Export ${s.name}`} onClick={() => renderSnapshot(s, (take) => services.exportWav(take, s.name))}>
+                <button type="button" disabled={busy} aria-label={`Export ${s.name}`} onClick={() => renderSnapshot(s, (take, project) => services.exportWav(take, project.song.bpm, s.name))}>
                   Export
                 </button>
                 <button
