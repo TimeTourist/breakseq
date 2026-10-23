@@ -125,7 +125,7 @@ Appen har sex vyer i arbetsordning: Samples, Matrices, Loops, Mods, Song och Pro
 4. **Mods** – bygg mods.
 5. **Song** – en tidslinje med 1/16-rutnät. Loopar och mods läggs ut som klipp, som flyttas (Ctrl kopierar, Alt också) och ändras i längd från båda kanterna. Ett markerat klipp kopieras med Ctrl+C och klistras in med Ctrl+V där spelhuvudet står, i klippets rad. Ctrl+D lägger en kopia direkt efter klippet, och kopian blir markerad. Linjalen har två fält. Det övre fältet är för loopområdet: där dras ett nytt område, och där sitter handtagen; ett klick där utan att dra gör ingenting. Det undre fältet, med taktsiffrorna, är för startpunkten: ett klick flyttar spelhuvudet dit, Play startar där, och spelar låten hoppar den dit. Stop går tillbaka dit. Startpunkten går alltid att flytta till början, också när loopen börjar där. *(Magnus beslut; ändras inte utan att fråga.)* Områdets ändar har var sitt handtag, som i Trim: en kloss i det övre fältet och en linje vidare ner över spåren, som dras eller flyttas med ←/→ (Shift: ett slag); linjen tar inga klick. Loopområdet syns alltid: utan ett markerat område visas hela låten som området, avstängt (grått), och ett handtag som dras markerar då ett område som fortfarande är av. *(Magnus beslut; ändras inte utan att fråga.)* När området är på skuggas det som ligger utanför, som i Trim. Knappen Loop slår av och på området; finns inget markerat område slår den på hela låten. När det är på spelar Song från startpunkten in i området och sedan området om och om igen. När det är av loopas hela låten. Området sparas i projektet och går att ångra, men exporten tar alltid hela låten.
 
-   **Listan och hyllan i Song** *(Magnus beslut 2026-10-22, del av Song-v2, byggt i fas 25a utom mod-förvalens grupp, som inte är byggd än; ändras inte utan att fråga)*: Song har en egen lista med loopar och mods, som listan MATRICES i Loops, med en nål per rad. De fästa fyller hyllan Loops and mods, som klippen dras från, så att hyllan inte blir lång med många fills och mods. Allt är fäst från början, också en ny loop eller mod; man tar bort det man inte vill se. Nålarna i Song är egna och, som i Loops, vyns val: de sparas inte i projektet och går inte att ångra (efter Load är alltså allt fäst igen). Mod-förvalen (Crazy, Rnd) får en egen fast grupp på hyllan.
+   **Listan och hyllan i Song** *(Magnus beslut 2026-10-22, del av Song-v2, byggt i fas 25a utom mod-förvalens grupp, som inte är byggd än; ändras inte utan att fråga)*: Song har en egen lista med loopar och mods, som listan MATRICES i Loops, med en nål per rad. De fästa fyller hyllan Loops and mods, som klippen dras från, så att hyllan inte blir lång med många fills och mods. Allt är fäst från början, också en ny loop eller mod; man tar bort det man inte vill se. Nålarna i Song är egna och, som i Loops, vyns val: de sparas inte i projektet och går inte att ångra (efter Load är alltså allt fäst igen). Mod-förvalen får en egen fast grupp på hyllan (se Crazy madness, Mod-förval).
 
    **Song-v2** *(Magnus beslut 2026-10-22 via skissen Song-v2 och svaren på frågorna; fas 25a och 25b: första punkten, sidan och listan, är byggd i 25a; punkterna om seeden på klippen, rutan för det markerade klippet och hjälptexten är byggda i 25b; ändras inte utan att fråga)*:
    - Sidan som Loops: ingen rubrik, listan till vänster och Song-rutan till höger. Listan har grupperna Main, Fill och Mods i loopens och modens färg som i resten av appen (skissens lila för mods är appens rosa: Claudes val), och varje rad har nålen, namnet, längden (4 bars, 2 beats) eller antalet effekter (4 effects), och ♪ när den hörs i låten. Raderna dras inte: man drar från hyllan. Ett klick på en rad spelar loopen en gång, eller moden en gång på sin loop under Plays on, och väljer ingenting.
@@ -387,6 +387,62 @@ En tempo-mod (t.ex. 1/3) låter det aktiva lagret spelas i ett annat tempo medan
 
 Spelhuvudet i GUI:t följer triggers, så under en tempo-mod tänds stegen i det långsammare tempot utan specialhantering.
 
+## Crazy madness
+
+Mottot "Gör kaos lätt" taget till sin spets: slica ett break och få en låt direkt. Allt i det här avsnittet är Magnus beslut (från `docs/rnd/crazy.md`, 2026-10-21–23) om inget annat sägs; *(Claudes val)* markerar det som fylldes i när Rnd:n blev spec.
+
+### Två lägen
+
+- **Total control:** som innan Crazy. Den automatiska kedjan gör en matrix och en loop, inget mer.
+- **Crazy madness:** när ett break slicas första gången bygger appen hela vägen till Song efter låtens recept: hit-varianter i matrisen, en main- eller fill-loop, klipp i Song och mods från förvalen.
+- **Knappen i headern** visar läget som gäller och byter vid klick. Muspekaren säger läget och vad ett klick gör (Crazy madness. Click for Total control). Ikonerna: Total control är en vanlig glad acid smiley, Crazy madness en acid smiley som ser lurig, ond och galen ut. Skiss: `docs/sketches/crazy-smileys.html`. Knappen sitter först bland headerns knappar till höger, före tempot. *(Placeringen: skissen.)*
+- **Crazy är förvalt** i ett nytt projekt, och läget sparas i projektet. Ett gammalt projekt utan läge öppnas i Total control, eftersom det byggts för hand. *(Claudes val.)* Att byta läge är ett kommando som går att ångra, som andra ändringar i projektet. *(Claudes val.)*
+- Läget styr bara vad som byggs automatiskt; inga reglage döljs.
+
+### Fire and forget
+
+- Crazy bygger allt som om användaren gjort det själv, med vanliga kommandon i ett enda steg i historiken: en Undo tar bort allt Crazy byggde av ett break. Inget följer med i efterhand, och allt går att ändra som vanligt. Crazy rör aldrig det som redan finns när ett nytt break slicas: det lägger bara till. *(Claudes val: en Undo, och bara lägga till.)*
+- **🎲 (Reroll everything)** fungerar som förut: bara nya seeds, aldrig något byggt eller ändrat.
+- **Go crazy** *(namnet och platsen: Claudes val)* är en knapp direkt till höger om lägesknappen, med den galna smileyn och texten Go crazy, i båda lägena. Den nukar allt i sin väg och bygger om med ett nytt recept: alla matriser, loopar, mods och hela Song tas bort, förvalen återställs, och sedan byggs allt igen som om varje slicad trim slicades nu, i samplens ordning, med det nya receptet. Bara samples (med trimmar, slicing och markörer) och egna mods blir kvar. Allt är ett kommando, så Undo tar tillbaka allt. Ingen fråga först: crazy är crazy, och den som vill behålla något gör New snapshot innan den börjar labba. Muspekaren säger: Go crazy: throw away matrices, loops and the song and build it all again from a new recipe. Samples and your own mods stay. Undo brings it back.
+- En trim som inte är slicad (en one-shot) får sin matrix av den automatiska kedjan men ingen loop eller klipp; den kan bli källa till hit-varianter (se receptet). *(Claudes val.)*
+
+### Recept
+
+- Crazy bygger efter låtens recept, som är helt dolt: det ska överraska, man hör bara resultatet. Receptet är en seed i projektet (`recipeSeed`), satt när projektet skapas och ny vid Go crazy. *(Seeden: Claudes val.)*
+- Ett recept består av reglerna nedan, och varje regel har tre varianter. Receptet rullas genom att en variant väljs per regel ur receptets seed och regelns namn. Inne i varje variant slumpas det också (vilka pads, vilka takter), ur receptets seed, breakets plats i ordningen och vad som slumpas, så samma projekt bygger samma låt varje gång.
+- Tider räknas i takter av 16: låten byggs i avsnitt om 16 takter.
+- Ett recept gäller hela låten; om nya breaks följer samma stil eller får en egen är också en regel.
+- Varianterna är en fast lista (egna recept: utanför v1).
+
+**Reglerna** *(Claudes val av varianterna; exemplen i Rnd:n är med)*:
+
+| Regel | Varianter |
+|---|---|
+| Roll | **Varannan:** första breaket blir main, nästa fill, och så vidare. · **Första main:** första breaket blir main, alla senare fill. · **Blandat:** varje break blir main eller fill, hälften var, men första alltid main. |
+| Form (var fills ligger i ett avsnitt) | **Korta mains:** main 1–3 takter i taget, en fill-takt emellan, till 16. · **Tre fills:** fill på takt 8, 12 och 16. · **Var 8:e:** fill på takt 8 och 16. |
+| Fill-loopen | **Omkastad:** en takt, breakets pads i slumpad ordning på 1/16. · **Slutet:** två slag, breakets sista pads, upprepade. · **Hackad:** en takt där varje steg spelar en slumpad pad ur breaket och en fjärdedel av stegen är tomma. |
+| Hit-varianter | **Få:** var fjärde pad får en variant. · **Många:** varje pad får en variant. · **Vilda:** varje pad får två eller tre varianter. Pads med varianter väljer Random. |
+| Hit-variantens sort (slås per variant) | **Ändrad:** samma slice med 1–3 av pitch, volym, filter, dist och stretch ändrade upp till 40 %. · **Annan:** en annan slice ur samma break, eller ur ett annat break eller en one-shot i projektet. · **Baklänges:** samma slice baklänges. |
+| Mods | **Extrem och subtila:** en extrem mod 1 takt och subtila mods på sammanlagt 4 takter per 16. · **Många små:** en subtil mod på varannan takt. · **En stor:** en extrem mod över 2 takter per 16. |
+| Slut | **Mod på slutet:** en extrem mod på låtens sista 2 takter. · **Tape stop:** förvalet Tape stop på sista takten. · **Inget särskilt.** |
+| Nya breaks | **Samma stil:** nya breaks följer samma varianter. · **Egen stil:** varje nytt break rullar egna varianter av Fill-loopen, Hit-varianter och sorten, ur sin plats i ordningen. |
+
+**Hur ett break fogas in** *(Claudes val)*:
+- **Main:** breakets loop från den automatiska kedjan blir main-loopen, och Song får ett nytt avsnitt om 16 takter sist: main-loopen enligt Form, och i fill-takterna fill-loopen från det senaste fill-breaket (finns inget används en fill-loop av breaket självt, byggd enligt Fill-loopen). Mods och Slut läggs på avsnittet. Slut flyttas inte när ett nytt avsnitt kommer: det blir kvar på det avsnitt där det lades.
+- **Fill:** breaket får en fill-loop enligt Fill-loopen (kind fill), och Song får ett nytt avsnitt om 16 takter sist med den senaste main-loopen och den nya fill-loopen i fill-takterna. Finns ingen main än blir breaket main i stället.
+- **Mods** läggs i Mod A, och där en mod redan ligger i Mod B. Extrema och subtila förval (se Mod-förval) väljs ur seeden, på hela takter i avsnittet, inte på fill-takterna för subtila. Loopens eget klipp och modklippen får nya seeds som vanligt.
+
+### Mod-förval
+
+- **Förvalen** är de som står under Start from i Mods (Tape rock, Tape stop, Stutter …, Random verb), plus ett förval per ljudmodd: Stutter Roll, Scratch Baby, Freeze, Reverse, Rewind, Halftime, Scramble och Trance gate Straight. *(Claudes val: listan.)* Varje förval är extremt eller subtilt, och receptet väljer bland dem: *(Claudes val)*
+  - Extrema: Tape rock, Tape stop, Slip 1/3, Pitch dive, Reverse roll, Snare roll, Crush build, Stretch smear, Scratch Baby, Freeze, Rewind, Halftime, Scramble.
+  - Subtila: Stutter, Pitch stair, Random reverse, Gate, Hat bounce, Ping-pong roll, Filter rise, Thin out, SP grit, Radio, Reverb throw, Delay throw, Random verb, Stutter Roll, Reverse, Trance gate Straight.
+- Förvalen skapas som vanliga mods i varje nytt projekt, med en flagga (`isPreset`). Alla andra mods är egna (custom), utan flagga. Eftersom förvalen sparas i projektet låter ett gammalt projekt likadant även om appens förval ändras senare.
+- Ett förval ändras aldrig. Ändrar man i ett förval i Mods skapas en ny egen mod som utgår från det, med ändringen (den heter som förvalet, med en siffra om namnet redan finns, och blir vald), och klippen som spelade förvalet spelar den nya moden. Förvalet ligger kvar oförändrat. Rename och Delete finns inte på ett förval; 🎲 Reroll this mod gör en ny egen mod på samma sätt. Man kan också klona ett förval med Clone, som förut. *(Claudes val om Rename, Delete och 🎲.)*
+- Förvalen syns i listan i Mods i en egen grupp sist, Presets, med en förvalsmarkering, och i Song på hyllan som en egen fast grupp sist, Presets, som alltid syns och inte har nålar. I Songs lista står de inte. *(Claudes val: gruppnamnet och att de inte har nålar.)*
+- Start from finns kvar och gör en ny egen mod från ett förval, som förut. *(Claudes val.)*
+- Gamla projekt utan förval får dem när de laddas. Inget spelar dem än, så låten låter likadant.
+
 ## Uppspelning och export
 
 Allt som spelar mer än ett ljud renderas först; uppspelningen spelar den färdiga buffern i realtid.
@@ -485,6 +541,8 @@ Varje fas slutar med något som går att använda och lyssna på. ”Klart när�
 | 25a. Songs lista och hylla | Egen lista med loopar och mods och en nål per rad, allt fäst från början; hyllan visar det fästa | Med 20 fills och 10 mods: ta bort nålarna på det du inte vill se, och hyllan är kort |
 | 25b. Seeden syns i Song | ◆ på klippen, rutan för det markerade klippet, Copy after it, Reroll everything behåller kopior | En kopia visar samma ◆ och rutan säger they sound the same; 🎲 ger en ny |
 | 26. Trance gate | En ljudmodd som hackar allt som hörs i takt: på/av per steg, Depth, Open, Smooth, förvalen Straight, Off-beat och 3-3-2 | Straight på ett break med lång reverb hackar också svansen i 1/16-pulser; Clear låter som utan gate |
+| 27a. Mod-förval | Förvalen som mods med `isPreset` i varje projekt; ändring gör en egen mod och flyttar klippen; grupper i Mods och på hyllan i Song; gamla projekt får dem | Ändra Volume i förvalet Gate: en ny mod Gate 2 spelar i klippen, Gate är som förut |
+| 27b. Crazy madness | Lägesknappen, receptet, att slica ett break i Crazy bygger till Song, och Go crazy | Nytt projekt, slica Amen: en låt på 16 takter med fills och mods; Go crazy bygger en annan; Undo tar tillbaka den första |
 
 Flikarna bytte namn i fas 23. Faserna före den använder de gamla namnen: Import och Slice är nu Samples, och Hits är nu Pads. Efter fas 23 heter Pads Matrices, och trim heter sample i appen.
 
