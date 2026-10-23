@@ -245,6 +245,25 @@ export const clearTranceGate = (effect: StepEffect): StepEffect => ({
   tranceGate: { ...(effect.tranceGate ?? DEFAULT_MOD_TRANCE_GATE), open: 100 },
 });
 
+/** Trance gate's presets (Magnus beslut 2026-10-23): 16 steps of 1/16, the open ones by number from 1, and Open. */
+export const TRANCE_PRESETS = {
+  Straight: { open: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], percent: 50 },
+  'Off-beat': { open: [3, 7, 11, 15], percent: 75 },
+  '3-3-2': { open: [1, 4, 7, 9, 12, 15], percent: 75 },
+} as const;
+export type TrancePreset = keyof typeof TRANCE_PRESETS;
+
+/** A Trance gate drawn as a preset; Depth and Smooth stay as they are. */
+export function tranceGatePreset(effect: StepEffect, preset: TrancePreset): StepEffect {
+  const { open, percent } = TRANCE_PRESETS[preset];
+  return {
+    ...effect,
+    step: '1/16',
+    lane: Array.from({ length: 16 }, (_, i) => ({ v: (open as readonly number[]).includes(i + 1) ? 1 : 0 })),
+    tranceGate: { ...(effect.tranceGate ?? DEFAULT_MOD_TRANCE_GATE), open: percent },
+  };
+}
+
 /** The lane `n` steps long (1–16): shorter drops from the end, longer adds copies of the last step. */
 export function setLaneLength(lane: readonly LaneStep[], n: number): LaneStep[] {
   const count = clamp(Math.round(n), 1, MAX_LANE_STEPS);

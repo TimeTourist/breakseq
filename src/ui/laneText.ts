@@ -29,6 +29,8 @@ export function shortValue({ target }: Target, x: number): string {
       return x >= 0.5 ? '◂' : '▸';
     case 'rewind':
       return x >= 0.5 ? '⟲' : '·';
+    case 'tranceGate':
+      return x >= 0.5 ? '▮' : '·';
     case 'pitch':
       return signed(x, String(Math.abs(round(x, 1))));
     case 'volume':
@@ -50,6 +52,7 @@ export function fullValue(effect: Target, x: number): string {
   if (target === 'freeze') return x >= 0.5 ? 'frozen' : 'passes through';
   if (target === 'reverse') return x >= 0.5 ? 'reversed' : 'forward';
   if (target === 'rewind') return x >= 0.5 ? 'fires' : 'does not fire';
+  if (target === 'tranceGate') return x >= 0.5 ? 'open' : 'closed';
   const unit = LANES[target].unit;
   return `${shortValue(effect, x)}${unit === '%' || unit === '×' ? '' : ' '}${unit}`;
 }

@@ -1,5 +1,5 @@
-import type { CellSize, HalftimeEffect, ModRewind, ModStutter, ScratchEffect, ScratchRecord, StepEffect } from '../model';
-import { DEFAULT_MOD_FREEZE, DEFAULT_MOD_REVERSE, DEFAULT_MOD_REWIND, DEFAULT_MOD_SCRAMBLE, DEFAULT_MOD_STUTTER, isDice, scratchMotion, scratchSpeeds } from '../model';
+import type { CellSize, HalftimeEffect, ModRewind, ModTranceGate, ModStutter, ScratchEffect, ScratchRecord, StepEffect } from '../model';
+import { DEFAULT_MOD_FREEZE, DEFAULT_MOD_REVERSE, DEFAULT_MOD_REWIND, DEFAULT_MOD_SCRAMBLE, DEFAULT_MOD_STUTTER, DEFAULT_MOD_TRANCE_GATE, isDice, scratchMotion, scratchSpeeds } from '../model';
 import { laneLength } from './laneText';
 
 /** How the audio mods read (see Mods som samplar det som hörs and the sketch): their values, settings and sentences. */
@@ -20,6 +20,8 @@ const signed = (x: number) => (x > 0 ? `+${x}` : x < 0 ? `−${Math.abs(x)}` : '
 export const pitchStep = (x: number) => `${signed(x)} st`;
 export const levelText = (db: number) => `${db < 0 ? `−${Math.abs(db)}` : '0'} dB`;
 export const speedText = (speed: number) => `×${speed}`;
+/** Trance gate's Depth: −6 dB … −∞. */
+export const depthText = (depth: ModTranceGate['depth']) => (depth === '-inf' ? '−∞' : `−${Math.abs(depth)} dB`);
 
 const diceCount = (effect: StepEffect) => {
   const n = effect.lane.filter(isDice).length;
@@ -63,6 +65,10 @@ export function audioSentence(effect: StepEffect): string {
       const x = effect.rewind ?? DEFAULT_MOD_REWIND;
       const at = effect.lane.flatMap((s, i) => (isDice(s) || s.v >= 0.5 ? [i + 1] : []));
       return `Rewind · pulls back ${PULL_TEXT[x.pullBack]}, ${CURVE_TEXT[x.curve]} · ${lane} · ${at.length > 0 ? `fires on step ${at.join(', ')}` : 'never fires'}${dice}`;
+    }
+    case 'tranceGate': {
+      const x = effect.tranceGate ?? DEFAULT_MOD_TRANCE_GATE;
+      return `Trance gate · ${lane} · open on ${onCount(effect)} of ${n}${dice} · depth ${depthText(x.depth)}, open ${x.open}%, smooth ${x.smooth} ms`;
     }
     default:
       return '';

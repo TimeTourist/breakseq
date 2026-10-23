@@ -160,4 +160,35 @@ describe('audio mods in Mods', () => {
     expect(within(halftime).getByText('Halftime · ×2 under the whole clip, no ramp · pitch kept (stretch)')).toBeTruthy();
     expect(within(halftime).getByText(SOURCE)).toBeTruthy();
   });
+
+  it('Trance gate: a new one is Straight, Depth, Open and Smooth, its presets, Clear opens it all, and a row in the preview', async () => {
+    const store = await setup();
+    add('tranceGate');
+    const gate = card('Trance gate');
+    const steps = (open: readonly number[]) => Array.from({ length: 16 }, (_, i) => ({ v: open.includes(i + 1) ? 1 : 0 }));
+    expect(effect(store, 'tranceGate')).toEqual({ target: 'tranceGate', step: '1/16', lane: steps(Array.from({ length: 16 }, (_, i) => i + 1)), tranceGate: { depth: '-inf', open: 50, smooth: 5 } });
+    expect(within(gate).getByText('Trance gate · 16 steps of 1/16 (1 bar), loops · open on 16 of 16 · depth −∞, open 50%, smooth 5 ms')).toBeTruthy();
+    choose(gate, 'Depth', '−12 dB');
+    choose(gate, 'Open', '25%');
+    expect(effect(store, 'tranceGate')!.tranceGate).toEqual({ depth: -12, open: 25, smooth: 5 });
+    fireEvent.change(within(gate).getByRole('slider', { name: /Smooth/ }), { target: { value: '20' } });
+    expect(effect(store, 'tranceGate')!.tranceGate).toEqual({ depth: -12, open: 25, smooth: 20 });
+
+    fireEvent.click(within(gate).getByRole('button', { name: 'Off-beat' }));
+    expect(effect(store, 'tranceGate')).toMatchObject({ step: '1/16', lane: steps([3, 7, 11, 15]), tranceGate: { depth: -12, open: 75, smooth: 20 } });
+    fireEvent.click(within(gate).getByRole('button', { name: '3-3-2' }));
+    expect(effect(store, 'tranceGate')).toMatchObject({ step: '1/16', lane: steps([1, 4, 7, 9, 12, 15]), tranceGate: { open: 75 } });
+    expect(within(gate).getByText('Trance gate · 16 steps of 1/16 (1 bar), loops · open on 6 of 16 · depth −12 dB, open 75%, smooth 20 ms')).toBeTruthy();
+    fireEvent.click(within(gate).getByRole('button', { name: 'Clear' }));
+    expect(effect(store, 'tranceGate')).toMatchObject({ lane: steps(Array.from({ length: 16 }, (_, i) => i + 1)), tranceGate: { open: 100 } });
+    fireEvent.click(within(gate).getByRole('button', { name: 'Straight' }));
+    expect(effect(store, 'tranceGate')).toMatchObject({ step: '1/16', lane: steps(Array.from({ length: 16 }, (_, i) => i + 1)), tranceGate: { depth: -12, open: 50, smooth: 20 } });
+
+    // An on/off lane: Ramp greyed; Randomize and Shift: dice as on other lanes.
+    expect(within(gate).getByText('An on/off lane has no slope')).toBeTruthy();
+    expect(within(gate).getByRole('button', { name: 'Shift: dice' })).toBeTruthy();
+    const grid = screen.getByRole('group', { name: /^What the mod does on/ });
+    expect(within(grid).getByText('Trance gate')).toBeTruthy();
+    expect(within(grid).getAllByTitle(/lane step 1, open$/).length).toBeGreaterThan(0);
+  });
 });
