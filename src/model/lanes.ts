@@ -10,6 +10,7 @@ import {
   DEFAULT_MOD_SCRAMBLE,
   DEFAULT_MOD_STRETCH,
   DEFAULT_MOD_STUTTER,
+  DEFAULT_MOD_TRANCE_GATE,
   MAX_LANE_STEPS,
   isDice,
 } from './types';
@@ -57,6 +58,8 @@ export const LANES: Readonly<Record<LaneTarget, LaneRange>> = {
   freeze: { min: 0, max: 1, zero: 0, step: 1, onOff: true, unit: 'on/off' },
   reverse: { min: 0, max: 1, zero: 0, step: 1, onOff: true, unit: 'on/off' },
   rewind: { min: 0, max: 1, zero: 0, step: 1, onOff: true, unit: 'fires' },
+  // Trance gate: on is open. Open does nothing, so Clear opens every step (see clearTranceGate).
+  tranceGate: { min: 0, max: 1, zero: 1, step: 1, onOff: true, unit: 'open' },
 };
 
 /** Free pitch is drawn in tenths of a semitone. (Claudes val.) */
@@ -120,10 +123,13 @@ const NEW_SETTINGS: Partial<Record<LaneTarget, Partial<StepEffect>>> = {
   freeze: { freeze: DEFAULT_MOD_FREEZE },
   reverse: { reverse: DEFAULT_MOD_REVERSE },
   rewind: { rewind: DEFAULT_MOD_REWIND },
+  tranceGate: { tranceGate: DEFAULT_MOD_TRANCE_GATE },
 };
 
 /** A new step effect: 4 steps of a beat, each at the zero value (Reverb 100, Delay 80, Scramble 50), with the target's own settings. */
 export function newStepEffect(target: LaneTarget): StepEffect {
+  // A new Trance gate is Straight, so it is heard at once: 16 open steps of 1/16.
+  if (target === 'tranceGate') return { target, step: '1/16', lane: Array.from({ length: 16 }, () => ({ v: 1 })), tranceGate: DEFAULT_MOD_TRANCE_GATE };
   const v = NEW_VALUE[target] ?? zeroOf(target);
   const lane = Array.from({ length: 4 }, () => ({ v }));
   const own = NEW_SETTINGS[target] ?? {};
@@ -231,6 +237,13 @@ export function rampLane(effect: StepEffect, up: boolean): LaneStep[] {
 
 /** Clear: every step at the target's zero value, fixed. */
 export const clearLane = (effect: StepEffect): LaneStep[] => effect.lane.map(() => ({ v: zeroOf(effect.target) }));
+
+/** Clear on a Trance gate: every step open and Open 100 %, so it sounds as without the gate. */
+export const clearTranceGate = (effect: StepEffect): StepEffect => ({
+  ...effect,
+  lane: effect.lane.map(() => ({ v: 1 })),
+  tranceGate: { ...(effect.tranceGate ?? DEFAULT_MOD_TRANCE_GATE), open: 100 },
+});
 
 /** The lane `n` steps long (1–16): shorter drops from the end, longer adds copies of the last step. */
 export function setLaneLength(lane: readonly LaneStep[], n: number): LaneStep[] {

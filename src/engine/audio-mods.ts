@@ -81,8 +81,11 @@ export function clipSplice(splice: Splice, from: number, to: number): Splice {
   };
 }
 
+/** The audio mods that play splices: all but Trance gate, which changes the level last (see trance-gate.ts). */
+type SpliceTarget = Exclude<AudioTarget, 'tranceGate'>;
+
 /** The audio mods in the order they win where two act at the same moment: gestures on a step, then cells, then the whole clip. (Claudes val.) */
-export const AUDIO_ORDER: readonly AudioTarget[] = ['rewind', 'stutter', 'freeze', 'reverse', 'scramble', 'halftime'];
+export const AUDIO_ORDER: readonly SpliceTarget[] = ['rewind', 'stutter', 'freeze', 'reverse', 'scramble', 'halftime'];
 
 const EPSILON = 1e-9;
 
@@ -316,7 +319,7 @@ function halftimeSplices(song: Song, window: AudioWindow, effect: HalftimeEffect
   return [effect.keepPitch ? { ...splice, grains: { length: DEFAULT_GRAIN / 1000, offsets: [0] } } : splice];
 }
 
-function targetSplices(song: Song, window: AudioWindow, target: AudioTarget): Splice[] {
+function targetSplices(song: Song, window: AudioWindow, target: SpliceTarget): Splice[] {
   if (target === 'halftime') return halftimeSplices(song, window, halftimeOf(window.run.mod)!);
   const effect = effectFor(window.run.mod, target)!;
   switch (target) {
@@ -386,10 +389,11 @@ export interface AudioClip {
   readonly end: number;
 }
 
-const hasAudio = (run: ModRun | null): run is ModRun => run !== null && (scratchOf(run.mod) !== undefined || AUDIO_ORDER.some((target) => hasTarget(run, target)));
+const hasAudio = (run: ModRun | null): run is ModRun =>
+  run !== null && (scratchOf(run.mod) !== undefined || effectFor(run.mod, 'tranceGate') !== undefined || AUDIO_ORDER.some((target) => hasTarget(run, target)));
 
 /**
- * Where clips with an audio mod or Scratch play, in time order: for each song
+ * Where clips with an audio mod (Trance gate too) or Scratch play, in time order: for each song
  * step B's clip if its mod has one, else A's, a stretch of steps with the same
  * clip one stretch. The export cuts each from the song as heard, as a piece of
  * its own like a tape (Magnus beslut 2026-10-22), also where the mod does nothing.

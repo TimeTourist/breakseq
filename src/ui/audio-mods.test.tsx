@@ -83,7 +83,7 @@ describe('audio mods in Mods', () => {
     const options = within(screen.getByRole('combobox', { name: 'Add effect' }))
       .getAllByRole('option')
       .map((o) => o.textContent);
-    expect(options.slice(-8)).toEqual(['Tape', 'Scratch', 'Scramble', 'Stutter', 'Freeze', 'Reverse', 'Rewind', 'Halftime']);
+    expect(options.slice(-9)).toEqual(['Tape', 'Scratch', 'Scramble', 'Stutter', 'Freeze', 'Reverse', 'Rewind', 'Halftime', 'Trance gate']);
   });
 
   it('Scramble: its sentence, the Source line, Around the clip greyed until Take from is ± bars, and the picture with 🎲 Reroll', async () => {

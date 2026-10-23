@@ -23,6 +23,7 @@ export const TARGET_LABELS: Record<EffectTarget, string> = {
   reverse: 'Reverse',
   rewind: 'Rewind',
   halftime: 'Halftime',
+  tranceGate: 'Trance gate',
 };
 
 /** The order of + Add effect and of a new mod's cards (see Sidan). */
@@ -48,4 +49,5 @@ export const ADD_ORDER: readonly EffectTarget[] = [
   'reverse',
   'rewind',
   'halftime',
+  'tranceGate',
 ];

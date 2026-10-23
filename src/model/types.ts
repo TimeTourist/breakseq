@@ -264,6 +264,8 @@ export const MOD_TARGETS = [
   'halftime',
   // Scratch after them, for the same reason.
   'scratch',
+  // Trance gate after Scratch, for the same reason.
+  'tranceGate',
 ] as const;
 export type ModTarget = (typeof MOD_TARGETS)[number];
 
@@ -315,7 +317,7 @@ export type LaneStep = { readonly v: number } | { readonly lo: number; readonly 
 export const isDice = (step: LaneStep): step is Extract<LaneStep, { lo: number }> => 'lo' in step;
 
 /** Targets with a lane: every target that sets a value on a step, all but Swap and Tempo, and the audio mods but Halftime. */
-export const LANE_TARGETS = ['padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'scramble', 'stutter', 'freeze', 'reverse', 'rewind'] as const;
+export const LANE_TARGETS = ['padMember', 'ratchet', 'pitch', 'volume', 'pan', 'direction', 'stretch', 'dist', 'filter', 'reverb', 'delay', 'scramble', 'stutter', 'freeze', 'reverse', 'rewind', 'tranceGate'] as const;
 export type LaneTarget = (typeof LANE_TARGETS)[number];
 
 /** Targets that set something on a step as it plays: the lanes and Tempo. */
@@ -357,6 +359,8 @@ export interface StepEffect {
   readonly reverse?: ModReverse;
   /** For Rewind only; the value is on (fires) or off. Missing means DEFAULT_MOD_REWIND. */
   readonly rewind?: ModRewind;
+  /** For Trance gate only; the value is open (on) or closed. Missing means DEFAULT_MOD_TRANCE_GATE. */
+  readonly tranceGate?: ModTranceGate;
 }
 
 /**
@@ -364,8 +368,28 @@ export interface StepEffect {
  * som hörs): Main or Fill with the step mods, reverb and delay, and tape;
  * never themselves or one another.
  */
-export const AUDIO_TARGETS = ['scramble', 'stutter', 'freeze', 'reverse', 'rewind', 'halftime'] as const;
+export const AUDIO_TARGETS = ['scramble', 'stutter', 'freeze', 'reverse', 'rewind', 'halftime', 'tranceGate'] as const;
 export type AudioTarget = (typeof AUDIO_TARGETS)[number];
+
+/**
+ * Trance gate (Magnus beslut 2026-10-23): changes only the level of what plays,
+ * in time with its lane. Depth is how quiet a closed step is ('-inf' silent),
+ * Open how much of an open step is heard, Smooth the attack and release of
+ * every edge in ms (1–50).
+ */
+export const TRANCE_DEPTHS = [-6, -12, -24, '-inf'] as const;
+export const TRANCE_OPENS = [25, 50, 75, 100] as const;
+export const MIN_TRANCE_SMOOTH = 1;
+export const MAX_TRANCE_SMOOTH = 50;
+export interface ModTranceGate {
+  /** dB, or '-inf' for silence. */
+  readonly depth: (typeof TRANCE_DEPTHS)[number];
+  /** Percent of an open step that is heard. */
+  readonly open: (typeof TRANCE_OPENS)[number];
+  /** ms, 1–50. */
+  readonly smooth: number;
+}
+export const DEFAULT_MOD_TRANCE_GATE: ModTranceGate = { depth: '-inf', open: 50, smooth: 5 };
 
 /** Cells of the song's grid, in 1/16 steps: 1/32, 1/16, 1/8 or a beat. */
 export const CELL_SIZES = [0.5, 1, 2, 4] as const;
