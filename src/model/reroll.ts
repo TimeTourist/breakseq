@@ -1,6 +1,7 @@
 import type { Command, CommandContext } from './command';
 import { notFound, ok } from './command';
-import type { Clip, Id, Project } from './types';
+import { ownModFor } from './presets';
+import type { Clip, Id, Mod, Project } from './types';
 
 /**
  * Reroll (🎲): new seeds, so what plays at random picks anew. Each is one
@@ -21,23 +22,25 @@ function reseedClips(clips: readonly Clip[], ctx: CommandContext): Clip[] {
   });
 }
 
-/** New seeds for everything: every mod, matrix, pad and clip (copies stay copies). */
+/** New seeds for everything: every mod but the presets, which never change, and every matrix, pad and clip (copies stay copies). */
 export const rerollAll =
   (): Command =>
   (project, ctx) =>
     ok({
       ...project,
-      mods: reseedAll(project.mods, ctx),
+      mods: Object.fromEntries(Object.entries(project.mods).map(([id, m]): [Id, Mod] => [id, m.isPreset === true ? m : reseed(m, ctx)])),
       matrices: reseedAll(project.matrices, ctx),
       pads: reseedAll(project.pads, ctx),
       song: { ...project.song, clips: reseedClips(project.song.clips, ctx) },
     });
 
+/** A mod: a new seed. On a preset, a mod of one's own made from it gets it and takes its clips (see Mod-förval). */
 export const rerollMod =
   (id: Id): Command =>
   (project, ctx) => {
-    const mod = project.mods[id];
-    return mod === undefined ? notFound(id) : ok({ ...project, mods: { ...project.mods, [id]: reseed(mod, ctx) } });
+    if (project.mods[id] === undefined) return notFound(id);
+    const own = ownModFor(project, id, ctx);
+    return ok({ ...own.project, mods: { ...own.project.mods, [own.id]: reseed(own.project.mods[own.id]!, ctx) } });
   };
 
 const reseedPads = (project: Project, ids: readonly Id[], ctx: CommandContext): Project => {

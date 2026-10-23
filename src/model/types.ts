@@ -576,6 +576,8 @@ export interface Mod {
   readonly effects: readonly ModEffect[];
   /** Its randomness: every random choice is worked out from it and where it plays (see Slump och seeds). 0 ≤ seed < 2³². */
   readonly seed: number;
+  /** A preset (see Mod-förval): made in every project and never changed. Missing on a mod of one's own. */
+  readonly isPreset?: true;
 }
 
 export const isStepEffect = (effect: ModEffect): effect is StepEffect => (LANE_TARGETS as readonly string[]).includes(effect.target);
