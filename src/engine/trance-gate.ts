@@ -41,7 +41,10 @@ function openness(gate: Gate, t: number): number {
   let most = Math.max(clamp01(1 - (t - gate.time) / s), clamp01((t - (gate.end - s)) / s));
   for (const open of gate.opens) {
     if (open.time > t) break;
-    most = Math.max(most, clamp01(Math.min((t - open.time) / s, 1 - (t - open.end) / s)));
+    // An open part at the clip's edge goes on from the song round it, open: no edge there.
+    const up = open.time <= gate.time + EPSILON ? 1 : (t - open.time) / s;
+    const down = open.end >= gate.end - EPSILON ? 1 : 1 - (t - open.end) / s;
+    most = Math.max(most, clamp01(Math.min(up, down)));
     if (most >= 1) return 1;
   }
   return most;

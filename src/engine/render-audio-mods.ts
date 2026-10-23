@@ -1,5 +1,7 @@
 import type { Splice } from './audio-mods';
 import { SPLICE_FADE, grainStarts, sourceAt } from './audio-mods';
+import type { Gate } from './trance-gate';
+import { gateGain } from './trance-gate';
 
 /**
  * Plays the audio mods' splices over what is heard (see Mods som samplar det
@@ -73,4 +75,23 @@ export function applySplices(heard: readonly Float32Array[], splices: readonly S
     for (let f = 0; f < total; f++) out[f]! += data[f]! * (1 - Math.min(1, cover[f]!));
     return out;
   });
+}
+
+/**
+ * The Trance gates over what plays (Magnus beslut 2026-10-23): each frame
+ * under a gate times its level there. Last of all, so what is heard, tape,
+ * Scratch and the other audio mods are all gated. In place.
+ */
+export function applyGates(channels: Float32Array[], gates: readonly Gate[], sampleRate: number): Float32Array[] {
+  const total = channels[0]?.length ?? 0;
+  for (const gate of gates) {
+    const first = Math.max(0, Math.ceil(gate.time * sampleRate));
+    const last = Math.min(total, Math.ceil(gate.end * sampleRate));
+    for (let f = first; f < last; f++) {
+      const g = gateGain(gate, f / sampleRate);
+      if (g === 1) continue;
+      for (const data of channels) data[f]! *= g;
+    }
+  }
+  return channels;
 }
