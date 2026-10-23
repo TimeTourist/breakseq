@@ -97,7 +97,9 @@ describe('the mode button', () => {
     const transport = document.querySelector('.transport')!;
     const controls = [...transport.querySelectorAll('button, input')];
     expect(controls[0]!.getAttribute('aria-label')).toBe('Crazy madness. Click for Total control');
-    expect(controls[1]!.textContent).toContain('Go crazy');
+    expect(controls[1]!.getAttribute('aria-label')).toBe('Go crazy');
+    // Only the smiley, so the header fits one row; the words are in the hover text.
+    expect(controls[1]!.textContent).toBe('');
     expect(controls[2]!.getAttribute('aria-label')).toBe('Tempo in BPM');
   });
 

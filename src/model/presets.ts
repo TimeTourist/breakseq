@@ -181,8 +181,7 @@ const audio = (target: 'freeze' | 'reverse' | 'rewind', lane: LaneStep[]): StepE
 export const AUDIO_PRESETS: readonly ModPreset[] = [
   { name: 'Stutter Roll', strength: 'subtle', does: 'Each beat rolls 1/16 → 1/32 → 1/64', effects: () => [{ ...newStepEffect('stutter'), step: '1/16', lane: STUTTER_ROLL }] },
   { name: 'Scratch Baby', strength: 'extreme', does: 'A baby scratch, back and forth, the fader always open', effects: () => [newScratch()] },
-  // TODO(spec): the spec names Freeze, Reverse and Rewind as presets but not their lanes. A new effect of these is all off,
-  // so it would be heard nowhere; they are drawn on the last beat of each bar (Claudes val, to be confirmed).
+  // Freeze, Reverse and Rewind act on the last beat of each bar (Magnus beslut 2026-10-23).
   { name: 'Freeze', strength: 'extreme', does: 'The last beat of each bar frozen to a tone', effects: () => [audio('freeze', fixed(0, 0, 0, 1))] },
   { name: 'Reverse', strength: 'subtle', does: 'The last beat of each bar backwards, 1/16 by 1/16', effects: () => [audio('reverse', fixed(0, 0, 0, 1))] },
   { name: 'Rewind', strength: 'extreme', does: 'Pulls back a beat on the last beat of each bar', effects: () => [audio('rewind', fixed(0, 0, 0, 1))] },

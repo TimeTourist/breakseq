@@ -261,13 +261,6 @@ p {
   border-color: var(--accent);
 }
 
-.go-crazy {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .mode-toggle .smiley {
     transition: transform 0.25s;
