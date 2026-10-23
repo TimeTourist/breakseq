@@ -110,8 +110,6 @@ function rerollChange(before: Project, after: Project): string | null {
 export function describeChange(before: Project, after: Project): string {
   // A project file swaps in everything at once, each part new.
   if (before.audio !== after.audio && before.samples !== after.samples && before.mods !== after.mods && before.song !== after.song) return 'import project';
-  if (before.recipeSeed !== after.recipeSeed && before.samples === after.samples) return 'go crazy';
-  if (before.mode !== after.mode) return after.mode === 'crazy' ? 'switch to Crazy madness' : 'switch to Total control';
   // A removed matrix takes its pads and hits with it: it is the matrix that goes.
   const rerolled = rerollChange(before, after);
   if (rerolled !== null) return rerolled;

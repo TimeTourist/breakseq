@@ -17,4 +17,3 @@ export * from './lanes';
 export * from './scratch';
 export * from './upgrade-mods';
 export * from './presets';
-export * from './crazy';

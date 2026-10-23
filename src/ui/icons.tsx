@@ -80,7 +80,7 @@ export function PinIcon() {
 /** Total control: a classic happy acid smiley (docs/sketches/crazy-smileys.html). */
 export function HappySmiley({ size = 24 }: { readonly size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true" className="smiley">
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true" className="smiley happy">
       <circle cx="50" cy="50" r="46" fill="var(--face)" stroke="var(--ink)" strokeWidth="4" />
       <ellipse cx="36" cy="38" rx="5.5" ry="10" fill="var(--ink)" />
       <ellipse cx="64" cy="38" rx="5.5" ry="10" fill="var(--ink)" />
@@ -90,12 +90,12 @@ export function HappySmiley({ size = 24 }: { readonly size?: number }) {
   );
 }
 
-/** Crazy madness: an acid smiley looking sly, evil and mad (docs/sketches/crazy-smileys.html). */
+/** The acid smiley looking sly, evil and mad (docs/sketches/crazy-smileys.html). */
 export function CrazySmiley({ size = 24 }: { readonly size?: number }) {
   // The lid's clip needs an id of its own on a page with more than one.
   const lid = `lid-${useId().replace(/:/g, '')}`;
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true" className="smiley">
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true" className="smiley crazy">
       <defs>
         <clipPath id={lid}>
           <polygon points="20,100 20,34.4 50,45.6 50,100" />

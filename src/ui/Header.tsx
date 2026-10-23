@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { goCrazy, rerollAll, setBpm, setMode } from '../model';
-import { CrazySmiley, HappySmiley } from './icons';
+import { rerollAll, setBpm } from '../model';
 import { useApp, useProject, useRun, useSelect } from './context';
 import { ConfirmLoad } from './ConfirmLoad';
+import { Logo } from './Logo';
 import { RerollButton } from './RerollButton';
 import { useSnapshots } from './snapshots';
 import { useCommitAfterPause } from './usePause';
@@ -20,10 +20,6 @@ const LABELS: Record<View, string> = {
   song: 'Song',
   project: 'Project',
 };
-
-/** 🎲 in Crazy madness (Magnus beslut 2026-10-23); RerollButton adds "Undo brings it back." */
-const GO_CRAZY =
-  'Go crazy: throw away matrices, loops and the song and build it all again from a new recipe. Samples and your own mods stay.';
 
 interface HeaderProps {
   readonly onView: (view: View) => void;
@@ -45,10 +41,7 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
   const next = history.future[0];
   const undoText = previous === undefined ? 'Nothing to undo' : `Undo: ${describeChange(previous, history.present)} (Ctrl+Z)`;
   const redoText = next === undefined ? 'Nothing to redo' : `Redo: ${describeChange(history.present, next)} (Ctrl+Shift+Z)`;
-  const project = useProject();
-  const bpm = project.song.bpm;
-  const crazy = project.mode === 'crazy';
-  const modeText = crazy ? 'Crazy madness. Click for Total control' : 'Total control. Click for Crazy madness';
+  const bpm = useProject().song.bpm;
   const run = useRun();
   const [draft, setDraft] = useState(String(bpm));
   useEffect(() => {
@@ -66,7 +59,7 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
 
   return (
     <header className="header">
-      <div className="brand">BREAKSEQ</div>
+      <Logo />
       <nav aria-label="Pipeline" className="tabs">
         {VIEWS.map((v, i) => (
           <button
@@ -87,10 +80,6 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
         <span className="rendering muted small" role="status" aria-hidden={!rendering} style={{ visibility: rendering ? 'visible' : 'hidden' }}>
           Rendering…
         </span>
-        {/* First among the buttons on the right, before the tempo (the sketch). The only mode control: Go crazy is 🎲 in Crazy madness (Magnus beslut 2026-10-23). */}
-        <button type="button" className="icon-button mode-toggle" aria-label={modeText} title={modeText} onClick={() => run(setMode(crazy ? 'total' : 'crazy'))}>
-          {crazy ? <CrazySmiley /> : <HappySmiley />}
-        </button>
         <label className="bpm">
           <input
             aria-label="Tempo in BPM"
@@ -157,11 +146,7 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
             <path d="M11 4l3 3-3 3M13.5 7H6a3.5 3.5 0 0 0 0 7h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        {crazy ? (
-          <RerollButton command={goCrazy()} label="Go crazy" title={GO_CRAZY} />
-        ) : (
-          <RerollButton command={rerollAll()} label="Reroll everything" title="Reroll everything: new random choices for every pad, matrix, mod and clip in the project." />
-        )}
+        <RerollButton command={rerollAll()} label="Reroll everything" title="Reroll everything: new random choices for every pad, matrix, mod and clip in the project." />
         <SnapshotButtons />
       </div>
       <Crumbs />
