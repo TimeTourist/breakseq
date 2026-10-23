@@ -4,7 +4,7 @@ import { ProjectFile } from './ProjectFile';
 import type { Folder, SnapshotInfo } from '../engine';
 import { comparable, listSnapshots, loadSnapshot, readManifest, saveSnapshot, writeManifest } from '../engine';
 import type { Project } from '../model';
-import { createProject } from '../model';
+import { newProject as emptyProject } from '../model';
 import { useApp, useSelect } from './context';
 import type { RememberedFolder } from './folders';
 import type { Take } from './playback';
@@ -198,7 +198,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
     guarded('Open another project', async () => {
       const f = await folders?.pick();
       if (f === undefined || f === null) return;
-      if ((await readManifest(f)) === null) await startIn(f, createProject());
+      if ((await readManifest(f)) === null) await startIn(f, emptyProject());
       else await openFolder(f);
     });
 
@@ -212,7 +212,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
         question: `A new project in “${f.name}”. Start it with the work you have now, or empty?`,
         answers: [
           { label: 'Keep the current work', run: () => void attempt(() => startIn(f, work)) },
-          { label: 'Start empty', run: () => guarded('Start empty', () => startIn(f, createProject())) },
+          { label: 'Start empty', run: () => guarded('Start empty', () => startIn(f, emptyProject())) },
           { label: 'Cancel', run: () => undefined },
         ],
       });

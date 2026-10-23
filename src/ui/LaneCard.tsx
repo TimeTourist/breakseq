@@ -34,6 +34,7 @@ import {
   rampsUp,
   randomizeLane,
   setLaneLength,
+  STUTTER_ROLL,
   tranceGatePreset,
   zeroOf,
 } from '../model';
@@ -81,8 +82,6 @@ const percent = (v: number) => `${v}%`;
 const CELLS = CELL_SIZES.map((c) => [c, CELL_TEXT[c]] as const);
 const CELL_TITLES = { '0.5': 'Cells of 1/32', '1': 'Cells of 1/16', '2': 'Cells of 1/8', '4': 'Cells of a beat' };
 
-/** Stutter's preset: 1/16 → 1/32 → 1/64 over a beat (see the sketch). */
-const ROLL: readonly LaneStep[] = [{ v: 1 }, { v: 2 }, { v: 3 }, { v: 3 }];
 
 /** Trance gate's presets under the card, with what each draws. */
 const TRANCE_TITLES: Record<TrancePreset, string> = {
@@ -377,7 +376,7 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
           </button>
         )}
         {effect.target === 'stutter' && (
-          <button type="button" className="small-button preset" title="1/16 → 1/32 → 1/64 over a beat" onClick={() => onChange({ ...effect, step: '1/16', lane: ROLL })}>
+          <button type="button" className="small-button preset" title="1/16 → 1/32 → 1/64 over a beat" onClick={() => onChange({ ...effect, step: '1/16', lane: STUTTER_ROLL })}>
             Roll
           </button>
         )}

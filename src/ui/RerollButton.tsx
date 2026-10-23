@@ -12,15 +12,19 @@ export function RerollButton({
   title,
   text,
   onError,
+  run: runCommand,
 }: {
   command: Command;
+  /** Runs the command, when it is run another way than as it is (on a preset in Mods, opening the mod it makes). */
+  run?: (command: Command) => string | null;
   label: string;
   title: string;
   /** Shown beside 🎲 as a whole button ("🎲 Reroll this clip"); then it is also its name, and `label` is not used. */
   text?: string;
   onError?: (error: string | null) => void;
 }) {
-  const run = useRun();
+  const ownRun = useRun();
+  const run = runCommand ?? ownRun;
   return (
     <button
       type="button"

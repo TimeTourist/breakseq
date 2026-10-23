@@ -4147,3 +4147,33 @@ button.danger:hover:not(:disabled) {
   border-radius: 4px;
   font-size: 12px;
 }
+
+/* Mod presets (Mod-förval): their mark, and their group last in Mods. */
+.preset-mark {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.preset-group {
+  margin-top: 8px;
+}
+
+.preset-note {
+  margin: 0 0 8px;
+}
+
+.preset-mark.compact {
+  padding: 0;
+  border: none;
+  font-size: 12px;
+}
+
+.mods-sidebar .effect-count {
+  flex: none;
+  white-space: nowrap;
+}
