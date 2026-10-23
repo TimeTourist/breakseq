@@ -243,7 +243,8 @@ describe('old projects (Gamla projekt)', () => {
 
   it('leave a project with lanes as it is', () => {
     const { project } = song([{ target: 'volume', step: '1/16', lane: fixed(0, -6) }]);
-    expect(upgradeProject(project)!.mods).toEqual(project.mods);
+    const own = Object.fromEntries(Object.entries(upgradeProject(project)!.mods).filter(([, m]) => m.isPreset !== true));
+    expect(own).toEqual(project.mods);
   });
 
   it('keep values within the lane’s range, and Dist in percent', () => {

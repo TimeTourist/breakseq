@@ -1,3 +1,6 @@
+import type { CommandContext } from './command';
+import { defaultContext } from './command';
+import { addMissingPresets } from './presets';
 import { isSeed, seedOf } from './seed';
 import { upgradeMod } from './upgrade-mods';
 import type { Id, LoopKind, Mod, Project, Song, Step } from './types';
@@ -20,6 +23,9 @@ export function emptySong(bars = DEFAULT_SONG_BARS, bpm = DEFAULT_BPM): Song {
 export function createProject(): Project {
   return { audio: {}, samples: {}, matrices: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() };
 }
+
+/** A new project: empty but for the mod presets (see Mod-förval). */
+export const newProject = (ctx: CommandContext = defaultContext): Project => addMissingPresets(createProject(), ctx);
 
 /** The next free loop name: M1, M2, … for mains and F1, F2, … for fills. */
 export function nextLoopName(project: Project, kind: LoopKind): string {
@@ -46,19 +52,20 @@ const seededAll = <T extends { readonly id: Id; readonly seed: number }>(record:
  * `matrices`). A mod, matrix, pad or clip saved before seeds gets one made
  * from its id, so it sounds the same every time it is loaded. Mods with the
  * forms List, Cycle, Ramp and Random get step lanes (see Gamla projekt). (Claudes val.)
+ * The mod presets it lacks are added; nothing plays them, so it sounds the same.
  */
-export function upgradeProject(saved: unknown): Project | null {
+export function upgradeProject(saved: unknown, ctx: CommandContext = defaultContext): Project | null {
   if (typeof saved !== 'object' || saved === null) return null;
   const matrices = (saved as { matrices?: unknown }).matrices;
   if (typeof matrices !== 'object' || matrices === null) return null;
   const project = saved as Project;
-  return {
+  return addMissingPresets({
     ...project,
     mods: Object.fromEntries(Object.entries(seededAll<Mod>(project.mods)).map(([id, m]) => [id, upgradeMod(m, project)])),
     matrices: seededAll(project.matrices),
     pads: seededAll(project.pads),
     song: { ...project.song, clips: project.song.clips.map((c) => seeded(c)) },
-  };
+  }, ctx);
 }
 
 /** Seconds per step (a 1/16 note). */

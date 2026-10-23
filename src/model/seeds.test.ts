@@ -5,6 +5,7 @@ import { addSample, ownMatrix, setMarkers, setSlicing } from './chain';
 import { addClip, copyClip, pasteClip } from './clips';
 import { addPad, cloneMatrix, copyPad, createLoop, createMatrix, createMatrixFrom, createMod } from './commands';
 import { apply, createHistory, undo } from './history';
+import { addMissingPresets } from './presets';
 import { createProject, upgradeProject } from './project';
 import { rerollAll, rerollClip, rerollMatrix, rerollMod, rerollPad } from './reroll';
 import { isSeed, seedOf } from './seed';
@@ -105,14 +106,16 @@ describe('seeds', () => {
         song: { ...p.song, clips: p.song.clips.map(({ seed, ...rest }) => (void seed, rest)) },
       }),
     ) as unknown;
-    const a = upgradeProject(old)!;
-    const b = upgradeProject(JSON.parse(JSON.stringify(old)) as unknown)!;
+    // The presets it gets at Load are new objects; with the same ids and seeds, the rest is the same every time.
+    const a = upgradeProject(old, sequentialIds())!;
+    const b = upgradeProject(JSON.parse(JSON.stringify(old)) as unknown, sequentialIds())!;
     expect(Object.values(seedsOf(a)).flat().every(isSeed)).toBe(true);
     expect(seedsOf(a)).toEqual(seedsOf(b));
     const pad = only(a.pads)[0]!;
     expect(pad.seed).toBe(seedOf(pad.id));
     // A project with seeds keeps them.
-    expect(seedsOf(upgradeProject(p)!)).toEqual(seedsOf(p));
+    const withPresets = addMissingPresets(p);
+    expect(seedsOf(upgradeProject(withPresets)!)).toEqual(seedsOf(withPresets));
   });
 });
 

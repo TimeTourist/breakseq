@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { addSample, createProject } from '../model';
+import { addSample, createProject, newProject } from '../model';
 import { constantAudio, sequentialIds } from '../test/fixtures';
 import { BACKUP_KEEP } from './backups';
 import { indexedDbBackups, indexedDbStorage } from './persist';
@@ -12,7 +12,7 @@ describe('indexedDbStorage', () => {
 
   it('saves and loads a project with its audio', async () => {
     const ctx = sequentialIds();
-    const result = addSample({ name: 'Amen', audio: constantAudio(0.01, [0.25, -0.5]) })(createProject(), ctx);
+    const result = addSample({ name: 'Amen', audio: constantAudio(0.01, [0.25, -0.5]) })(newProject(), ctx);
     if (!result.ok) throw new Error('addSample failed');
     const factory = new IDBFactory();
 
@@ -27,7 +27,7 @@ describe('indexedDbStorage', () => {
 });
 
 describe('indexedDbBackups', () => {
-  const withSample = (name: string, value: number, project = createProject()) => {
+  const withSample = (name: string, value: number, project = newProject()) => {
     const ctx = { newId: () => `${name}-${Math.random()}`, newSeed: () => 1 };
     const result = addSample({ name, audio: constantAudio(0.01, [value, value]) })(project, ctx);
     if (!result.ok) throw new Error('addSample failed');
@@ -103,7 +103,7 @@ describe('the database before backups', () => {
   it('keeps the autosaved project when backups are added to it', async () => {
     const factory = new IDBFactory();
     const ctx = sequentialIds();
-    const result = addSample({ name: 'Amen', audio: constantAudio(0.01) })(createProject(), ctx);
+    const result = addSample({ name: 'Amen', audio: constantAudio(0.01) })(newProject(), ctx);
     if (!result.ok) throw new Error('addSample failed');
     // Version 1, as it was: one store with the current project.
     await new Promise<void>((resolve) => {

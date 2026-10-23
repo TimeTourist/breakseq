@@ -13,6 +13,7 @@ import type { Config, EffectTarget, Hit, Id, Loop, LoopKind, Matrix, Mod, ModEff
 import { CELL_SIZES, HALFTIME_SPEEDS, MAX_LOOP_STEPS, MAX_TAPE_SPEED, MAX_TAPE_STEPS, NO_CONFIG, STEPS_PER_BAR, STEP_SIZES, STUTTER_GRABS, MAX_TRANCE_SMOOTH, MIN_TRANCE_SMOOTH, TRANCE_DEPTHS, TRANCE_OPENS, isStepEffect } from './types';
 import { laneProblem } from './lanes';
 import { scratchProblem } from './scratch';
+import { ownModFor } from './presets';
 
 type Patch<T> = Partial<Omit<T, 'id'>>;
 
@@ -558,47 +559,51 @@ export const createMod =
   (project, ctx) =>
     setMod(project, { id: ctx.newId(), name, effects, seed: ctx.newSeed() });
 
-/** A copy of a mod, named "<name> copy", with an id and a seed of its own. */
+/** A copy of a mod, named "<name> copy", with an id and a seed of its own; a copy of a preset is a mod of one's own. */
 export const cloneMod =
   (id: Id): Command =>
   (project, ctx) => {
     const mod = project.mods[id];
-    return mod === undefined ? notFound(id) : setMod(project, { ...mod, id: ctx.newId(), name: `${mod.name} copy`, seed: ctx.newSeed() });
+    return mod === undefined ? notFound(id) : setMod(project, { id: ctx.newId(), name: `${mod.name} copy`, effects: mod.effects, seed: ctx.newSeed() });
   };
+
+const PRESET_KEPT = 'A preset is never changed: it is not renamed or deleted';
 
 export const renameMod =
   (id: Id, name: string): Command =>
   (project) => {
     const mod = project.mods[id];
-    return mod === undefined ? notFound(id) : ok({ ...project, mods: { ...project.mods, [id]: { ...mod, name } } });
+    if (mod === undefined) return notFound(id);
+    if (mod.isPreset === true) return invalid(PRESET_KEPT);
+    return ok({ ...project, mods: { ...project.mods, [id]: { ...mod, name } } });
+  };
+
+/**
+ * A change to a mod's effects. On a preset (see Mod-förval) it makes a mod of
+ * one's own from it with the change, which takes the preset's clips; the
+ * preset stays as it is. A change that changes nothing makes nothing.
+ */
+const changeEffects =
+  (id: Id, change: (mod: Mod) => readonly ModEffect[] | CommandResult): Command =>
+  (project, ctx) => {
+    const mod = project.mods[id];
+    if (mod === undefined) return notFound(id);
+    const effects = change(mod);
+    if (!Array.isArray(effects)) return effects as CommandResult;
+    if (mod.isPreset === true && JSON.stringify(effects) === JSON.stringify(mod.effects)) return ok(project);
+    const own = ownModFor(project, id, ctx);
+    return setMod(own.project, { ...own.project.mods[own.id]!, effects });
   };
 
 /** Adds an effect for a target the mod does not have yet. */
-export const addEffect =
-  (id: Id, effect: ModEffect): Command =>
-  (project) => {
-    const mod = project.mods[id];
-    return mod === undefined ? notFound(id) : setMod(project, { ...mod, effects: [...mod.effects, effect] });
-  };
+export const addEffect = (id: Id, effect: ModEffect): Command => changeEffects(id, (mod) => [...mod.effects, effect]);
 
 /** Puts `effect` where the effect for `target` is; it may have another target. */
-export const replaceEffect =
-  (id: Id, target: EffectTarget, effect: ModEffect): Command =>
-  (project) => {
-    const mod = project.mods[id];
-    if (mod === undefined) return notFound(id);
-    if (!mod.effects.some((e) => e.target === target)) return notFound(`${id}:${target}`);
-    return setMod(project, { ...mod, effects: mod.effects.map((e) => (e.target === target ? effect : e)) });
-  };
+export const replaceEffect = (id: Id, target: EffectTarget, effect: ModEffect): Command =>
+  changeEffects(id, (mod) => (mod.effects.some((e) => e.target === target) ? mod.effects.map((e) => (e.target === target ? effect : e)) : notFound(`${id}:${target}`)));
 
-/** Takes an effect out of a mod; the last one stays. */
-export const removeEffect =
-  (id: Id, target: EffectTarget): Command =>
-  (project) => {
-    const mod = project.mods[id];
-    if (mod === undefined) return notFound(id);
-    return setMod(project, { ...mod, effects: mod.effects.filter((e) => e.target !== target) });
-  };
+/** Takes an effect out of a mod. */
+export const removeEffect = (id: Id, target: EffectTarget): Command => changeEffects(id, (mod) => mod.effects.filter((e) => e.target !== target));
 
 // Song
 
@@ -707,6 +712,7 @@ const removeOther =
       case 'loop':
         return ok(dropParts(project, { pads: none, hits: none, loop: id }));
       case 'mod':
+        if (project.mods[id]?.isPreset === true) return invalid(PRESET_KEPT);
         return ok({ ...project, mods: without(project.mods, id), song: { ...project.song, clips: project.song.clips.filter((c) => c.ref !== id) } });
     }
   };

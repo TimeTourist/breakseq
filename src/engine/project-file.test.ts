@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createProject, setSongCell, sliceSample } from '../model';
+import { addSample, createLoop, createProject, newProject, setSongCell, sliceSample } from '../model';
 import { seededRng, sequentialIds } from '../test/fixtures';
 import { PROJECT_FILE_VERSION, ProjectFileError, readProjectFile, writeProjectFile } from './project-file';
 
@@ -20,7 +20,8 @@ describe('project file', () => {
   it('writes and reads back the same project, with the audio bit for bit', () => {
     const rng = seededRng(3);
     const noise = () => Float32Array.from({ length: 4410 }, () => rng() * 2 - 1);
-    let project = run(createProject(), addSample({ name: 'amen.wav', audio: { sampleRate: 48000, channels: [noise(), noise()] } }));
+    // With the presets, as a new project has them: nothing is added at Load.
+    let project = run(newProject(ctx), addSample({ name: 'amen.wav', audio: { sampleRate: 48000, channels: [noise(), noise()] } }));
     const id = Object.keys(project.samples)[0]!;
     project = run(project, sliceSample(id, 1, 4), createLoop(null, 'fill', 1));
     project = run(project, setSongCell('main', 2, Object.values(project.loops)[0]!.id));

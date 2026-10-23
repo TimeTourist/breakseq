@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, Project } from '../model';
-import { addSample, createLoop, createProject, renameLoop } from '../model';
+import { addSample, createLoop, newProject, renameLoop } from '../model';
 import { constantAudio, memoryFolder, sequentialIds } from '../test/fixtures';
 import { comparable, listSnapshots, loadSnapshot, readManifest, saveSnapshot, writeManifest } from './project-folder';
 
@@ -14,7 +14,7 @@ function run(project: Project, ...commands: Command[]): Project {
   }, project);
 }
 
-const amen = () => run(createProject(), addSample({ name: 'amen.wav', audio: constantAudio(0.5, [0.25, -0.5]) }), createLoop('M1', 'main', 1));
+const amen = () => run(newProject(), addSample({ name: 'amen.wav', audio: constantAudio(0.5, [0.25, -0.5]) }), createLoop('M1', 'main', 1));
 
 describe('snapshots in a project folder', () => {
   it('a snapshot loads back as the same project, audio and all', async () => {
