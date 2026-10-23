@@ -86,13 +86,12 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
         <span className="rendering muted small" role="status" aria-hidden={!rendering} style={{ visibility: rendering ? 'visible' : 'hidden' }}>
           Rendering…
         </span>
-        {/* First among the buttons on the right, before the tempo (the sketch); Go crazy right after it, in both modes (Claudes val). */}
+        {/* First among the buttons on the right, before the tempo (the sketch); Go crazy right after it, in both modes, only the smiley (Magnus beslut 2026-10-23). */}
         <button type="button" className="icon-button mode-toggle" aria-label={modeText} title={modeText} onClick={() => run(setMode(crazy ? 'total' : 'crazy'))}>
           {crazy ? <CrazySmiley /> : <HappySmiley />}
         </button>
-        <button type="button" className="go-crazy" title={GO_CRAZY} onClick={() => run(goCrazy())}>
+        <button type="button" className="icon-button go-crazy" aria-label="Go crazy" title={GO_CRAZY} onClick={() => run(goCrazy())}>
           <CrazySmiley size={20} />
-          <span>Go crazy</span>
         </button>
         <label className="bpm">
           <input
