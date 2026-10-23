@@ -1,5 +1,5 @@
 import type { ScramblePicture as Picture } from '../engine';
-import type { LaneStep, ModDelay, ModFilter, ModFreeze, ModRewind, ModScramble, ModStretch, ModStutter, StepEffect, StepSize } from '../model';
+import type { LaneStep, ModDelay, ModFilter, ModFreeze, ModRewind, ModScramble, ModStretch, ModStutter, ModTranceGate, StepEffect, StepSize, TrancePreset } from '../model';
 import {
   CELL_SIZES,
   DEFAULT_MOD_DELAY,
@@ -12,7 +12,13 @@ import {
   DEFAULT_MOD_SCRAMBLE,
   DEFAULT_MOD_STRETCH,
   DEFAULT_MOD_STUTTER,
+  DEFAULT_MOD_TRANCE_GATE,
+  MAX_TRANCE_SMOOTH,
+  MIN_TRANCE_SMOOTH,
   STUTTER_GRABS,
+  TRANCE_DEPTHS,
+  TRANCE_OPENS,
+  TRANCE_PRESETS,
   LANES,
   MAX_FEEDBACK,
   MAX_GRAIN,
@@ -20,6 +26,7 @@ import {
   MIN_GRAIN,
   canRamp,
   clearLane,
+  clearTranceGate,
   inTurn,
   isAudioEffect,
   isDice,
@@ -27,9 +34,10 @@ import {
   rampsUp,
   randomizeLane,
   setLaneLength,
+  tranceGatePreset,
   zeroOf,
 } from '../model';
-import { CELL_TEXT, CURVE_TEXT, GRAB_TEXT, PULL_TEXT, levelText, pitchStep } from './audioText';
+import { CELL_TEXT, CURVE_TEXT, GRAB_TEXT, PULL_TEXT, depthText, levelText, pitchStep } from './audioText';
 import { TrashIcon } from './icons';
 import { DELAY_TIMES, DIST_MODES, sizeText } from './labels';
 import { LaneEditor } from './LaneEditor';
@@ -75,6 +83,13 @@ const CELL_TITLES = { '0.5': 'Cells of 1/32', '1': 'Cells of 1/16', '2': 'Cells 
 
 /** Stutter's preset: 1/16 → 1/32 → 1/64 over a beat (see the sketch). */
 const ROLL: readonly LaneStep[] = [{ v: 1 }, { v: 2 }, { v: 3 }, { v: 3 }];
+
+/** Trance gate's presets under the card, with what each draws. */
+const TRANCE_TITLES: Record<TrancePreset, string> = {
+  Straight: '16 steps of 1/16, all open, Open 50%: 16 pulses a bar',
+  'Off-beat': '16 steps of 1/16, open on the “and” of each beat (steps 3, 7, 11, 15), Open 75%',
+  '3-3-2': '16 steps of 1/16, open on steps 1, 4, 7, 9, 12, 15, Open 75%',
+};
 
 /** "Free" pitch rounded to semitones, when Values goes back to Semitones. */
 const toSemitones = (lane: readonly LaneStep[]): LaneStep[] =>
@@ -258,6 +273,25 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
           </>
         );
       }
+      case 'tranceGate': {
+        const x = effect.tranceGate ?? DEFAULT_MOD_TRANCE_GATE;
+        const set = (patch: Partial<ModTranceGate>, key?: string) => onChange({ ...effect, tranceGate: { ...x, ...patch } }, key);
+        return (
+          <>
+            <Choices label="Depth" options={TRANCE_DEPTHS.map((d) => [d, depthText(d)] as const)} value={x.depth} onPick={(depth) => set({ depth })} titles={{ '-inf': 'A closed step is silent' }} />
+            <Choices
+              label="Open"
+              options={TRANCE_OPENS.map((o) => [o, percent(o)] as const)}
+              value={x.open}
+              onPick={(open) => set({ open })}
+              titles={{ '50': 'Half of each open step is heard: 16 open 1/16 steps give 16 pulses', '100': 'Open steps are heard whole' }}
+            />
+            <div className="lane-slider">
+              <Slider label="Smooth" value={x.smooth} min={MIN_TRANCE_SMOOTH} max={MAX_TRANCE_SMOOTH} step={1} format={(v) => `${v} ms`} onChange={(v) => set({ smooth: v }, 'smooth')} onCommit={onCommit} />
+            </div>
+          </>
+        );
+      }
       default:
         return null;
     }
@@ -275,7 +309,8 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
       <p className="mod-card-sentence" aria-live="polite">
         {laneSentence(effect)}
       </p>
-      {isAudioEffect(effect) && <SourceNote />}
+      {/* TODO(spec): Trance gate gates what plays, other audio mods too, so the Source line would be wrong on it; the spec does not say what its card says instead. */}
+      {isAudioEffect(effect) && effect.target !== 'tranceGate' && <SourceNote />}
       <div className="mod-card-controls">
         <span className="lane-extra-label">Step</span>
         <div className="segmented" role="group" aria-label="Step size">
@@ -323,9 +358,15 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
             {up ? 'Ramp ↗' : 'Ramp ↘'}
           </button>
         </Unheard>
-        <button type="button" className="small-button" title={`Every step back to ${fullValue(effect, zeroOf(effect.target))}, fixed`} onClick={() => setLane(clearLane(effect))}>
-          Clear
-        </button>
+        {effect.target === 'tranceGate' ? (
+          <button type="button" className="small-button" title="Every step open and Open 100%: as without the gate" onClick={() => onChange(clearTranceGate(effect))}>
+            Clear
+          </button>
+        ) : (
+          <button type="button" className="small-button" title={`Every step back to ${fullValue(effect, zeroOf(effect.target))}, fixed`} onClick={() => setLane(clearLane(effect))}>
+            Clear
+          </button>
+        )}
         {effect.target === 'padMember' && (
           <button
             type="button"
@@ -341,6 +382,12 @@ export function LaneCard({ effect, onChange, onCommit, onRemove, rng, members, s
             Roll
           </button>
         )}
+        {effect.target === 'tranceGate' &&
+          (Object.keys(TRANCE_PRESETS) as TrancePreset[]).map((preset) => (
+            <button key={preset} type="button" className="small-button preset" title={TRANCE_TITLES[preset]} onClick={() => onChange(tranceGatePreset(effect, preset))}>
+              {preset}
+            </button>
+          ))}
         {extras()}
       </div>
       <LaneEditor effect={effect} onChange={(lane, done) => (done ? (setLane(lane, 'draw'), onCommit()) : setLane(lane, 'draw'))} />
