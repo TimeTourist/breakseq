@@ -409,7 +409,7 @@ Mottot "Gör kaos lätt" taget till sin spets: slica ett break och få en låt d
 ### Recept
 
 - Crazy bygger efter låtens recept, som är helt dolt: det ska överraska, man hör bara resultatet. Receptet är en seed i projektet (`recipeSeed`), satt när projektet skapas och ny vid Go crazy. *(Seeden: Claudes val.)*
-- Ett recept består av reglerna nedan, och varje regel har tre varianter. Receptet rullas genom att en variant väljs per regel ur receptets seed och regelns namn. Inne i varje variant slumpas det också (vilka pads, vilka takter), ur receptets seed, breakets plats i ordningen och vad som slumpas, så samma projekt bygger samma låt varje gång.
+- Ett recept består av reglerna nedan, och varje regel har två eller tre varianter. Receptet rullas genom att en variant väljs per regel ur receptets seed och regelns namn. Inne i varje variant slumpas det också (vilka pads, vilka takter), ur receptets seed, breakets plats i ordningen och vad som slumpas, så samma projekt bygger samma låt varje gång.
 - Tider räknas i takter av 16: låten byggs i avsnitt om 16 takter.
 - Ett recept gäller hela låten; om nya breaks följer samma stil eller får en egen är också en regel.
 - Varianterna är en fast lista (egna recept: utanför v1).
