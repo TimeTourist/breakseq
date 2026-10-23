@@ -121,10 +121,12 @@ describe('export in Project', () => {
   });
 
   it('Export WAV in Project exports the song as it is now', async () => {
-    const { exportWav } = await setup(build(createLoop('M1', 'main', 1)), null);
+    const { store, exportWav } = await setup(build(createLoop('M1', 'main', 1)), null);
     await click('Export WAV');
     expect(exportWav).toHaveBeenCalledTimes(1);
     expect(loopOf(exportWav.mock.calls[0]![0])).toBe('M1');
+    // The tempo goes in the file name.
+    expect(exportWav.mock.calls[0]![1]).toBe(store.getState().history.present.song.bpm);
   });
 
   it('a snapshot plays and exports from its file, and the work that is open stays as it is', async () => {
@@ -155,7 +157,8 @@ describe('export in Project', () => {
 
     await click('Export Old');
     expect(loopOf(exportWav.mock.calls[0]![0])).toBe('Old groove');
-    expect(exportWav.mock.calls[0]![1]).toBe('Old');
+    expect(exportWav.mock.calls[0]![1]).toBe(old.song.bpm);
+    expect(exportWav.mock.calls[0]![2]).toBe('Old');
 
     expect(Object.values(store.getState().history.present.loops)[0]!.name).toBe('Work');
   });
