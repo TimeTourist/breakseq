@@ -37,8 +37,14 @@ jobs:
       - name: Configure
         run: cmake -S vst -B vst/build -A x64 "-DJUCE_WEBVIEW2_PACKAGE_LOCATION=${{ runner.temp }}\nuget" "-DBREAKSEQ_WEB_ZIP=${{ runner.temp }}\web.zip"
 
+      # Compiler errors also go up as annotations, so they can be read without signing in.
       - name: Build
-        run: cmake --build vst/build --config Release --parallel
+        run: |
+          cmake --build vst/build --config Release --parallel 2>&1 | Tee-Object -FilePath "${{ runner.temp }}\build.log"
+          if ($LASTEXITCODE -ne 0) {
+            Select-String -Path "${{ runner.temp }}\build.log" -Pattern ': (fatal )?error ' | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$($_.Line.Trim())" }
+            exit 1
+          }
 
       - name: C++ tests
         run: vst/build/BreakseqTests_artefacts/Release/BreakseqTests.exe
