@@ -45,6 +45,28 @@ export interface Services {
 export interface Host {
   /** Reason's tempo now, and each time it changes; returns a function that stops listening. */
   readonly onTempo: (listener: (bpm: number) => void) => () => void;
+  /** A press on Song to Audio or Song to MIDI in the plugin's bar; returns a function that stops listening. */
+  readonly onSongTo: (listener: (kind: SongTo) => void) => () => void;
+  /** Reason's sample rate, which the clips are rendered in. */
+  readonly sampleRate: () => Promise<number>;
+  /** The pieces frozen in the instance, or null when it has none. */
+  readonly frozen: () => Promise<Frozen | null>;
+  /** Freezes pieces in the instance: the sampler plays them from then on. */
+  readonly freeze: (pieces: readonly (readonly Float32Array[])[], rate: number, bpm: number, fingerprint: string) => Promise<void>;
+  /** Puts a file in a drag field of the bar, or empties the field with null. */
+  readonly clip: (field: ClipField, file: { readonly name: string; readonly bytes: Uint8Array; readonly label: string } | null) => Promise<void>;
+  /** What the bar says: what is going on, or what went wrong. */
+  readonly status: (text: string, busy: boolean) => void;
+}
+
+export type SongTo = 'audio' | 'midi';
+export type ClipField = 'audio' | 'midi' | 'space';
+
+/** What is frozen in an instance: which pieces (see fingerprint) and the tempo they were made in. */
+export interface Frozen {
+  readonly fingerprint: string;
+  readonly bpm: number;
+  readonly count: number;
 }
 
 /** What a render may be told: when to give up because it is no longer wanted. */

@@ -5,6 +5,7 @@ import type { Project } from '../model';
 import { stepDuration } from '../model';
 import type { BackupInfo } from './backups';
 import { backupDue, summarize } from './backups';
+import { SongTo } from './plugin/SongTo';
 import { followBrowserHistory } from './browserHistory';
 import { AppContext, useApp, useProject, useSelect } from './context';
 import { Header } from './Header';
@@ -472,6 +473,7 @@ export function App({ store, services }: { readonly store: Store; readonly servi
   return (
     <AppContext.Provider value={value}>
       <Shell />
+      {services.host !== undefined && <SongTo />}
     </AppContext.Provider>
   );
 }

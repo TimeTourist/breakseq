@@ -1,15 +1,18 @@
 #pragma once
 
 #include "Mixer.h"
+#include "Sampler.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <array>
 #include <atomic>
 
 /**
  * Breakseq in Reason (docs/vst-spec.md): the page in the editor is the web
  * app; this side keeps the project in the song's state, reports Reason's
- * tempo and plays what the page's player schedules (Mixer).
+ * tempo, plays what the page's player schedules (Mixer) and plays the pieces
+ * Song to MIDI froze when Reason sends notes (Sampler).
  */
 class BreakseqProcessor final : public juce::AudioProcessor
 {
@@ -47,10 +50,31 @@ public:
     void setProject (const juce::String& base64);
 
     Mixer& getMixer() { return mixer; }
+    Sampler& getSampler() { return sampler; }
+
+    /** The bar's drag fields: Song to Audio's WAV, Song to MIDI's MIDI file and its reverb/delay. */
+    enum class Field { audio, midi, space };
+
+    /** A file ready to drag, and what its field says; an empty file is an empty field. */
+    struct Clip
+    {
+        juce::File file;
+        juce::String label;
+    };
+
+    /** Message thread. Kept in the song's state, so the fields are there when it opens again. */
+    Clip getClip (Field field) const { return clips[(size_t) field]; }
+    void setClip (Field field, Clip clip) { clips[(size_t) field] = std::move (clip); }
+
+    /** What the bar says, from the page; not saved. Message thread. */
+    juce::String status;
+    bool busy = false;
 
 private:
     std::atomic<double> bpm { 0.0 };
     Mixer mixer;
+    Sampler sampler;
+    std::array<Clip, 3> clips;
 
     juce::CriticalSection projectLock;
     juce::String project;

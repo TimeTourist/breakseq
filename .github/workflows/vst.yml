@@ -40,7 +40,7 @@ jobs:
       - name: Build
         run: cmake --build vst/build --config Release --parallel
 
-      - name: Mixer tests
+      - name: C++ tests
         run: vst/build/BreakseqTests_artefacts/Release/BreakseqTests.exe
 
       - uses: actions/upload-artifact@v6

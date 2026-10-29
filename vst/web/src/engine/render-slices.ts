@@ -13,7 +13,7 @@ export const SLOT_GAP = 0.01;
  * One piece on its own, as heard: a hit rendered whole, or a tape segment or a
  * clip with an audio mod or Scratch cut from the song as heard.
  */
-async function pieceAudio(project: Project, piece: Piece, song: AudioBuffer, sampleRate: number): Promise<Float32Array[]> {
+export async function pieceAudio(project: Project, piece: Piece, song: AudioBuffer, sampleRate: number): Promise<Float32Array[]> {
   const span = cutSpan(piece);
   if (span !== null) {
     // Under a tape, Scratch or audio mod only what it plays is heard, so the song there is it.
@@ -50,7 +50,7 @@ export async function renderSlices(
  * they sound like the song. Silent under tapes and clips with an audio mod or
  * Scratch, which are pieces of their own. Null when nothing is sent to them.
  */
-async function spaceStem(
+export async function spaceStem(
   project: Project,
   take: Take,
   sampleRate: number,

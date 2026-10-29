@@ -3,15 +3,15 @@ import { hitRun } from '../../engine';
 import { browserFolders } from '../folders';
 import type { Player } from '../playback';
 import { createPlayer } from '../playback';
-import type { Host, Services } from '../services';
+import type { ClipField, Frozen, Host, Services, SongTo } from '../services';
 import { renderers } from '../services';
 import type { Bridge } from './bridge';
-import { bytesToBase64 } from './bridge';
+import { bytesToBase64, floatsToBase64 } from './bridge';
 import { pluginStorage } from './plugin-storage';
 import type { RemoteAudio } from './remote-audio';
 import { remoteAudio } from './remote-audio';
 
-/** Reason's tempo: what it is now, then each change the plugin reports. */
+/** Reason as the page sees it, over the bridge to the plugin's C++ side. */
 export function bridgeHost(bridge: Bridge): Host {
   return {
     onTempo: (listener) => {
@@ -27,6 +27,27 @@ export function bridgeHost(bridge: Bridge): Host {
         live = false;
         stop();
       };
+    },
+    onSongTo: (listener) =>
+      bridge.on('songTo', (kind) => {
+        if (kind === 'audio' || kind === 'midi') listener(kind as SongTo);
+      }),
+    sampleRate: async () => {
+      const rate = ((await bridge.call('hostInfo')) as { sampleRate?: unknown } | null)?.sampleRate;
+      return typeof rate === 'number' && rate > 0 ? rate : 44100;
+    },
+    frozen: async () => {
+      const frozen = ((await bridge.call('hostInfo')) as { frozen?: Frozen | null } | null)?.frozen;
+      return frozen === undefined || frozen === null ? null : frozen;
+    },
+    freeze: async (pieces, rate, bpm, fingerprint) => {
+      await bridge.call('freeze', { rate, bpm, fingerprint, pieces: pieces.map((piece) => piece.map(floatsToBase64)) });
+    },
+    clip: async (field: ClipField, file) => {
+      await bridge.call('clip', file === null ? { field } : { field, name: file.name, label: file.label, data: bytesToBase64(file.bytes) });
+    },
+    status: (text, busy) => {
+      void bridge.call('clipStatus', text, busy);
     },
   };
 }

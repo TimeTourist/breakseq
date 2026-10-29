@@ -15,7 +15,7 @@ bool BreakseqProcessor::isBusesLayoutSupported (const BusesLayout& layouts) cons
     return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
-void BreakseqProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void BreakseqProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
@@ -25,7 +25,9 @@ void BreakseqProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             if (auto hostBpm = position->getBpm())
                 bpm.store (*hostBpm);
 
-    mixer.process (buffer, getSampleRate() > 0.0 ? getSampleRate() : 44100.0);
+    const auto rate = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+    sampler.process (buffer, midi, rate);
+    mixer.process (buffer, rate);
 }
 
 juce::String BreakseqProcessor::getProject() const
@@ -45,11 +47,33 @@ juce::AudioProcessorEditor* BreakseqProcessor::createEditor()
     return new BreakseqEditor (*this);
 }
 
+namespace
+{
+    /** 1: the project. 2: also the frozen pieces and the bar's drag fields. */
+    constexpr int stateVersion = 2;
+    const char* const fieldNames[] { "audio", "midi", "space" };
+}
+
 void BreakseqProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("Breakseq");
-    state.setProperty ("version", 1, nullptr);
+    state.setProperty ("version", stateVersion, nullptr);
     state.setProperty ("project", getProject(), nullptr);
+
+    if (const auto pieces = sampler.getPieces())
+        state.setProperty ("pieces", Sampler::write (*pieces), nullptr);
+
+    for (size_t i = 0; i < clips.size(); ++i)
+    {
+        if (clips[i].file == juce::File())
+            continue;
+
+        juce::ValueTree clip ("Clip");
+        clip.setProperty ("field", fieldNames[i], nullptr);
+        clip.setProperty ("path", clips[i].file.getFullPathName(), nullptr);
+        clip.setProperty ("label", clips[i].label, nullptr);
+        state.appendChild (clip, nullptr);
+    }
 
     juce::MemoryOutputStream out (destData, false);
     state.writeToStream (out);
@@ -59,8 +83,23 @@ void BreakseqProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     const auto state = juce::ValueTree::readFromData (data, (size_t) sizeInBytes);
 
-    if (state.hasType ("Breakseq"))
-        setProject (state.getProperty ("project", "").toString());
+    if (! state.hasType ("Breakseq"))
+        return;
+
+    setProject (state.getProperty ("project", "").toString());
+
+    // Version 1 (phase 1) has no pieces and no fields: as a new instance there.
+    if (const auto* bytes = state.getProperty ("pieces").getBinaryData())
+        sampler.setPieces (Sampler::read (*bytes));
+    else
+        sampler.setPieces (nullptr);
+
+    clips = {};
+
+    for (const auto& clip : state)
+        for (size_t i = 0; i < clips.size(); ++i)
+            if (clip.hasType ("Clip") && clip.getProperty ("field").toString() == fieldNames[i])
+                clips[i] = { juce::File (clip.getProperty ("path").toString()), clip.getProperty ("label").toString() };
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

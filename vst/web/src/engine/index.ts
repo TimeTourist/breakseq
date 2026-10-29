@@ -16,3 +16,4 @@ export { padPicker, NO_PICKS, type PickState, type PadPicker } from './pad-choic
 export { placeRng, passSeed, type Dice } from './random';
 export * from './rex-read';
 export * from './mod-pass';
+export * from './render-song-to';
