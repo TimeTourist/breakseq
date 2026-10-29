@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Breakseq spike</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px; background: #15171b; color: #e8e8e8; font: 14px system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  .row { display: flex; gap: 12px; align-items: center; margin: 8px 0; }
+  button { background: #2b2f36; color: inherit; border: 1px solid #444; border-radius: 4px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  output { font-variant-numeric: tabular-nums; }
+  .ok { color: #7fd17f; } .bad { color: #f07070; }
+</style>
+</head>
+<body>
+<h1>Breakseq – phase 0</h1>
+<div class="row"><button id="hello">Say hello</button><output id="reply">–</output></div>
+<div class="row">Tempo from Reason: <output id="tempo">–</output> BPM · sample rate <output id="rate">–</output></div>
+<div class="row"><button id="plus">+1</button>Counter (saved in the song): <output id="counter">–</output></div>
+<div class="row"><button id="sound">Send test sound</button><output id="soundState">Play C1 after sending.</output></div>
+<p>Below: drag <b>Drag MIDI</b> onto a track in the sequencer, or use <b>Save .mid</b>.</p>
+<script>
+  const backend = window.__JUCE__?.backend;
+  const $ = (id) => document.getElementById(id);
+
+  // Calls a native function registered with withNativeFunction; resolves with its result.
+  const pending = new Map();
+  let nextId = 1;
+  backend?.addEventListener('__juce__complete', ({ promiseId, result }) => {
+    pending.get(promiseId)?.(result);
+    pending.delete(promiseId);
+  });
+  const call = (name, ...params) => new Promise((resolve) => {
+    const resultId = nextId++;
+    pending.set(resultId, resolve);
+    backend.emitEvent('__juce__invoke', { name, params, resultId });
+  });
+
+  // A short sine with a fade, made here as the pieces will be in phase 2.
+  const testSound = (sampleRate) => {
+    const length = Math.round(sampleRate * 0.3);
+    return Array.from({ length }, (_, i) => 0.5 * Math.sin((2 * Math.PI * 220 * i) / sampleRate) * Math.exp((-6 * i) / length));
+  };
+
+  if (!backend) {
+    $('reply').textContent = 'No JUCE backend: this page only works inside the plugin.';
+    $('reply').className = 'bad';
+  } else {
+    let counter = 0;
+    let sampleRate = 44100;
+
+    call('getState').then((state) => {
+      counter = state.counter;
+      sampleRate = state.sampleRate || 44100;
+      $('counter').textContent = counter;
+      $('tempo').textContent = state.bpm.toFixed(2);
+      $('rate').textContent = sampleRate;
+    });
+    backend.addEventListener('tempo', (bpm) => { $('tempo').textContent = Number(bpm).toFixed(2); });
+
+    $('hello').onclick = async () => {
+      $('reply').textContent = await call('hello', 'Reason');
+      $('reply').className = 'ok';
+    };
+    $('plus').onclick = async () => {
+      counter += 1;
+      await call('setCounter', counter);
+      $('counter').textContent = counter;
+    };
+    $('sound').onclick = async () => {
+      const state = await call('getState');
+      sampleRate = state.sampleRate || sampleRate;
+      const count = await call('setSound', testSound(sampleRate));
+      $('soundState').textContent = `${count} samples sent. Play C1.`;
+      $('soundState').className = 'ok';
+    };
+  }
+</script>
+</body>
+</html>

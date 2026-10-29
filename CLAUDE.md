@@ -51,6 +51,8 @@ npm run typecheck  # tsc --noEmit
 npm run lint
 ```
 
+`vst/` byggs av `.github/workflows/vst.yml` på en Windows-runner (CMake + JUCE + WebView2); `.vst3` laddas ner från körningen. Lokalt finns ingen Windows-byggmiljö.
+
 ## Arbetssätt
 
 - Projektet byggs i faser (se `docs/spec.md` och `docs/vst-spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.

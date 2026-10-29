@@ -1,0 +1,34 @@
+# Builds the VST3 in vst/ on Windows on every push that touches it; the plugin is a download on the run.
+name: VST
+
+on:
+  push:
+    branches: [main]
+    paths: [vst/**, .github/workflows/vst.yml]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # JUCE links WebView2 statically and looks for the NuGet package here.
+      - name: WebView2 SDK
+        run: nuget install Microsoft.Web.WebView2 -Version 1.0.3485.44 -OutputDirectory "${{ runner.temp }}\nuget"
+
+      - name: Configure
+        run: cmake -S vst -B vst/build -A x64 "-DJUCE_WEBVIEW2_PACKAGE_LOCATION=${{ runner.temp }}\nuget"
+
+      - name: Build
+        run: cmake --build vst/build --config Release --parallel
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Breakseq-vst3
+          path: vst/build/Breakseq_artefacts/Release/VST3/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Breakseq-standalone
+          path: vst/build/Breakseq_artefacts/Release/Standalone/
