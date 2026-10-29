@@ -17,7 +17,7 @@ Arbetssättet: ladda in några REX-loopar, bygg Matrix, Loops och Song med mods 
 ## Arkitektur
 
 - **Skal:** JUCE 8 (C++), VST3, Windows 64-bit. GUI:t är webbkoden i en `WebBrowserComponent` (WebView2), serverad ur pluginen själv, inte från nätet. *(Magnus beslut.)*
-- **Webbkoden** i `vst/web` är en kopia av `app/` med egna `Services` (se `src/ui/services.ts`): lagring i plugin-state, uppspelning ut genom pluginen, Clip to Reason i stället för exporterna. Rendering sker som i webbappen, med `OfflineAudioContext` i WebView2.
+- **Webbkoden** i `vst/web` är en kopia av `app/` med egna `Services` (se `src/ui/services.ts`): lagring i plugin-state, uppspelning ut genom pluginen, Clip to Reason i stället för exporterna. Rendering sker som i webbappen, med `OfflineAudioContext` i WebView2. Uppspelningen är webbappens spelare på en `AudioContext` som skickar buffrar och volymkurvor till en mixer i C++, som spelar dem på Reasons samplingsklocka. *(Claudes val, fas 1.)*
 - **Samplern** i C++ spelar de frysta bitarna: note-on startar biten på sin tangent, note-off klipper den (som noternas längd i Export MIDI). *(Claudes val att note-off klipper, i linje med Export MIDI.)*
 - **Bygget** görs av ett GitHub Actions-workflow på en Windows-runner i samma repo; `.vst3` laddas ner från körningen. *(Magnus beslut.)*
 
@@ -36,7 +36,7 @@ Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gö
 ## Uppspelning och tempo
 
 - **Play i pluginen** gör som i webbappen och är oberoende av Reasons transport; ljudet går ut genom pluginens utgång, ihop med bitarna som noterna spelar. *(Magnus beslut; Play som följer Reasons transport kan komma senare.)*
-- **Tempo:** låtens tempo är Reasons tempo; tempofältet i headern visar det och är låst. *(Magnus beslut.)* Frysta bitar är renderade i tempot vid Song to MIDI; ändras tempot i Reason efteråt varnar pluginen att bitarna inte längre stämmer med tempot och att en ny Song to MIDI behövs. *(Magnus beslut 2026-10-29.)*
+- **Tempo:** låtens tempo är Reasons tempo; tempofältet i headern visar det och är låst. *(Magnus beslut.)* Tempot är inget ångra-steg: Undo tar det aldrig ifrån Reasons. *(Claudes val.)* När pluginfönstret stängs slutar det Play spelar. *(Claudes val.)* Frysta bitar är renderade i tempot vid Song to MIDI; ändras tempot i Reason efteråt varnar pluginen att bitarna inte längre stämmer med tempot och att en ny Song to MIDI behövs. *(Magnus beslut 2026-10-29.)*
 
 ## Lagring
 
@@ -49,5 +49,5 @@ Undo-historiken sparas inte i låten; den börjar om när låten öppnas, som n�
 | Fas | Innehåll |
 | --- | --- |
 | 0 | Klar 2026-10-29 (se `docs/tasks/vst-fas-0-sammanfattning.md`). Spik: en minimal VST3 som bevisar i Reason 13 att den laddas, visar WebView2, spelar ett ljud på en not, sparar state i låten och att ett MIDI-klipp går att dra ut. Workflowet som bygger den. |
-| 1 | Webbkoden kopieras till `vst/web` och körs i pluginen: alla vyer, Play ut genom pluginen, projektet sparat i Reason-låten, Reasons tempo. |
+| 1 | Klar 2026-10-29 (se `docs/tasks/vst-fas-1-sammanfattning.md`). Webbkoden kopieras till `vst/web` och körs i pluginen: alla vyer, Play ut genom pluginen, projektet sparat i Reason-låten, Reasons tempo. |
 | 2 | Clip to Reason: MIDI (frysning av bitar, samplern, varningarna) och WAV, som dragning. |
