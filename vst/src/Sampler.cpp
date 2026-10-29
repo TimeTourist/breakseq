@@ -42,7 +42,7 @@ void Sampler::noteOn (int key, float velocity, int fadeSamples)
     // The same key again starts the piece again: what played fades out under it.
     noteOff (key, fadeSamples);
 
-    auto* voice = std::find_if (voices.begin(), voices.end(), [] (const Voice& v) { return ! v.active; });
+    auto voice = std::find_if (voices.begin(), voices.end(), [] (const Voice& v) { return ! v.active; });
 
     if (voice == voices.end())
         voice = std::max_element (voices.begin(), voices.end(), [] (const Voice& a, const Voice& b) { return a.position < b.position; });
