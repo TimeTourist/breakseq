@@ -1,0 +1,4212 @@
+:root {
+  --bg: #101113;
+  --surface: #15171a;
+  --sunken: #0c0d0f;
+  --raised: #1f2226;
+  --selected: #2a2e33;
+  --border: #2c3036;
+  --border-strong: #3a3f45;
+  --text: #ece9e2;
+  --muted: #a3a098;
+  --faint: #8c8a84;
+  --accent: #e8b04a;
+  --accent-ink: #1a1408;
+  --accent-bg: #2e2715;
+  --accent-dim: #4a3d1f;
+  --error: #f08a7e;
+  /* The acid smileys of the logo (docs/sketches/crazy-smileys.html). */
+  --face: #ffd400;
+  --ink: #141414;
+  /* A hit's tail over the steps after it: the hit colour, fainter. */
+  --hold: rgb(201 196 184 / 0.55);
+  --sans: 'IBM Plex Sans', 'Helvetica Neue', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #1a1c1f;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--raised);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input,
+select {
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--sunken);
+}
+
+h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+p {
+  margin: 0;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.error {
+  color: var(--error);
+}
+
+.notice {
+  margin: 0;
+  padding: 8px 16px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.push {
+  margin-left: auto;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.self-start {
+  align-self: flex-start;
+}
+
+.self-end {
+  align-self: flex-end;
+}
+
+.label {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.primary {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.primary:hover:not(:disabled) {
+  background: #f5cc7a;
+}
+
+/* Header */
+
+/* Always at the top, over what scrolls under it. */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.brand {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+
+/* The two faces on top of each other; now and then the crazy one shows for a moment (Magnus beslut 2026-10-23). */
+.brand .smiley {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.15s;
+}
+
+.brand .crazy,
+.brand.mad .happy {
+  opacity: 0;
+}
+
+.brand.mad .crazy {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .brand.mad .crazy {
+    animation: brand-mad 1.4s ease-in-out;
+  }
+}
+
+@keyframes brand-mad {
+  0% { transform: rotate(0) scale(1); }
+  20% { transform: rotate(-18deg) scale(1.15); }
+  45% { transform: rotate(14deg) scale(1.1); }
+  70% { transform: rotate(-8deg) scale(1.05); }
+  100% { transform: rotate(0) scale(1); }
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  background: var(--sunken);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.tab {
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab[aria-current='page'] {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tab-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.tab[aria-current='page'] .tab-num {
+  color: var(--accent);
+}
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.status {
+  font-size: 13px;
+  color: var(--error);
+}
+
+.icon-button {
+  width: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--raised);
+  border-color: var(--border-strong);
+}
+
+.icon-button[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.bpm {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 12px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sunken);
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.bpm input {
+  width: 64px;
+  border: none;
+  background: transparent;
+  text-align: right;
+  color: var(--text);
+}
+
+/* Views */
+
+.view {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1440px;
+}
+
+.view-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.view-head.row {
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+/* The same head in every tab: the name with its info under it, and its buttons to the right. */
+.view-head.row > .stack-tight {
+  flex: 1 1 0;
+  min-width: 240px;
+}
+
+.view-head.row > .stack-tight .row {
+  flex-wrap: wrap;
+}
+
+.title-file {
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.field input {
+  width: 80px;
+}
+
+.readout {
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--sunken);
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  background: var(--sunken);
+  padding: 3px;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.segmented button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.errors {
+  margin: 0;
+  padding: 12px 16px 12px 32px;
+  border: 1px solid var(--error);
+  border-radius: 8px;
+  color: var(--error);
+}
+
+.bars {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bars input {
+  width: 64px;
+}
+
+/* Slice */
+
+.slice-box {
+  background: var(--sunken);
+}
+
+.slice-canvas {
+  position: relative;
+  padding: 12px;
+}
+
+.waveform {
+  display: block;
+  width: 100%;
+}
+
+.slice-area {
+  position: relative;
+  padding-top: 20px;
+  touch-action: none;
+}
+
+/* Faint 1/16 lines over the waveform, one per step of the break. */
+.slice-grid {
+  position: absolute;
+  top: 20px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to right, rgb(236 233 226 / 0.09) 1px, transparent 1px);
+}
+
+/* Where each slice lands on the 1/16 grid, drawn like the steps in Loops. */
+.slice-steps {
+  display: grid;
+  gap: 1px;
+  margin-top: 6px;
+}
+
+.slice-step {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: #1a1d21;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #c9c4b8;
+  overflow: hidden;
+}
+
+.slice-step.downbeat {
+  background: #22262b;
+}
+
+.slice-step.selected {
+  color: var(--accent);
+}
+
+.slice-step.clash {
+  background: rgb(240 138 126 / 0.25);
+  outline: 1px solid var(--error);
+  outline-offset: -1px;
+}
+
+.slice-segment {
+  position: absolute;
+  top: 20px;
+  bottom: 0;
+  min-height: 0;
+  padding: 4px 0 0 5px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  align-items: flex-start;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.slice-segment:hover:not(:disabled) {
+  background: rgb(236 233 226 / 0.06);
+  color: var(--text);
+}
+
+.slice-segment.selected {
+  background: rgb(232 176 74 / 0.1);
+  color: var(--accent);
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  min-height: 0;
+  margin-left: -7px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.marker::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 0;
+  left: 6px;
+  width: 2px;
+  background: var(--border-strong);
+}
+
+.marker::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border: 5px solid transparent;
+  border-top: 8px solid #8c8a84;
+}
+
+.marker.selected::before {
+  background: var(--accent);
+}
+
+.marker.selected::after {
+  border-top-color: var(--accent);
+}
+
+.marker.fixed {
+  cursor: default;
+}
+
+.marker:hover:not(:disabled),
+.marker:focus-visible {
+  background: rgb(232 176 74 / 0.12);
+}
+
+.marker:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #22262b;
+  font-size: 14px;
+}
+
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.chain span {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+}
+
+.chain .accent {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* Song */
+
+.lanes-box {
+  background: var(--sunken);
+}
+
+.lanes {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lane {
+  display: grid;
+  gap: 4px;
+}
+
+.lane.disabled {
+  opacity: 0.4;
+}
+
+.ruler {
+  font-size: 12px;
+}
+
+.ruler-cell {
+  text-align: center;
+  padding: 4px 0;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.ruler-cell.downbeat {
+  color: var(--text);
+}
+
+.ruler-cell.now {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.lane-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.lane-key {
+  width: 22px;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.lane-key.main {
+  color: var(--accent);
+}
+
+.cell {
+  height: 56px;
+  min-height: 56px;
+  padding: 0;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-family: var(--mono);
+  background: #16181b;
+  border: 1px solid #24272b;
+  color: var(--muted);
+}
+
+.cell.running {
+  background: var(--accent-bg);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.cell.start {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cell.now {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.cell-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cell-sub {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.chip {
+  min-width: 44px;
+  height: 36px;
+  min-height: 36px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* Only what can be dragged looks it. */
+.chip[draggable='true'] {
+  cursor: grab;
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .view {
+    padding: 16px;
+  }
+
+  .header {
+    padding: 12px 16px;
+  }
+
+  .transport {
+    margin-left: 0;
+  }
+}
+
+/* Shared, phase 3 */
+
+:root {
+  --fill: #5fa8ee;
+  --fill-bg: #16293b;
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.grow-1 {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.grow-2 {
+  flex: 2 1 420px;
+  min-width: 0;
+}
+
+.nowrap {
+  flex-wrap: nowrap;
+}
+
+.spread {
+  justify-content: space-between;
+}
+
+.ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.view.wide {
+  max-width: none;
+}
+
+/* Sidebars stay beside the view; the view shrinks and its grids scroll sideways. */
+.split {
+  display: flex;
+  align-items: stretch;
+  min-height: calc(100vh - 69px);
+}
+
+.split > .view {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.split > .sidebar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .split {
+    flex-wrap: wrap;
+  }
+
+  .split > .view {
+    flex-basis: 100%;
+  }
+}
+
+.sidebar {
+  flex: 0 0 300px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: calc(100vh - 69px);
+  overflow-y: auto;
+  padding: 20px;
+  border-right: 1px solid var(--border);
+  background: #131518;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sidebar.narrow {
+  flex-basis: 240px;
+}
+
+.sidebar.right {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.sidebar-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+}
+
+/* Loops' menu: a loop a line, its name shortened, never wrapped. */
+/* A loop in the menu: its name on one line, its kind and length under it. */
+.loop-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-block: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.loop-item-name {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.loop-item .loop-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-item[aria-current='true'],
+.list-item[aria-pressed='true'] {
+  background: var(--selected);
+  border-color: var(--text);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--raised);
+}
+
+.badge.warn {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.icon-button.small {
+  width: 36px;
+  min-height: 36px;
+  height: 36px;
+  font-size: 14px;
+}
+
+.title-input {
+  /* As wide as the name, the same in every tab. */
+  field-sizing: content;
+  min-width: 6ch;
+  max-width: 100%;
+  align-self: flex-start;
+  font-size: 22px;
+  font-weight: 600;
+  min-height: 44px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0 8px;
+  margin-left: -8px;
+  max-width: 100%;
+}
+
+.title-input:hover,
+.title-input:focus {
+  border-color: var(--border);
+  background: var(--sunken);
+}
+
+.link-chip {
+  min-height: 36px;
+  font-size: 14px;
+  color: var(--accent);
+  background: var(--raised);
+  border-color: var(--raised);
+}
+
+.link-text {
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  text-align: left;
+}
+
+.link-text:hover:not(:disabled) {
+  background: transparent;
+  color: #f5cc7a;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.check input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+.dashed {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--muted);
+}
+
+.segmented.full {
+  width: 100%;
+}
+
+.segmented.full button {
+  flex: 1;
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
+  padding: 0;
+  border: none;
+  background: transparent;
+  min-height: 32px;
+}
+
+input[type='search'] {
+  width: 100%;
+}
+
+/* Tag */
+
+.legend {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #1a1c1f;
+  border: 1px solid var(--border);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.card.attention {
+  border-color: var(--accent);
+}
+
+.mini-wave {
+  background: var(--sunken);
+  border-radius: 6px;
+  padding: 0 4px;
+}
+
+.tag-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+  gap: 4px;
+}
+
+.tag-button {
+  min-height: 40px;
+  padding: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.also {
+  gap: 4px;
+}
+
+.also-button {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+.also-button[aria-pressed='true'] {
+  opacity: 1;
+  border-color: currentColor;
+}
+
+/* Hits */
+
+.wave-panel {
+  background: var(--sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wave-region {
+  position: relative;
+}
+
+.region-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(12 13 15 / 0.75);
+  pointer-events: none;
+}
+
+.slider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/*
+ * A hit's, pad's and matrix's config: small cells side by side, short sliders,
+ * and a mode's own values beside it only while they apply. (Magnus beslut)
+ */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.config-grid .panel {
+  padding: 8px 10px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.config-grid .wide {
+  grid-column: span 2;
+}
+
+.config-grid .label {
+  font-size: 11px;
+}
+
+.config-grid .slider {
+  gap: 4px;
+}
+
+.config-grid .slider-head .mono {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.config-grid .segmented button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+/* A slider inside a cell is part of it, not a cell of its own. */
+.config-grid .panel .panel {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.config-inline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 420px) {
+  .config-grid .wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #1a1c1f;
+  cursor: grab;
+}
+
+.member.first {
+  border-color: var(--accent);
+}
+
+.member-num {
+  width: 20px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.add-list {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.add-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  border-bottom: 1px solid #22262b;
+}
+
+.add-row button {
+  min-height: 36px;
+}
+
+/* Loops */
+
+.loop-name.main {
+  color: var(--accent);
+}
+
+.loop-name.fill {
+  color: var(--fill);
+}
+
+.steps-box {
+  border: none;
+}
+
+.steps {
+  min-width: 820px;
+  /* Room for the window's end handle, which reaches 8 px past the last step. */
+  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-row {
+  display: grid;
+  grid-template-columns: 44px repeat(16, minmax(0, 1fr));
+  gap: 4px;
+  align-items: center;
+}
+
+.step-num {
+  text-align: center;
+}
+
+.step-num.downbeat {
+  color: var(--text);
+}
+
+.step {
+  height: 56px;
+  min-height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: #1a1d21;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-family: var(--mono);
+  overflow: hidden;
+}
+
+.step.downbeat {
+  background: #22262b;
+}
+
+/* How long the step's hit sounds: under its own step, and on as a tail over the empty steps after it. */
+.step {
+  position: relative;
+}
+
+/* A hit and the steps it holds up to the next one, as one box over the cells. */
+.hold {
+  align-self: stretch;
+  z-index: 1;
+  border: 1.5px solid var(--hold);
+  border-radius: 6px;
+  background: rgb(201 196 184 / 0.06);
+  pointer-events: none;
+}
+
+.slice-steps .hold {
+  border-radius: 3px;
+}
+
+.step.selected {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+  background: #33383e;
+}
+
+.step.now {
+  background: var(--selected);
+  filter: brightness(1.35);
+}
+
+.step-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* Song, phase 3 */
+
+.lane-key.fill {
+  color: var(--fill);
+}
+
+.cell.fill.start,
+.cell.fill.running {
+  background: var(--fill-bg);
+  border-color: var(--fill);
+  color: var(--fill);
+}
+
+.cell.fill.running {
+  border-color: #2b4a66;
+}
+
+.cell.hidden {
+  background: #16181b;
+  border-style: dashed;
+  border-color: #5a4a26;
+  color: #a08a52;
+}
+
+.chip.loop-name.fill[aria-pressed='true'] {
+  background: var(--fill-bg);
+  border-color: var(--fill);
+}
+
+.library-label {
+  width: 48px;
+}
+
+@media (max-width: 640px) {
+  .sidebar {
+    flex-basis: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.shelf-group {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.shelf-label {
+  padding-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .shelf-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+.small-button[aria-expanded='true'],
+.icon-button[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.trim-wave {
+  position: relative;
+  touch-action: none;
+}
+
+.trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  min-height: 0;
+  margin-left: -8px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.trim-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 7px;
+  width: 2px;
+  background: var(--accent);
+}
+
+.trim-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.trim-handle:hover:not(:disabled),
+.trim-handle:focus-visible {
+  background: rgb(232 176 74 / 0.15);
+}
+
+.trim-handle:disabled::before,
+.trim-handle:disabled::after {
+  background: var(--faint);
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Fill window */
+
+.window-strip {
+  grid-column: 2 / -1;
+  position: relative;
+  height: 28px;
+  border-radius: 6px;
+  background: #16181b;
+  touch-action: none;
+}
+
+.window-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--fill-bg);
+  border: 1px solid var(--fill);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.window-handle::before,
+.window-handle::after {
+  background: var(--fill);
+}
+
+.window-handle:hover:not(:disabled),
+.window-handle:focus-visible {
+  background: rgb(95 168 238 / 0.18);
+}
+
+.small-button[aria-pressed='true'] {
+  border-color: var(--fill);
+  color: var(--fill);
+}
+
+.step.through {
+  opacity: 0.35;
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgb(232 176 74 / 0.12) 6px 8px);
+}
+
+.cell.partial {
+  border-style: solid;
+}
+
+.cell.fill.silent {
+  background: #16181b;
+  border-style: dashed;
+  border-color: #2b4a66;
+  color: #4d7da8;
+}
+
+.cell.fill.start.partial,
+.cell.fill.running.partial {
+  background-color: #16181b;
+}
+
+/* Mods */
+
+.mod-name {
+  color: #e5689a;
+}
+
+.mod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 6px;
+}
+
+.choice-grid button {
+  min-height: 40px;
+  font-size: 13px;
+}
+
+.choice-grid button[aria-pressed='true'] {
+  background: #381a27;
+  border-color: #e5689a;
+  color: #e5689a;
+}
+
+.shape-editor {
+  grid-column: 1 / -1;
+}
+
+.field.wide {
+  flex: 1 1 320px;
+}
+
+.field.wide input {
+  width: 100%;
+}
+
+.lane-key.mod {
+  color: #e5689a;
+}
+
+.cell.mod.start,
+.cell.mod.running {
+  background: #381a27;
+  border-color: #e5689a;
+  color: #e5689a;
+  overflow: hidden;
+}
+
+.cell.mod.running {
+  border-color: #5c2a3f;
+}
+
+.mod-chip {
+  font-weight: 500;
+  color: #e5689a;
+}
+
+.mod-chip[aria-pressed='true'] {
+  background: #381a27;
+  border-color: #e5689a;
+}
+
+/* Tag, phase 5 */
+
+.badge.auto {
+  background: var(--sunken);
+  color: var(--muted);
+  border: 1px dashed #4a4f55;
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-remove {
+  min-height: 0;
+  height: 18px;
+  width: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.add-tag input {
+  width: 140px;
+  min-height: 32px;
+}
+
+.sensitivity input[type='range'] {
+  width: 120px;
+}
+
+[draggable='true'] {
+  cursor: grab;
+}
+
+.parent-chip {
+  height: 36px;
+  min-height: 36px;
+  font-weight: 600;
+  color: var(--text);
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.parent-chip[aria-pressed='true'] {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The pad shelf scrolls on its own, so steps and pads are on screen together while dragging. */
+.shelf {
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.warn-text {
+  color: var(--accent);
+  margin-left: 6px;
+}
+
+
+
+/* Song timeline */
+
+.timeline-box {
+  background: var(--sunken);
+  /* As wide as the lanes, up to the page. */
+  width: fit-content;
+  max-width: 100%;
+}
+
+.song-timeline {
+  position: relative;
+  padding: 8px 0 12px;
+  /* Room for half a loop handle at each end, so a handle at the song's start or end neither clips nor scrolls. */
+  margin: 0 8px;
+  /* The ruler's two strips: the loop region above, the start point (with the bar numbers) below. */
+  --loop-strip: 16px;
+  --start-strip: 22px;
+}
+
+.timeline-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.timeline-ruler {
+  position: relative;
+  margin-bottom: 6px;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Upper strip: the loop region, dragged to mark; the handles sit here. */
+.ruler-loop-strip {
+  position: relative;
+  height: var(--loop-strip);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+  cursor: col-resize;
+}
+
+/* Lower strip, with the bar numbers: a click sets where Play starts. */
+.ruler-start-strip {
+  position: relative;
+  height: var(--start-strip);
+  cursor: text;
+}
+
+/* The Loop button: on or off, marked as a selected segment is. */
+.loop-toggle {
+  color: var(--muted);
+}
+
+.loop-toggle[aria-pressed='true'] {
+  color: var(--text);
+  font-weight: 600;
+  border-color: var(--text);
+  background: var(--selected);
+}
+
+/* The loop's ends in the upper strip, as Trim's handles; grey while the loop is off. */
+.loop-handle {
+  z-index: 3;
+}
+
+.loop-handle.off::before,
+.loop-handle.off::after {
+  background: var(--muted);
+}
+
+/* The loop's ends go on as lines over the lanes, but never take a click: the start strip and the clips stay reachable. */
+.loop-line {
+  position: absolute;
+  top: calc(8px + var(--loop-strip));
+  bottom: 12px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.loop-line.off {
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.ruler-loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--muted) 25%, transparent);
+  pointer-events: none;
+}
+
+.ruler-loop.on {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Where Play starts, set by a click in the ruler's lower strip. */
+.ruler-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--text);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ruler-cursor::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -6px;
+  border: 5px solid transparent;
+  border-top: 7px solid var(--text);
+}
+
+/* The loop shown over the lanes while it is on. */
+.region-shade.song-shade {
+  z-index: 1;
+}
+
+.ruler-bar {
+  position: absolute;
+  top: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--border-strong);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.timeline-lane {
+  position: relative;
+  height: 56px;
+  border-radius: 6px;
+  /* Steps, beats and bars: 10 px, 40 px and 160 px. */
+  background-color: #16181b;
+  background-image:
+    linear-gradient(to right, #3a3f45 1px, transparent 1px),
+    linear-gradient(to right, #262a2f 1px, transparent 1px),
+    linear-gradient(to right, #1d2024 1px, transparent 1px);
+  background-size: 160px 100%, 40px 100%, 10px 100%;
+}
+
+/* The lane's name in its corner, kept in view while the timeline scrolls; clips cover it. */
+.lane-label {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  padding: 2px 6px;
+  color: var(--muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Each lane is tinted in its colour. */
+.timeline-lane.main {
+  background-color: #1f1b12;
+}
+
+.timeline-lane.fill {
+  background-color: #131b24;
+}
+
+.timeline-lane.modA,
+.timeline-lane.modB {
+  background-color: #22141b;
+}
+
+.drop-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.clip {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  overflow: hidden;
+  cursor: grab;
+}
+
+.clip.fill,
+.clip.tag-fill.main {
+  border-color: var(--fill);
+  background: var(--fill-bg);
+  color: var(--fill);
+}
+
+.clip.modA,
+.clip.modB {
+  border-color: #e5689a;
+  background: #381a27;
+  color: #e5689a;
+}
+
+.clip.selected {
+  outline: 2px solid var(--text);
+  outline-offset: -1px;
+}
+
+/* A trimmed start shows as a notched left edge. */
+.clip.trimmed {
+  border-left-style: dashed;
+  border-left-width: 3px;
+}
+
+.clip-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.clip-step {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+}
+
+.clip-step.restart {
+  border-left: 1px dotted currentColor;
+  opacity: 0.8;
+}
+
+.clip-tick {
+  position: absolute;
+  left: 3px;
+  bottom: 4px;
+  width: 4px;
+  height: 12px;
+  border-radius: 1px;
+  opacity: 0.85;
+}
+
+.clip-label {
+  position: relative;
+  display: block;
+  padding: 4px 8px 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.clip-from {
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.clip-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.clip-edge.start {
+  left: 0;
+}
+
+.clip-edge.end {
+  right: 0;
+}
+
+.clip-edge:hover {
+  background: rgb(236 233 226 / 0.25);
+}
+
+
+/* Mods: each effect reads as a sentence; its words are its controls. */
+
+.sentence {
+  font-size: 18px;
+  line-height: 2.2;
+  margin: 0;
+}
+
+.sentence .word {
+  font: inherit;
+  font-size: 16px;
+  padding: 2px 6px;
+  margin: 0 2px;
+  border: none;
+  border-bottom: 2px solid #e5689a;
+  border-radius: 4px 4px 0 0;
+  background: #2a1820;
+  color: #f2a3c3;
+  min-height: 0;
+  width: auto;
+}
+
+.sentence select.word {
+  cursor: pointer;
+}
+
+.sentence .word.number {
+  width: 5.5em;
+}
+
+.sentence .word.values {
+  min-width: 8em;
+}
+
+.sentence .word.fixed {
+  border-bottom-style: dotted;
+  color: var(--muted);
+}
+
+.sentence .word-group {
+  white-space: nowrap;
+}
+
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+.tape-wobble > .slider {
+  flex: 1 1 220px;
+}
+
+/* A pad whose slice is past its sample's last marker: it plays nothing. */
+.chip.silent,
+.step.silent {
+  opacity: 0.4;
+}
+
+.hit-chip {
+  min-height: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: 12px;
+  cursor: grab;
+}
+
+.hit-chip.first {
+  border-color: var(--border-strong);
+}
+
+.hit-chip.current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* A hit in a slot pad that plays another slice: 15→07. */
+.hit-chip.replaced {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* A break or one-shot icon by a matrix's name. */
+.matrix-kind {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+
+/* Once/Loop and ▶, together wherever something plays. */
+.play-controls {
+  gap: 8px;
+}
+
+/* Where a thing comes from, and the tabs it continues in: links under its name. */
+.nav-row {
+  gap: 4px 14px;
+  flex-wrap: wrap;
+}
+
+.member.current {
+  outline: 1px solid var(--accent);
+}
+
+.add-hits summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.add-hits[open] summary {
+  margin-bottom: 8px;
+}
+
+/* Project: snapshots, newest first, the active one on top. */
+
+.snapshot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.snapshot-row.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.snapshot-row.new {
+  border-style: dashed;
+}
+
+/* Header: Save and New snapshot, with the name asked for just below. */
+
+.snapshot-buttons {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.snapshot-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: min(360px, calc(100vw - 32px));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+.snapshot-popover input {
+  flex: 1;
+  min-width: 0;
+}
+
+.snapshot-row .mono.muted {
+  min-width: 9.5em;
+  font-size: 13px;
+}
+
+.snapshot-name {
+  font-weight: 600;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.55);
+  z-index: 20;
+}
+
+.dialog {
+  max-width: 520px;
+  margin: 16px;
+}
+
+/* A dialog that takes focus itself, not a button in it, shows no ring for that. */
+.dialog:focus {
+  outline: none;
+}
+
+.confirm-delete {
+  min-width: min(360px, calc(100vw - 32px));
+}
+
+.confirm-delete h2 {
+  margin: 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.confirm-delete ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.confirm-buttons {
+  justify-content: flex-end;
+}
+
+button.danger {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+}
+
+/* Where what is dragged from the pad shelf lands, and what it writes over. */
+.hold.landing {
+  z-index: 2;
+  border: 2px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.chip-steps {
+  margin-left: 2px;
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 400;
+}
+
+/* Delete break, with where the break is used next to it. */
+/* Heard in the song: a link to Song by a name, a mark in lists. */
+.in-song {
+  white-space: nowrap;
+}
+
+.in-song-mark {
+  color: var(--accent);
+  font-size: 12px;
+  flex: none;
+}
+
+/* A cue marker of the file, shown in Slice before the break is sliced at them. */
+.cue-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.sidebar .badge {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Pads (layout B): the focus bar, the matrix row, the timeline and the controls under it. */
+.pads-view {
+  min-width: 0;
+}
+
+.focus-bar {
+  gap: 10px 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.focus-pick {
+  gap: 8px;
+  min-width: 0;
+}
+
+.focus-pick select {
+  max-width: min(320px, 60vw);
+}
+
+.take-from {
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.take-from .chip {
+  font-weight: 400;
+  color: var(--text);
+  gap: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.take-from .chip[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.matrix-row {
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.matrix-row.current {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.matrix-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.matrix-select[aria-current='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The timeline scrolls sideways in its own box, never the page (Review Focus 2). */
+.timeline-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--sunken);
+}
+
+.timeline {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: 140px;
+}
+
+/* A pad as wide as it plays, on a raster of steps, beats (every 4) and bars (every 16). */
+.pad-column {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 2px 6px;
+  border-left: 1px solid var(--border-strong);
+  background-image:
+    linear-gradient(to right, var(--accent-dim) 1px, transparent 1px),
+    linear-gradient(to right, var(--border-strong) 1px, transparent 1px),
+    linear-gradient(to right, var(--border) 1px, transparent 1px);
+  background-size:
+    calc(var(--step) * 16) 100%,
+    calc(var(--step) * 4) 100%,
+    var(--step) 100%;
+  background-position:
+    var(--bar-at) 0,
+    var(--beat-at) 0,
+    0 0;
+}
+
+/* Too narrow for every step: beats and bars only. */
+.pad-column.coarse {
+  background-image:
+    linear-gradient(to right, var(--accent-dim) 1px, transparent 1px),
+    linear-gradient(to right, var(--border) 1px, transparent 1px);
+  background-size:
+    calc(var(--step) * 16) 100%,
+    calc(var(--step) * 4) 100%;
+  background-position:
+    var(--bar-at) 0,
+    var(--beat-at) 0;
+}
+
+/* An empty pad takes no steps: narrow, dashed. */
+.pad-column.empty {
+  background: repeating-linear-gradient(135deg, transparent 0 4px, var(--border) 4px 5px);
+  border-left-style: dashed;
+}
+
+.pad-column.current {
+  background-color: var(--accent-bg);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.pad-column.silent {
+  opacity: 0.4;
+}
+
+.pad-head {
+  min-height: 28px;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.pad-column.current .pad-head {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pad-wave {
+  height: 28px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pad-wave .waveform {
+  width: 100%;
+  display: block;
+}
+
+.pad-choice {
+  min-height: 28px;
+  max-width: 100%;
+  padding: 0 4px;
+  font-size: 12px;
+}
+
+.pad-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pad-hits .hit-chip {
+  width: 100%;
+  min-height: 28px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  text-align: center;
+}
+
+/* The first hit plays by default. */
+.pad-hits .hit-chip.first {
+  border-color: var(--text);
+  font-weight: 600;
+}
+
+.pad-hits .hit-chip[aria-current='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* A hit's place in its pad, before its label: muted, so the label reads as the slice (1 08). */
+.pad-hits .hit-place {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.pad-hits .hit-chip[aria-current='true'] .hit-place {
+  color: inherit;
+}
+
+/* What the controls under the timeline are for: Matrix, Pad 08, Hit 2 in pad 08. */
+.controls-heading {
+  margin: 0;
+}
+
+/* The matrices taken from: scrolls in its own box, also while dragging near its edge (U4). */
+.take-from-shelf {
+  max-height: 32vh;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.shelf-head {
+  gap: 8px;
+  min-width: 0;
+}
+
+.shelf-hits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.shelf-hits .hit-chip,
+.all-hits {
+  cursor: grab;
+}
+
+.shelf-hits .hit-chip[aria-pressed='true'],
+.all-hits[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* What a tap picked, until it is placed: on top of the shelf as it scrolls. */
+.pick-note {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  gap: 8px;
+  margin: -8px -10px 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--accent);
+  background: var(--accent-bg);
+  font-size: 13px;
+}
+
+/* While something is picked, a tap on a pad or a hit places it. */
+.timeline-scroll.picking .pad-column {
+  cursor: copy;
+}
+
+/* What a drop does: a pad reads "add", a hit "replace", and a line shows where a moved hit goes. */
+.pad-column {
+  position: relative;
+}
+
+.pad-column[data-drop='add'] {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.pad-column[data-drop='add']::after,
+.pad-hits .hit-chip[data-drop='replace']::after {
+  position: absolute;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.pad-column[data-drop='add']::after {
+  content: 'add';
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pad-hits li {
+  position: relative;
+}
+
+.pad-hits .hit-chip {
+  position: relative;
+}
+
+.pad-hits .hit-chip[data-drop='replace'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.pad-hits .hit-chip[data-drop='replace'] .hit-label {
+  visibility: hidden;
+}
+
+.pad-hits .hit-chip[data-drop='replace']::after {
+  content: 'replace';
+  inset: 3px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pad-hits li.insert-before::before,
+.pad-hits li.insert-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.pad-hits li.insert-before::before {
+  top: -3px;
+}
+
+.pad-hits li.insert-after::after {
+  bottom: -3px;
+}
+
+/* + New matrix: the one-shots to tick, in a box that scrolls. */
+.new-matrix {
+  min-width: min(420px, calc(100vw - 32px));
+}
+
+.new-matrix h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.one-shot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The link row under the tabs: always there, one line, scrolling inside itself when narrow. (Magnus beslut) */
+.crumbs {
+  flex: 1 0 100%;
+  min-width: 0;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Where you are: the step of the tab one is on, plain text, a little larger, centred in the row. (Magnus beslut) */
+.crumb-current {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.crumb-detail {
+  color: var(--muted);
+}
+
+.crumb-sep {
+  color: var(--faint);
+  font-size: 15px;
+}
+
+.crumb-menu {
+  min-height: 28px;
+  padding: 0 6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+}
+
+/* Samples (Magnus beslut): the file list on the left, the selected sample's editor on the right. */
+.samples-view {
+  position: relative;
+  min-height: calc(100vh - 140px);
+}
+
+.samples-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.file-list {
+  flex: 1 1 300px;
+  /* The same width folded or not: its content never widens it. (Magnus beslut) */
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sample-panel {
+  flex: 999 1 560px;
+  min-width: 0;
+}
+
+/* Browse files, the drop hint and Collapse all: one line, never wrapped. (Magnus beslut) */
+.file-list-head {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0 8px 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.file-list-head > button:first-child {
+  flex: none;
+  padding: 0 10px;
+}
+
+.file-list-head .drop-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-list-head .icon-button {
+  flex: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.file-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-row,
+.sample-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-row {
+  padding: 6px 0 2px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.file-row .file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row .icon-button,
+.sample-row .icon-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.file-row .fold {
+  color: var(--accent);
+}
+
+.sample-row {
+  border-radius: 6px;
+}
+
+.sample-row.selected {
+  background: var(--selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* A sample's delete shows on its row when it is hovered, focused or selected. */
+.sample-row > .icon-button {
+  opacity: 0;
+}
+
+.sample-row:hover > .icon-button,
+.sample-row.selected > .icon-button,
+.sample-row > .icon-button:focus-visible {
+  opacity: 1;
+}
+
+.sample-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px 0 18px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+}
+
+.sample-row.selected .sample-pick {
+  color: var(--text);
+}
+
+.sample-pick .mono:first-child {
+  width: 20px;
+}
+
+.faint {
+  color: var(--faint);
+}
+
+.sample-editor .row-label {
+  width: 52px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.trim-row,
+.slices-row {
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.trim-row .field input {
+  width: 72px;
+}
+
+.slices-row {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.slices-row .field input {
+  width: 56px;
+}
+
+.sample-editor .help {
+  margin: 0;
+}
+
+.trim-wave.overview {
+  background: var(--sunken);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* A one shot's waveform is one button: a click plays it. */
+.slice-area.one-shot {
+  display: block;
+  width: 100%;
+  padding: 20px 0 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Files dragged over the page: the whole page takes them. (Magnus beslut) */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  background: rgb(16 17 19 / 0.82);
+  border: 2px dashed var(--accent);
+  pointer-events: none;
+}
+
+.drop-overlay-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.crumb-context {
+  color: var(--muted);
+}
+
+.crumbs .crumb-menu {
+  /* Slim: as wide as what it says, not as its longest item. */
+  field-sizing: content;
+  /* Like the buttons and chips beside it, with a chevron of its own (Magnus beslut). */
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 30px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%23e8b04a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.crumbs .crumb-menu:hover {
+  border-color: var(--faint);
+  background-color: var(--selected);
+}
+
+.crumbs .crumb-menu:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.crumbs .crumb-menu option {
+  background: var(--raised);
+  color: var(--text);
+}
+
+/* Matrices (Magnus beslut): the matrices as a tree on the left, as Samples lists its files; the matrix shown on the right. */
+.matrix-side {
+  flex: 999 1 560px;
+  min-width: 0;
+}
+
+.matrix-list .label {
+  padding-left: 4px;
+}
+
+.matrix-tree-row {
+  gap: 2px;
+  border-top: 2px solid transparent;
+  border-radius: 6px;
+}
+
+/* A dragged matrix row goes before the row it is dropped on: a line shows where. */
+.matrix-tree-row.drop-before {
+  border-top-color: var(--accent);
+}
+
+.matrix-tree-row.dragged {
+  opacity: 0.4;
+}
+
+.matrix-tree-row .grip {
+  color: var(--faint);
+  cursor: grab;
+  padding: 0 2px;
+}
+
+.matrix-pick {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+}
+
+.matrix-pick.shown .file-name {
+  font-weight: 600;
+}
+
+/* The pin: always there, grey, and yellow when pinned. */
+.matrix-list .file-row .pin {
+  flex: none;
+  color: var(--faint);
+}
+
+.matrix-list .file-row .pin.pinned {
+  color: var(--accent);
+}
+
+/* A pad's ▸/▼ always shows, not only on hover or when selected (Magnus beslut). */
+.matrix-list .sample-row > .icon-button {
+  opacity: 1;
+}
+
+.matrix-list .pad-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matrix-list .fold-space {
+  flex: none;
+  width: 36px;
+}
+
+.matrix-list .pad-row .sample-pick,
+.matrix-list .hit-row .sample-pick {
+  min-height: 34px;
+  padding-left: 4px;
+  cursor: grab;
+}
+
+.matrix-list .hit-row .sample-pick {
+  padding-left: 52px;
+}
+
+.matrix-list .in-song-mark {
+  color: var(--accent);
+}
+
+/* The header row of a box: what it is, its actions, and on the right its size and settings. */
+.box-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.box-head > button:not(.icon-button) {
+  min-height: 36px;
+}
+
+.box-head .push {
+  margin-left: auto;
+}
+
+.box-head .pad-plays-label {
+  margin-left: 8px;
+}
+
+.kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.rename-field {
+  min-height: 36px;
+  width: 220px;
+  border-color: var(--accent);
+}
+
+.sound-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.matrix-box.current {
+  /* Yellow frames what is selected, and only that (Magnus beslut): here the matrix. */
+  border-color: var(--accent);
+}
+
+.matrix-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The pads as a grid that wraps downward (Magnus beslut). */
+.pad-grid {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+
+.pad-tile {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sunken);
+}
+
+.pad-tile.current {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.pad-tile.playing {
+  box-shadow: inset 0 0 0 2px var(--accent-dim);
+}
+
+.pad-tile.silent {
+  opacity: 0.4;
+}
+
+.pad-tile .pad-head {
+  min-height: 24px;
+  border-radius: 4px;
+}
+
+.pad-tile.current .pad-head {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pad-tile .pad-empty {
+  text-align: center;
+  padding: 6px 0;
+}
+
+.pad-tile .hit-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 4px 6px;
+  cursor: grab;
+}
+
+.hit-wave {
+  display: block;
+  height: 16px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hit-wave .waveform {
+  width: 100%;
+  display: block;
+}
+
+.pad-tile .hit-chip.replaced {
+  /* Its label says it (04→02); yellow is for what is selected. */
+  color: var(--text);
+  background: var(--sunken);
+}
+
+.pad-tile .hit-chip.replaced[aria-current='true'] {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.pad-tile .hit-line {
+  display: flex;
+  /* Centred, but a long label starts at its place number. */
+  justify-content: safe center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* The empty place after the pads: a drop makes a new pad. */
+.pad-tile.new-pad {
+  min-height: 70px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
+  border-style: dashed;
+  background: transparent;
+}
+
+/* What a drop does, on its target: Copy, or Move (Shift). */
+.pad-tile[data-drop] {
+  border: 1px dashed var(--accent);
+  background: rgb(232 176 74 / 0.12);
+}
+
+.pad-tile[data-drop]:not(.new-pad)::before {
+  content: attr(data-drop);
+  align-self: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.pad-tile.new-pad[data-drop] {
+  color: var(--accent);
+}
+
+/* Where a moved pad goes: a yellow line at that side of the pad, with what happens. */
+.pad-insert {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pad-insert.before {
+  left: -5px;
+}
+
+.pad-insert.after {
+  right: -5px;
+}
+
+.pad-insert-label {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pad-tile .pad-head {
+  cursor: grab;
+}
+
+/* Loops (Magnus beslut): the loops and the matrices to pin in a list, the loop's box, shelf and step on the right. */
+.loops-list .list-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.loops-list .sample-pick {
+  gap: 6px;
+  min-height: 34px;
+  padding-left: 8px;
+}
+
+.loops-list .loop-row .sample-pick {
+  cursor: grab;
+}
+
+.loops-list .grip {
+  color: var(--faint);
+}
+
+/* A dragged loop goes before the row it is dropped on, or last in the group it is dropped on. */
+.loops-list .loop-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.loops-list .file-row.drop-last {
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+  border-radius: 6px;
+}
+
+.loops-list .matrix-pin-row .pin {
+  flex: none;
+  color: var(--faint);
+}
+
+.loops-list .matrix-pin-row .pin.pinned {
+  color: var(--accent);
+}
+
+.loop-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Yellow frames what is selected, and only that (Magnus beslut): the loop's box, or a step. */
+.loop-box.current {
+  border-color: var(--accent);
+}
+
+.loops-view .step.selected {
+  outline-color: var(--accent);
+}
+
+/* A pad over its own steps: one tile, its label at the start. */
+.loops-view .step.wide {
+  align-items: stretch;
+  padding: 0 6px;
+}
+
+.loops-view .step-wave {
+  display: block;
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.loops-view .step-wave .waveform {
+  width: 100%;
+  display: block;
+}
+
+/* Where a hit holds on past its own pad's steps, to the next hit. */
+.hold-tail {
+  align-self: end;
+  height: 6px;
+  margin-bottom: 8px;
+  border-radius: 3px;
+  background: var(--hold);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.member-choice {
+  flex-wrap: wrap;
+}
+
+/* 🎲 Reroll: a small die, the same everywhere. */
+.icon-button.reroll {
+  width: auto;
+  min-width: 32px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* On the selected clip in Song, at its right end, above its edges. */
+.clip-reroll {
+  position: absolute;
+  top: 2px;
+  right: 9px;
+  z-index: 2;
+}
+
+.clip-reroll .icon-button.reroll {
+  min-width: 24px;
+  height: 22px;
+  min-height: 0;
+  padding: 0 3px;
+  font-size: 13px;
+}
+
+/* Mods: the mod's cards, each lane to draw in, and the preview's grid (see Stegrader och fliken Mods). */
+
+.mod-box {
+  border-color: var(--accent);
+  padding: 0;
+}
+
+.mod-box > .box-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mod-title {
+  font-size: 17px;
+  font-weight: 600;
+  padding: 0 4px;
+  max-width: 100%;
+}
+
+.mod-cards {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mod-empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.mod-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #121416;
+  min-width: 0;
+}
+
+.mod-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px 0;
+}
+
+.mod-card-head h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.mod-card-head .icon-button {
+  align-self: center;
+}
+
+.mod-unit {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 0 6px;
+}
+
+.mod-card-sentence {
+  margin: 2px 14px 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.mod-card-body {
+  padding: 4px 14px 12px;
+}
+
+.scramble-picture {
+  padding: 0 14px 14px;
+}
+
+.scramble-picture-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.scramble-picture-head .small-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.scramble-cells {
+  position: relative;
+  height: 172px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0c0d0f;
+  overflow: hidden;
+}
+
+.scramble-cells svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scramble-arrow {
+  fill: none;
+  stroke: #ece9e2;
+  stroke-opacity: 0.75;
+  stroke-width: 1.5;
+}
+
+.scramble-arrow.back {
+  stroke: #7fb3d5;
+  stroke-opacity: 1;
+}
+
+.scramble-cell {
+  position: absolute;
+  height: 34px;
+  border-radius: 2px;
+  color: #ece9e2;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.scramble-cell.reversed {
+  box-shadow: inset 0 -3px 0 #7fb3d5;
+}
+
+.scramble-bar,
+.scramble-clip-label {
+  position: absolute;
+  top: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
+.scramble-clip-label {
+  top: 156px;
+  color: #c39bd3;
+}
+
+.scramble-range {
+  position: absolute;
+  top: 15px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.scramble-clip {
+  position: absolute;
+  top: 117px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid #c39bd3;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.mod-card-source {
+  margin: 2px 14px 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.mod-card-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 14px 8px;
+}
+
+.mod-card-controls .segmented button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-family: var(--mono);
+}
+
+.mod-card-controls .small-button {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.mod-card-controls .small-button.dashed {
+  border-style: dashed;
+  border-color: var(--faint);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mod-card-controls .small-button.preset {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.mod-card-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.lane-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lane-extra-label {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.lane-length {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.lane-length button {
+  min-height: 36px;
+  width: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+}
+
+.lane-length .mono {
+  min-width: 64px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.lane-slider {
+  flex: 0 1 220px;
+  min-width: 160px;
+}
+
+.lane-slider .panel {
+  padding: 8px 10px;
+}
+
+.lane-wrap {
+  padding: 0 14px 12px;
+}
+
+.lane-ruler,
+.lane-values {
+  position: relative;
+  height: 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
+.lane-values {
+  height: 18px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.lane-mark {
+  position: absolute;
+  top: 2px;
+  color: #5a5c60;
+}
+
+.lane-mark.bar {
+  color: var(--muted);
+}
+
+.lane-mark.after {
+  opacity: 0.6;
+}
+
+.lane-values span {
+  position: absolute;
+  top: 0;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.lane-values span.editing {
+  color: var(--accent);
+}
+
+.lane {
+  position: relative;
+  height: 130px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: ns-resize;
+  background-color: var(--sunken);
+  background-image: linear-gradient(90deg, #4a4f56 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px), linear-gradient(90deg, #1b1e22 1px, transparent 1px);
+}
+
+.lane-zero {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #5a5c60;
+  pointer-events: none;
+}
+
+.lane-step,
+.lane-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.lane-step {
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.025);
+}
+
+.lane-step:hover {
+  background: rgb(232 176 74 / 0.07);
+}
+
+.lane-step.editing {
+  background: rgb(232 176 74 / 0.1);
+}
+
+.lane-ghost {
+  pointer-events: none;
+}
+
+.lane-ghost.restart {
+  border-left: 1px dashed rgb(232 176 74 / 0.35);
+}
+
+.lane-shape {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.lane-shape.value {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.lane-shape.band {
+  background: repeating-linear-gradient(135deg, rgb(232 176 74 / 0.5) 0 3px, rgb(232 176 74 / 0.12) 3px 7px);
+  outline: 1px dashed rgb(232 176 74 / 0.9);
+  outline-offset: -1px;
+}
+
+.lane-shape.off {
+  bottom: 4px !important;
+  height: 2px;
+  background: var(--border-strong);
+}
+
+.lane-shape.ghost.value {
+  opacity: 0.2;
+}
+
+.lane-shape.ghost.band {
+  opacity: 0.25;
+}
+
+.lane-after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 6px, rgb(16 17 19 / 0.25) 6px 8px);
+  pointer-events: none;
+}
+
+.lane-end {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+  padding-left: 4px;
+  white-space: nowrap;
+  cursor: help;
+  z-index: 2;
+}
+
+.lane button.lane-dice {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 17px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--raised);
+  font-size: 10px;
+  line-height: 1;
+  z-index: 3;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.lane-step:hover .lane-dice,
+.lane-dice:focus-visible,
+.lane-step.dice .lane-dice {
+  opacity: 1;
+}
+
+.lane-step.dice .lane-dice {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* Without hover (a phone), the 🎲 shows faintly on every step. */
+@media (hover: none) {
+  .lane button.lane-dice {
+    opacity: 0.5;
+  }
+}
+
+.lane button.lane-chance {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  min-height: 0;
+  padding: 0 3px;
+  border: none;
+  border-radius: 3px;
+  background: var(--sunken);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 14px;
+  z-index: 3;
+  cursor: pointer;
+}
+
+.lane-bubble {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.add-effect {
+  min-height: 36px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* A control that does nothing just now: greyed, with its reason beside it (see Reglage som inte hörs). */
+.unheard {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.unheard > :first-child {
+  opacity: 0.45;
+}
+
+.unheard-why {
+  font-size: 12px;
+  color: var(--faint);
+  font-style: italic;
+}
+
+.mod-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.pass-scroll {
+  overflow-x: auto;
+}
+
+.pass-grid {
+  display: grid;
+  gap: 3px;
+  align-items: stretch;
+  min-width: min-content;
+}
+
+.pass-label {
+  align-self: center;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pass-label.loop {
+  font-family: var(--mono);
+  color: var(--accent);
+}
+
+.pass-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  border-radius: 3px;
+  background: var(--sunken);
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow: hidden;
+  color: var(--muted);
+}
+
+.pass-cell.hit {
+  height: 34px;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.pass-cell.hit.beat {
+  border-color: var(--border-strong);
+}
+
+.pass-cell.hit.empty {
+  background: var(--sunken);
+  color: #5a5c60;
+}
+
+.pass-cell.empty:not(.hit) {
+  opacity: 0.35;
+}
+
+.pass-cell.restart {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.pass-cell.now {
+  outline: 1px solid var(--text);
+  outline-offset: -1px;
+}
+
+.pass-cell.swapped {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.pass-bar {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.pass-bar.rolled {
+  background: #f3c873;
+}
+
+.pass-band {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  background: rgb(232 176 74 / 0.18);
+  outline: 1px dashed rgb(232 176 74 / 0.6);
+  outline-offset: -1px;
+}
+
+/* Scratch (see Scratch and the sketch): the needle lane, the speed under each step and the crossfader. */
+.scratch-record {
+  min-height: 30px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.scratch-tools {
+  padding-top: 0;
+}
+
+.scratch-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.scratch-key .forward,
+.scratch-speeds .forward {
+  color: var(--accent);
+}
+
+.scratch-key .backward,
+.scratch-speeds .backward {
+  color: #7fb3d5;
+}
+
+.scratch-key .held,
+.scratch-speeds .held {
+  color: var(--faint);
+}
+
+.scratch-grid {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 3px 8px;
+  align-items: stretch;
+}
+
+.scratch-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  text-align: right;
+}
+
+.scratch-axis.fader {
+  justify-content: center;
+}
+
+.lane.scratch-needle {
+  height: 150px;
+  background-image: linear-gradient(90deg, #4a4f56 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px), linear-gradient(90deg, #1b1e22 1px, transparent 1px),
+    linear-gradient(0deg, #1b1e22 1px, transparent 1px);
+}
+
+.scratch-needle svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scratch-needle path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.scratch-ghost {
+  stroke: var(--faint);
+  stroke-opacity: 0.35;
+  stroke-width: 2;
+}
+
+.scratch-jump {
+  stroke: var(--text);
+  stroke-opacity: 0.6;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+}
+
+.scratch-held {
+  stroke: var(--faint);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.scratch-forward,
+.scratch-backward {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.scratch-forward {
+  stroke: var(--accent);
+}
+
+.scratch-backward {
+  stroke: #7fb3d5;
+}
+
+.scratch-mute {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(135deg, rgb(12 13 15 / 0.75) 0 3px, rgb(12 13 15 / 0.35) 3px 6px);
+  pointer-events: none;
+}
+
+.scratch-mute.ghost {
+  opacity: 0.5;
+}
+
+.scratch-point {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 2px solid var(--sunken);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.scratch-point.forward {
+  background: var(--accent);
+}
+
+.scratch-point.backward {
+  background: #7fb3d5;
+}
+
+.scratch-point.held {
+  background: var(--faint);
+}
+
+.scratch-point.editing {
+  background: var(--text);
+}
+
+.scratch-bubble {
+  position: absolute;
+  padding: 2px 7px;
+  border-radius: 10px;
+  color: #101113;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.scratch-bubble.forward {
+  background: var(--accent);
+}
+
+.scratch-bubble.backward {
+  background: #7fb3d5;
+}
+
+.scratch-bubble.held {
+  background: var(--faint);
+}
+
+.scratch-speeds {
+  position: relative;
+  height: 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.scratch-speeds span {
+  position: absolute;
+  top: 0;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.scratch-fader {
+  position: relative;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.scratch-cell {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  padding: 0;
+  min-height: 0;
+  border: none;
+  border-radius: 3px;
+  background: repeating-linear-gradient(135deg, var(--selected) 0 3px, var(--sunken) 3px 6px);
+  cursor: pointer;
+}
+
+.scratch-cell.open {
+  background: #d8d2c4;
+}
+
+.scratch-cell.ghost {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.scratch-fader button.scratch-cell:hover:not(:disabled) {
+  border: none;
+  background: repeating-linear-gradient(135deg, var(--selected) 0 3px, var(--sunken) 3px 6px);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.scratch-fader button.scratch-cell.open:hover:not(:disabled) {
+  background: #d8d2c4;
+}
+
+.pass-cell.scratch {
+  font-family: var(--mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pass-cell.scratch.forward {
+  color: var(--accent);
+}
+
+.pass-cell.scratch.backward {
+  color: #7fb3d5;
+}
+
+.pass-cell.scratch.held {
+  color: var(--faint);
+}
+
+@media (max-width: 640px) {
+  .mod-card-head,
+  .mod-card-controls,
+  .lane-wrap {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .mod-cards {
+    padding: 8px;
+  }
+}
+
+/* On a phone the Mods list, with Start from, is taller than the screen: it scrolls away above the mod instead of staying over it. */
+@media (max-width: 640px) {
+  .sidebar.mods-sidebar {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* Song (Song-v2, Magnus beslut 2026-10-22): the list with its pins on the left as in Loops, the Song box and the shelf on the right. */
+.song-box .song-top {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+}
+
+.song-list .song-list-group {
+  margin-top: 6px;
+}
+
+/* Song-v2: every clip's seed in its lower right corner, and the selected clip's panel under the timeline. */
+.clip-seed {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 1;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(16 17 19 / 0.7);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.selected-clip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sunken);
+  font-size: 13px;
+}
+
+.selected-clip .push {
+  margin-left: auto;
+  gap: 8px;
+}
+
+.seed-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Mod presets (Mod-förval): their mark, and their group last in Mods. */
+.preset-mark {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.preset-group {
+  margin-top: 8px;
+}
+
+.preset-note {
+  margin: 0 0 8px;
+}
+
+.preset-mark.compact {
+  padding: 0;
+  border: none;
+  font-size: 12px;
+}
+
+.mods-sidebar .effect-count {
+  flex: none;
+  white-space: nowrap;
+}

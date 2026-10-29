@@ -1,0 +1,823 @@
+import { describe, expect, it } from 'vitest';
+import { constantAudio, sequentialIds } from '../test/fixtures';
+import type { Command } from './command';
+import {
+  addSample,
+  addSlicedSample,
+  addTrim,
+  cueMarkers,
+  fileSamples,
+  isUnsliced,
+  makeOneShot,
+  makeSampleFromSlices,
+  markUnsliced,
+  markersForBars,
+  ownMatrix,
+  renameMatrix,
+  renumberConflict,
+  setGrid,
+  setHitSource,
+  setMarkers,
+  setSampleBars,
+  setSlicing,
+  sliceSample,
+  trimSample,
+  retrimConflict,
+  setPoints,
+  unsliceTakes,
+  unsliceUsages,
+} from './chain';
+import { addVariant, copyPad, createLoop, movePad, removeAnyway, replaceHit, setBpm, setStep, updateHit } from './commands';
+import { addClip } from './clips';
+import { matrixSequence } from './lengths';
+import { sampleBpm } from './owners';
+import { emptySong } from './project';
+import { gridMarkers, hitSound, roundBars, sliceName, slotHit as newHit, trimName } from './sound';
+import type { Hit, Id, Matrix, Pad, Project } from './types';
+import { MAX_LOOP_STEPS, NO_CONFIG } from './types';
+
+const ctx = sequentialIds();
+function run(project: Project, ...commands: Command[]): Project {
+  return commands.reduce((p, c) => {
+    const r = c(p, ctx);
+    if (!r.ok) throw new Error(JSON.stringify(r.error));
+    return r.project;
+  }, project);
+}
+
+const emptyProject = (): Project => ({ audio: {}, samples: {}, matrices: {}, hits: {}, pads: {}, loops: {}, mods: {}, song: emptySong() });
+
+/** A 2 s one-bar sample of `slices` equal slices (a quarter is 0.5 s), its id and its own matrix's. */
+function amen(slices = 4, seconds = 2) {
+  const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(seconds) }));
+  const sampleId = Object.keys(start.samples)[0]!;
+  const project = run(start, setSlicing(sampleId, 1), setMarkers(sampleId, Array.from({ length: slices }, (_, i) => i / slices)));
+  return { project, sampleId, matrixId: ownMatrix(project, sampleId)!.id };
+}
+
+/** The top hit of row `row` of a matrix. */
+const rowHit = (project: Project, matrixId: Id, row: number): Hit => project.hits[project.pads[project.matrices[matrixId]!.pads[row]!]!.members[0]!]!;
+/** Where a hit sounds, in seconds of its sample, rounded to ms; null when silent. */
+const heard = (project: Project, hit: Hit) => {
+  const sound = hitSound(project, hit);
+  return sound === null ? null : [+sound.region.start.toFixed(3), +sound.region.end.toFixed(3)];
+};
+const by = <T,>(record: Readonly<Record<Id, T>>, test: (x: T) => boolean): T => Object.values(record).find(test)!;
+
+/** A matrix "Snares" built by hand, with one pad per [sampleId, slice] given, each a copy (decision 8). */
+function withSnares(project: Project, ...plays: (readonly [Id, number])[]): { project: Project; matrixId: Id; hits: Id[]; pads: Id[] } {
+  const hits: Hit[] = plays.map(([sampleId, slice], i) => newHit(`snare-hit-${i}`, `snare ${i}`, sampleId, slice));
+  const pads: Pad[] = hits.map((h, i) => ({ id: `snare-pad-${i}`, name: `Snares 0${i + 1}`, members: [h.id], choice: 'top', config: NO_CONFIG, seed: 0 }));
+  const matrix: Matrix = { id: 'snares', name: 'Snares', pads: pads.map((p) => p.id), config: NO_CONFIG, sampleId: null, loop: null, seed: 0 };
+  return {
+    project: {
+      ...project,
+      hits: { ...project.hits, ...Object.fromEntries(hits.map((h) => [h.id, h])) },
+      pads: { ...project.pads, ...Object.fromEntries(pads.map((p) => [p.id, p])) },
+      matrices: { ...project.matrices, [matrix.id]: matrix },
+    },
+    matrixId: matrix.id,
+    hits: hits.map((h) => h.id),
+    pads: pads.map((p) => p.id),
+  };
+}
+
+describe('the automatic chain', () => {
+  it('a new file is a sample and a one-shot matrix', () => {
+    const project = run(emptyProject(), addSample({ name: 'kick.wav', audio: constantAudio(0.5) }));
+    const sample = Object.values(project.samples)[0]!;
+    expect(sample).toMatchObject({ name: 'kick.wav', trim: 1, bars: null, markers: [0] });
+    const matrix = Object.values(project.matrices)[0]!;
+    expect(matrix).toMatchObject({ name: 'kick 1', sampleId: sample.id, loop: null, config: NO_CONFIG });
+    expect(matrix.pads).toHaveLength(1);
+    const pad = project.pads[matrix.pads[0]!]!;
+    expect(pad).toMatchObject({ name: 'kick 1', choice: 'top', config: NO_CONFIG });
+    expect(pad.members).toHaveLength(1);
+    expect(project.hits[pad.members[0]!]).toMatchObject({ name: 'kick 1', sampleId: sample.id, slice: 0, variantOf: null });
+    expect(ownMatrix(project, sample.id)).toBe(matrix);
+  });
+
+  it('slicing makes the own matrix one pad per slice and a loop the first time', () => {
+    const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(8) }));
+    const sampleId = Object.keys(start.samples)[0]!;
+    const project = run(start, sliceSample(sampleId, 4));
+    const matrix = ownMatrix(project, sampleId)!;
+    expect(project.samples[sampleId]!.markers).toHaveLength(64);
+    expect(matrix.pads).toHaveLength(64);
+    expect(sampleBpm(project.samples[sampleId]!)).toBeCloseTo(120);
+    const loop = project.loops[matrix.loop!]!;
+    expect(loop).toMatchObject({ name: 'amen 1', kind: 'main' });
+    expect(loop.steps).toHaveLength(64);
+    expect(loop.steps.map((s) => s.padId)).toEqual(matrix.pads);
+    // Not sliced and sliced again: still one loop.
+    const again = run(project, setSlicing(sampleId, null), setSlicing(sampleId, 4));
+    expect(Object.values(again.loops)).toHaveLength(1);
+  });
+
+  it('slicing a one-shot keeps pad 01 as the first slice row', () => {
+    const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const sampleId = Object.keys(start.samples)[0]!;
+    const before = ownMatrix(start, sampleId)!;
+    const project = run(start, setSlicing(sampleId, 1));
+    const matrix = ownMatrix(project, sampleId)!;
+    expect(project.samples[sampleId]!.markers).toHaveLength(16);
+    expect(matrix.pads).toHaveLength(16);
+    expect(matrix.pads[0]).toBe(before.pads[0]);
+    expect(project.pads[matrix.pads[0]!]!.name).toBe('amen 1 01');
+    const first = rowHit(project, matrix.id, 0);
+    expect(first).toMatchObject({ id: rowHit(start, matrix.id, 0).id, name: 'amen 1 01', slice: 0 });
+    expect(rowHit(project, matrix.id, 6)).toMatchObject({ name: 'amen 1 07', sampleId, slice: 6 });
+  });
+
+  it('moving a marker changes the sound of every hit of that slice, copies too', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const { project, hits } = withSnares(p0, [sampleId, 1]);
+    expect(heard(project, project.hits[hits[0]!]!)).toEqual([0.5, 1]);
+    const moved = run(project, setMarkers(sampleId, [0, 0.3, 0.5, 0.75]));
+    expect(heard(moved, moved.hits[hits[0]!]!)).toEqual([0.6, 1]);
+    expect(heard(moved, rowHit(moved, matrixId, 1))).toEqual([0.6, 1]);
+  });
+
+  it('more slices give the own matrix new pads; fewer leave the last silent', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    expect(heard(project, rowHit(project, matrixId, 2))).toEqual([1, 1.5]);
+
+    const fewer = run(project, setMarkers(sampleId, [0, 0.25, 0.75]));
+    expect(heard(fewer, rowHit(fewer, matrixId, 1))).toEqual([0.5, 1.5]);
+    expect(heard(fewer, rowHit(fewer, matrixId, 2))).toEqual([1.5, 2]);
+    expect(heard(fewer, rowHit(fewer, matrixId, 3))).toBeNull();
+    // Its pad stays, to sound again with more slices. Sliced first on 1/16, it has 16 rows, so a 17th is new.
+    expect(fewer.matrices[matrixId]!.pads).toEqual(project.matrices[matrixId]!.pads);
+    const more = run(fewer, setMarkers(sampleId, Array.from({ length: 17 }, (_, i) => i / 17)));
+    expect(heard(more, rowHit(more, matrixId, 3))).not.toBeNull();
+    expect(more.matrices[matrixId]!.pads).toHaveLength(17);
+    expect(rowHit(more, matrixId, 16)).toMatchObject({ name: 'amen 1 17', sampleId, slice: 16 });
+  });
+
+  it('only the own matrix gets rows; other matrices keep theirs', () => {
+    const { project: p0, sampleId } = amen(4);
+    const { project, matrixId } = withSnares(p0, [sampleId, 1]);
+    const more = run(project, setMarkers(sampleId, Array.from({ length: 20 }, (_, i) => i / 20)));
+    expect(more.matrices[matrixId]).toEqual(project.matrices[matrixId]);
+  });
+
+  it("a hit's region is a part of its slice and follows it", () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const hit = rowHit(project, matrixId, 1);
+    const half = run(project, updateHit(hit.id, { region: { start: 0.5, end: 1 } }));
+    expect(heard(half, half.hits[hit.id]!)).toEqual([0.75, 1]);
+    const longer = run(half, setMarkers(sampleId, [0, 0.25, 0.75]));
+    expect(heard(longer, longer.hits[hit.id]!)).toEqual([1, 1.5]);
+  });
+
+  it('trimming the sample takes the markers and regions along', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const trimmed = run(project, trimSample(sampleId, 0, 1));
+    expect(heard(trimmed, rowHit(trimmed, matrixId, 1))).toEqual([0.25, 0.5]);
+    expect(sampleBpm(trimmed.samples[sampleId]!)).toBeCloseTo(240);
+  });
+
+  describe('slice points in the file and a new trim (Magnus beslut)', () => {
+    const fileTimes = (project: Project, sampleId: Id) => {
+      const s = project.samples[sampleId]!;
+      return s.markers.map((m) => +(s.offset + m * s.duration).toFixed(3));
+    };
+    /** Amen with slice points at 0.5, 1.1 and 1.5 s and one outside the trim, at 1.8 s, which ends at 1.7 s. */
+    function pointed() {
+      const { project: p0, sampleId, matrixId } = amen(4);
+      const project = run(p0, trimSample(sampleId, 0, 1.7), setPoints(sampleId, [0.5, 1.1, 1.5, 1.8]));
+      return { project, sampleId, matrixId };
+    }
+
+    it('the markers are the points within the trim', () => {
+      const { project, sampleId } = pointed();
+      expect(fileTimes(project, sampleId)).toEqual([0, 0.5, 1.1, 1.5]);
+      expect(project.samples[sampleId]!.points).toEqual([0.5, 1.1, 1.5, 1.8]);
+    });
+
+    it('points stay where they are in the file; one near the new start or end is no marker, and comes back', () => {
+      const { project, sampleId } = pointed();
+      // 0.5 is 10 ms from the new start, 1.5 is 20 ms from the new end.
+      const trimmed = run(project, trimSample(sampleId, 0.49, 1.52));
+      expect(fileTimes(trimmed, sampleId)).toEqual([0.49, 1.1]);
+      const wider = run(trimmed, trimSample(sampleId, 0.4, 2));
+      expect(fileTimes(wider, sampleId)).toEqual([0.4, 0.5, 1.1, 1.5, 1.8]);
+    });
+
+    it('a marker moved by hand stays in the file, and points outside the trim stay', () => {
+      const { project, sampleId } = pointed();
+      const s = project.samples[sampleId]!;
+      const moved = run(project, setMarkers(sampleId, [0, 0.6 / s.duration, 1.1 / s.duration, 1.5 / s.duration]));
+      expect(moved.samples[sampleId]!.points!.map((t) => +t.toFixed(3))).toEqual([0.6, 1.1, 1.5, 1.8]);
+      expect(fileTimes(run(moved, trimSample(sampleId, 0.3, 1.7)), sampleId)).toEqual([0.3, 0.6, 1.1, 1.5]);
+    });
+
+    it('bars still at the guess are guessed again, and a grid is laid again over the trim; bars set by hand stay', () => {
+      const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(8) }));
+      const sampleId = Object.keys(start.samples)[0]!;
+      // 4 bars in 8 s is the guess (120 BPM): half of it guesses 2.
+      const guessed = run(start, setSlicing(sampleId, 4), trimSample(sampleId, 1, 5));
+      expect(guessed.samples[sampleId]).toMatchObject({ bars: 2 });
+      expect(fileTimes(guessed, sampleId).slice(0, 3)).toEqual([1, 1.125, 1.25]);
+      expect(guessed.samples[sampleId]!.markers).toHaveLength(32);
+      const byHand = run(start, setSlicing(sampleId, 8), trimSample(sampleId, 0, 4));
+      expect(byHand.samples[sampleId]).toMatchObject({ bars: 8 });
+    });
+
+    it('asks first only when a slice played more than once changes number or goes', () => {
+      const { project: p0, sampleId } = pointed();
+      const { project } = withSnares(p0, [sampleId, 1]);
+      // The last slice goes: slice 1 keeps its number.
+      expect(retrimConflict(project, sampleId, 0, 1.52)).toBeNull();
+      // The marker of slice 1 goes: it is slice 2's now.
+      expect(retrimConflict(project, sampleId, 0.6, 1.7)?.slices).toEqual([1]);
+      expect(retrimConflict(project, sampleId, 0.6, 1.7)?.pads).toContain('snare-pad-0');
+    });
+
+    it('New trim leaves the sample as it was and trims a new one for its matrix, with its own copy of the points', () => {
+      const { project, sampleId, matrixId } = pointed();
+      const trimmed = run(project, trimSample(sampleId, 0.6, 2, true));
+      expect(trimmed.samples[sampleId]).toEqual(project.samples[sampleId]);
+      const fresh = trimmed.matrices[matrixId]!.sampleId!;
+      expect(fresh).not.toBe(sampleId);
+      expect(fileTimes(trimmed, fresh)).toEqual([0.6, 1.1, 1.5, 1.8]);
+    });
+
+    it('not sliced any more, it has no points', () => {
+      const { project, sampleId } = pointed();
+      expect(run(project, setSlicing(sampleId, null)).samples[sampleId]!.points).toBeUndefined();
+    });
+  });
+
+  it('a hit replaced to another sample is no longer a variant', () => {
+    let { project, matrixId } = amen(4);
+    project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const snare = by(project.samples, (s) => s.name === 'snare.wav');
+    const original = rowHit(project, matrixId, 0).id;
+    project = run(project, addVariant(original));
+    const variant = by(project.hits, (h) => h.variantOf === original).id;
+    // Another slice of the same sample keeps it a variant; another sample does not.
+    const sameSample = run(project, setHitSource(variant, project.hits[original]!.sampleId, 2));
+    expect(sameSample.hits[variant]!.variantOf).toBe(original);
+    expect(run(project, setHitSource(variant, snare.id, 0)).hits[variant]!.variantOf).toBeNull();
+  });
+
+  it('removing the original clears its variants', () => {
+    let { project, matrixId } = amen(4);
+    const original = rowHit(project, matrixId, 0).id;
+    project = run(project, addVariant(original));
+    const variant = by(project.hits, (h) => h.variantOf === original).id;
+    const gone = run(project, removeAnyway('hit', original));
+    expect(gone.hits[variant]!.variantOf).toBeNull();
+  });
+
+  it('a hit can play another slice or sample, keeping its settings', () => {
+    let { project, matrixId } = amen(4);
+    project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const snare = by(project.samples, (s) => s.name === 'snare.wav');
+    const hit = rowHit(project, matrixId, 0);
+    project = run(project, updateHit(hit.id, { pitch: -3, fadeOut: 20 }), setHitSource(hit.id, snare.id, 0));
+    expect(project.hits[hit.id]).toMatchObject({ sampleId: snare.id, slice: 0, pitch: -3, fadeOut: 20 });
+    expect(heard(project, project.hits[hit.id]!)).toEqual([0, 0.3]);
+    expect(setHitSource(hit.id, 'nothing', 0)(project, ctx).ok).toBe(false);
+    expect(setHitSource(hit.id, snare.id, -1)(project, ctx).ok).toBe(false);
+  });
+});
+
+/** Adds a pad by hand, last in a matrix, with one hit playing `[sampleId, slice]`. */
+function handPad(project: Project, matrixId: Id, sampleId: Id, slice: number | null, id = 'hand'): Project {
+  const hit = newHit(`${id}-hit`, id, sampleId, slice);
+  const pad: Pad = { id, name: id, members: [hit.id], choice: 'top', config: NO_CONFIG, seed: 0 };
+  const matrix = project.matrices[matrixId]!;
+  return {
+    ...project,
+    hits: { ...project.hits, [hit.id]: hit },
+    pads: { ...project.pads, [pad.id]: pad },
+    matrices: { ...project.matrices, [matrixId]: { ...matrix, pads: [...matrix.pads, pad.id] } },
+  };
+}
+
+/** The slice each pad of a matrix plays by its top hit, or 'x' for another sample's. */
+const rowSlices = (project: Project, matrixId: Id, sampleId: Id) =>
+  project.matrices[matrixId]!.pads.map((p) => {
+    const hit = project.hits[project.pads[p]!.members[0]!]!;
+    return hit.sampleId === sampleId ? hit.slice : 'x';
+  });
+
+describe('rows follow what pads play, in a matrix edited by hand (decision 12)', () => {
+  it('a pad added by hand to a one-shot is no row: slicing gives every slice a row, after it', () => {
+    let project = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }), addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const amenId = by(project.samples, (s) => s.name === 'amen.wav').id;
+    const snareId = by(project.samples, (s) => s.name === 'snare.wav').id;
+    const matrixId = ownMatrix(project, amenId)!.id;
+    project = run(handPad(project, matrixId, snareId, 0), setSlicing(amenId, 1));
+    expect(rowSlices(project, matrixId, amenId)).toEqual([0, 'x', ...Array.from({ length: 15 }, (_, i) => i + 1)]);
+  });
+
+  it('a row removed by hand is not made again, and a new slice gets one row', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const matrix = p0.matrices[matrixId]!;
+    const project = { ...p0, matrices: { ...p0.matrices, [matrixId]: { ...matrix, pads: matrix.pads.filter((_, i) => i !== 2) } } };
+    const more = run(project, setMarkers(sampleId, Array.from({ length: 17 }, (_, i) => i / 17)));
+    const slices = rowSlices(more, matrixId, sampleId);
+    expect(slices.filter((s) => s === 15)).toHaveLength(1);
+    expect(slices.filter((s) => s === 16)).toHaveLength(1);
+    expect(slices).not.toContain(2);
+    expect(slices).toHaveLength(16);
+  });
+
+  it('new rows are named after their row, so a row removed by hand leaves no name twice', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    // Row 06 (slice 5, silent) goes; the rows after it are renumbered.
+    const removed = run(p0, removeAnyway('pad', p0.matrices[matrixId]!.pads[5]!));
+    // Seventeen slices: slice 5 gets a row again, and slice 16 one, both last.
+    const more = run(removed, setMarkers(sampleId, Array.from({ length: 17 }, (_, i) => i / 17)));
+    const names = more.matrices[matrixId]!.pads.map((p) => more.pads[p]!.name);
+    expect(names).toEqual(Array.from({ length: 17 }, (_, i) => `amen 1 ${String(i + 1).padStart(2, '0')}`));
+    expect(rowSlices(more, matrixId, sampleId).slice(15)).toEqual([5, 16]);
+  });
+
+  it("un-slicing keeps pads added by hand with another sample's hits", () => {
+    let { project, sampleId, matrixId } = amen(4);
+    project = run(project, addSample({ name: 'snare.wav', audio: constantAudio(0.3) }));
+    const snareId = by(project.samples, (s) => s.name === 'snare.wav').id;
+    project = handPad(project, matrixId, snareId, 0);
+    const first = project.matrices[matrixId]!.pads[0]!;
+    expect(unsliceTakes(project, sampleId)).toEqual(['15 pads', '15 hits', 'loop amen 1']);
+    const after = run(project, setSlicing(sampleId, null));
+    expect(after.matrices[matrixId]!.pads).toEqual([first, 'hand']);
+    expect(after.hits['hand-hit']).toBeDefined();
+    expect(heard(after, after.hits['hand-hit']!)).toEqual([0, 0.3]);
+  });
+});
+
+describe('slicing on a coarser grid', () => {
+  it('1/8 grid gives 32 pads over 4 bars, none silent', () => {
+    const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const sampleId = Object.keys(start.samples)[0]!;
+    const project = run(start, sliceSample(sampleId, 4, 8));
+    const matrix = ownMatrix(project, sampleId)!;
+    expect(project.samples[sampleId]!.markers).toHaveLength(32);
+    expect(matrix.pads).toHaveLength(32);
+    expect(matrix.pads.every((id) => project.pads[id]!.members.length > 0)).toBe(true);
+  });
+});
+
+describe('the automatic loop', () => {
+  it('the automatic loop follows until edited by hand', () => {
+    const start = run(emptyProject(), addSample({ name: 'amen.wav', audio: constantAudio(2) }));
+    const sampleId = Object.keys(start.samples)[0]!;
+    let project = run(start, sliceSample(sampleId, 4, 4));
+    const matrixId = ownMatrix(project, sampleId)!.id;
+    const m1 = project.matrices[matrixId]!.loop!;
+    expect(project.loops[m1]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual(Array.from({ length: 16 }, (_, i) => i * 4));
+    // Four bars was a mistake: one bar it is, and the loop follows.
+    project = run(project, setSampleBars(sampleId, 1));
+    expect(project.loops[m1]!.steps).toHaveLength(16);
+    expect(matrixSequence(project, matrixId).map((s) => s.step)).toEqual([0, 4, 8, 12]);
+    expect(project.loops[m1]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 4, 8, 12]);
+    // Edited by hand, it stays as it is.
+    project = run(project, setStep(m1, 1, { padId: project.matrices[matrixId]!.pads[3]! }), setMarkers(sampleId, [0, 0.5]));
+    expect(project.loops[m1]!.steps.filter((s) => s.padId !== null)).toHaveLength(5);
+  });
+
+  it('the automatic loop follows a copied pad while untouched', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const loop = p0.matrices[matrixId]!.loop!;
+    // A copy of row 02 (slice 1, four steps) goes last, as row 17.
+    const copied = run(p0, copyPad(p0.matrices[matrixId]!.pads[1]!, matrixId));
+    const copy = copied.matrices[matrixId]!.pads.at(-1)!;
+    const played = (p: Project) => p.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [[i, s.padId]]));
+    const rows = copied.matrices[matrixId]!.pads;
+    expect(played(copied)).toEqual([[0, rows[0]], [4, rows[1]], [8, rows[2]], [12, rows[3]], [16, copy]]);
+    // Moving a marker afterwards still moves the loop along.
+    const moved = run(copied, setMarkers(sampleId, [0, 0.25, 0.5, 0.8]));
+    expect(played(moved).map(([i]) => i)).toEqual([0, 4, 8, 13, 16]);
+  });
+
+  it('a hand-edited loop stays after a matrix change', () => {
+    const { project: p0, matrixId } = amen(4);
+    const loop = p0.matrices[matrixId]!.loop!;
+    const edited = run(p0, setStep(loop, 1, { padId: p0.matrices[matrixId]!.pads[3]! }));
+    const copied = run(edited, copyPad(p0.matrices[matrixId]!.pads[1]!, matrixId));
+    expect(copied.loops[loop]).toEqual(edited.loops[loop]);
+  });
+
+  it('other loops stay as laid out', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    let project = run(p0, createLoop('L', 'main', 1));
+    const loop = by(project.loops, (l) => l.name === 'L').id;
+    const pads = project.matrices[matrixId]!.pads;
+    project = run(project, ...[0, 4, 8, 12].map((step, i) => setStep(loop, step, { padId: pads[i]! })));
+    const moved = run(project, setMarkers(sampleId, [0, 0.5]));
+    expect(moved.loops[loop]).toEqual(project.loops[loop]);
+    // The automatic one followed.
+    expect(moved.loops[moved.matrices[matrixId]!.loop!]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 8]);
+  });
+});
+
+describe("another matrix's loop follows a trim it plays (M1)", () => {
+  /** amen 1 (one bar, four slices) with a copy of trim 2's row 01 first: trim 2 is the same file, one bar, four slices. */
+  function twoTrims() {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const withTrim = run(p0, addTrim(sampleId));
+    const trim2 = Object.values(withTrim.samples).find((s) => s.id !== sampleId)!.id;
+    const sliced = run(withTrim, setSlicing(trim2, 1, [0, 0.25, 0.5, 0.75]));
+    const copied = run(sliced, copyPad(ownMatrix(sliced, trim2)!.pads[0]!, matrixId));
+    const copy = copied.matrices[matrixId]!.pads.at(-1)!;
+    const project = run(copied, movePad(matrixId, copy, 0));
+    return { project, trim2, matrixId, loop: project.matrices[matrixId]!.loop! };
+  }
+  const starts = (p: Project, loop: Id) => p.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]));
+
+  it('setMarkers on trim 2 moves amen 1 along', () => {
+    const { project, trim2, loop } = twoTrims();
+    expect(starts(project, loop)).toEqual([0, 4, 8, 12, 16]);
+    const next = run(project, setMarkers(trim2, [0, 0.5]));
+    expect(starts(next, loop)).toEqual([0, 8, 12, 16, 20]);
+    // Still as laid out: it keeps following.
+    expect(starts(run(next, setMarkers(trim2, [0, 0.75])), loop)).toEqual([0, 12, 16, 20, 24]);
+  });
+
+  it('setGrid and setSlicing on trim 2 move it too', () => {
+    const { project, trim2, loop } = twoTrims();
+    expect(starts(run(project, setGrid(trim2, 8)), loop)).toEqual([0, 2, 6, 10, 14]);
+    expect(starts(run(project, setSlicing(trim2, 2, [0, 0.5])), loop)).toEqual([0, 16, 20, 24, 28]);
+  });
+
+  it("Don't slice on trim 2 moves it too", () => {
+    const { project, trim2, loop } = twoTrims();
+    // Its hit now plays the whole trim: 2 s, one bar at 120 BPM.
+    expect(starts(run(project, setBpm(120), setSlicing(trim2, null)), loop)).toEqual([0, 16, 20, 24, 28]);
+  });
+});
+
+describe('the automatic loop is whole bars', () => {
+  /** amen 1 at 120 BPM (a step is 0.125 s) and a one-shot of `seconds`. */
+  function withOneShot(seconds: number) {
+    const { project: p0, matrixId } = amen(4);
+    const project = run(p0, setBpm(120), addSample({ name: 'long.wav', audio: constantAudio(seconds) }));
+    const oneShot = by(project.hits, (h) => h.name === 'long 1');
+    return { project, matrixId, oneShot, loop: project.matrices[matrixId]!.loop! };
+  }
+
+  it('replacing the last pad\'s hit makes 67 steps a loop of 80', () => {
+    // 6.8 s is 54.4 steps, 55 rounded up: 12 + 55 = 67.
+    const { project, matrixId, oneShot, loop } = withOneShot(6.8);
+    const next = run(project, replaceHit(rowHit(project, matrixId, 3).id, oneShot.id));
+    expect(next.loops[loop]!.steps).toHaveLength(80);
+    expect(next.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 4, 8, 12]);
+  });
+
+  it('is at most MAX_LOOP_STEPS long', () => {
+    // 40 s is 320 steps.
+    const { project, matrixId, oneShot, loop } = withOneShot(40);
+    const first = run(project, replaceHit(rowHit(project, matrixId, 0).id, oneShot.id));
+    expect(first.loops[loop]!.steps).toHaveLength(MAX_LOOP_STEPS);
+    // The pads after the end are left out.
+    expect(first.loops[loop]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0]);
+  });
+});
+
+describe('numbering', () => {
+  const sixteen = Array.from({ length: 16 }, (_, i) => i / 16);
+
+  it('renumberConflict is null when a marker only moves', () => {
+    const { project: p0, sampleId } = amen(16);
+    const { project } = withSnares(p0, [sampleId, 6]);
+    expect(renumberConflict(project, sampleId, sixteen.map((m, i) => (i === 6 ? m + 0.01 : m)))).toBeNull();
+  });
+
+  it('renumberConflict is null when markers are added but each slice concerned is played by one hit', () => {
+    const { project, sampleId } = amen(16);
+    expect(renumberConflict(project, sampleId, [...sixteen, 0.97])).toBeNull();
+    expect(renumberConflict(project, sampleId, sixteen.filter((_, i) => i !== 6))).toBeNull();
+  });
+
+  it('renumberConflict lists slices played by more than one hit, and their pads', () => {
+    const { project: p0, sampleId, matrixId } = amen(16);
+    // A copy of slice 07 in Snares, and a variant of slice 09 in the same matrix (q4).
+    const { project: p1, pads } = withSnares(p0, [sampleId, 6]);
+    const row9 = p1.matrices[matrixId]!.pads[8]!;
+    const variant = { ...rowHit(p1, matrixId, 8), id: 'variant', variantOf: rowHit(p1, matrixId, 8).id };
+    const project: Project = {
+      ...p1,
+      hits: { ...p1.hits, variant },
+      pads: { ...p1.pads, [row9]: { ...p1.pads[row9]!, members: [...p1.pads[row9]!.members, 'variant'] } },
+    };
+    // Removing the marker of slice 06 renumbers 06 to the last.
+    const conflict = renumberConflict(project, sampleId, sixteen.filter((_, i) => i !== 5));
+    expect(conflict).not.toBeNull();
+    expect(conflict!.slices).toEqual([6, 8]);
+    expect([...conflict!.pads].sort()).toEqual([project.matrices[matrixId]!.pads[6]!, row9, pads[0]!].sort());
+    // Changing only slices after them asks nothing.
+    expect(renumberConflict(project, sampleId, [...sixteen.slice(0, 15)])).toBeNull();
+  });
+
+  it('newTrim moves the edited matrix and its hits to a new trim, copies stay on the old', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const { project, hits } = withSnares(p0, [sampleId, 2]);
+    const own = project.matrices[matrixId]!;
+    const next = run(project, setMarkers(sampleId, [0, 0.5], true));
+    const fresh = by(next.samples, (s) => s.id !== sampleId);
+    expect(fresh).toMatchObject({ audioId: project.samples[sampleId]!.audioId, trim: 2, bars: 1, markers: [0, 0.5] });
+    expect(next.samples[sampleId]!.markers).toEqual([0, 0.25, 0.5, 0.75]);
+    expect(next.matrices[matrixId]).toMatchObject({ sampleId: fresh.id, name: own.name, loop: own.loop });
+    expect(ownMatrix(next, sampleId)).toBeUndefined();
+    expect(ownMatrix(next, fresh.id)!.id).toBe(matrixId);
+    for (const padId of own.pads) for (const h of next.pads[padId]!.members) expect(next.hits[h]!.sampleId).toBe(fresh.id);
+    expect(heard(next, rowHit(next, matrixId, 1))).toEqual([1, 2]);
+    // The copy in Snares plays as before.
+    expect(next.hits[hits[0]!]!.sampleId).toBe(sampleId);
+    expect(heard(next, next.hits[hits[0]!]!)).toEqual([1, 1.5]);
+    // The own loop followed the move.
+    expect(next.loops[own.loop!]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 8]);
+  });
+
+  it('markersForBars gives the markers a change of bars would set, for renumberConflict', () => {
+    const { project: p0, sampleId } = amen(4);
+    // On 1/4 they follow the bars; placed by hand they stay.
+    expect(markersForBars(p0.samples[sampleId]!, 2)).toEqual([0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]);
+    const byHand = run(p0, setMarkers(sampleId, [0, 0.3]));
+    expect(markersForBars(byHand.samples[sampleId]!, 2)).toEqual([0, 0.3]);
+    expect(run(p0, setSampleBars(sampleId, 2)).samples[sampleId]!.markers).toEqual(markersForBars(p0.samples[sampleId]!, 2));
+    const { project } = withSnares(p0, [sampleId, 3]);
+    expect(renumberConflict(project, sampleId, markersForBars(project.samples[sampleId]!, 2))).toMatchObject({ slices: [3] });
+  });
+
+  it('setSampleBars can make a new trim too', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const { project, hits } = withSnares(p0, [sampleId, 3]);
+    const next = run(project, setSampleBars(sampleId, 2, true));
+    const fresh = by(next.samples, (s) => s.id !== sampleId);
+    expect(fresh).toMatchObject({ trim: 2, bars: 2 });
+    expect(fresh.markers).toHaveLength(8);
+    expect(next.samples[sampleId]).toEqual(project.samples[sampleId]);
+    expect(next.matrices[matrixId]!.sampleId).toBe(fresh.id);
+    expect(heard(next, next.hits[hits[0]!]!)).toEqual([1.5, 2]);
+    // The own loop followed: 2 bars of 1/4.
+    expect(next.loops[next.matrices[matrixId]!.loop!]!.steps.flatMap((s, i) => (s.padId === null ? [] : [i]))).toEqual([0, 4, 8, 12, 16, 20, 24, 28]);
+  });
+
+  it('setGrid can make a new trim too', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const next = run(project, setGrid(sampleId, 8, true));
+    const fresh = by(next.samples, (s) => s.id !== sampleId);
+    expect(fresh.markers).toHaveLength(8);
+    expect(next.samples[sampleId]!.markers).toHaveLength(4);
+    expect(next.matrices[matrixId]!.sampleId).toBe(fresh.id);
+  });
+
+  it('a new trim gets the next free number of its file', () => {
+    const { project: p0, sampleId } = amen(4);
+    const withTrims = run(p0, addTrim(sampleId), addTrim(sampleId));
+    const trim2 = by(withTrims.samples, (s) => s.trim === 2);
+    const { [trim2.id]: _gone, ...samples } = withTrims.samples;
+    void _gone;
+    const project = { ...withTrims, samples };
+    const next = run(project, setMarkers(sampleId, [0, 0.5], true));
+    const fresh = by(next.samples, (s) => !(s.id in project.samples));
+    expect(fresh.trim).toBe(4);
+    expect(trimName(fresh)).toBe('amen sample 4');
+  });
+
+  it('without newTrim, slices count by number', () => {
+    const { project: p0, sampleId, matrixId } = amen(4);
+    const { project, hits } = withSnares(p0, [sampleId, 2]);
+    const next = run(project, setMarkers(sampleId, [0, 0.5, 0.75]));
+    expect(Object.keys(next.samples)).toEqual([sampleId]);
+    // What was slice 04 is slice 03 now, wherever it is played.
+    expect(heard(next, next.hits[hits[0]!]!)).toEqual([1.5, 2]);
+    expect(heard(next, rowHit(next, matrixId, 2))).toEqual([1.5, 2]);
+    expect(heard(next, rowHit(next, matrixId, 3))).toBeNull();
+  });
+});
+
+describe('importing and slicing', () => {
+  it('a file with cues imports unsliced: nothing guessed or made, its cues kept for Slice', () => {
+    const project = run(emptyProject(), addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0.85, 0, 0.4] }));
+    const sample = Object.values(project.samples)[0]!;
+    expect(sample).toMatchObject({ bars: null, markers: [0], unsliced: true, cues: [0, 0.4, 0.85] });
+    expect(isUnsliced(sample)).toBe(true);
+    const matrix = ownMatrix(project, sample.id)!;
+    expect(matrix).toMatchObject({ loop: null });
+    expect(matrix.pads).toHaveLength(1);
+    expect(Object.keys(project.loops)).toHaveLength(0);
+    expect(cueMarkers(sample)!.map((m) => +(m * 1.7).toFixed(3))).toEqual([0, 0.4, 0.85]);
+  });
+
+  it('sliced at its cues, it gets its slices and loop, and is no longer unsliced', () => {
+    let project = run(emptyProject(), addSample({ name: 'one-bar.wav', audio: constantAudio(1.7), cues: [0, 0.4, 0.85] }));
+    const id = Object.keys(project.samples)[0]!;
+    project = run(project, setSlicing(id, 1, cueMarkers(project.samples[id]!)!));
+    const sample = project.samples[id]!;
+    expect(sample.bars).toBe(1);
+    expect(sample.markers).toHaveLength(3);
+    expect(ownMatrix(project, id)!.pads).toHaveLength(3);
+    expect(ownMatrix(project, id)!.loop).not.toBeNull();
+    expect(isUnsliced(sample)).toBe(false);
+    expect('unsliced' in sample).toBe(false);
+  });
+
+  it('cue markers are those inside the trim, as parts of it; none inside gives null', () => {
+    const sample = { id: 's', name: 'a.wav', audioId: 'a', offset: 1, duration: 2, channel: 'stereo' as const, trim: 2, bars: null, markers: [0], cues: [0.5, 1.5, 2, 3.5] };
+    expect(cueMarkers(sample)).toEqual([0, 0.25, 0.5]);
+    expect(cueMarkers({ ...sample, cues: [0.2, 3.2] })).toBeNull();
+    const { cues: _, ...none } = sample;
+    void _;
+    expect(cueMarkers(none)).toBeNull();
+  });
+
+  it("marking to slice in Import only marks: no bars guessed, nothing made; Don't slice takes it back", () => {
+    let project = run(emptyProject(), addSample({ name: 'long.wav', audio: constantAudio(16) }));
+    const id = Object.keys(project.samples)[0]!;
+    const before = project;
+    project = run(project, markUnsliced(id));
+    expect(project.samples[id]).toMatchObject({ bars: null, markers: [0], unsliced: true });
+    expect(project.matrices).toEqual(before.matrices);
+    expect(project.pads).toEqual(before.pads);
+    expect(project.hits).toEqual(before.hits);
+    expect(run(project, setSlicing(id, null)).samples[id]).toEqual(before.samples[id]);
+    expect(markUnsliced(id)(run(project, setSlicing(id, 1)), ctx).ok).toBe(false);
+  });
+
+  it("a new trim keeps the file's cues", () => {
+    let project = run(emptyProject(), addSample({ name: 'cued.wav', audio: constantAudio(2), cues: [0.5, 1] }));
+    const sample = Object.values(project.samples)[0]!;
+    project = run(project, addTrim(sample.id));
+    expect(Object.values(project.samples).map((s) => s.cues)).toEqual([
+      [0.5, 1],
+      [0.5, 1],
+    ]);
+  });
+});
+
+describe('files, trims, slices and matrices', () => {
+  it('an imported file is trim 1, its matrix is named without the extension, and its slice after the trim', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const sample = project.samples[sampleId]!;
+    expect(sample).toMatchObject({ name: 'amen.wav', trim: 1 });
+    expect(trimName(sample)).toBe('amen sample 1');
+    expect(sliceName(sample)).toBe('amen slice 1');
+    expect(project.matrices[matrixId]!.name).toBe('amen 1');
+  });
+
+  it('a new trim of the same file is a row of its own, the old matrix untouched', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const sample = project.samples[sampleId]!;
+    const next = run(project, addTrim(sampleId));
+    const trim = by(next.samples, (s) => s.id !== sampleId);
+    expect(trim).toMatchObject({ name: 'amen.wav', audioId: sample.audioId, trim: 2, offset: 0, bars: null, markers: [0] });
+    expect(ownMatrix(next, trim.id)).toMatchObject({ name: 'amen 2' });
+    expect(Object.keys(next.audio)).toHaveLength(1);
+    expect(next.matrices[matrixId]).toEqual(project.matrices[matrixId]);
+    expect(fileSamples(next, sample.audioId).map((s) => s.trim)).toEqual([1, 2]);
+  });
+
+  it('a slice becomes a one-shot: a new trim over just that slice', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const sample = project.samples[sampleId]!;
+    const next = run(project, makeOneShot(sampleId, 2));
+    const shot = by(next.samples, (s) => s.id !== sampleId);
+    expect(shot).toMatchObject({ trim: 2, offset: sample.offset + 1, duration: 0.5, bars: null });
+    expect(ownMatrix(next, shot.id)!.pads).toHaveLength(1);
+    expect(next.matrices[matrixId]).toEqual(project.matrices[matrixId]);
+    expect(makeOneShot(sampleId, 9)(project, ctx).ok).toBe(false);
+  });
+
+  it('slices 02–04 made a sample of their own: sliced, with their slice points and guessed bars (Magnus beslut)', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const sample = project.samples[sampleId]!;
+    const next = run(project, makeSampleFromSlices(sampleId, 3, 1));
+    const made = by(next.samples, (s) => s.id !== sampleId);
+    // In the tempo of the sample it came from: three quarters of its length, three quarters of its bars.
+    expect(made).toMatchObject({ trim: 2, offset: sample.offset + 0.5, duration: 1.5, bars: sample.bars! * 0.75 });
+    expect(made.markers.map((m) => m * made.duration)).toEqual([0, 0.5, 1]);
+    expect(ownMatrix(next, made.id)!.pads).toHaveLength(3);
+    expect(next.matrices[matrixId]).toEqual(project.matrices[matrixId]);
+    expect(next.samples[sampleId]).toEqual(sample);
+    // One slice is a one-shot.
+    expect(by(run(project, makeSampleFromSlices(sampleId, 2, 2)).samples, (s) => s.id !== sampleId)).toMatchObject({ duration: 0.5, bars: null });
+    expect(makeSampleFromSlices(sampleId, 1, 99)(project, ctx).ok).toBe(false);
+  });
+
+  it('bars go in 1/16 steps: a quarter bar slices, its loop is a whole bar, and the tempo follows (Claudes val.)', () => {
+    const { project, sampleId } = amen(4);
+    const sample = project.samples[sampleId]!;
+    const next = run(project, setSlicing(sampleId, 0.25, gridMarkers(0.25)));
+    const quarter = next.samples[sampleId]!;
+    expect(quarter.bars).toBe(0.25);
+    expect(quarter.markers).toHaveLength(4);
+    expect(sampleBpm(quarter)).toBeCloseTo((0.25 * 240) / sample.duration);
+    const own = ownMatrix(next, sampleId)!;
+    expect(next.loops[own.loop!]!.steps).toHaveLength(16);
+    expect(setSlicing(sampleId, 0.3)(project, ctx).ok).toBe(false);
+    expect(setSlicing(sampleId, 0)(project, ctx).ok).toBe(false);
+    expect(roundBars(0.3)).toBe(0.3125);
+    expect(roundBars(0.01)).toBe(1 / 16);
+    // A grid of 1/4 over 5/16 of a bar: the nearest whole number of slices.
+    expect(gridMarkers(0.3125, 4)).toEqual([0]);
+  });
+
+  it('renaming a matrix renames its own pads and hits and its loop; file, trim and slice stay', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const next = run(project, renameMatrix(matrixId, 'think'));
+    const matrix = next.matrices[matrixId]!;
+    expect(matrix.name).toBe('think');
+    expect(next.pads[matrix.pads[6]!]!.name).toBe('think 07');
+    expect(rowHit(next, matrixId, 1).name).toBe('think 02');
+    expect(next.loops[matrix.loop!]!.name).toBe('think');
+    expect(trimName(next.samples[sampleId]!)).toBe('amen sample 1');
+    expect(sliceName(next.samples[sampleId]!)).toBe('amen slice 1');
+    expect(renameMatrix(matrixId, ' ')(next, ctx).ok).toBe(false);
+  });
+
+  it("renaming leaves names that are not the matrix's own", () => {
+    const { project: p0, sampleId } = amen(4);
+    const { project, matrixId, pads } = withSnares(p0, [sampleId, 1]);
+    const next = run(project, renameMatrix(matrixId, 'Hats'));
+    expect(next.pads[pads[0]!]!.name).toBe('Hats 01');
+    expect(next.hits['snare-hit-0']!.name).toBe('snare 0');
+  });
+});
+
+describe("Don't slice on a sliced sample", () => {
+  it('loses its slicing: pad 01 stays and plays the whole sample; the other rows, their hits and its loop go', () => {
+    const { project, sampleId, matrixId } = amen(4);
+    const first = project.matrices[matrixId]!.pads[0]!;
+    // Rows made at 1/16 stay with the matrix, so 15 pads go.
+    expect(unsliceTakes(project, sampleId)).toEqual(['15 pads', '15 hits', 'loop amen 1']);
+    const after = run(project, setSlicing(sampleId, null));
+    expect(after.samples[sampleId]).toMatchObject({ bars: null, markers: [0] });
+    expect(after.matrices[matrixId]).toMatchObject({ pads: [first], loop: null });
+    expect(Object.keys(after.loops)).toHaveLength(0);
+    expect(Object.keys(after.pads)).toEqual([first]);
+    const hit = after.hits[after.pads[first]!.members[0]!]!;
+    expect(hit).toMatchObject({ name: 'amen 1', slice: 0 });
+    expect(heard(after, hit)).toEqual([0, 2]);
+    expect(after.pads[first]!.name).toBe('amen 1');
+    expect(Object.keys(after.hits)).toHaveLength(1);
+  });
+
+  it('where its slices were used goes silent, and is listed first', () => {
+    let { project, sampleId, matrixId } = amen(4);
+    project = run(project, createLoop('Mine', 'main', 1));
+    const mine = by(project.loops, (l) => l.name === 'Mine').id;
+    const [p1, p2] = project.matrices[matrixId]!.pads;
+    project = run(project, setStep(mine, 0, { padId: p1! }), setStep(mine, 4, { padId: p2! }), addClip('main', project.matrices[matrixId]!.loop!, 0));
+    const withCopy = withSnares(project, [sampleId, 2]);
+    expect(unsliceUsages(withCopy.project, sampleId)).toEqual([
+      { kind: 'loop', id: mine, name: 'Mine' },
+      { kind: 'song', id: null, name: 'Song' },
+      { kind: 'pad', id: withCopy.pads[0], name: 'Snares 01' },
+    ]);
+    const after = run(withCopy.project, setSlicing(sampleId, null));
+    const steps = after.loops[mine]!.steps;
+    expect(steps[0]!.padId).toBe(p1);
+    expect(steps[4]!.padId).toBeNull();
+    expect(after.song.clips).toEqual([]);
+    // The copy is silent: its slice is past the last marker.
+    expect(heard(after, after.hits[withCopy.hits[0]!]!)).toBeNull();
+  });
+
+  it('an unsliced sample cannot be unsliced again', () => {
+    const start = run(emptyProject(), addSample({ name: 'hit.wav', audio: constantAudio(1) }));
+    const id = Object.keys(start.samples)[0]!;
+    expect(setSlicing(id, null)(start, ctx).ok).toBe(false);
+    expect(unsliceTakes(start, id)).toEqual([]);
+    expect(unsliceUsages(start, id)).toEqual([]);
+  });
+});
+
+describe('a file that is already sliced (REX)', () => {
+  it('is added sliced over its bars, with a pad per slice and its loop, in one step', () => {
+    const project = run(emptyProject(), addSlicedSample({ name: 'loop.rx2', audio: constantAudio(2), bars: 1, markers: [0, 0.25, 0.5, 0.75] }));
+    const sample = Object.values(project.samples)[0]!;
+    expect(sample.bars).toBe(1);
+    expect(sample.markers).toEqual([0, 0.25, 0.5, 0.75]);
+    expect(sample.unsliced).toBeUndefined();
+    const own = ownMatrix(project, sample.id)!;
+    expect(own.pads).toHaveLength(4);
+    expect(own.loop).not.toBeNull();
+    expect(matrixSequence(project, own.id).map((s) => s.step)).toEqual([0, 4, 8, 12]);
+  });
+
+  it('leaves out markers on top of each other', () => {
+    const project = run(emptyProject(), addSlicedSample({ name: 'loop.rx2', audio: constantAudio(2), bars: 1, markers: [0, 0, 0.5, 0.5000001] }));
+    expect(Object.values(project.samples)[0]!.markers).toEqual([0, 0.5]);
+  });
+
+  it('adds nothing when the audio is empty', () => {
+    expect(addSlicedSample({ name: 'loop.rx2', audio: constantAudio(0), bars: 1, markers: [0] })(emptyProject(), ctx).ok).toBe(false);
+  });
+});
+
+describe('REX files', () => {
+  it("an .rx2 file's matrix is named without the extension", () => {
+    const project = run(emptyProject(), addSlicedSample({ name: '120Stereo.rx2', audio: constantAudio(2), bars: 1, markers: [0, 0.5] }));
+    const matrix = Object.values(project.matrices)[0]!;
+    expect(matrix.name).toBe('120Stereo 1');
+    expect(project.loops[matrix.loop!]!.name).toBe('120Stereo 1');
+    expect(project.pads[matrix.pads[0]!]!.name).toBe('120Stereo 1 01');
+  });
+});
