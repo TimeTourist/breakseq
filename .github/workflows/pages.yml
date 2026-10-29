@@ -1,9 +1,10 @@
-# Tests, builds and publishes the web app in app/ on GitHub Pages at /breakseq/ on every push to main.
+# Tests, builds and publishes the web app in app/ on GitHub Pages at /breakseq/ on every push to main that touches it.
 name: Pages
 
 on:
   push:
     branches: [main]
+    paths: [app/**, .github/workflows/pages.yml]
   workflow_dispatch:
 
 permissions:
