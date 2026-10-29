@@ -23,12 +23,12 @@ jobs:
       - name: Build
         run: cmake --build vst/build --config Release --parallel
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Breakseq-vst3
           path: vst/build/Breakseq_artefacts/Release/VST3/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Breakseq-standalone
           path: vst/build/Breakseq_artefacts/Release/Standalone/
