@@ -1,20 +1,19 @@
 #pragma once
 
+#include "Mixer.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
-#include <vector>
 
 /**
- * Phase 0 spike: plays a test sound made by the web page on C1 (note-off cuts
- * it), reports Reason's tempo and keeps a counter in the song's state.
+ * Breakseq in Reason (docs/vst-spec.md): the page in the editor is the web
+ * app; this side keeps the project in the song's state, reports Reason's
+ * tempo and plays what the page's player schedules (Mixer).
  */
 class BreakseqProcessor final : public juce::AudioProcessor
 {
 public:
-    /** C1, where the first piece goes (as in the web app's MIDI export). */
-    static constexpr int firstNote = 36;
-
     BreakseqProcessor();
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -40,24 +39,21 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    /** The host's tempo as last seen by processBlock; 120 until it says. */
+    /** The host's tempo as last seen by processBlock; 0 until it says. */
     double getBpm() const { return bpm.load(); }
 
-    int getCounter() const { return counter.load(); }
-    void setCounter (int value) { counter.store (value); }
+    /** The project as the page last saved it: a project file in base64, or empty in a new instance. */
+    juce::String getProject() const;
+    void setProject (const juce::String& base64);
 
-    /** Replaces the sound C1 plays (mono, at the host's sample rate). Message thread. */
-    void setSound (std::vector<float> samples);
+    Mixer& getMixer() { return mixer; }
 
 private:
-    std::atomic<double> bpm { 120.0 };
-    std::atomic<int> counter { 0 };
+    std::atomic<double> bpm { 0.0 };
+    Mixer mixer;
 
-    // The audio thread only tries the lock, so it never waits for setSound.
-    juce::SpinLock soundLock;
-    std::vector<float> sound;
-    size_t position = 0;
-    bool playing = false;
+    juce::CriticalSection projectLock;
+    juce::String project;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BreakseqProcessor)
 };

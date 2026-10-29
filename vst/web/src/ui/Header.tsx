@@ -35,7 +35,9 @@ interface HeaderProps {
 export function Header({ onView, playing, canPlay, onPlay, onStop, status, rendering = false }: HeaderProps) {
   const view = useSelect((s) => s.view);
   const loop = useSelect((s) => s.loop);
-  const { store } = useApp();
+  const { store, services } = useApp();
+  /** In the plugin the tempo is Reason's: shown, not typed (Magnus beslut). */
+  const hostTempo = services.host !== undefined;
   const history = useSelect((s) => s.history);
   const previous = history.past.at(-1);
   const next = history.future[0];
@@ -80,10 +82,11 @@ export function Header({ onView, playing, canPlay, onPlay, onStop, status, rende
         <span className="rendering muted small" role="status" aria-hidden={!rendering} style={{ visibility: rendering ? 'visible' : 'hidden' }}>
           Rendering…
         </span>
-        <label className="bpm">
+        <label className="bpm" title={hostTempo ? 'The tempo is Reason’s: change it in Reason' : undefined}>
           <input
             aria-label="Tempo in BPM"
             inputMode="decimal"
+            readOnly={hostTempo}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => commitBpm()}

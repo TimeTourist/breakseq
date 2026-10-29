@@ -25,18 +25,26 @@ export interface Services {
   readonly renderSong: (project: Project, options?: RenderRequest) => Promise<Take>;
   /** Renders what a view plays that is not a song: hits one after another, or a sample's audio as it is. */
   readonly renderPreview: (preview: Preview, options?: RenderRequest) => Promise<Take>;
-  /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. */
-  readonly exportWav: (take: Take, bpm: number, name?: string) => void;
+  /** Saves a take as WAV; `name`, e.g. a snapshot's, goes in the file name. Missing in the plugin, which has Clip to Reason instead. */
+  readonly exportWav?: (take: Take, bpm: number, name?: string) => void;
   /** Saves the song as a MIDI file and a WAV of its sounds in slots; says how many sounds. */
-  readonly exportMidi: (project: Project, take: Take) => Promise<number>;
+  readonly exportMidi?: (project: Project, take: Take) => Promise<number>;
   /** Saves the song as a MIDI file and a REX file of its sounds, one slice each; says how many sounds. */
-  readonly exportRex: (project: Project, take: Take) => Promise<number>;
+  readonly exportRex?: (project: Project, take: Take) => Promise<number>;
+  /** The plugin's host, when running in Reason (docs/vst-spec.md). */
+  readonly host?: Host;
   /** Hands the user a file to save. */
   readonly download: (name: string, bytes: Uint8Array, type: string) => void;
   /** Fresh randomness for what is not the project's sound: a click on a pad plays one pick of it. */
   readonly rng: () => Rng;
   /** Project folders on disk; without it, Project only explains what it would do. */
   readonly folders?: FolderService;
+}
+
+/** Reason, as the page sees it from inside the plugin. */
+export interface Host {
+  /** Reason's tempo now, and each time it changes; returns a function that stops listening. */
+  readonly onTempo: (listener: (bpm: number) => void) => () => void;
 }
 
 /** What a render may be told: when to give up because it is no longer wanted. */

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Folder, SnapshotInfo } from '../engine';
 import type { Clip, Command, CommandError, History, Id, Project } from '../model';
-import { apply, createHistory, createProject, redo, seal, undo } from '../model';
+import { apply, createHistory, createProject, defaultContext, redo, seal, setBpm, undo } from '../model';
 
 export const VIEWS = ['samples', 'pads', 'loops', 'mods', 'song', 'project'] as const;
 export type View = (typeof VIEWS)[number];
@@ -123,7 +123,9 @@ export type Action =
   | { readonly type: 'songCursor'; readonly step: number }
   | { readonly type: 'clipboard'; readonly clip: Clip | null }
   | { readonly type: 'loop'; readonly on: boolean }
-  | { readonly type: 'transients'; readonly found: TransientsFound | null };
+  | { readonly type: 'transients'; readonly found: TransientsFound | null }
+  /** Reason's tempo, in the plugin: every state in the history takes it, so it is no undo step and Undo keeps it. */
+  | { readonly type: 'hostTempo'; readonly bpm: number };
 
 export const initialState = (project: Project = createProject()): AppState => ({
   history: createHistory(project),
@@ -213,6 +215,18 @@ export function reduce(state: AppState, action: Action): { state: AppState; erro
       return { state: { ...state, loop: action.on }, error: null };
     case 'transients':
       return { state: { ...state, transients: action.found }, error: null };
+    case 'hostTempo': {
+      if (state.history.present.song.bpm === action.bpm) return { state, error: null };
+      const retime = (project: Project): Project => {
+        const result = setBpm(action.bpm)(project, defaultContext);
+        return result.ok ? result.project : project;
+      };
+      const { history } = state;
+      return {
+        state: withHistory(state, { ...history, past: history.past.map(retime), present: retime(history.present), future: history.future.map(retime) }),
+        error: null,
+      };
+    }
   }
 }
 

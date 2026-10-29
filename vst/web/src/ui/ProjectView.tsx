@@ -269,59 +269,63 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
         </p>
       )}
 
-      <section className="panel stack-tight" aria-label="Export">
-        <h2 className="label">Export</h2>
-        <div className="row">
-          <span className="muted small grow">The song as it is now, as you hear it: WAV, 44.1 kHz, 24 bit.</span>
-          <button type="button" className="primary push" disabled={!canExport} onClick={onExport}>
-            Export WAV
-          </button>
-        </div>
-        <div className="row">
-          <span className="muted small grow">
-            Or as MIDI and a WAV of its sounds, one per slot from C1 up, for a sampler like Dr. Octo Rex or Digitakt: slice the WAV, play the MIDI, and it sounds like the song.
-          </span>
-          <button
-            type="button"
-            className="push"
-            disabled={!canExport || busy}
-            onClick={() =>
-              void attempt(async () => {
-                setMidiDone(null);
-                const pieces = await onExportMidi();
-                setMidiDone(`Saved a MIDI file and a WAV with ${pieces} sound${pieces === 1 ? '' : 's'}.`);
-              })
-            }
-          >
-            Export MIDI + slices
-          </button>
-        </div>
-        <div className="row">
-          <span className="muted small grow">Or as MIDI and a REX file of its sounds, one slice each from C1 up: load the REX in Dr. Octo Rex, play the MIDI.</span>
-          <button
-            type="button"
-            className="push"
-            disabled={!canExport || busy}
-            onClick={() =>
-              void attempt(async () => {
-                setMidiDone(null);
-                const pieces = await onExportRex();
-                setMidiDone(`Saved a MIDI file and a REX file with ${pieces} sound${pieces === 1 ? '' : 's'}.`);
-              })
-            }
-          >
-            Export MIDI + REX
-          </button>
-        </div>
-        {midiDone !== null && <p className="muted small" role="status">{midiDone}</p>}
-      </section>
+      {services.exportWav !== undefined && (
+        <section className="panel stack-tight" aria-label="Export">
+          <h2 className="label">Export</h2>
+          <div className="row">
+            <span className="muted small grow">The song as it is now, as you hear it: WAV, 44.1 kHz, 24 bit.</span>
+            <button type="button" className="primary push" disabled={!canExport} onClick={onExport}>
+              Export WAV
+            </button>
+          </div>
+          <div className="row">
+            <span className="muted small grow">
+              Or as MIDI and a WAV of its sounds, one per slot from C1 up, for a sampler like Dr. Octo Rex or Digitakt: slice the WAV, play the MIDI, and it sounds like the song.
+            </span>
+            <button
+              type="button"
+              className="push"
+              disabled={!canExport || busy}
+              onClick={() =>
+                void attempt(async () => {
+                  setMidiDone(null);
+                  const pieces = await onExportMidi();
+                  setMidiDone(`Saved a MIDI file and a WAV with ${pieces} sound${pieces === 1 ? '' : 's'}.`);
+                })
+              }
+            >
+              Export MIDI + slices
+            </button>
+          </div>
+          <div className="row">
+            <span className="muted small grow">Or as MIDI and a REX file of its sounds, one slice each from C1 up: load the REX in Dr. Octo Rex, play the MIDI.</span>
+            <button
+              type="button"
+              className="push"
+              disabled={!canExport || busy}
+              onClick={() =>
+                void attempt(async () => {
+                  setMidiDone(null);
+                  const pieces = await onExportRex();
+                  setMidiDone(`Saved a MIDI file and a REX file with ${pieces} sound${pieces === 1 ? '' : 's'}.`);
+                })
+              }
+            >
+              Export MIDI + REX
+            </button>
+          </div>
+          {midiDone !== null && <p className="muted small" role="status">{midiDone}</p>}
+        </section>
+      )}
 
       <ProjectFile />
 
       {folder !== null && (
         <section className="panel stack" aria-label="Snapshots">
           <h2 className="label">Snapshots</h2>
-          <p className="muted small">Play or export a snapshot without loading it: the work you have open stays as it is. Save and New snapshot are at the top.</p>
+          <p className="muted small">
+            {services.exportWav === undefined ? 'Play' : 'Play or export'} a snapshot without loading it: the work you have open stays as it is. Save and New snapshot are at the top.
+          </p>
           {[...(active === null ? [] : [active]), ...others].map((s) => {
             const isActive = s.file === active?.file;
             return (
@@ -334,9 +338,11 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
                 <button type="button" className="icon-button" disabled={busy} aria-label={`Play ${s.name}`} onClick={() => renderSnapshot(s, onPlayTake)}>
                   <PlayIcon />
                 </button>
-                <button type="button" disabled={busy} aria-label={`Export ${s.name}`} onClick={() => renderSnapshot(s, (take, project) => services.exportWav(take, project.song.bpm, s.name))}>
-                  Export
-                </button>
+                {services.exportWav !== undefined && (
+                  <button type="button" disabled={busy} aria-label={`Export ${s.name}`} onClick={() => renderSnapshot(s, (take, project) => services.exportWav?.(take, project.song.bpm, s.name))}>
+                    Export
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={busy}

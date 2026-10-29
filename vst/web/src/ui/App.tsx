@@ -123,6 +123,27 @@ const SET_ASIDE_NOTICE = 'Your project from before Matrix was kept as a backup i
  * one every BACKUP_EVERY_MS while it changes. Restoring one first keeps the
  * work as a backup, so a restore can be undone with another.
  */
+/**
+ * In the plugin the song's tempo is Reason's (Magnus beslut): it follows each
+ * change, and a project loaded in another tempo takes Reason's at once.
+ */
+function useHostTempo() {
+  const { store, services } = useApp();
+  const bpm = useProject().song.bpm;
+  const host = useRef<number | null>(null);
+  useEffect(
+    () =>
+      services.host?.onTempo((next) => {
+        host.current = next;
+        store.dispatch({ type: 'hostTempo', bpm: next });
+      }),
+    [services, store],
+  );
+  useEffect(() => {
+    if (host.current !== null && bpm !== host.current) store.dispatch({ type: 'hostTempo', bpm: host.current });
+  }, [bpm, store]);
+}
+
 function useAutosave() {
   const { store, services } = useApp();
   const project = useProject();
@@ -240,6 +261,7 @@ function Shell() {
   // Whether what plays goes on in blocks: then a change goes to the block playing.
   const inBlocks = useRef(false);
   const { error: saveError, backups, restore, notice, dismissNotice } = useAutosave();
+  useHostTempo();
   const playhead = usePlayhead(playing, () => {
     setPlaying(false);
     setPlayingKey(null);
@@ -409,10 +431,10 @@ function Shell() {
         <ProjectView
           canExport={songTake !== null}
           onExport={() => {
-            if (songTake !== null) services.exportWav(songTake, store.getState().history.present.song.bpm);
+            if (songTake !== null) services.exportWav?.(songTake, store.getState().history.present.song.bpm);
           }}
-          onExportMidi={() => (songTake === null ? Promise.resolve(0) : services.exportMidi(store.getState().history.present, songTake))}
-          onExportRex={() => (songTake === null ? Promise.resolve(0) : services.exportRex(store.getState().history.present, songTake))}
+          onExportMidi={() => (songTake === null ? Promise.resolve(0) : (services.exportMidi?.(store.getState().history.present, songTake) ?? Promise.resolve(0)))}
+          onExportRex={() => (songTake === null ? Promise.resolve(0) : (services.exportRex?.(store.getState().history.present, songTake) ?? Promise.resolve(0)))}
           backups={services.backups === undefined ? null : backups}
           onRestore={restore}
           onPlayTake={(snapshotTake) => {

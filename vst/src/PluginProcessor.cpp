@@ -15,7 +15,7 @@ bool BreakseqProcessor::isBusesLayoutSupported (const BusesLayout& layouts) cons
     return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
-void BreakseqProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+void BreakseqProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
@@ -25,61 +25,19 @@ void BreakseqProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             if (auto hostBpm = position->getBpm())
                 bpm.store (*hostBpm);
 
-    const juce::SpinLock::ScopedTryLockType lock (soundLock);
-
-    if (! lock.isLocked())
-        return;
-
-    // Renders up to each event, then applies it, so notes land on their sample.
-    auto renderTo = [&] (int from, int to)
-    {
-        for (int i = from; i < to && playing; ++i)
-        {
-            if (position >= sound.size())
-            {
-                playing = false;
-                break;
-            }
-
-            const auto s = sound[position++];
-
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                buffer.setSample (ch, i, s);
-        }
-    };
-
-    int done = 0;
-
-    for (const auto metadata : midi)
-    {
-        const auto message = metadata.getMessage();
-        const auto at = juce::jlimit (0, buffer.getNumSamples(), metadata.samplePosition);
-        renderTo (done, at);
-        done = at;
-
-        if (message.getNoteNumber() != firstNote)
-            continue;
-
-        if (message.isNoteOn())
-        {
-            position = 0;
-            playing = ! sound.empty();
-        }
-        else if (message.isNoteOff())
-        {
-            playing = false;
-        }
-    }
-
-    renderTo (done, buffer.getNumSamples());
+    mixer.process (buffer, getSampleRate() > 0.0 ? getSampleRate() : 44100.0);
 }
 
-void BreakseqProcessor::setSound (std::vector<float> samples)
+juce::String BreakseqProcessor::getProject() const
 {
-    const juce::SpinLock::ScopedLockType lock (soundLock);
-    sound.swap (samples);
-    position = 0;
-    playing = false;
+    const juce::ScopedLock lock (projectLock);
+    return project;
+}
+
+void BreakseqProcessor::setProject (const juce::String& base64)
+{
+    const juce::ScopedLock lock (projectLock);
+    project = base64;
 }
 
 juce::AudioProcessorEditor* BreakseqProcessor::createEditor()
@@ -90,7 +48,8 @@ juce::AudioProcessorEditor* BreakseqProcessor::createEditor()
 void BreakseqProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("Breakseq");
-    state.setProperty ("counter", counter.load(), nullptr);
+    state.setProperty ("version", 1, nullptr);
+    state.setProperty ("project", getProject(), nullptr);
 
     juce::MemoryOutputStream out (destData, false);
     state.writeToStream (out);
@@ -101,7 +60,7 @@ void BreakseqProcessor::setStateInformation (const void* data, int sizeInBytes)
     const auto state = juce::ValueTree::readFromData (data, (size_t) sizeInBytes);
 
     if (state.hasType ("Breakseq"))
-        counter.store ((int) state.getProperty ("counter", 0));
+        setProject (state.getProperty ("project", "").toString());
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

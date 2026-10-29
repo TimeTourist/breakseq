@@ -4,38 +4,23 @@
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
-/** Drags the test MIDI clip out of the plugin as a .mid file, e.g. onto a track in Reason. */
-class DragMidi final : public juce::Component
-{
-public:
-    explicit DragMidi (BreakseqProcessor& p) : processor (p) {}
-
-    void paint (juce::Graphics&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
-
-private:
-    BreakseqProcessor& processor;
-    bool dragging = false;
-};
-
-/** The web page in WebView2 over a strip with Drag MIDI and Save .mid. */
+/** The web app in WebView2, served from the plugin itself, talking to the processor. */
 class BreakseqEditor final : public juce::AudioProcessorEditor,
                              private juce::Timer
 {
 public:
     explicit BreakseqEditor (BreakseqProcessor&);
+    ~BreakseqEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
     void timerCallback() override;
-    void saveMidi();
+    void saveFile (const juce::String& name, const juce::String& base64);
 
     BreakseqProcessor& processor;
     juce::WebBrowserComponent web;
-    DragMidi dragMidi { processor };
-    juce::TextButton saveButton { "Save .mid" };
     std::unique_ptr<juce::FileChooser> chooser;
     double sentBpm = 0.0;
 
