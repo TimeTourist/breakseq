@@ -1,4 +1,4 @@
-# Tests, builds and publishes the app on GitHub Pages at /breakseq/ on every push to main.
+# Tests, builds and publishes the web app in app/ on GitHub Pages at /breakseq/ on every push to main.
 name: Pages
 
 on:
@@ -19,12 +19,16 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: app/package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -32,7 +36,7 @@ jobs:
       - run: npx vite build --base=/breakseq/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: app/dist
 
   deploy:
     needs: build

@@ -1,12 +1,21 @@
 # Breakseq
 
-Webbapp som gör drill n bass-breaks av uppklippta breaks (t.ex. Amen). Bara breaks, export som WAV.
+Gör drill n bass-breaks av uppklippta breaks (t.ex. Amen). Bara breaks, export som WAV.
+
+Repot har två fristående appar. Ingen av dem importerar från den andra; den som inte vinner tas bort.
+
+```
+app/   webbappen (React + TS), körs från app/
+vst/   VST3-pluginen för Reason 13 på Windows: JUCE-skal (C++) och en egen kopia av webbkoden
+```
+
+Pluginens spec är `docs/vst-spec.md`; den gäller före `docs/spec.md` för allt i `vst/`.
 
 **Specen i `docs/spec.md` är sanningen.** Om specen inte säger något om ett beteende: hitta inte på det. Stanna och fråga, eller lämna en tydlig `TODO(spec):` och nämn den i din sammanfattning.
 
 ## Arkitektur
 
-Tre lager. Ett lager får bara importera från lagret under.
+Gäller webbkoden i `app/src` (och kopian i `vst/`). Tre lager. Ett lager får bara importera från lagret under.
 
 ```
 src/ui      React-vyer, uppspelning av renderad buffer, spelhuvud
@@ -33,6 +42,8 @@ Använd exakt dessa namn i kod, typer och tester: `Sample`, `Hit`, `Pad`, `Matri
 
 ## Kommandon
 
+Körs i `app/`:
+
 ```
 npm run dev        # Vite dev server
 npm test           # Vitest
@@ -42,7 +53,7 @@ npm run lint
 
 ## Arbetssätt
 
-- Projektet byggs i faser (se `docs/spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
+- Projektet byggs i faser (se `docs/spec.md` och `docs/vst-spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** ingen. Fas 27b (Crazy madness) togs bort 2026-10-23; mod-förvalen (27a) och loggan finns kvar.
+**Aktuell fas:** VST fas 0 (`docs/tasks/vst-fas-0.md`). Webbappen: ingen; fas 27b (Crazy madness) togs bort 2026-10-23, mod-förvalen (27a) och loggan finns kvar.
