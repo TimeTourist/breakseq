@@ -23,14 +23,11 @@ Arbetssättet: ladda in några REX-loopar, bygg Matrix, Loops och Song med mods 
 
 ## Clip to Reason
 
-Clip to Reason har ett val, MIDI eller WAV, och kommer ut på samma sätt för båda (dra eller fil, nedan). WAV-klippet är 44,1 kHz / 24 bit och normaliserat som Export WAV, med samma filnamn (breakseq-172bpm-<tid>.wav). *(Magnus beslut om valet; formatet som Export WAV är Claudes val.)*
+Clip to Reason har ett val, MIDI eller WAV, och kommer ut på samma sätt för båda: man drar klippet till Reason (nedan). WAV-klippet är 44,1 kHz / 24 bit och normaliserat som Export WAV, med samma filnamn (breakseq-172bpm-<tid>.wav). *(Magnus beslut om valet; formatet som Export WAV är Claudes val.)*
 
 ### MIDI (Song to MIDI)
 
-Valet MIDI gör `midiPlan` på låten som den är nu, renderar bitarna i Reasons samplingsfrekvens och fryser dem i instansen. Klippet kommer ut på ett av två sätt, beroende på vad fas 0 visar att Reason 13 klarar:
-
-1. **Dra:** ett fält i pluginfönstret (byggt i JUCE, inte i webbsidan) som dras till ett spår i Reasons sekvenser.
-2. **Fil:** pluginen sparar en `.mid` som man drar in från Utforskaren eller importerar.
+Valet MIDI gör `midiPlan` på låten som den är nu, renderar bitarna i Reasons samplingsfrekvens och fryser dem i instansen. Klippet dras ut ur ett fält i pluginfönstret (byggt i JUCE, inte i webbsidan) och släpps på ett spår i Reasons sekvenser. Fas 0 visade att Reason 13 tar emot det. *(Provat av Magnus 2026-10-29.)*
 
 En VST kan inte själv lägga ett klipp i Reasons sekvenser som Dr. Octo Rex gör (*Copy Loop to Track*), och tredjeparts-VST:er i Reason kan inte skicka MIDI ut. *(Utrett 2026-10-29.)*
 
@@ -49,6 +46,6 @@ Projektet och de frysta bitarna sparas i Reason-låten som instansens state, så
 
 | Fas | Innehåll |
 | --- | --- |
-| 0 | Spik: en minimal VST3 som bevisar i Reason 13 att den laddas, visar WebView2, spelar ett ljud på en not, sparar state i låten och att ett MIDI-klipp går att dra ut. Workflowet som bygger den. |
+| 0 | Klar 2026-10-29 (se `docs/tasks/vst-fas-0-sammanfattning.md`). Spik: en minimal VST3 som bevisar i Reason 13 att den laddas, visar WebView2, spelar ett ljud på en not, sparar state i låten och att ett MIDI-klipp går att dra ut. Workflowet som bygger den. |
 | 1 | Webbkoden kopieras till `vst/web` och körs i pluginen: alla vyer, Play ut genom pluginen, projektet sparat i Reason-låten, Reasons tempo. |
-| 2 | Clip to Reason: MIDI (frysning av bitar, samplern, varningarna) och WAV, dragning eller fil enligt fas 0. |
+| 2 | Clip to Reason: MIDI (frysning av bitar, samplern, varningarna) och WAV, som dragning. |
