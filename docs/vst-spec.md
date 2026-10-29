@@ -36,11 +36,13 @@ Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gö
 ## Uppspelning och tempo
 
 - **Play i pluginen** gör som i webbappen och är oberoende av Reasons transport; ljudet går ut genom pluginens utgång, ihop med bitarna som noterna spelar. *(Magnus beslut; Play som följer Reasons transport kan komma senare.)*
-- **Tempo:** låtens tempo är Reasons tempo. *(Magnus beslut.)* Frysta bitar är renderade i tempot vid Song to MIDI; ändras tempot i Reason efteråt varnar pluginen att bitarna inte längre stämmer med tempot och att en ny Song to MIDI behövs. *(Magnus beslut 2026-10-29.)*
+- **Tempo:** låtens tempo är Reasons tempo; tempofältet i headern visar det och är låst. *(Magnus beslut.)* Frysta bitar är renderade i tempot vid Song to MIDI; ändras tempot i Reason efteråt varnar pluginen att bitarna inte längre stämmer med tempot och att en ny Song to MIDI behövs. *(Magnus beslut 2026-10-29.)*
 
 ## Lagring
 
-Projektet och de frysta bitarna sparas i Reason-låten som instansens state, så låten är självbärande. *(Magnus beslut.)* Autosave i IndexedDB och projektmappar på disk behövs inte i pluginen. Project-fliken behåller Load/Save av projektfil och snapshots; exporterna ersätts av Clip to Reason. *(Magnus beslut 2026-10-29.)*
+Projektet och de frysta bitarna sparas i Reason-låten som instansens state, så låten är självbärande. *(Magnus beslut.)* Autosave och backups i IndexedDB behövs inte i pluginen. Project-fliken behåller Load/Save av projektfil och snapshots, och därmed projektmapparna på disk där snapshots ligger; exporterna ersätts av Clip to Reason. *(Magnus beslut 2026-10-29.)*
+
+Undo-historiken sparas inte i låten; den börjar om när låten öppnas, som när webbappen laddas om. *(Magnus beslut 2026-10-29.)*
 
 ## Faser
 
