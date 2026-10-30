@@ -49,4 +49,4 @@ Undo-historiken sparas inte i låten; den börjar om när låten öppnas, som n�
 | --- | --- |
 | 0 | Klar 2026-10-29 (se `docs/tasks/vst-fas-0-sammanfattning.md`). Spik: en minimal VST3 som bevisar i Reason 13 att den laddas, visar WebView2, spelar ett ljud på en not, sparar state i låten och att ett MIDI-klipp går att dra ut. Workflowet som bygger den. |
 | 1 | Klar 2026-10-29 (se `docs/tasks/vst-fas-1-sammanfattning.md`). Webbkoden kopieras till `vst/web` och körs i pluginen: alla vyer, Play ut genom pluginen, projektet sparat i Reason-låten, Reasons tempo. |
-| 2 | Song to Audio och Song to MIDI (frysning av bitar, samplern, varningarna), som dragning från en list längst ner. |
+| 2 | Klar 2026-10-30 (se `docs/tasks/vst-fas-2-sammanfattning.md`). Song to Audio och Song to MIDI (frysning av bitar, samplern, varningarna), som dragning från en list längst ner. |

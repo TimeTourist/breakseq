@@ -58,4 +58,4 @@ npm run lint
 - Projektet byggs i faser (se `docs/spec.md` och `docs/vst-spec.md`, avsnitt Faser). Uppdraget för aktuell fas ligger i `docs/tasks/`.
 - Börja aldrig på nästa fas. När "Klart när" är uppfyllt: sammanfatta vad som gjorts, vilka `TODO(spec)` som finns och vad som borde granskas.
 
-**Aktuell fas:** VST fas 2 (`docs/tasks/vst-fas-2.md`). Webbappen: ingen; fas 27b (Crazy madness) togs bort 2026-10-23, mod-förvalen (27a) och loggan finns kvar.
+**Aktuell fas:** ingen; VST fas 2 klar 2026-10-30. Webbappen: ingen; fas 27b (Crazy madness) togs bort 2026-10-23, mod-förvalen (27a) och loggan finns kvar.
