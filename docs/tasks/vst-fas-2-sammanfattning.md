@@ -17,7 +17,7 @@ Tester: 1028 i `vst/web` (nya: render-song-to, song-to, plugin-services), 13 i C
 
 - Klippen har Play-nivå, inte normaliserade som webbappens exporter.
 - Velocity skalar linjärt, 100 = nivån i pluginen.
-- Klippfilerna i AppData: efter fasen bestämde Magnus (q1 a) att en ersatt fil tas bort när instansen försvinner, om ingen annan instans pekar på den (`vst/src/Clips.*`, 4 tester).
+- Klippfilerna i AppData: efter fasen bestämde Magnus (q1 a) att en ersatt fil tas bort när instansen försvinner, om ingen annan instans pekar på den (`vst/src/Clips.*`, 5 tester); bara filer i klippmappen tas bort, eftersom sökvägarna kommer från låten.
 - Från fas 1, fortfarande öppna: hela projektet skickas vid varje autospar, mixern allokerar lite på ljudtråden, en fas 0-instans börjar tomt, Play slutar när fönstret stängs.
 
 ## TODO(spec)

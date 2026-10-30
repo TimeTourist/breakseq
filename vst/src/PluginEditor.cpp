@@ -196,12 +196,6 @@ namespace
         std::memcpy (data.data(), bytes.getData(), data.size() * sizeof (float));
         return data;
     }
-
-    /** Where the clips are kept to drag: beside WebView2's data, in AppData. */
-    juce::File clipsFolder()
-    {
-        return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Breakseq").getChildFile ("Clips");
-    }
 }
 
 void BreakseqEditor::freeze (const juce::var& payload)
@@ -251,7 +245,7 @@ void BreakseqEditor::clip (const juce::var& payload)
     if (! juce::Base64::convertFromBase64 (bytes, payload["data"].toString()))
         return;
 
-    const auto folder = clipsFolder();
+    const auto folder = Clips::defaultFolder();
     folder.createDirectory();
     const auto file = folder.getChildFile (juce::File::createLegalFileName (payload["name"].toString()));
 

@@ -10,7 +10,12 @@ namespace
     }
 }
 
-Clips::Clips()
+juce::File Clips::defaultFolder()
+{
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Breakseq").getChildFile ("Clips");
+}
+
+Clips::Clips (juce::File clipsFolder) : folder (std::move (clipsFolder))
 {
     live().add (this);
 }
@@ -18,7 +23,7 @@ Clips::Clips()
 Clips::~Clips()
 {
     for (const auto& file : retired)
-        if (! usedByAnyone (file))
+        if (file.getLinkedTarget().isAChildOf (folder) && ! usedByAnyone (file))
             file.deleteFile();
 
     live().removeFirstMatchingValue (this);
@@ -28,7 +33,7 @@ void Clips::set (size_t field, Clip clip)
 {
     const auto old = clips[field].file;
 
-    if (old != juce::File() && old != clip.file)
+    if (old.isAChildOf (folder) && old != clip.file)
         retired.addIfNotAlreadyThere (old);
 
     retired.removeFirstMatchingValue (clip.file);

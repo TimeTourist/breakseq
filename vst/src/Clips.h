@@ -10,7 +10,8 @@
  * new clip replaces is removed when this instance goes, if no other instance
  * in Reason points at it (Duplicate Device copies the fields); until then
  * Reason may still read it for a clip dragged but not yet saved in the song.
- * Message thread.
+ * Only files in the clips folder are ever removed: the paths come from the
+ * song, and a song can say anything. Message thread.
  */
 class Clips final
 {
@@ -24,8 +25,13 @@ public:
         juce::String label;
     };
 
-    Clips();
+    /** Breakseq's folder for clips, in AppData. */
+    static juce::File defaultFolder();
+
+    explicit Clips (juce::File folder = defaultFolder());
     ~Clips();
+
+    const juce::File folder;
 
     Clip get (size_t field) const { return clips[field]; }
     /** A new clip in the field: the old file goes when this instance does. */

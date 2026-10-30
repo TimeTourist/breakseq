@@ -23,7 +23,7 @@ public:
             const auto first = file ("first.wav");
             const auto second = file ("second.wav");
             {
-                Clips clips;
+                Clips clips (folder);
                 clips.set (0, { first, "Audio" });
                 clips.set (0, { second, "Audio" });
                 expect (first.existsAsFile());
@@ -35,10 +35,10 @@ public:
         beginTest ("a file another instance points at is kept");
         {
             const auto shared = file ("shared.mid");
-            Clips duplicate;
+            Clips duplicate (folder);
             duplicate.restore (1, { shared, "MIDI" });
             {
-                Clips clips;
+                Clips clips (folder);
                 clips.restore (1, { shared, "MIDI" });
                 clips.set (1, { file ("new.mid"), "MIDI" });
             }
@@ -50,7 +50,7 @@ public:
             const auto space = file ("space.wav");
             const auto again = file ("again.wav");
             {
-                Clips clips;
+                Clips clips (folder);
                 clips.set (2, { space, "Reverb/delay" });
                 clips.set (2, {});
                 clips.set (0, { again, "Audio" });
@@ -64,11 +64,24 @@ public:
         {
             const auto saved = file ("saved.wav");
             {
-                Clips clips;
+                Clips clips (folder);
                 clips.restore (0, { saved, "Audio" });
                 clips.restore (0, {});
             }
             expect (saved.existsAsFile());
+        }
+
+        beginTest ("a file outside the clips folder is never removed, whatever the song says");
+        {
+            const juce::TemporaryFile outsideName;
+            const auto outside = outsideName.getFile();
+            outside.replaceWithText ("not a clip");
+            {
+                Clips clips (folder);
+                clips.restore (0, { outside, "Audio" });
+                clips.set (0, { file ("mine.wav"), "Audio" });
+            }
+            expect (outside.existsAsFile());
         }
 
         folder.deleteRecursively();
