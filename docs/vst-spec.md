@@ -40,7 +40,15 @@ Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gö
 
 ## Lagring
 
-Projektet och de frysta bitarna sparas i Reason-låten som instansens state, så låten är självbärande. *(Magnus beslut.)* Autosave och backups i IndexedDB behövs inte i pluginen. Project-fliken behåller Load/Save av projektfil och snapshots, och därmed projektmapparna på disk där snapshots ligger; exporterna ersätts av Song to Audio och Song to MIDI. *(Magnus beslut 2026-10-29.)*
+Projektet och de frysta bitarna sparas i Reason-låten som instansens state, så låten är självbärande. *(Magnus beslut.)* Autosave och backups i IndexedDB behövs inte i pluginen. Project-fliken behåller snapshots; exporterna ersätts av Song to Audio och Song to MIDI. *(Magnus beslut 2026-10-29.)*
+
+**Projektet är en fil, `.breakseq`** *(Magnus beslut 2026-10-30, ersätter projektmapparna)*:
+- En .breakseq är det som var projektmappen packat i en fil (en zip): `breakseq.json` med aktiv snapshot, `snapshots/` och `audio/`, där varje ljud finns en gång hur många snapshots som än använder det. Snapshots, Load, Save, New snapshot och (changed) fungerar som förut.
+- **Open** väljer en .breakseq i Windows öppna-dialog. **New** låter en namnge filen i spara-dialogen (t.ex. `crazy-amen`; `.breakseq` läggs till), och frågar som förut om den ska börja med arbetet som det är eller tom. **Save as…** skriver projektet med alla snapshots till en ny fil, med arbetet sparat över den aktiva snapshoten, och sedan arbetar man i den nya. Save och New snapshot skriver om filen utan att fråga.
+- Reason-låten minns vilken .breakseq instansen arbetar i och öppnar den igen när Project visas.
+- **Import folder…** gör om en gammal projektmapp till en .breakseq: välj mappen, namnge filen, och den öppnas. Mappen rörs inte.
+- **Project file** (Export/Import .zip) finns inte i pluginen; .breakseq ersätter den.
+- Webbappen ändras inte.
 
 Klippfilerna som dragfälten pekar på ligger i `AppData/Breakseq/Clips`; låten behöver dem inte, Reason har sin egen kopia av det som dragits in. När ett nytt klipp ersätter ett fälts fil tas den gamla bort när instansen försvinner, om ingen annan instans pekar på den. *(Magnus beslut 2026-10-30.)*
 
@@ -53,3 +61,4 @@ Undo-historiken sparas inte i låten; den börjar om när låten öppnas, som n�
 | 0 | Klar 2026-10-29 (se `docs/tasks/vst-fas-0-sammanfattning.md`). Spik: en minimal VST3 som bevisar i Reason 13 att den laddas, visar WebView2, spelar ett ljud på en not, sparar state i låten och att ett MIDI-klipp går att dra ut. Workflowet som bygger den. |
 | 1 | Klar 2026-10-29 (se `docs/tasks/vst-fas-1-sammanfattning.md`). Webbkoden kopieras till `vst/web` och körs i pluginen: alla vyer, Play ut genom pluginen, projektet sparat i Reason-låten, Reasons tempo. |
 | 2 | Klar 2026-10-30 (se `docs/tasks/vst-fas-2-sammanfattning.md`). Song to Audio och Song to MIDI (frysning av bitar, samplern, varningarna), som dragning från en list längst ner. |
+| 3 | Projektet som en fil, `.breakseq` (se Lagring): Open, New, Save as…, Import folder…, filen ihågkommen i låten; Project file bort. |
