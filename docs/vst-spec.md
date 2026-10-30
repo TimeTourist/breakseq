@@ -13,6 +13,7 @@ Arbetssättet: ladda in några REX-loopar, bygg Matrix, Loops och Song med mods 
 - **En instans, en uppsättning tangenter.** Instansen fryser bitarna från senaste Song to MIDI och spelar dem när Reason skickar noter. Att redigera i pluginen ändrar inte vad Reason spelar. Görs Song to MIDI igen och bitarna skulle ändras varnar pluginen att tangenterna byggs om och att klipp som redan ligger i Reason kan spela fel ljud; bitarna byts bara om man godkänner. Den som vill behålla det gamla gör en ny instans, eller *Duplicate Device* i Reason, som tar med projektet och bitarna. *(Magnus beslut.)*
 - **Bara Song to MIDI.** Ingen Loop to MIDI; en enskild loop görs som en Song med den loopen. *(Magnus beslut; Loop to MIDI kan komma senare.)*
 - **Song to Audio och Song to MIDI ersätter exporterna.** Export WAV, MIDI och REX finns inte i pluginen. **Song to Audio** ger en WAV av låten att lägga på ett audiospår; det är en engångsgrej, och pluginen spelar den inte sedan. **Song to MIDI** ger ett MIDI-klipp som pluginen spelar (nedan). De är helt skilda åt: Song to Audio fryser inga bitar och rör inte tangenterna. *(Magnus beslut 2026-10-29.)*
+- **Inga andra pluggar i pluginen.** Effekterna är Breakseqs egna; att ladda VST:er i mods övervägdes och valdes bort. *(Magnus beslut 2026-10-30.)*
 
 ## Arkitektur
 
