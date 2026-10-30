@@ -37,7 +37,7 @@ Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gö
 
 ## Bilden i Reasons lista
 
-Pluginen har en VST3-snapshot, en smiley med namnet (`vst/resources/`), i bundlen under `Contents/Resources/Snapshots`, så att en värd som läser standarden visar den utan att man tar en skärmbild. *(Magnus beslut 2026-10-30, steg 1.)* Reason 13 läser den inte (provat av Magnus 2026-10-30). Därför är steg 2 att pluginen lägger bilden i Reasons egen mapp för skärmbilder, om ingen finns där; det kräver Reasons filnamn.
+Pluginen har en VST3-snapshot, en smiley med namnet (`vst/resources/`), i bundlen under `Contents/Resources/Snapshots`, så att en värd som läser standarden visar den utan att man tar en skärmbild. *(Magnus beslut 2026-10-30, steg 1.)* Reason 13 läser den inte (provat av Magnus 2026-10-30). Steg 2, att lägga bilden i Reasons egen mapp för skärmbilder, görs inte; snapshoten i bundlen får ligga kvar för andra värdar. *(Magnus beslut 2026-10-30.)*
 
 ## Uppspelning och tempo
 
