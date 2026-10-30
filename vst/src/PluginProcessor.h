@@ -53,8 +53,8 @@ public:
     Mixer& getMixer() { return mixer; }
     Sampler& getSampler() { return sampler; }
 
-    /** The bar's drag fields: Song to Audio's WAV, Song to MIDI's MIDI file and its reverb/delay. */
-    enum class Field { audio, midi, space };
+    /** The bar's drag fields: Song to Audio's WAV, Song to MIDI's MIDI file and its reverb/delay, Song to REX's REX and MIDI files. */
+    enum class Field { audio, midi, space, rex, rexMidi };
 
     using Clip = Clips::Clip;
 

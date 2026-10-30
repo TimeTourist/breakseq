@@ -31,7 +31,7 @@ export function bridgeHost(bridge: Bridge): Host {
     },
     onSongTo: (listener) =>
       bridge.on('songTo', (kind) => {
-        if (kind === 'audio' || kind === 'midi') listener(kind as SongTo);
+        if (kind === 'audio' || kind === 'midi' || kind === 'rex') listener(kind as SongTo);
       }),
     sampleRate: async () => {
       const rate = ((await bridge.call('hostInfo')) as { sampleRate?: unknown } | null)?.sampleRate;

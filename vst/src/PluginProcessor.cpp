@@ -51,7 +51,7 @@ namespace
 {
     /** 1: the project. 2: also the frozen pieces and the bar's drag fields, and the .breakseq file. */
     constexpr int stateVersion = 2;
-    const char* const fieldNames[] { "audio", "midi", "space" };
+    const char* const fieldNames[] { "audio", "midi", "space", "rex", "rexMidi" };
 }
 
 void BreakseqProcessor::getStateInformation (juce::MemoryBlock& destData)

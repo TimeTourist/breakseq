@@ -1,5 +1,5 @@
 import type { Project } from '../../model';
-import { FIRST_NOTE, MidiExportError, songToAudio, songToMidi } from '../../engine';
+import { FIRST_NOTE, MidiExportError, songToAudio, songToMidi, songToRex } from '../../engine';
 import type { Host } from '../services';
 import { exportBase, timestamp } from '../services';
 
@@ -7,7 +7,9 @@ import { exportBase, timestamp } from '../services';
  * Song to Audio and Song to MIDI (docs/vst-spec.md): render, then hand the
  * files to the plugin's bar to drag to Reason. Song to MIDI freezes its pieces
  * in the instance; when that would change the keys of clips already in Reason
- * it asks first, and a no leaves everything as it was (Magnus beslut).
+ * it asks first, and a no leaves everything as it was (Magnus beslut). Song
+ * to REX, a trial beside it, makes the same pieces a REX for Dr. Octo Rex and
+ * freezes nothing.
  */
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -47,6 +49,22 @@ export async function runSongToMidi(project: Project, host: Host, ask: () => Pro
     await host.clip('midi', { name: `${base}.mid`, bytes: result.midi, label: `MIDI · ${bars(project)} · ${count} sound${count === 1 ? '' : 's'} · ${keys}` });
     await host.clip('space', result.space === null ? null : { name: `${base}-reverb-delay.wav`, bytes: result.space, label: `Reverb/delay · ${bars(project)}` });
     host.status(result.space === null ? 'Drag MIDI to this instrument’s track in Reason.' : 'Drag MIDI to this instrument’s track, and Reverb/delay to an audio track from the same bar.', false);
+  } catch (error) {
+    host.status(error instanceof MidiExportError ? error.message : 'Could not render the sounds.', false);
+  }
+}
+
+/** Song to REX: a REX file and its MIDI clip, and the reverb/delay; the frozen pieces and the keys stay as they are. */
+export async function runSongToRex(project: Project, host: Host): Promise<void> {
+  host.status('Rendering the sounds…', true);
+  try {
+    const result = await songToRex(project, await host.sampleRate());
+    const base = exportBase(project.song.bpm, timestamp());
+    const count = result.pieces;
+    await host.clip('rex', { name: `${base}.rx2`, bytes: result.rex, label: `REX · ${count} slice${count === 1 ? '' : 's'}` });
+    await host.clip('rexMidi', { name: `${base}-rex.mid`, bytes: result.midi, label: `MIDI for REX · ${bars(project)}` });
+    await host.clip('space', result.space === null ? null : { name: `${base}-reverb-delay.wav`, bytes: result.space, label: `Reverb/delay · ${bars(project)}` });
+    host.status('Drag REX to the rack for a Dr. Octo Rex, then MIDI for REX to its track.', false);
   } catch (error) {
     host.status(error instanceof MidiExportError ? error.message : 'Could not render the sounds.', false);
   }

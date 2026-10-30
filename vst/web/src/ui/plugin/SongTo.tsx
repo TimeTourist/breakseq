@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context';
-import { runSongToAudio, runSongToMidi } from './song-to';
+import { runSongToAudio, runSongToMidi, runSongToRex } from './song-to';
 
 /**
  * Asked before Song to MIDI rebuilds the keys (Magnus beslut): the frozen
@@ -39,7 +39,7 @@ export function ConfirmKeys({ onAnswer }: { readonly onAnswer: (rebuild: boolean
 }
 
 /**
- * Song to Audio and Song to MIDI, pressed in the plugin's bar: renders the
+ * Song to Audio, Song to MIDI and Song to REX, pressed in the plugin's bar: renders the
  * song as it is now and hands the files to the bar. One at a time.
  */
 export function SongTo() {
@@ -63,7 +63,7 @@ export function SongTo() {
       if (busy.current) return;
       busy.current = true;
       const project = store.getState().history.present;
-      const done = kind === 'audio' ? runSongToAudio(project, host) : runSongToMidi(project, host, ask);
+      const done = kind === 'audio' ? runSongToAudio(project, host) : kind === 'rex' ? runSongToRex(project, host) : runSongToMidi(project, host, ask);
       void done.finally(() => (busy.current = false));
     });
   }, [host, store, ask]);

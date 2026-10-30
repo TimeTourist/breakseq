@@ -59,8 +59,8 @@ export interface Host {
   readonly status: (text: string, busy: boolean) => void;
 }
 
-export type SongTo = 'audio' | 'midi';
-export type ClipField = 'audio' | 'midi' | 'space';
+export type SongTo = 'audio' | 'midi' | 'rex';
+export type ClipField = 'audio' | 'midi' | 'space' | 'rex' | 'rexMidi';
 
 /** What is frozen in an instance: which pieces (see fingerprint) and the tempo they were made in. */
 export interface Frozen {

@@ -40,7 +40,8 @@ private:
     BreakseqProcessor& processor;
     juce::TextButton toAudio { "Song to Audio" };
     juce::TextButton toMidi { "Song to MIDI" };
-    DragField audio, midi, space;
+    juce::TextButton toRex { "Song to REX" };
+    DragField audio, midi, space, rex, rexMidi;
     juce::Label status;
 };
 

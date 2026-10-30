@@ -5,7 +5,8 @@ import type { Command, Project } from '../../model';
 import { addSample, createLoop, createProject, setBpm, setSongCell, setStep, updateHit } from '../../model';
 import { constantAudio, sequentialIds } from '../../test/fixtures';
 import type { ClipField, Frozen, Host } from '../services';
-import { noteName, runSongToAudio, runSongToMidi } from './song-to';
+import { decodeRex } from '../../engine';
+import { noteName, runSongToAudio, runSongToMidi, runSongToRex } from './song-to';
 
 const ctx = sequentialIds();
 function run(project: Project, ...commands: Command[]): Project {
@@ -26,7 +27,7 @@ function twoSounds(): Project {
 
 /** The plugin as far as the bar goes: what is frozen, the fields and the last status. */
 function fakeHost() {
-  const state = { frozen: null as Frozen | null, freezes: 0, fields: new Map<ClipField, string | null>(), status: '' };
+  const state = { frozen: null as Frozen | null, freezes: 0, fields: new Map<ClipField, string | null>(), files: new Map<ClipField, Uint8Array>(), status: '' };
   const host: Host = {
     onTempo: () => () => {},
     onSongTo: () => () => {},
@@ -39,6 +40,7 @@ function fakeHost() {
     },
     clip: (field, file) => {
       state.fields.set(field, file?.label ?? null);
+      if (file !== null) state.files.set(field, file.bytes);
       return Promise.resolve();
     },
     status: (text) => {
@@ -93,6 +95,26 @@ describe('Song to Audio', () => {
     await runSongToAudio(twoSounds(), host);
     expect(state.fields.get('audio')).toBe('Audio · 8 bars');
     expect(state.freezes).toBe(0);
+  });
+});
+
+describe('Song to REX', () => {
+  it('fills REX and MIDI for REX, one slice per sound, and leaves the frozen pieces and the MIDI field alone', async () => {
+    const { host, state } = fakeHost();
+    await runSongToMidi(twoSounds(), host, () => Promise.resolve(true));
+    const frozen = state.frozen;
+    const midi = state.fields.get('midi');
+
+    await runSongToRex(twoSounds(), host);
+
+    expect(state.fields.get('rex')).toBe('REX · 2 slices');
+    expect(state.fields.get('rexMidi')).toBe('MIDI for REX · 8 bars');
+    expect(decodeRex(state.files.get('rex')!).slices).toHaveLength(2);
+    expect(state.files.get('rexMidi')).toEqual(state.files.get('midi'));
+    expect(state.freezes).toBe(1);
+    expect(state.frozen).toBe(frozen);
+    expect(state.fields.get('midi')).toBe(midi);
+    expect(state.status).toBe('Drag REX to the rack for a Dr. Octo Rex, then MIDI for REX to its track.');
   });
 });
 

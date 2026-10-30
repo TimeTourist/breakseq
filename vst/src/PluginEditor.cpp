@@ -183,7 +183,7 @@ BreakseqEditor::BreakseqEditor (BreakseqProcessor& p)
 
     setResizable (true, true);
     setResizeLimits (800, 500, 3200, 2000);
-    setSize (1280, 800);
+    setSize (1440, 800);
 
     web.goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
     startTimerHz (30);
@@ -290,7 +290,11 @@ void BreakseqEditor::freeze (const juce::var& payload)
 void BreakseqEditor::clip (const juce::var& payload)
 {
     const auto name = payload["field"].toString();
-    const auto field = name == "audio" ? BreakseqProcessor::Field::audio : name == "midi" ? BreakseqProcessor::Field::midi : BreakseqProcessor::Field::space;
+    const auto field = name == "audio"     ? BreakseqProcessor::Field::audio
+                       : name == "midi"    ? BreakseqProcessor::Field::midi
+                       : name == "rex"     ? BreakseqProcessor::Field::rex
+                       : name == "rexMidi" ? BreakseqProcessor::Field::rexMidi
+                                           : BreakseqProcessor::Field::space;
 
     if (! payload.hasProperty ("data"))
     {
@@ -349,16 +353,20 @@ ReasonBar::ReasonBar (BreakseqProcessor& p, std::function<void (const juce::Stri
     : processor (p),
       audio (p, BreakseqProcessor::Field::audio, "Audio: press Song to Audio"),
       midi (p, BreakseqProcessor::Field::midi, "MIDI: press Song to MIDI"),
-      space (p, BreakseqProcessor::Field::space, "No reverb/delay")
+      space (p, BreakseqProcessor::Field::space, "No reverb/delay"),
+      rex (p, BreakseqProcessor::Field::rex, "REX: press Song to REX"),
+      rexMidi (p, BreakseqProcessor::Field::rexMidi, "MIDI for REX")
 {
     toAudio.onClick = [songTo] { songTo ("audio"); };
     toMidi.onClick = [songTo] { songTo ("midi"); };
+    toRex.onClick = [songTo] { songTo ("rex"); };
     toAudio.setTooltip ("The song as a WAV, to lay on an audio track in Reason");
+    toRex.setTooltip ("The song's sounds as a REX for a Dr. Octo Rex in the rack, and MIDI to play it; nothing here changes (a trial)");
     toMidi.setTooltip ("The song as MIDI, played by this instrument's frozen sounds, and its reverb/delay as a WAV");
     status.setFont (juce::FontOptions (12.0f));
     status.setColour (juce::Label::textColourId, juce::Colour (0xffb8bcc4));
 
-    for (auto* c : std::initializer_list<juce::Component*> { &toAudio, &audio, &toMidi, &midi, &space, &status })
+    for (auto* c : std::initializer_list<juce::Component*> { &toAudio, &audio, &toMidi, &midi, &space, &toRex, &rex, &rexMidi, &status })
         addAndMakeVisible (c);
 
     refresh();
@@ -374,15 +382,21 @@ void ReasonBar::paint (juce::Graphics& g)
 void ReasonBar::resized()
 {
     auto area = getLocalBounds().reduced (8, 7);
-    toAudio.setBounds (area.removeFromLeft (110));
+    toAudio.setBounds (area.removeFromLeft (104));
     area.removeFromLeft (6);
-    audio.setBounds (area.removeFromLeft (150));
-    area.removeFromLeft (16);
-    toMidi.setBounds (area.removeFromLeft (110));
+    audio.setBounds (area.removeFromLeft (120));
+    area.removeFromLeft (14);
+    toMidi.setBounds (area.removeFromLeft (104));
     area.removeFromLeft (6);
-    midi.setBounds (area.removeFromLeft (230));
+    midi.setBounds (area.removeFromLeft (190));
     area.removeFromLeft (6);
-    space.setBounds (area.removeFromLeft (150));
+    space.setBounds (area.removeFromLeft (120));
+    area.removeFromLeft (14);
+    toRex.setBounds (area.removeFromLeft (104));
+    area.removeFromLeft (6);
+    rex.setBounds (area.removeFromLeft (120));
+    area.removeFromLeft (6);
+    rexMidi.setBounds (area.removeFromLeft (120));
     area.removeFromLeft (12);
     status.setBounds (area);
 }

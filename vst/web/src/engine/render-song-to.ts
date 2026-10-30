@@ -3,7 +3,7 @@ import { encodeWav } from './codec';
 import { generateTake } from './generate';
 import { encodeMidi, midiPlan } from './midi';
 import { renderTakeWithTail } from './render-chunks';
-import { pieceAudio, spaceStem } from './render-slices';
+import { pieceAudio, rexExport, spaceStem } from './render-slices';
 
 /**
  * What the plugin sends to Reason (docs/vst-spec.md, Song to Audio och Song
@@ -47,6 +47,25 @@ export async function songToMidi(project: Project, sampleRate: number): Promise<
     space: await spaceStem(project, take, sampleRate, 1),
     fingerprint: fingerprint(stereo, sampleRate),
   };
+}
+
+export interface SongToRex {
+  readonly rex: Uint8Array;
+  readonly midi: Uint8Array;
+  readonly pieces: number;
+  readonly space: Uint8Array | null;
+}
+
+/**
+ * The song as a REX file for Dr. Octo Rex and a MIDI clip to play it: the web
+ * app's Export MIDI + REX in Reason's sample rate, normalized as there so the
+ * REX does not clip (docs/vst-spec.md, Song to REX). Nothing is frozen. Throws
+ * MidiExportError past 92 pieces.
+ */
+export async function songToRex(project: Project, sampleRate: number): Promise<SongToRex> {
+  const take = generateTake(project);
+  const { buffer } = await renderTakeWithTail(take, project, sampleRate);
+  return rexExport(project, { ...take, buffer }, sampleRate);
 }
 
 /** FNV-1a over the pieces' samples, their lengths and the rate: equal pieces, equal fingerprint. */
