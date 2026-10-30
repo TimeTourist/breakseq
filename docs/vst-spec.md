@@ -29,6 +29,8 @@ Båda sitter i en list längst ner i pluginfönstret, alltid synlig, med knappar
 - **Song to Audio:** låten som den hörs, med det som klingar ut efter slutet, som en WAV i Reasons samplingsfrekvens.
 - **Song to MIDI:** som rx2-exporten i webbappen *(Magnus beslut)*: varje unikt ljud blir en bit på en tangent från C1, högst 92, där ett slag har all bearbetning utom reverb och delay och Tape, Scratch och ljudmods klipps ur låten som den hörs. Reverb och delay blir en egen WAV med eget dragfält. Bitarna fryses i instansen, och samplern spelar dem när Reason skickar noter.
 
+- **Song to REX** *(Magnus beslut 2026-10-30, ett försök bredvid Song to MIDI; tas bort om det inte blir bra)*: samma bitar som Song to MIDI, men som en REX-fil (som Export MIDI + REX i webbappen, med samma nivåer) och ett MIDI-klipp till den. REX-filen dras till racket och blir en Dr. Octo Rex, MIDI-klippet till dess spår; reverb/delay till ett audiospår som förut. Inget fryses i instansen och tangenterna rörs inte: varje Song to REX blir en egen Octo Rex. Listen får en tredje knapp med fälten *REX* och *MIDI for REX*; *Reverb/delay* delas med Song to MIDI.
+
 En VST kan inte själv lägga ett klipp i Reasons sekvenser som Dr. Octo Rex gör (*Copy Loop to Track*), och tredjeparts-VST:er i Reason kan inte skicka MIDI ut. *(Utrett 2026-10-29.)*
 
 Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gör. Pluginen visar inte vilken tangent som spelar vilket ljud. *(Magnus beslut 2026-10-29.)*
@@ -62,3 +64,4 @@ Undo-historiken sparas inte i låten; den börjar om när låten öppnas, som n�
 | 1 | Klar 2026-10-29 (se `docs/tasks/vst-fas-1-sammanfattning.md`). Webbkoden kopieras till `vst/web` och körs i pluginen: alla vyer, Play ut genom pluginen, projektet sparat i Reason-låten, Reasons tempo. |
 | 2 | Klar 2026-10-30 (se `docs/tasks/vst-fas-2-sammanfattning.md`). Song to Audio och Song to MIDI (frysning av bitar, samplern, varningarna), som dragning från en list längst ner. |
 | 3 | Projektet som en fil, `.breakseq` (se Lagring): Open, New, Save as…, Import folder…, filen ihågkommen i låten; Project file bort. |
+| 4 | Song to REX bredvid Song to MIDI, som ett försök (se Song to Audio och Song to MIDI). |
