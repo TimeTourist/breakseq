@@ -17,6 +17,8 @@ export interface Folder {
   readonly write: (path: string, bytes: Uint8Array) => Promise<void>;
   /** The names of the files in a directory, or none if it does not exist. */
   readonly list: (dir: string) => Promise<string[]>;
+  /** Puts what was written on disk, for a folder that keeps it until then (a .breakseq file). */
+  readonly flush?: () => Promise<void>;
 }
 
 /** breakseq.json: what makes a folder a Breakseq project, and which snapshot is active. */
@@ -141,4 +143,17 @@ export async function loadSnapshot(folder: Folder, file: string): Promise<Projec
   const project = upgradeProject({ ...json.project, audio });
   if (project === null) throw new ProjectFileError(OLD_PROJECT_MESSAGE);
   return project;
+}
+
+/** Copies a project, every snapshot and audio, into another folder; the caller flushes it. */
+export async function copyProject(from: Folder, to: Folder): Promise<void> {
+  const manifest = await from.read(MANIFEST);
+  if (manifest === null) throw new ProjectFileError(`“${from.name}” is not a Breakseq project`);
+  for (const dir of [SNAPSHOTS, AUDIO]) {
+    for (const name of await from.list(dir)) {
+      const bytes = await from.read(`${dir}/${name}`);
+      if (bytes !== null) await to.write(`${dir}/${name}`, bytes);
+    }
+  }
+  await to.write(MANIFEST, manifest);
 }

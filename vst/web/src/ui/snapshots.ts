@@ -24,6 +24,7 @@ export function useSnapshots() {
     if (folder === null || active === null) return;
     const project = store.getState().history.present;
     const info = await saveSnapshot(folder, project, active.name, new Date(), active.file);
+    await folder.flush?.();
     setFolder({ active: info, saved: comparable(project) });
     await refresh(folder);
   };
@@ -34,6 +35,7 @@ export function useSnapshots() {
     const project = store.getState().history.present;
     const info = await saveSnapshot(folder, project, name.trim() === '' ? `Snapshot ${snapshots.length + 1}` : name.trim(), new Date());
     await writeManifest(folder, info.file);
+    await folder.flush?.();
     setFolder({ active: info, saved: comparable(project) });
     await refresh(folder);
     return info;
@@ -45,6 +47,7 @@ export function useSnapshots() {
     const project = await loadSnapshot(folder, info.file);
     store.dispatch({ type: 'load', project });
     await writeManifest(folder, info.file);
+    await folder.flush?.();
     setFolder({ active: info, saved: comparable(project) });
     await refresh(folder);
   };

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PlayIcon } from './icons';
-import { ProjectFile } from './ProjectFile';
 import type { Folder, SnapshotInfo } from '../engine';
-import { comparable, listSnapshots, loadSnapshot, readManifest, saveSnapshot, writeManifest } from '../engine';
+import { comparable, copyProject, listSnapshots, loadSnapshot, readManifest, saveSnapshot, writeManifest } from '../engine';
 import type { Project } from '../model';
 import { newProject as emptyProject } from '../model';
 import { useApp, useSelect } from './context';
@@ -42,13 +41,16 @@ interface ProjectViewProps {
 }
 
 /**
- * Projects as folders on disk, and snapshots of the work in them: play or
- * export any of them without loading it, or load one. Save and New snapshot
- * are in the header. Undo works within a snapshot; loading one starts afresh.
+ * Projects on disk, as folders or as .breakseq files (the plugin), and
+ * snapshots of the work in them: play or export any of them without loading
+ * it, or load one. Save and New snapshot are in the header. Undo works within
+ * a snapshot; loading one starts afresh.
  */
 export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, onPlayTake, backups, onRestore }: ProjectViewProps) {
   const { store, services } = useApp();
   const folders = services.folders;
+  /** Projects are .breakseq files, not folders (docs/vst-spec.md, Lagring). */
+  const files = folders?.create !== undefined;
   const { folder, active, changed, snapshots, setFolder, refresh, save, load: loadInfo } = useSnapshots();
   const present = useSelect((s) => s.history.present);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +103,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
     if (project !== present) store.dispatch({ type: 'load', project });
     const info = await saveSnapshot(f, project, 'Start', new Date());
     await writeManifest(f, info.file);
+    await f.flush?.();
     setFolder({ folder: f, active: info, saved: comparable(project) });
     await refresh(f);
   };
@@ -204,7 +207,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
 
   const newProject = () =>
     void attempt(async () => {
-      const f = await folders?.pick();
+      const f = await (folders?.create ?? folders?.pick)?.();
       if (f === undefined || f === null) return;
       if ((await readManifest(f)) !== null) throw new Error(`“${f.name}” already has a project: use Open`);
       const work = store.getState().history.present;
@@ -218,6 +221,32 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
       });
     });
 
+  /** The project with every snapshot in a new file, with the work saved over the active one there; then the work goes on in that file. */
+  const saveAs = () =>
+    void attempt(async () => {
+      if (folder === null) return;
+      const f = await folders?.create?.();
+      if (f === undefined || f === null) return;
+      await copyProject(folder, f);
+      const project = store.getState().history.present;
+      const info = active !== null && changed ? await saveSnapshot(f, project, active.name, new Date(), active.file) : active;
+      await f.flush?.();
+      setFolder({ folder: f, active: info, ...(info !== active ? { saved: comparable(project) } : {}) });
+    });
+
+  /** An old project folder made into a new .breakseq file, which is opened; the folder is not touched. */
+  const importFolder = () =>
+    guarded('Open another project', async () => {
+      const old = await folders?.folders?.pick();
+      if (old === undefined || old === null) return;
+      if ((await readManifest(old)) === null) throw new Error(`“${old.name}” has no Breakseq project`);
+      const f = await folders?.create?.();
+      if (f === undefined || f === null) return;
+      await copyProject(old, f);
+      await f.flush?.();
+      await openFolder(f);
+    });
+
   const others = snapshots.filter((s) => s.file !== active?.file);
 
   return (
@@ -227,8 +256,10 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
           <h1>Project</h1>
           <p className="muted">
             {folder === null
-              ? 'A project is a folder on your disk. Snapshots in it keep your work as it is, to come back to.'
-              : `In the folder “${folder.name}”.`}
+              ? `A project is a ${files ? '.breakseq file' : 'folder on your disk'}. Snapshots in it keep your work as it is, to come back to.`
+              : files
+                ? `In “${folder.name}”.`
+                : `In the folder “${folder.name}”.`}
           </p>
         </div>
         <div className="row push">
@@ -238,6 +269,16 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
           <button type="button" disabled={busy || folders?.supported !== true} onClick={newProject}>
             New
           </button>
+          {files && (
+            <button type="button" disabled={busy || folder === null} title="The project with every snapshot in a new file, to go on in" onClick={saveAs}>
+              Save as…
+            </button>
+          )}
+          {files && folders?.folders?.supported === true && (
+            <button type="button" disabled={busy} title="Make an old project folder into a .breakseq file; the folder stays as it is" onClick={importFolder}>
+              Import folder…
+            </button>
+          )}
         </div>
       </div>
 
@@ -245,7 +286,7 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
 
       {folder === null && remembered !== null && (
         <section className="panel row">
-          <span className="muted">Last time you worked in “{remembered.name}”.</span>
+          <span className="muted">{files ? 'This song worked in' : 'Last time you worked in'} “{remembered.name}”.</span>
           <button
             type="button"
             className="push"
@@ -253,12 +294,12 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
             onClick={() =>
               void attempt(async () => {
                 const f = await remembered.reconnect(true);
-                if (f === null) throw new Error('The browser did not allow the folder');
+                if (f === null) throw new Error(files ? `“${remembered.name}” is not there any more` : 'The browser did not allow the folder');
                 await connect(f);
               })
             }
           >
-            Reconnect “{remembered.name}”
+            {files ? 'Open' : 'Reconnect'} “{remembered.name}”
           </button>
         </section>
       )}
@@ -317,8 +358,6 @@ export function ProjectView({ onExport, canExport, onExportMidi, onExportRex, on
           {midiDone !== null && <p className="muted small" role="status">{midiDone}</p>}
         </section>
       )}
-
-      <ProjectFile />
 
       {folder !== null && (
         <section className="panel stack" aria-label="Snapshots">

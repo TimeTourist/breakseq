@@ -254,7 +254,7 @@ function Crumbs() {
 
 /**
  * Save over the active snapshot, or keep the work as a new one with a name.
- * Both need a project folder, opened in Project.
+ * Both need a project, opened in Project.
  */
 function SnapshotButtons() {
   const { folder, active, changed, save, newSnapshot, load } = useSnapshots();
@@ -263,7 +263,7 @@ function SnapshotButtons() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const noFolder = 'Open a project folder in Project first';
+  const noFolder = 'Open or make a project in Project first';
 
   const attempt = (work: () => Promise<unknown>) => {
     setBusy(true);

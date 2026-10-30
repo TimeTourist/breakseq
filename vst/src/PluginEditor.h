@@ -60,6 +60,8 @@ private:
     void saveFile (const juce::String& name, const juce::String& base64);
     void freeze (const juce::var& payload);
     void clip (const juce::var& payload);
+    void openProjectFile (juce::WebBrowserComponent::NativeFunctionCompletion);
+    void newProjectFile (juce::WebBrowserComponent::NativeFunctionCompletion);
 
     BreakseqProcessor& processor;
     juce::WebBrowserComponent web;

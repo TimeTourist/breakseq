@@ -22,6 +22,13 @@ export interface FolderService {
   readonly pick: () => Promise<Folder | null>;
   /** The folder picked last time, if any. */
   readonly remembered: () => Promise<RememberedFolder | null>;
+  /**
+   * Projects as files (.breakseq, in the plugin): a new, empty one the user
+   * names, for New and Save as…. Without it, New picks a folder as Open does.
+   */
+  readonly create?: () => Promise<Folder | null>;
+  /** Where projects are files: old project folders, for Import folder…. */
+  readonly folders?: FolderService;
 }
 
 const isMissing = (e: unknown) => e instanceof DOMException && (e.name === 'NotFoundError' || e.name === 'TypeMismatchError');

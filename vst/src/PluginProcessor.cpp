@@ -49,7 +49,7 @@ juce::AudioProcessorEditor* BreakseqProcessor::createEditor()
 
 namespace
 {
-    /** 1: the project. 2: also the frozen pieces and the bar's drag fields. */
+    /** 1: the project. 2: also the frozen pieces and the bar's drag fields, and the .breakseq file. */
     constexpr int stateVersion = 2;
     const char* const fieldNames[] { "audio", "midi", "space" };
 }
@@ -59,6 +59,9 @@ void BreakseqProcessor::getStateInformation (juce::MemoryBlock& destData)
     juce::ValueTree state ("Breakseq");
     state.setProperty ("version", stateVersion, nullptr);
     state.setProperty ("project", getProject(), nullptr);
+
+    if (projectFile != juce::File())
+        state.setProperty ("projectFile", projectFile.getFullPathName(), nullptr);
 
     if (const auto pieces = sampler.getPieces())
         state.setProperty ("pieces", Sampler::write (*pieces), nullptr);
@@ -89,6 +92,9 @@ void BreakseqProcessor::setStateInformation (const void* data, int sizeInBytes)
         return;
 
     setProject (state.getProperty ("project", "").toString());
+
+    const auto file = state.getProperty ("projectFile", "").toString();
+    projectFile = file.isEmpty() ? juce::File() : juce::File (file);
 
     // Version 1 (phase 1) has no pieces and no fields: as a new instance there.
     if (const auto* bytes = state.getProperty ("pieces").getBinaryData())

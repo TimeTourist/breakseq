@@ -1,6 +1,7 @@
 import type { Id, Project } from '../../model';
 import { hitRun } from '../../engine';
 import { browserFolders } from '../folders';
+import { pluginFiles } from './plugin-files';
 import type { Player } from '../playback';
 import { createPlayer } from '../playback';
 import type { ClipField, Frozen, Host, Services, SongTo } from '../services';
@@ -109,14 +110,14 @@ const download =
 /**
  * Services in the plugin (docs/vst-spec.md): the project in the Reason song,
  * Play through the plugin's output, Reason's tempo, no exports and no backups.
- * Project folders, where snapshots live, are the browser's as in the web app.
+ * Projects, where snapshots live, are .breakseq files the plugin reads and writes.
  */
 export function pluginServices(bridge: Bridge): Services {
   const audio = remoteAudio(bridge);
   const render = renderers();
   return {
     storage: pluginStorage(bridge),
-    folders: browserFolders(),
+    folders: pluginFiles(bridge, browserFolders()),
     player: pluginPlayer(audio, render.renderPreview),
     ...render,
     download: download(bridge),

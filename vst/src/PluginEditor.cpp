@@ -51,6 +51,34 @@ namespace
     }
 }
 
+namespace
+{
+    constexpr auto breakseqExtension = ".breakseq";
+
+    /** A path from the page, as a .breakseq; nothing else is read or written through it. */
+    juce::File breakseqFile (const juce::String& path)
+    {
+        if (! juce::File::isAbsolutePath (path))
+            return {};
+
+        const juce::File file (path);
+        return file.hasFileExtension (breakseqExtension) ? file : juce::File();
+    }
+
+    /** What the page gets for a picked file: where it is, its name and, when given, what is in it. */
+    juce::var pickedFile (const juce::File& file, const juce::MemoryBlock* data)
+    {
+        auto* picked = new juce::DynamicObject();
+        picked->setProperty ("path", file.getFullPathName());
+        picked->setProperty ("name", file.getFileName());
+
+        if (data != nullptr)
+            picked->setProperty ("data", juce::Base64::toBase64 (data->getData(), data->getSize()));
+
+        return juce::var (picked);
+    }
+}
+
 BreakseqEditor::BreakseqEditor (BreakseqProcessor& p)
     : AudioProcessorEditor (p),
       processor (p),
@@ -109,6 +137,37 @@ BreakseqEditor::BreakseqEditor (BreakseqProcessor& p)
                                     {
                                         clip (args[0]);
                                         complete (juce::var());
+                                    })
+               .withNativeFunction ("openProjectFile", [this] (const juce::Array<juce::var>&, auto complete)
+                                    {
+                                        openProjectFile (std::move (complete));
+                                    })
+               .withNativeFunction ("newProjectFile", [this] (const juce::Array<juce::var>&, auto complete)
+                                    {
+                                        newProjectFile (std::move (complete));
+                                    })
+               .withNativeFunction ("projectFile", [this] (const juce::Array<juce::var>&, auto complete)
+                                    {
+                                        complete (processor.projectFile == juce::File() ? juce::var() : pickedFile (processor.projectFile, nullptr));
+                                    })
+               .withNativeFunction ("readProjectFile", [] (const juce::Array<juce::var>& args, auto complete)
+                                    {
+                                        juce::MemoryBlock data;
+                                        const auto file = breakseqFile (args[0].toString());
+                                        complete (file.existsAsFile() && file.loadFileAsData (data) ? juce::var (juce::Base64::toBase64 (data.getData(), data.getSize())) : juce::var());
+                                    })
+               .withNativeFunction ("writeProjectFile", [this] (const juce::Array<juce::var>& args, auto complete)
+                                    {
+                                        juce::MemoryOutputStream bytes;
+                                        const auto file = breakseqFile (args[0].toString());
+                                        const auto written = file != juce::File() && juce::Base64::convertFromBase64 (bytes, args[1].toString())
+                                                             && file.replaceWithData (bytes.getData(), bytes.getDataSize());
+
+                                        // A new file belongs to the song once it is on disk.
+                                        if (written)
+                                            processor.projectFile = file;
+
+                                        complete (written);
                                     })
                .withNativeFunction ("clipStatus", [this] (const juce::Array<juce::var>& args, auto complete)
                                     {
@@ -369,5 +428,53 @@ void BreakseqEditor::saveFile (const juce::String& name, const juce::String& bas
 
                               if (file != juce::File())
                                   file.replaceWithData (bytes->getData(), bytes->getDataSize());
+                          });
+}
+
+namespace
+{
+    /** Where the dialogs start: beside the song's file, or in Documents. */
+    juce::File startIn (const juce::File& projectFile)
+    {
+        return projectFile != juce::File() ? projectFile.getParentDirectory() : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+    }
+}
+
+void BreakseqEditor::openProjectFile (juce::WebBrowserComponent::NativeFunctionCompletion complete)
+{
+    chooser = std::make_unique<juce::FileChooser> ("Open a Breakseq project", startIn (processor.projectFile), juce::String ("*") + breakseqExtension);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this, complete] (const juce::FileChooser& fc)
+                          {
+                              const auto file = breakseqFile (fc.getResult().getFullPathName());
+                              juce::MemoryBlock data;
+
+                              if (! file.existsAsFile() || ! file.loadFileAsData (data))
+                              {
+                                  complete (juce::var());
+                                  return;
+                              }
+
+                              processor.projectFile = file;
+                              complete (pickedFile (file, &data));
+                          });
+}
+
+void BreakseqEditor::newProjectFile (juce::WebBrowserComponent::NativeFunctionCompletion complete)
+{
+    chooser = std::make_unique<juce::FileChooser> ("Name the Breakseq project", startIn (processor.projectFile), juce::String ("*") + breakseqExtension);
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [complete] (const juce::FileChooser& fc)
+                          {
+                              const auto file = fc.getResult();
+
+                              if (file == juce::File())
+                              {
+                                  complete (juce::var());
+                                  return;
+                              }
+
+                              // Not the song's file until the page writes it (writeProjectFile).
+                              complete (pickedFile (file.hasFileExtension (breakseqExtension) ? file : file.getSiblingFile (file.getFileName() + breakseqExtension), nullptr));
                           });
 }

@@ -62,6 +62,9 @@ public:
     Clip getClip (Field field) const { return clips.get ((size_t) field); }
     void setClip (Field field, Clip clip) { clips.set ((size_t) field, std::move (clip)); }
 
+    /** The .breakseq the project is kept in, saved in the song so it opens again; none at first. Message thread. */
+    juce::File projectFile;
+
     /** What the bar says, from the page; not saved. Message thread. */
     juce::String status;
     bool busy = false;
