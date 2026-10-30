@@ -49,6 +49,19 @@ jobs:
       - name: C++ tests
         run: vst/build/BreakseqTests_artefacts/Release/BreakseqTests.exe
 
+      # The picture of the plugin hosts may show in their lists (VST3 snapshot), named by the plugin's class id.
+      - name: Snapshot
+        run: |
+          $resources = "vst/build/Breakseq_artefacts/Release/VST3/Breakseq.vst3/Contents/Resources"
+          if (-not (Test-Path "$resources/moduleinfo.json")) { Write-Output "::error::The bundle has no moduleinfo.json"; exit 1 }
+          $info = Get-Content "$resources/moduleinfo.json" -Raw | ConvertFrom-Json
+          $cid = ($info.Classes | Where-Object { $_.Category -eq 'Audio Module Class' } | Select-Object -First 1).CID
+          if (-not $cid) { Write-Output "::error::No Audio Module Class in moduleinfo.json"; exit 1 }
+          New-Item -ItemType Directory -Force "$resources/Snapshots" | Out-Null
+          Copy-Item vst/resources/snapshot.png "$resources/Snapshots/${cid}_snapshot.png"
+          Copy-Item vst/resources/snapshot_2.0x.png "$resources/Snapshots/${cid}_snapshot_2.0x.png"
+          Write-Output "::notice::Snapshot for class $cid"
+
       - uses: actions/upload-artifact@v6
         with:
           name: Breakseq-vst3

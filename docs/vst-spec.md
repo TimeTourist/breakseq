@@ -35,6 +35,10 @@ En VST kan inte själv lägga ett klipp i Reasons sekvenser som Dr. Octo Rex gö
 
 Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gör. Pluginen visar inte vilken tangent som spelar vilket ljud. *(Magnus beslut 2026-10-29.)*
 
+## Bilden i Reasons lista
+
+Pluginen har en VST3-snapshot, en smiley med namnet (`vst/resources/`), i bundlen under `Contents/Resources/Snapshots`, så att en värd som läser standarden visar den utan att man tar en skärmbild. *(Magnus beslut 2026-10-30, steg 1.)* Läser Reason 13 den inte är steg 2 att pluginen lägger bilden i Reasons egen mapp för skärmbilder, om ingen finns där; det kräver Reasons filnamn.
+
 ## Uppspelning och tempo
 
 - **Play i pluginen** gör som i webbappen och är oberoende av Reasons transport; ljudet går ut genom pluginens utgång, ihop med bitarna som noterna spelar. *(Magnus beslut; Play som följer Reasons transport kan komma senare.)*
