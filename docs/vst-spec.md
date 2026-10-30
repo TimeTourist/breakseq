@@ -29,7 +29,7 @@ Båda sitter i en list längst ner i pluginfönstret, alltid synlig, med knappar
 - **Song to Audio:** låten som den hörs, med det som klingar ut efter slutet, som en WAV i Reasons samplingsfrekvens.
 - **Song to MIDI:** som rx2-exporten i webbappen *(Magnus beslut)*: varje unikt ljud blir en bit på en tangent från C1, högst 92, där ett slag har all bearbetning utom reverb och delay och Tape, Scratch och ljudmods klipps ur låten som den hörs. Reverb och delay blir en egen WAV med eget dragfält. Bitarna fryses i instansen, och samplern spelar dem när Reason skickar noter.
 
-- **Song to REX** *(Magnus beslut 2026-10-30, ett försök bredvid Song to MIDI; tas bort om det inte blir bra)*: samma bitar som Song to MIDI, men som en REX-fil (som Export MIDI + REX i webbappen, med samma nivåer) och ett MIDI-klipp till den. REX-filen dras till racket och blir en Dr. Octo Rex, MIDI-klippet till dess spår; reverb/delay till ett audiospår som förut. Inget fryses i instansen och tangenterna rörs inte: varje Song to REX blir en egen Octo Rex. Listen får en tredje knapp med fälten *REX* och *MIDI for REX*; *Reverb/delay* delas med Song to MIDI.
+- **Song to REX** *(Magnus beslut 2026-10-30, ett försök bredvid Song to MIDI; funkar i Reason, och alla tre knapparna är kvar tills vidare för att se vilken som används, Magnus beslut 2026-10-30)*: samma bitar som Song to MIDI, men som en REX-fil (som Export MIDI + REX i webbappen, med samma nivåer) och ett MIDI-klipp till den. REX-filen dras till racket och blir en Dr. Octo Rex, MIDI-klippet till dess spår; reverb/delay till ett audiospår som förut. Inget fryses i instansen och tangenterna rörs inte: varje Song to REX blir en egen Octo Rex. Listen får en tredje knapp med fälten *REX* och *MIDI for REX*; *Reverb/delay* delas med Song to MIDI.
 
 En VST kan inte själv lägga ett klipp i Reasons sekvenser som Dr. Octo Rex gör (*Copy Loop to Track*), och tredjeparts-VST:er i Reason kan inte skicka MIDI ut. *(Utrett 2026-10-29.)*
 
@@ -37,7 +37,7 @@ Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gö
 
 ## Bilden i Reasons lista
 
-Pluginen har en VST3-snapshot, en smiley med namnet (`vst/resources/`), i bundlen under `Contents/Resources/Snapshots`, så att en värd som läser standarden visar den utan att man tar en skärmbild. *(Magnus beslut 2026-10-30, steg 1.)* Läser Reason 13 den inte är steg 2 att pluginen lägger bilden i Reasons egen mapp för skärmbilder, om ingen finns där; det kräver Reasons filnamn.
+Pluginen har en VST3-snapshot, en smiley med namnet (`vst/resources/`), i bundlen under `Contents/Resources/Snapshots`, så att en värd som läser standarden visar den utan att man tar en skärmbild. *(Magnus beslut 2026-10-30, steg 1.)* Reason 13 läser den inte (provat av Magnus 2026-10-30). Därför är steg 2 att pluginen lägger bilden i Reasons egen mapp för skärmbilder, om ingen finns där; det kräver Reasons filnamn.
 
 ## Uppspelning och tempo
 
@@ -67,5 +67,5 @@ Undo-historiken sparas inte i låten; den börjar om när låten öppnas, som n�
 | 0 | Klar 2026-10-29 (se `docs/tasks/vst-fas-0-sammanfattning.md`). Spik: en minimal VST3 som bevisar i Reason 13 att den laddas, visar WebView2, spelar ett ljud på en not, sparar state i låten och att ett MIDI-klipp går att dra ut. Workflowet som bygger den. |
 | 1 | Klar 2026-10-29 (se `docs/tasks/vst-fas-1-sammanfattning.md`). Webbkoden kopieras till `vst/web` och körs i pluginen: alla vyer, Play ut genom pluginen, projektet sparat i Reason-låten, Reasons tempo. |
 | 2 | Klar 2026-10-30 (se `docs/tasks/vst-fas-2-sammanfattning.md`). Song to Audio och Song to MIDI (frysning av bitar, samplern, varningarna), som dragning från en list längst ner. |
-| 3 | Projektet som en fil, `.breakseq` (se Lagring): Open, New, Save as…, Import folder…, filen ihågkommen i låten; Project file bort. |
-| 4 | Song to REX bredvid Song to MIDI, som ett försök (se Song to Audio och Song to MIDI). |
+| 3 | Klar 2026-10-30 (se `docs/tasks/vst-fas-3-sammanfattning.md`). Projektet som en fil, `.breakseq` (se Lagring): Open, New, Save as…, Import folder…, filen ihågkommen i låten; Project file bort. |
+| 4 | Klar 2026-10-30 (se `docs/tasks/vst-fas-4-sammanfattning.md`). Song to REX bredvid Song to MIDI, som ett försök (se Song to Audio och Song to MIDI). |
