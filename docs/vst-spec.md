@@ -41,6 +41,8 @@ Fler än 92 bitar ryms inte; då säger Song to MIDI ifrån, som Export MIDI gö
 
 Projektet och de frysta bitarna sparas i Reason-låten som instansens state, så låten är självbärande. *(Magnus beslut.)* Autosave och backups i IndexedDB behövs inte i pluginen. Project-fliken behåller Load/Save av projektfil och snapshots, och därmed projektmapparna på disk där snapshots ligger; exporterna ersätts av Song to Audio och Song to MIDI. *(Magnus beslut 2026-10-29.)*
 
+Klippfilerna som dragfälten pekar på ligger i `AppData/Breakseq/Clips`; låten behöver dem inte, Reason har sin egen kopia av det som dragits in. När ett nytt klipp ersätter ett fälts fil tas den gamla bort när instansen försvinner, om ingen annan instans pekar på den. *(Magnus beslut 2026-10-30.)*
+
 Undo-historiken sparas inte i låten; den börjar om när låten öppnas, som när webbappen laddas om. *(Magnus beslut 2026-10-29.)*
 
 ## Faser

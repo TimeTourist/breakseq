@@ -40,6 +40,7 @@ juce_add_binary_data(BreakseqWeb SOURCES "${CMAKE_CURRENT_BINARY_DIR}/web.zip")
 target_sources(Breakseq PRIVATE
     src/PluginProcessor.cpp
     src/PluginEditor.cpp
+    src/Clips.cpp
     src/Mixer.cpp
     src/Sampler.cpp)
 
@@ -62,7 +63,7 @@ target_link_libraries(Breakseq
 
 # The mixer's and the sampler's tests: run by the workflow after the build.
 juce_add_console_app(BreakseqTests PRODUCT_NAME "BreakseqTests")
-target_sources(BreakseqTests PRIVATE tests/Main.cpp tests/MixerTests.cpp tests/SamplerTests.cpp src/Mixer.cpp src/Sampler.cpp)
+target_sources(BreakseqTests PRIVATE tests/Main.cpp tests/MixerTests.cpp tests/SamplerTests.cpp tests/ClipsTests.cpp src/Clips.cpp src/Mixer.cpp src/Sampler.cpp)
 target_compile_definitions(BreakseqTests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(BreakseqTests
     PRIVATE juce::juce_core juce::juce_audio_basics

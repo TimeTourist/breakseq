@@ -63,15 +63,17 @@ void BreakseqProcessor::getStateInformation (juce::MemoryBlock& destData)
     if (const auto pieces = sampler.getPieces())
         state.setProperty ("pieces", Sampler::write (*pieces), nullptr);
 
-    for (size_t i = 0; i < clips.size(); ++i)
+    for (size_t i = 0; i < Clips::fields; ++i)
     {
-        if (clips[i].file == juce::File())
+        const auto field = clips.get (i);
+
+        if (field.file == juce::File())
             continue;
 
         juce::ValueTree clip ("Clip");
         clip.setProperty ("field", fieldNames[i], nullptr);
-        clip.setProperty ("path", clips[i].file.getFullPathName(), nullptr);
-        clip.setProperty ("label", clips[i].label, nullptr);
+        clip.setProperty ("path", field.file.getFullPathName(), nullptr);
+        clip.setProperty ("label", field.label, nullptr);
         state.appendChild (clip, nullptr);
     }
 
@@ -94,12 +96,13 @@ void BreakseqProcessor::setStateInformation (const void* data, int sizeInBytes)
     else
         sampler.setPieces (nullptr);
 
-    clips = {};
+    for (size_t i = 0; i < Clips::fields; ++i)
+        clips.restore (i, {});
 
     for (const auto& clip : state)
-        for (size_t i = 0; i < clips.size(); ++i)
+        for (size_t i = 0; i < Clips::fields; ++i)
             if (clip.hasType ("Clip") && clip.getProperty ("field").toString() == fieldNames[i])
-                clips[i] = { juce::File (clip.getProperty ("path").toString()), clip.getProperty ("label").toString() };
+                clips.restore (i, { juce::File (clip.getProperty ("path").toString()), clip.getProperty ("label").toString() });
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
