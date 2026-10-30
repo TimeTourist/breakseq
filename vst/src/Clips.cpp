@@ -23,7 +23,8 @@ Clips::Clips (juce::File clipsFolder) : folder (std::move (clipsFolder))
 Clips::~Clips()
 {
     for (const auto& file : retired)
-        if (file.getLinkedTarget().isAChildOf (folder) && ! usedByAnyone (file))
+        // Deleting a link removes the link, never what it points at.
+        if (file.isAChildOf (folder) && ! usedByAnyone (file))
             file.deleteFile();
 
     live().removeFirstMatchingValue (this);
